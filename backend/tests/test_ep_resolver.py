@@ -121,6 +121,16 @@ def test_missing_drf_folder_returns_empty(tmp_path):
     assert matches == []
 
 
+def test_finds_drf_in_numbered_scan_folder_variant(tmp_path):
+    # EP-30784's real shape: "01- EP-30784 Scan", not "Scan Document(s)".
+    project = tmp_path / "EP-30784 - Binghatti Skyblade"
+    drf = project / "01- EP-30784 Scan" / "EP-30784 DRF.pdf"
+    touch(drf)
+
+    matches = find_drf_candidates(project)
+    assert [m.path for m in matches] == [drf]
+
+
 # --- find_design_sheet_candidates ---
 
 
@@ -162,6 +172,23 @@ def test_missing_design_sheet_folder_returns_empty(tmp_path):
 
     matches = find_design_sheet_candidates(project)
     assert matches == []
+
+
+def test_finds_design_sheets_alongside_drf_in_numbered_scan_folder(tmp_path):
+    # EP-30784's real shape: DRF and multiple Design Sheets share one
+    # "01- EP-30784 Scan" folder, no separate Commercial folder.
+    project = tmp_path / "EP-30784 - Binghatti Skyblade"
+    scan_folder = project / "01- EP-30784 Scan"
+    touch(scan_folder / "EP-30784 DRF.pdf")
+    touch(scan_folder / "EP-30784 FAS Design.pdf")
+    touch(scan_folder / "EP-30784 EML Design.pdf")
+
+    ds_matches = find_design_sheet_candidates(project)
+    systems = {m.system_guess for m in ds_matches}
+    assert systems == {"FAS", "EML"}
+
+    drf_matches = find_drf_candidates(project)
+    assert len(drf_matches) == 1
 
 
 # --- resolve_project: end-to-end orchestration ---

@@ -32,15 +32,30 @@ MAX_EP_SEARCH_DEPTH = 4
 # at depth 1 (immediate child). A small margin is kept for variants.
 MAX_DOCUMENT_SEARCH_DEPTH = 3
 
-DRF_FOLDER_RE = re.compile(r"scan documents?", re.IGNORECASE)
+
+# Document-holding folder shapes observed in the archive:
+#   - "Scan Document" / "Scan Documents" (split from a separate Commercial
+#     folder) -- e.g. EP-29495
+#   - "01- EP-30784 Scan" (DRF *and* Design Sheets together, no separate
+#     Commercial folder) -- e.g. EP-30784
+#   - "EP-#### Commercial" / "Commercial Document" (Design Sheets only,
+#     DRF elsewhere) -- e.g. EP-30851, EP-28929
+# So both document types are looked for in any folder matching either half
+# of this pattern, rather than assuming a fixed split.
+DOCUMENT_FOLDER_RE = re.compile(r"\bscan\b|commercial", re.IGNORECASE)
+
 DRF_FILENAME_RE = re.compile(r"drf", re.IGNORECASE)
 DRF_EXTENSIONS = (".pdf", ".jpg", ".jpeg", ".png", ".tif", ".tiff")
 
-DESIGN_SHEET_FOLDER_RE = re.compile(r"commercial", re.IGNORECASE)
 DESIGN_SHEET_FILENAME_RE = re.compile(r"design", re.IGNORECASE)
 DESIGN_SHEET_EXTENSIONS = (".pdf", ".xlsx", ".xls")
 
-SYSTEM_CODE_RE = re.compile(r"\b(FAS|ELS|PAVA|CBS|VES|NAC)\b", re.IGNORECASE)
+# FAS: Fire Alarm System, ELS/EML: Emergency Lighting (System), PAVA: Public
+# Address/Voice Alarm, CBS: Central Battery System, VES: Voice Evacuation
+# System, NAC: Notification Appliance Circuit. Filenames use inconsistent
+# abbreviations for the same system (ELS vs EML both seen for Emergency
+# Lighting) -- extend this list as new real filenames turn up.
+SYSTEM_CODE_RE = re.compile(r"\b(FAS|ELS|EML|PAVA|CBS|VES|NAC)\b", re.IGNORECASE)
 
 
 def _ep_folder_pattern(ep_number: str) -> re.Pattern:
@@ -112,7 +127,7 @@ def find_drf_candidates(
     for dirpath, _dirnames, filenames in _walk_with_errors(
         project_folder, MAX_DOCUMENT_SEARCH_DEPTH, errors
     ):
-        if not DRF_FOLDER_RE.search(Path(dirpath).name):
+        if not DOCUMENT_FOLDER_RE.search(Path(dirpath).name):
             continue
         for fname in filenames:
             if DRF_FILENAME_RE.search(fname) and fname.lower().endswith(DRF_EXTENSIONS):
@@ -120,7 +135,7 @@ def find_drf_candidates(
                     DocumentMatch(
                         path=Path(dirpath) / fname,
                         system_guess=None,
-                        matched_via="folder~Scan Document(s), filename~DRF",
+                        matched_via="folder~scan/commercial, filename~DRF",
                     )
                 )
     return results
@@ -135,7 +150,7 @@ def find_design_sheet_candidates(
     for dirpath, _dirnames, filenames in _walk_with_errors(
         project_folder, MAX_DOCUMENT_SEARCH_DEPTH, errors
     ):
-        if not DESIGN_SHEET_FOLDER_RE.search(Path(dirpath).name):
+        if not DOCUMENT_FOLDER_RE.search(Path(dirpath).name):
             continue
         for fname in filenames:
             if DESIGN_SHEET_FILENAME_RE.search(fname) and fname.lower().endswith(
@@ -146,7 +161,7 @@ def find_design_sheet_candidates(
                     DocumentMatch(
                         path=Path(dirpath) / fname,
                         system_guess=system_match.group(1).upper() if system_match else None,
-                        matched_via="folder~Commercial, filename~Design",
+                        matched_via="folder~scan/commercial, filename~Design",
                     )
                 )
     return results
