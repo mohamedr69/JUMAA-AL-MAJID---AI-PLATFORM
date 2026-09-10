@@ -49,6 +49,15 @@ def _ep_folder_pattern(ep_number: str) -> re.Pattern:
     return re.compile(rf"^EP[-_ ]?{re.escape(ep_number)}(?!\d)", re.IGNORECASE)
 
 
+# Matches *any* EP-numbered folder, not a specific number. A project folder
+# never contains another project folder, so this is used to prune descent
+# during search -- without it, an unrelated internal subfolder that happens
+# to reuse an EP-number-shaped name (observed in the archive, e.g. a "Cabinet
+# Sample" folder named after a different EP number) gets misread as a
+# duplicate top-level match for that other number.
+ANY_EP_FOLDER_RE = re.compile(r"^EP[-_ ]?\d{4,6}(?!\d)", re.IGNORECASE)
+
+
 def _walk_with_errors(root: Path, max_depth: int, errors: list[str]):
     root = Path(root)
 
@@ -79,8 +88,10 @@ def find_ep_folders(root: Path, ep_number: str, errors: list[str] | None = None)
         for name in list(dirnames):
             if pattern.match(name):
                 matches.append(Path(dirpath) / name)
-        # Don't descend into a matched project folder looking for nested EPs.
-        dirnames[:] = [d for d in dirnames if not pattern.match(d)]
+        # Never descend into any EP-numbered folder -- a project folder does
+        # not contain another project folder, whether or not its number is
+        # the one being searched for.
+        dirnames[:] = [d for d in dirnames if not ANY_EP_FOLDER_RE.match(d)]
 
     return matches
 
@@ -159,7 +170,20 @@ class ProjectResolution:
         return len(self.matched_folders) > 1
 
 
-def resolve_project(root: Path, ep_number: str) -> ProjectResolution:
+def resolve_project(
+    root: Path, ep_number: str, selected_folder: Path | None = None
+) -> ProjectResolution:
+    """Resolve an EP number to its documents.
+
+    When multiple folders match, this does NOT guess -- it returns the
+    candidates and no document scan, so the caller can present a "which
+    folder is this?" choice. Pass the folder the user picked back in as
+    `selected_folder` to complete the resolution. This matters here: EP
+    numbers are not unique folder identifiers in the real archive (the same
+    number can legitimately label several folders across different
+    contractors/scope variants for one building), so "duplicate EP numbers"
+    is the common case, not an edge case.
+    """
     errors: list[str] = []
     folders = find_ep_folders(root, ep_number, errors)
     resolution = ProjectResolution(ep_number=ep_number, matched_folders=folders, errors=errors)
@@ -173,8 +197,14 @@ def resolve_project(root: Path, ep_number: str) -> ProjectResolution:
             f"Multiple folders found for EP number '{ep_number}': "
             + "; ".join(str(f) for f in folders)
         )
+        if selected_folder is None:
+            resolution.warnings.append("Select one of the matched folders to continue")
+            return resolution
+        if selected_folder not in folders:
+            resolution.warnings.append("Selected folder is not one of the matched folders")
+            return resolution
 
-    target_folder = folders[0]
+    target_folder = selected_folder if selected_folder is not None else folders[0]
     resolution.drf_candidates = find_drf_candidates(target_folder, errors)
     resolution.design_sheet_candidates = find_design_sheet_candidates(target_folder, errors)
 

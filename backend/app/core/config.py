@@ -25,6 +25,11 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:5173"]
 
+    # Local-filesystem dev/test shim for the project archive (synced OneDrive
+    # tree). Production should replace this with Microsoft Graph search
+    # against SharePoint -- see app/services/ep_resolver.py docstring.
+    projects_root: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
