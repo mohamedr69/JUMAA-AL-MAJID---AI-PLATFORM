@@ -16,6 +16,12 @@ class DocumentCandidateOut(BaseModel):
     system_guess: str | None = None
 
 
+class ExtractedFieldOut(BaseModel):
+    value: str
+    confidence: float
+    raw_label: str
+
+
 class ProjectResolveResponse(BaseModel):
     ep_number: str
     folder_found: bool
@@ -25,6 +31,8 @@ class ProjectResolveResponse(BaseModel):
     design_sheet_candidates: list[DocumentCandidateOut]
     warnings: list[str]
     errors: list[str]
+    extracted_fields: dict[str, ExtractedFieldOut] = {}
+    extraction_warnings: list[str] = []
 
 
 class ProjectDesignSheetIn(BaseModel):

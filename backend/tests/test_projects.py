@@ -58,6 +58,10 @@ def test_resolve_happy_path(client, monkeypatch, tmp_path):
     assert len(body["design_sheet_candidates"]) == 1
     assert body["design_sheet_candidates"][0]["system_guess"] == "FAS"
     assert body["warnings"] == []
+    # The fixture DRF is a fake (non-PDF) file -- extraction should fail
+    # gracefully rather than break the resolve response.
+    assert body["extracted_fields"] == {}
+    assert body["extraction_warnings"]
 
 
 def test_resolve_ep_not_found(client, monkeypatch, tmp_path):

@@ -3,10 +3,15 @@ import { ApiError, api } from "../lib/api";
 import {
   SCOPE_OF_WORK_OPTIONS,
   SYSTEM_OPTIONS,
+  type ExtractedFieldName,
   type Project,
   type ProjectCreate,
   type ProjectResolveResponse,
 } from "../lib/types";
+
+function extracted(resolution: ProjectResolveResponse, name: ExtractedFieldName): string {
+  return resolution.extracted_fields[name]?.value ?? "";
+}
 
 export function ReviewProjectForm({
   epNumber,
@@ -19,15 +24,17 @@ export function ReviewProjectForm({
   resolution: ProjectResolveResponse;
   onCreated: (project: Project) => void;
 }) {
-  const [projectName, setProjectName] = useState("");
-  const [plotNumber, setPlotNumber] = useState("");
-  const [location, setLocation] = useState("");
-  const [client, setClient] = useState("");
-  const [consultant, setConsultant] = useState("");
-  const [contractor, setContractor] = useState("");
-  const [contactPerson, setContactPerson] = useState("");
-  const [contactPhone, setContactPhone] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
+  const hasExtraction = Object.keys(resolution.extracted_fields).length > 0;
+
+  const [projectName, setProjectName] = useState(() => extracted(resolution, "project_title"));
+  const [plotNumber, setPlotNumber] = useState(() => extracted(resolution, "plot_number"));
+  const [location, setLocation] = useState(() => extracted(resolution, "location"));
+  const [client, setClient] = useState(() => extracted(resolution, "client"));
+  const [consultant, setConsultant] = useState(() => extracted(resolution, "consultant"));
+  const [contractor, setContractor] = useState(() => extracted(resolution, "contractor"));
+  const [contactPerson, setContactPerson] = useState(() => extracted(resolution, "contact_person"));
+  const [contactPhone, setContactPhone] = useState(() => extracted(resolution, "contact_phone"));
+  const [contactEmail, setContactEmail] = useState(() => extracted(resolution, "contact_email"));
   const [scopeOfWork, setScopeOfWork] = useState<string>("");
   const [systems, setSystems] = useState<string[]>([]);
   const [otherInformation, setOtherInformation] = useState("");
@@ -82,8 +89,9 @@ export function ReviewProjectForm({
     <div className="mx-auto max-w-2xl">
       <h1 className="text-xl font-bold text-navy-900">Review Project Information</h1>
       <p className="mt-1 text-sm text-gray-500">
-        Documents were located automatically. Enter the project details below, then create the
-        project.
+        {hasExtraction
+          ? "Fields below were read from the DRF automatically. Please review and correct anything before creating the project."
+          : "Documents were located automatically. Enter the project details below, then create the project."}
       </p>
 
       <div className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
@@ -106,22 +114,22 @@ export function ReviewProjectForm({
           <Field label="EP Number">
             <input disabled value={epNumber} className="input bg-gray-50 text-gray-500" />
           </Field>
-          <Field label="Project Name">
+          <Field label="Project Name" confidence={resolution.extracted_fields.project_title?.confidence}>
             <input value={projectName} onChange={(e) => setProjectName(e.target.value)} className="input" />
           </Field>
-          <Field label="Plot Number">
+          <Field label="Plot Number" confidence={resolution.extracted_fields.plot_number?.confidence}>
             <input value={plotNumber} onChange={(e) => setPlotNumber(e.target.value)} className="input" />
           </Field>
-          <Field label="Location">
+          <Field label="Location" confidence={resolution.extracted_fields.location?.confidence}>
             <input value={location} onChange={(e) => setLocation(e.target.value)} className="input" />
           </Field>
-          <Field label="Client">
+          <Field label="Client" confidence={resolution.extracted_fields.client?.confidence}>
             <input value={client} onChange={(e) => setClient(e.target.value)} className="input" />
           </Field>
-          <Field label="Consultant">
+          <Field label="Consultant" confidence={resolution.extracted_fields.consultant?.confidence}>
             <input value={consultant} onChange={(e) => setConsultant(e.target.value)} className="input" />
           </Field>
-          <Field label="Contractor">
+          <Field label="Contractor" confidence={resolution.extracted_fields.contractor?.confidence}>
             <input value={contractor} onChange={(e) => setContractor(e.target.value)} className="input" />
           </Field>
           <Field label="Scope of Work">
@@ -134,13 +142,17 @@ export function ReviewProjectForm({
               ))}
             </select>
           </Field>
-          <Field label="Contact Person">
+          <Field label="Contact Person" confidence={resolution.extracted_fields.contact_person?.confidence}>
             <input value={contactPerson} onChange={(e) => setContactPerson(e.target.value)} className="input" />
           </Field>
-          <Field label="Contact Phone">
+          <Field label="Contact Phone" confidence={resolution.extracted_fields.contact_phone?.confidence}>
             <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} className="input" />
           </Field>
-          <Field label="Contact Email" className="sm:col-span-2">
+          <Field
+            label="Contact Email"
+            className="sm:col-span-2"
+            confidence={resolution.extracted_fields.contact_email?.confidence}
+          >
             <input
               type="email"
               value={contactEmail}
@@ -213,15 +225,40 @@ function Field({
   label,
   children,
   className = "",
+  confidence,
 }: {
   label: string;
   children: React.ReactNode;
   className?: string;
+  confidence?: number;
 }) {
   return (
     <label className={`block text-sm font-medium text-gray-700 ${className}`}>
-      {label}
+      <span className="flex items-center gap-1.5">
+        {label}
+        <ConfidenceBadge confidence={confidence} />
+      </span>
       <div className="mt-1">{children}</div>
     </label>
+  );
+}
+
+function ConfidenceBadge({ confidence }: { confidence?: number }) {
+  if (confidence === undefined) return null;
+
+  const tier =
+    confidence >= 85
+      ? { label: "auto-filled", classes: "bg-green-50 text-green-700" }
+      : confidence >= 60
+        ? { label: "check this", classes: "bg-amber-50 text-amber-700" }
+        : { label: "low confidence", classes: "bg-red-50 text-red-700" };
+
+  return (
+    <span
+      className={`rounded-full px-1.5 py-0.5 text-[10px] font-normal normal-case ${tier.classes}`}
+      title={`OCR confidence: ${confidence.toFixed(0)}%`}
+    >
+      {tier.label}
+    </span>
   );
 }

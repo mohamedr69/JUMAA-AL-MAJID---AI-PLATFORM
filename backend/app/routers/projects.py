@@ -9,11 +9,13 @@ from app.deps import get_current_user, require_role
 from app.models import Project, ProjectDesignSheet, ProjectStatus, RoleEnum, User
 from app.schemas_project import (
     DocumentCandidateOut,
+    ExtractedFieldOut,
     ProjectCreate,
     ProjectOut,
     ProjectResolveRequest,
     ProjectResolveResponse,
 )
+from app.services.drf_extractor import extract_drf_fields
 from app.services.ep_resolver import resolve_project
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -43,6 +45,22 @@ def resolve(
     selected = Path(payload.selected_folder) if payload.selected_folder else None
     result = resolve_project(root, payload.ep_number, selected_folder=selected)
 
+    extracted_fields: dict[str, ExtractedFieldOut] = {}
+    extraction_warnings: list[str] = []
+    if result.drf_candidates:
+        # Best-effort: a broken/unreadable DRF or a missing OCR install
+        # shouldn't fail the whole resolve -- the engineer can still fill
+        # the review form in manually.
+        try:
+            extraction = extract_drf_fields(result.drf_candidates[0].path)
+            extracted_fields = {
+                name: ExtractedFieldOut(value=f.value, confidence=f.confidence, raw_label=f.raw_label)
+                for name, f in extraction.fields.items()
+            }
+            extraction_warnings = extraction.warnings
+        except Exception as exc:  # noqa: BLE001
+            extraction_warnings = [f"DRF field extraction failed: {exc}"]
+
     return ProjectResolveResponse(
         ep_number=result.ep_number,
         folder_found=not result.folder_not_found,
@@ -58,6 +76,8 @@ def resolve(
         ],
         warnings=result.warnings,
         errors=result.errors,
+        extracted_fields=extracted_fields,
+        extraction_warnings=extraction_warnings,
     )
 
 

@@ -24,6 +24,24 @@ export interface DocumentCandidate {
   system_guess: string | null;
 }
 
+export interface ExtractedField {
+  value: string;
+  confidence: number;
+  raw_label: string;
+}
+
+// Keys match the backend's drf_extractor field names.
+export type ExtractedFieldName =
+  | "project_title"
+  | "plot_number"
+  | "location"
+  | "client"
+  | "consultant"
+  | "contractor"
+  | "contact_person"
+  | "contact_phone"
+  | "contact_email";
+
 export interface ProjectResolveResponse {
   ep_number: string;
   folder_found: boolean;
@@ -33,6 +51,8 @@ export interface ProjectResolveResponse {
   design_sheet_candidates: DocumentCandidate[];
   warnings: string[];
   errors: string[];
+  extracted_fields: Partial<Record<ExtractedFieldName, ExtractedField>>;
+  extraction_warnings: string[];
 }
 
 export interface ProjectDesignSheetIn {

@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     # against SharePoint -- see app/services/ep_resolver.py docstring.
     projects_root: str | None = None
 
+    # Path to tesseract.exe. Only needed if it's not already on PATH.
+    tesseract_cmd: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
