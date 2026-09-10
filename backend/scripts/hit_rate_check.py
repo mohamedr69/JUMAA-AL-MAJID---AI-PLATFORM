@@ -35,6 +35,16 @@ from app.services.ep_resolver import (  # noqa: E402
 
 EP_NAME_RE = re.compile(r"^EP[-_ ]?(\d{4,6})", re.IGNORECASE)
 
+# Excludes EP-numbered *utility* subfolders (a commercial-docs folder, a
+# cause-and-effect working folder, an ELV input folder, ...) from the sample
+# -- they aren't project roots, can't contain a "Scan Document" or
+# "Commercial" child of their own, and would understate the classification
+# hit rate if counted as "no DRF" / "no Design Sheet".
+UTILITY_SUFFIX_RE = re.compile(
+    r"(commercial|commerical|scan|documents?|c\s*&\s*e|\bms\b|elv input|elv-?\s*input)",
+    re.IGNORECASE,
+)
+
 
 def sample_ep_folders(root: Path, max_clients: int, per_client: int) -> list[tuple[str, Path]]:
     """Take up to `per_client` EP folders from each of up to `max_clients`
@@ -62,7 +72,7 @@ def sample_ep_folders(root: Path, max_clients: int, per_client: int) -> list[tup
                     continue
                 for name in dirnames:
                     m = EP_NAME_RE.match(name)
-                    if m:
+                    if m and not UTILITY_SUFFIX_RE.search(name):
                         found_here.append((m.group(1), Path(dirpath) / name))
                 dirnames[:] = [d for d in dirnames if not ANY_EP_FOLDER_RE.match(d)]
                 if len(found_here) >= per_client:
