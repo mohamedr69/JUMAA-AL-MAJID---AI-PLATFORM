@@ -1,9 +1,9 @@
 import enum
 from datetime import datetime
-
 from decimal import Decimal
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Enum,
@@ -94,6 +94,13 @@ class Project(Base):
     # overwrite their corrections.
     boq_extracted_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
+    # Sheets that extraction could not read, kept because the read happens
+    # once and cannot be repeated: returned only on the response that did it,
+    # the warning was lost whenever that response was (React StrictMode
+    # discards the first of its paired requests), leaving the sheet's lines
+    # silently missing.
+    boq_extraction_warnings: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+
     design_engineer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     design_engineer = relationship("User", foreign_keys=[design_engineer_id])
 
@@ -118,6 +125,11 @@ class Project(Base):
         back_populates="project",
         cascade="all, delete-orphan",
         order_by="ProjectBoqItem.position",
+    )
+    boq_revisions: Mapped[list["ProjectBoqRevision"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="ProjectBoqRevision.number",
     )
 
 
@@ -146,10 +158,9 @@ class ProjectBoqItem(Base):
     """One Bill of Quantities line.
 
     Modelled on the Design Sheets in the archive, which are quotations laid
-    out as qty / catalog no / description / unit price / total price. Those
-    sheets have no single template -- a scanned FAS quotation and an ELS
-    spreadsheet export share only that shape -- so lines are entered and
-    edited here rather than read out of the document.
+    out as qty / catalog no / description / unit price / total price, plus
+    the plan's BOQ columns the sheets do not carry (manufacturer, unit,
+    remarks). Lines are read out of the sheets once, then edited here.
     """
 
     __tablename__ = "project_boq_items"
@@ -168,6 +179,9 @@ class ProjectBoqItem(Base):
     # loose items once they are in a flat table.
     group_heading: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
+    # Pre-filled on extraction from the brand the DRF gives the line's system;
+    # the sheets name the maker in their header, not on each line.
+    manufacturer: Mapped[str | None] = mapped_column(String(128), nullable=True)
     catalog_no: Mapped[str | None] = mapped_column(String(128), nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
 
@@ -175,9 +189,44 @@ class ProjectBoqItem(Base):
     # they use "505", and rewriting that as a number would lose what the
     # document actually says.
     quantity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # "Nos", "m", "Set"... The sheets have no unit column, so it starts empty.
+    unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
 
     unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     total_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+
+    remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ProjectBoqRevision(Base):
+    """An issued BOQ revision (Rev 00, Rev 01, ...): a frozen copy of the
+    lines as they stood when it was issued.
+
+    A snapshot rather than references to project_boq_items, because every
+    BOQ save replaces those rows wholesale -- there is nothing lasting to
+    point at. Nothing updates or deletes a revision: an issued BOQ is the
+    record of what went out.
+    """
+
+    __tablename__ = "project_boq_revisions"
+    __table_args__ = (UniqueConstraint("project_id", "number", name="uq_boq_revision_number"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    project: Mapped["Project"] = relationship(back_populates="boq_revisions")
+
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # ProjectBoqItemIn dicts, in BOQ order.
+    items: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
+
+    issued_by_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    issued_by = relationship("User")
+    issued_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+    @property
+    def label(self) -> str:
+        return f"Rev {self.number:02d}"
 
 
 class ProjectDesignSheet(Base):

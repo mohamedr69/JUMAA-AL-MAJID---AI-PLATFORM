@@ -1,7 +1,7 @@
 import re
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict
 
@@ -56,11 +56,14 @@ class ProjectSystemOut(ProjectSystemIn):
 class ProjectBoqItemIn(BaseModel):
     system_code: str | None = None
     group_heading: str | None = None
+    manufacturer: str | None = None
     catalog_no: str | None = None
     description: str
     quantity: str | None = None
+    unit: str | None = None
     unit_price: Decimal | None = None
     total_price: Decimal | None = None
+    remarks: str | None = None
 
 
 class ProjectBoqItemOut(ProjectBoqItemIn):
@@ -72,11 +75,43 @@ class ProjectBoqItemOut(ProjectBoqItemIn):
 
 class BoqEnsureResponse(BaseModel):
     """The project's BOQ, plus whether this call was the one that read it out
-    of the Design Sheets and anything that could not be read."""
+    of the Design Sheets and which sheets could not be read. The warnings are
+    stored, so every call returns them, not just the one that extracted."""
 
     items: list[ProjectBoqItemOut]
     extracted: bool
     warnings: list[str] = []
+
+
+class BoqRevisionIssue(BaseModel):
+    note: str | None = None
+
+
+class BoqRevisionSummaryOut(BaseModel):
+    number: int
+    label: str
+    note: str | None
+    issued_at: datetime
+    issued_by_name: str
+    line_count: int
+
+
+class BoqRevisionOut(BoqRevisionSummaryOut):
+    items: list[ProjectBoqItemIn]
+
+
+class BoqChangeOut(BaseModel):
+    kind: Literal["added", "removed", "changed"]
+    before: ProjectBoqItemIn | None
+    after: ProjectBoqItemIn | None
+    # For "changed": which of manufacturer, quantity, unit, prices, remarks.
+    fields: list[str]
+
+
+class BoqCompareOut(BaseModel):
+    from_label: str
+    to_label: str
+    changes: list[BoqChangeOut]
 
 
 class ProjectResolveResponse(BaseModel):
@@ -107,8 +142,11 @@ class ProjectDesignSheetOut(BaseModel):
     document_path: str
 
 
-class ProjectCreate(BaseModel):
-    ep_number: EpNumber
+class ProjectDetailsIn(BaseModel):
+    """The project information an engineer reviews at creation and can
+    correct later. Not the EP number, which ties the project to its archive
+    folder, nor the document paths the resolver found."""
+
     project_name: str | None = None
     plot_number: str | None = None
     location: str | None = None
@@ -121,6 +159,10 @@ class ProjectCreate(BaseModel):
     scope_of_work: str | None = None
     systems: list[ProjectSystemIn] = []
     other_information: str | None = None
+
+
+class ProjectCreate(ProjectDetailsIn):
+    ep_number: EpNumber
     source_folder_path: str | None = None
     drf_document_path: str | None = None
     design_sheets: list[ProjectDesignSheetIn] = []
@@ -147,4 +189,5 @@ class ProjectOut(BaseModel):
     source_folder_path: str | None
     drf_document_path: str | None
     design_sheets: list[ProjectDesignSheetOut]
+    boq_extraction_warnings: list[str] | None
     created_at: datetime

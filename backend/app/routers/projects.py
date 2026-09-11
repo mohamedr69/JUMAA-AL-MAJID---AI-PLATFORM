@@ -1,7 +1,8 @@
 import threading
 from pathlib import Path
+from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -13,6 +14,7 @@ from app.deps import get_current_user, require_role
 from app.models import (
     Project,
     ProjectBoqItem,
+    ProjectBoqRevision,
     ProjectDesignSheet,
     ProjectStatus,
     ProjectSystem,
@@ -20,12 +22,18 @@ from app.models import (
     User,
 )
 from app.schemas_project import (
+    BoqChangeOut,
+    BoqCompareOut,
     BoqEnsureResponse,
+    BoqRevisionIssue,
+    BoqRevisionOut,
+    BoqRevisionSummaryOut,
     DocumentCandidateOut,
     ExtractedFieldOut,
     ProjectBoqItemIn,
     ProjectBoqItemOut,
     ProjectCreate,
+    ProjectDetailsIn,
     ProjectOut,
     ProjectResolveRequest,
     ProjectResolveResponse,
@@ -36,6 +44,8 @@ from app.services.design_sheet_extractor import (
     ExtractedBoqLine,
     extract_boq_lines,
 )
+from app.services.boq_export import boq_workbook
+from app.services.boq_revisions import compare_boq
 from app.services.drf_extractor import extract_drf_fields
 from app.services.ep_resolver import resolve_project
 
@@ -48,6 +58,8 @@ CREATOR_ROLES = (RoleEnum.admin, RoleEnum.design_manager, RoleEnum.design_engine
 # with the roles that own a project's lifecycle rather than everyone who can
 # create one -- a Design Engineer can start a project but not erase one.
 DELETER_ROLES = (RoleEnum.admin, RoleEnum.design_manager)
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 # Makes the second of two overlapping BOQ opens -- React StrictMode fires
 # every effect twice in dev -- wait for the first and return its result
@@ -152,34 +164,15 @@ def create_project(
     project = Project(
         ep_number=payload.ep_number,
         status=ProjectStatus.active,
-        project_name=payload.project_name,
-        plot_number=payload.plot_number,
-        location=payload.location,
-        client=payload.client,
-        consultant=payload.consultant,
-        contractor=payload.contractor,
-        contact_person=payload.contact_person,
-        contact_phone=payload.contact_phone,
-        contact_email=payload.contact_email,
-        scope_of_work=payload.scope_of_work,
-        other_information=payload.other_information,
         source_folder_path=payload.source_folder_path,
         drf_document_path=payload.drf_document_path,
         design_engineer_id=current_user.id,
         created_by_id=current_user.id,
     )
+    _apply_details(project, payload)
     project.design_sheets = [
         ProjectDesignSheet(system_code=ds.system_code, document_path=ds.document_path)
         for ds in payload.design_sheets
-    ]
-    project.systems = [
-        ProjectSystem(
-            name=s.name,
-            brand=s.brand,
-            method_statement=s.method_statement,
-            drawing=s.drawing,
-        )
-        for s in payload.systems
     ]
 
     db.add(project)
@@ -211,6 +204,24 @@ def get_project(
     return _get_project_or_404(db, project_id)
 
 
+@router.put("/{project_id}", response_model=ProjectOut)
+def update_project(
+    project_id: int,
+    payload: ProjectDetailsIn,
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> Project:
+    """Correct the project information after creation -- the DRF read is a
+    suggestion, and a wrong value found later needs somewhere to be fixed.
+    The EP number and document paths are not editable: they tie the project
+    to its archive folder."""
+    project = _get_project_or_404(db, project_id)
+    _apply_details(project, payload)
+    db.commit()
+    db.refresh(project)
+    return project
+
+
 @router.get("/{project_id}/boq", response_model=list[ProjectBoqItemOut])
 def get_project_boq(
     project_id: int,
@@ -218,6 +229,35 @@ def get_project_boq(
     db: Session = Depends(get_db),
 ) -> list[ProjectBoqItem]:
     return _get_project_or_404(db, project_id).boq_items
+
+
+@router.get("/{project_id}/boq/export.xlsx")
+def export_project_boq(
+    project_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """The saved BOQ as an Excel workbook: a Summary sheet, then one sheet per
+    system. Anyone who can see the BOQ can export it."""
+    project = _get_project_or_404(db, project_id)
+    content = boq_workbook(
+        project,
+        project.boq_items,
+        [sheet.system_code for sheet in project.design_sheets],
+        exported_by=current_user.full_name,
+        exported_at=utc_now(),
+    )
+    return _xlsx_response(content, f"EP-{project.ep_number} BOQ.xlsx")
+
+
+def _xlsx_response(content: bytes, filename: str) -> Response:
+    return Response(
+        content,
+        media_type=XLSX_MEDIA_TYPE,
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{filename}\"; filename*=UTF-8''{quote(filename)}"
+        },
+    )
 
 
 @router.put("/{project_id}/boq", response_model=list[ProjectBoqItemOut])
@@ -236,17 +276,7 @@ def replace_project_boq(
     """
     project = _get_project_or_404(db, project_id)
     project.boq_items = [
-        ProjectBoqItem(
-            system_code=item.system_code,
-            position=index,
-            group_heading=item.group_heading,
-            catalog_no=item.catalog_no,
-            description=item.description,
-            quantity=item.quantity,
-            unit_price=item.unit_price,
-            total_price=item.total_price,
-        )
-        for index, item in enumerate(items)
+        ProjectBoqItem(position=index, **item.model_dump()) for index, item in enumerate(items)
     ]
     db.commit()
     db.refresh(project)
@@ -268,19 +298,19 @@ def ensure_project_boq(
     multi-page sheet is slow enough that doing it per page view would be felt.
 
     The stamp is set even when a sheet cannot be read, so an unreadable
-    layout is reported once instead of retried on every visit; the returned
-    warnings say which sheet, and its lines can be typed in by hand.
+    layout is not retried on every visit. Which sheets failed is stored with
+    it and returned on every call, and their lines can be typed in by hand.
     """
     project = _get_project_or_404(db, project_id)
 
     if project.boq_extracted_at is not None:
-        return BoqEnsureResponse(items=project.boq_items, extracted=False, warnings=[])
+        return _stored_boq(project)
 
     with _boq_extraction_lock:
         # Another open may have finished the read while this one waited.
         db.expire(project)
         if project.boq_extracted_at is not None:
-            return BoqEnsureResponse(items=project.boq_items, extracted=False, warnings=[])
+            return _stored_boq(project)
 
         # Read every sheet before writing anything: OCR takes seconds, and a
         # write held open that long would block every other write in the app.
@@ -300,7 +330,7 @@ def ensure_project_boq(
         claimed = db.execute(
             update(Project)
             .where(Project.id == project.id, Project.boq_extracted_at.is_(None))
-            .values(boq_extracted_at=utc_now())
+            .values(boq_extracted_at=utc_now(), boq_extraction_warnings=warnings or None)
         ).rowcount
         if not claimed:
             # Beaten by a request in another process; return what it stored.
@@ -308,18 +338,20 @@ def ensure_project_boq(
             # `project`, so nothing loaded before that request committed is
             # returned in place of its lines.
             db.rollback()
-            return BoqEnsureResponse(items=project.boq_items, extracted=False, warnings=[])
+            return _stored_boq(project)
 
         position = len(project.boq_items)
         for system_code, line in extracted:
-            # Prices are left for the engineer. The sheets carry Unit/Total
-            # Price columns but they are blank on every sheet in the archive,
-            # so there is nothing to read and nothing to check a read against.
+            # Prices, unit and remarks are left for the engineer. The sheets
+            # carry Unit/Total Price columns but they are blank on every sheet
+            # in the archive, so there is nothing to read and nothing to check
+            # a read against.
             project.boq_items.append(
                 ProjectBoqItem(
                     system_code=system_code,
                     position=position,
                     group_heading=line.group_heading,
+                    manufacturer=_brand_for(system_code, project.systems),
                     catalog_no=line.catalog_no,
                     description=line.description,
                     quantity=line.quantity,
@@ -330,6 +362,198 @@ def ensure_project_boq(
         db.commit()
         db.refresh(project)
         return BoqEnsureResponse(items=project.boq_items, extracted=True, warnings=warnings)
+
+
+def _stored_boq(project: Project) -> BoqEnsureResponse:
+    return BoqEnsureResponse(
+        items=project.boq_items,
+        extracted=False,
+        warnings=project.boq_extraction_warnings or [],
+    )
+
+
+# The DRF Systems rows a Design Sheet's system code can stand for. ELS is
+# "Emergency Lighting", which the DRF splits into two rows; on EP-29495 it is
+# the central battery sheet.
+SYSTEM_CODE_DRF_ROWS: dict[str, tuple[str, ...]] = {
+    "FAS": ("Fire Alarm",),
+    "VES": ("Voice Evacuation",),
+    "PAVA": ("PA/VA & BGM",),
+    "CBS": ("Central Battery System",),
+    "EML": ("Emergency Light Monitoring",),
+    "ELS": ("Central Battery System", "Emergency Light Monitoring"),
+}
+
+
+def _brand_for(system_code: str | None, systems: list[ProjectSystem]) -> str | None:
+    """The brand the DRF gives the system a Design Sheet is for. Blank rather
+    than a guess when the code could be more than one row and they disagree."""
+    rows = SYSTEM_CODE_DRF_ROWS.get((system_code or "").upper(), ())
+    brands = {s.brand.strip() for s in systems if s.name in rows and s.brand and s.brand.strip()}
+    return brands.pop() if len(brands) == 1 else None
+
+
+# Everything ProjectDetailsIn carries except systems, which is a relationship.
+_DETAIL_FIELDS = tuple(name for name in ProjectDetailsIn.model_fields if name != "systems")
+
+
+def _apply_details(project: Project, details: ProjectDetailsIn) -> None:
+    """Copy the reviewable project information onto `project`, replacing its
+    systems wholesale -- the form edits them as one table."""
+    for name in _DETAIL_FIELDS:
+        setattr(project, name, getattr(details, name))
+    project.systems = [ProjectSystem(**system.model_dump()) for system in details.systems]
+
+
+# --- BOQ revisions ---
+
+
+def _current_lines(project: Project) -> list[ProjectBoqItemIn]:
+    return [ProjectBoqItemIn.model_validate(item, from_attributes=True) for item in project.boq_items]
+
+
+def _revision_lines(revision: ProjectBoqRevision) -> list[ProjectBoqItemIn]:
+    return [ProjectBoqItemIn.model_validate(item) for item in revision.items]
+
+
+def _revision_summary(revision: ProjectBoqRevision) -> BoqRevisionSummaryOut:
+    return BoqRevisionSummaryOut(
+        number=revision.number,
+        label=revision.label,
+        note=revision.note,
+        issued_at=revision.issued_at,
+        issued_by_name=revision.issued_by.full_name,
+        line_count=len(revision.items),
+    )
+
+
+def _get_revision_or_404(project: Project, number: int) -> ProjectBoqRevision:
+    for revision in project.boq_revisions:
+        if revision.number == number:
+            return revision
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Revision not found")
+
+
+@router.get("/{project_id}/boq/revisions", response_model=list[BoqRevisionSummaryOut])
+def list_boq_revisions(
+    project_id: int,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[BoqRevisionSummaryOut]:
+    """Newest first."""
+    project = _get_project_or_404(db, project_id)
+    return [_revision_summary(revision) for revision in reversed(project.boq_revisions)]
+
+
+@router.post(
+    "/{project_id}/boq/revisions",
+    response_model=BoqRevisionSummaryOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def issue_boq_revision(
+    project_id: int,
+    payload: BoqRevisionIssue,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> BoqRevisionSummaryOut:
+    """Issue the saved BOQ as the next revision: Rev 00 first, then Rev 01...
+
+    Refused when nothing has changed since the last one, which also stops a
+    double-click from issuing the same BOQ twice under two numbers. "Changed"
+    is decided by the same comparison the Revisions page shows, so the page
+    and this check cannot disagree; a pure reordering of lines is not a change.
+    """
+    project = _get_project_or_404(db, project_id)
+    lines = _current_lines(project)
+    if not lines:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The BOQ has no lines to issue.")
+
+    latest = project.boq_revisions[-1] if project.boq_revisions else None
+    if latest is not None and not compare_boq(_revision_lines(latest), lines):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=f"Nothing has changed since {latest.label}."
+        )
+
+    revision = ProjectBoqRevision(
+        number=latest.number + 1 if latest is not None else 0,
+        note=(payload.note or "").strip() or None,
+        items=[line.model_dump(mode="json") for line in lines],
+        issued_by_id=current_user.id,
+    )
+    project.boq_revisions.append(revision)
+    try:
+        db.commit()
+    except IntegrityError:
+        # Two issues at once both took the same number; the constraint let
+        # one through.
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Another revision was issued at the same moment. Reload to see it.",
+        )
+    db.refresh(revision)
+    return _revision_summary(revision)
+
+
+@router.get("/{project_id}/boq/revisions/{number}", response_model=BoqRevisionOut)
+def get_boq_revision(
+    project_id: int,
+    number: int,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> BoqRevisionOut:
+    revision = _get_revision_or_404(_get_project_or_404(db, project_id), number)
+    return BoqRevisionOut(**_revision_summary(revision).model_dump(), items=_revision_lines(revision))
+
+
+@router.get("/{project_id}/boq/revisions/{number}/export.xlsx")
+def export_boq_revision(
+    project_id: int,
+    number: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    project = _get_project_or_404(db, project_id)
+    revision = _get_revision_or_404(project, number)
+    content = boq_workbook(
+        project,
+        _revision_lines(revision),
+        [sheet.system_code for sheet in project.design_sheets],
+        exported_by=current_user.full_name,
+        exported_at=utc_now(),
+        revision_label=(
+            f"{revision.label}, issued {revision.issued_at:%d %b %Y} by {revision.issued_by.full_name}"
+        ),
+    )
+    return _xlsx_response(content, f"EP-{project.ep_number} BOQ {revision.label}.xlsx")
+
+
+@router.get("/{project_id}/boq/compare", response_model=BoqCompareOut)
+def compare_boq_versions(
+    project_id: int,
+    from_rev: int,
+    to_rev: int | None = None,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> BoqCompareOut:
+    """What changed from one revision to another, or -- without `to_rev` --
+    from a revision to the BOQ as currently saved."""
+    project = _get_project_or_404(db, project_id)
+    base = _get_revision_or_404(project, from_rev)
+    if to_rev is None:
+        target_label, target_lines = "Current", _current_lines(project)
+    else:
+        target = _get_revision_or_404(project, to_rev)
+        target_label, target_lines = target.label, _revision_lines(target)
+
+    changes = compare_boq(_revision_lines(base), target_lines)
+    return BoqCompareOut(
+        from_label=base.label,
+        to_label=target_label,
+        changes=[
+            BoqChangeOut(kind=c.kind, before=c.before, after=c.after, fields=c.fields) for c in changes
+        ],
+    )
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -52,7 +52,8 @@ export function CreateProjectPage() {
         : resolution.matched_folders.find((f) => f) ?? "";
     return (
       <ReviewProjectForm
-        epNumber={epNumber}
+        // As the server normalised it: "EP-29495 " typed is "29495".
+        epNumber={resolution.ep_number}
         sourceFolderPath={sourceFolder}
         resolution={resolution}
         onCreated={(project: Project) =>

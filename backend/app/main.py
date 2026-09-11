@@ -4,7 +4,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal, engine
+from app.migrations import upgrade_to_head
 from app.routers import auth, modules, projects, users
 from app.seed import seed_default_admin
 
@@ -13,7 +14,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    upgrade_to_head(engine)
     db = SessionLocal()
     try:
         seed_default_admin(db)
@@ -30,6 +31,9 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # The frontend runs on another origin, where the browser hides response
+    # headers it isn't told it may read; this one carries an export's filename.
+    expose_headers=["Content-Disposition"],
 )
 
 app.include_router(auth.router)

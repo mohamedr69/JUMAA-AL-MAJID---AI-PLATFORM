@@ -5,6 +5,9 @@ import type { Project } from "../lib/types";
 
 export interface ProjectContext {
   project: Project;
+  /** Replace the workspace's copy after a save, so the sidebar and the other
+   * sections show the new values without a reload. */
+  setProject: (project: Project) => void;
 }
 
 /** Sections of the project workspace. Only sections that are actually built
@@ -12,6 +15,7 @@ export interface ProjectContext {
  * nothing reads as a broken feature rather than a planned one. */
 const SECTIONS = [
   { to: ".", label: "Home", end: true },
+  { to: "info", label: "Project Info", end: false },
   { to: "boq", label: "BOQ", end: false },
   { to: "documents", label: "Documents", end: false },
 ];
@@ -45,7 +49,7 @@ export function ProjectWorkspace() {
   }
   if (!project) return <div className="text-sm text-gray-400">Loading...</div>;
 
-  const context: ProjectContext = { project };
+  const context: ProjectContext = { project, setProject };
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">

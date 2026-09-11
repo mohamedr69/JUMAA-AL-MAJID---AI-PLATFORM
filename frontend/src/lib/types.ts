@@ -10,6 +10,10 @@ export interface User {
   created_at: string;
 }
 
+/** Roles that can change a project's information and BOQ. Mirrors
+ * CREATOR_ROLES in the backend's projects router. */
+export const PROJECT_EDITOR_ROLES: Role[] = ["admin", "design_manager", "design_engineer"];
+
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
   design_manager: "Design Manager",
@@ -77,11 +81,14 @@ export interface ProjectBoqItemInput {
   /** Heading the line sits under on the Design Sheet, e.g. a panel whose
    * sub-components are listed beneath it. */
   group_heading?: string | null;
+  manufacturer?: string | null;
   catalog_no?: string | null;
   description: string;
   quantity?: string | null;
+  unit?: string | null;
   unit_price?: string | null;
   total_price?: string | null;
+  remarks?: string | null;
 }
 
 export interface ProjectBoqItem extends ProjectBoqItemInput {
@@ -97,6 +104,35 @@ export interface BoqEnsureResponse {
   warnings: string[];
 }
 
+/** An issued BOQ revision (Rev 00, Rev 01, ...), frozen when issued. */
+export interface BoqRevisionSummary {
+  number: number;
+  label: string;
+  note: string | null;
+  /** Naive UTC from the API -- see parseApiDate. */
+  issued_at: string;
+  issued_by_name: string;
+  line_count: number;
+}
+
+export interface BoqRevision extends BoqRevisionSummary {
+  items: ProjectBoqItemInput[];
+}
+
+export interface BoqChange {
+  kind: "added" | "removed" | "changed";
+  before: ProjectBoqItemInput | null;
+  after: ProjectBoqItemInput | null;
+  /** For "changed": which of manufacturer, quantity, unit, prices, remarks. */
+  fields: (keyof ProjectBoqItemInput)[];
+}
+
+export interface BoqCompare {
+  from_label: string;
+  to_label: string;
+  changes: BoqChange[];
+}
+
 export interface ProjectDesignSheetIn {
   system_code: string | null;
   document_path: string;
@@ -106,8 +142,9 @@ export interface ProjectDesignSheet extends ProjectDesignSheetIn {
   id: number;
 }
 
-export interface ProjectCreate {
-  ep_number: string;
+/** The project information reviewed at creation and editable afterwards
+ * (`PUT /projects/{id}`). Not the EP number or the document paths. */
+export interface ProjectDetailsInput {
   project_name?: string | null;
   plot_number?: string | null;
   location?: string | null;
@@ -120,6 +157,10 @@ export interface ProjectCreate {
   scope_of_work?: string | null;
   systems: ProjectSystemInput[];
   other_information?: string | null;
+}
+
+export interface ProjectCreate extends ProjectDetailsInput {
+  ep_number: string;
   source_folder_path?: string | null;
   drf_document_path?: string | null;
   design_sheets: ProjectDesignSheetIn[];
@@ -146,6 +187,8 @@ export interface Project {
   source_folder_path: string | null;
   drf_document_path: string | null;
   design_sheets: ProjectDesignSheet[];
+  /** Design Sheets the one-off BOQ read could not parse, by filename. */
+  boq_extraction_warnings: string[] | null;
   created_at: string;
 }
 

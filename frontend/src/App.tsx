@@ -9,8 +9,10 @@ import { LoginPage } from "./pages/LoginPage";
 import { OpenProjectPage } from "./pages/OpenProjectPage";
 import { OpeningScreen } from "./pages/OpeningScreen";
 import { ProjectBoqPage } from "./pages/ProjectBoqPage";
+import { ProjectBoqRevisionsPage } from "./pages/ProjectBoqRevisionsPage";
 import { ProjectDocumentsPage } from "./pages/ProjectDocumentsPage";
 import { ProjectHomePage } from "./pages/ProjectHomePage";
+import { ProjectInfoPage } from "./pages/ProjectInfoPage";
 import { ProjectWorkspace } from "./pages/ProjectWorkspace";
 
 function LoginRoute() {
@@ -46,7 +48,9 @@ export default function App() {
           <Route path="/projects" element={<OpenProjectPage />} />
           <Route path="/projects/:id" element={<ProjectWorkspace />}>
             <Route index element={<ProjectHomePage />} />
+            <Route path="info" element={<ProjectInfoPage />} />
             <Route path="boq" element={<ProjectBoqPage />} />
+            <Route path="boq/revisions" element={<ProjectBoqRevisionsPage />} />
             <Route path="documents" element={<ProjectDocumentsPage />} />
           </Route>
           <Route

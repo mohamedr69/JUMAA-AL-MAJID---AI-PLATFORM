@@ -1,4 +1,8 @@
-import { useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { api } from "../lib/api";
+import { quantityTotals } from "../lib/boq";
+import type { ProjectBoqItem } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
 export function ProjectHomePage() {
@@ -6,8 +10,37 @@ export function ProjectHomePage() {
   const { state } = useLocation();
   const justCreated = Boolean((state as { justCreated?: boolean } | null)?.justCreated);
 
+  // A plain read: opening Home must not trigger the Design Sheet extraction,
+  // which is the BOQ tab's job.
+  const [boq, setBoq] = useState<ProjectBoqItem[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get<ProjectBoqItem[]>(`/projects/${project.id}/boq`)
+      .then((items) => {
+        if (!cancelled) setBoq(items);
+      })
+      .catch(() => {
+        if (!cancelled) setBoq([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id]);
+
+  const bySystem = useMemo(() => {
+    const groups = new Map<string, ProjectBoqItem[]>();
+    for (const item of boq ?? []) {
+      const key = item.system_code ?? "Unassigned";
+      groups.set(key, [...(groups.get(key) ?? []), item]);
+    }
+    return [...groups.entries()].map(([system, items]) => ({ system, totals: quantityTotals(items) }));
+  }, [boq]);
+
+  const subtitle = [project.client, project.location].filter(Boolean).join(" · ");
+
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-4xl">
       {justCreated && (
         <div className="mb-3 flex items-center gap-2 text-sm text-green-700">
           <span className="h-2 w-2 rounded-full bg-green-500" />
@@ -19,66 +52,126 @@ export function ProjectHomePage() {
         EP-{project.ep_number}
         {project.project_name && ` — ${project.project_name}`}
       </h1>
+      {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
 
-      <section className="mt-6 grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-white p-5 text-sm sm:grid-cols-2">
-        <InfoRow label="Client" value={project.client} />
-        <InfoRow label="Consultant" value={project.consultant} />
-        <InfoRow label="Contractor" value={project.contractor} />
-        <InfoRow label="Location" value={project.location} />
-        <InfoRow label="Plot Number" value={project.plot_number} />
-        <InfoRow label="Scope of Work" value={project.scope_of_work} />
-        <InfoRow label="Contact Person" value={project.contact_person} />
-        <InfoRow label="Contact Phone" value={project.contact_phone} />
-        <InfoRow label="Contact Email" value={project.contact_email} />
-      </section>
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card title="Project" link={{ to: "info", label: "Project Info" }}>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+            <Fact label="Client" value={project.client} />
+            <Fact label="Consultant" value={project.consultant} />
+            <Fact label="Contractor" value={project.contractor} />
+            <Fact label="Scope" value={project.scope_of_work} />
+          </dl>
+        </Card>
 
-      <section className="mt-4 rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Systems</h2>
-        {project.systems.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-400">No systems recorded for this project.</p>
-        ) : (
-          <div className="mt-2 overflow-x-auto">
+        <Card title="Systems" link={{ to: "info", label: "Edit" }}>
+          {project.systems.length === 0 ? (
+            <p className="text-sm text-gray-400">No systems recorded.</p>
+          ) : (
+            <ul className="space-y-1.5 text-sm">
+              {project.systems.map((system) => (
+                <li key={system.id} className="flex flex-wrap items-center gap-x-2">
+                  <span className="text-navy-900">{system.name}</span>
+                  {system.brand && <span className="text-gray-500">{system.brand}</span>}
+                  {system.method_statement && <Tag>MS</Tag>}
+                  {system.drawing && <Tag>DWG</Tag>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="Bill of Quantities" link={{ to: "boq", label: "Open BOQ" }}>
+          {boq === null ? (
+            <p className="text-sm text-gray-400">Loading...</p>
+          ) : bySystem.length === 0 ? (
+            <p className="text-sm text-gray-400">
+              {project.design_sheets.length > 0
+                ? "Not read yet. Opening the BOQ reads the Design Sheets."
+                : "No lines yet."}
+            </p>
+          ) : (
             <table className="w-full text-sm">
               <thead className="text-left text-xs uppercase tracking-wide text-gray-400">
                 <tr>
-                  <th className="py-1.5 pr-4 font-medium">System</th>
-                  <th className="py-1.5 pr-4 font-medium">Brand</th>
-                  <th className="w-20 py-1.5 text-center font-medium">MS</th>
-                  <th className="w-20 py-1.5 text-center font-medium">DWG</th>
+                  <th className="pb-1 font-medium">System</th>
+                  <th className="pb-1 text-right font-medium">Lines</th>
+                  <th className="pb-1 text-right font-medium">Total qty</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {project.systems.map((system) => (
-                  <tr key={system.id}>
-                    <td className="py-1.5 pr-4 text-navy-900">{system.name}</td>
-                    <td className="py-1.5 pr-4 text-gray-600">{system.brand || "—"}</td>
-                    <td className="py-1.5 text-center">{system.method_statement ? "✓" : "—"}</td>
-                    <td className="py-1.5 text-center">{system.drawing ? "✓" : "—"}</td>
+                {bySystem.map(({ system, totals }) => (
+                  <tr key={system}>
+                    <td className="py-1 text-navy-900">{system}</td>
+                    <td className="py-1 text-right tabular-nums text-gray-600">{totals.lines}</td>
+                    <td className="py-1 text-right tabular-nums text-gray-600">
+                      {totals.units.toLocaleString()}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
-        )}
-      </section>
+          )}
+          {project.boq_extraction_warnings && project.boq_extraction_warnings.length > 0 && (
+            <p className="mt-2 text-xs text-amber-700">
+              {project.boq_extraction_warnings.length} Design Sheet
+              {project.boq_extraction_warnings.length > 1 ? "s" : ""} could not be read.
+            </p>
+          )}
+        </Card>
 
-      {project.other_information && (
-        <section className="mt-4 rounded-xl border border-gray-200 bg-white p-5 text-sm">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-            Other Information
-          </h2>
-          <p className="mt-1 whitespace-pre-wrap text-navy-900">{project.other_information}</p>
-        </section>
-      )}
+        <Card title="Documents" link={{ to: "documents", label: "Documents" }}>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+            <dt className="text-gray-400">DRF</dt>
+            <dd className={project.drf_document_path ? "text-navy-900" : "text-amber-700"}>
+              {project.drf_document_path ? "Found" : "Not found"}
+            </dd>
+            <dt className="text-gray-400">Design Sheets</dt>
+            <dd className={project.design_sheets.length > 0 ? "text-navy-900" : "text-amber-700"}>
+              {project.design_sheets.length > 0
+                ? project.design_sheets.map((sheet) => sheet.system_code ?? "?").join(", ")
+                : "Not found"}
+            </dd>
+          </dl>
+        </Card>
+      </div>
     </div>
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string | null }) {
+function Card({
+  title,
+  link,
+  children,
+}: {
+  title: string;
+  link: { to: string; label: string };
+  children: React.ReactNode;
+}) {
   return (
-    <div>
-      <div className="text-xs text-gray-400">{label}</div>
-      <div className="text-navy-900">{value || "—"}</div>
-    </div>
+    <section className="rounded-xl border border-gray-200 bg-white p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">{title}</h2>
+        <Link to={link.to} className="text-xs font-medium text-brand-600 hover:text-brand-700">
+          {link.label} &rarr;
+        </Link>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string | null }) {
+  return (
+    <>
+      <dt className="text-gray-400">{label}</dt>
+      <dd className="text-navy-900">{value || "—"}</dd>
+    </>
+  );
+}
+
+function Tag({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">{children}</span>
   );
 }

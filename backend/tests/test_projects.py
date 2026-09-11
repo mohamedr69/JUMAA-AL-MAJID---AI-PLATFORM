@@ -201,6 +201,62 @@ def test_get_missing_project_404(client):
     assert resp.status_code == 404
 
 
+# --- PUT /projects/{id} ---
+
+
+def _details(**overrides) -> dict:
+    payload = _valid_project_payload()
+    for key in ("ep_number", "source_folder_path", "drf_document_path", "design_sheets"):
+        payload.pop(key)
+    payload.update(overrides)
+    return payload
+
+
+def test_update_project_corrects_details_and_replaces_systems(client):
+    _login_admin(client)
+    created = client.post("/projects", json=_valid_project_payload("32000")).json()
+
+    resp = client.put(
+        f"/projects/{created['id']}",
+        json=_details(
+            client="Samana Developers LLC",
+            plot_number=None,
+            systems=[{"name": "Fire Alarm", "brand": "Edwards EST4", "method_statement": True, "drawing": False}],
+        ),
+    )
+    assert resp.status_code == 200
+    updated = resp.json()
+    assert updated["client"] == "Samana Developers LLC"
+    assert updated["plot_number"] is None
+    assert [(s["name"], s["brand"], s["drawing"]) for s in updated["systems"]] == [
+        ("Fire Alarm", "Edwards EST4", False)
+    ]
+    # the documents the resolver found are untouched
+    assert updated["design_sheets"] == created["design_sheets"]
+    assert client.get(f"/projects/{created['id']}").json()["client"] == "Samana Developers LLC"
+
+
+def test_update_project_cannot_change_the_ep_number(client):
+    """It ties the project to its archive folder; a sent value is ignored."""
+    _login_admin(client)
+    pid = client.post("/projects", json=_valid_project_payload("32100")).json()["id"]
+
+    resp = client.put(f"/projects/{pid}", json=_details(ep_number="99999"))
+    assert resp.status_code == 200
+    assert resp.json()["ep_number"] == "32100"
+
+
+def test_update_project_denied_to_viewer_and_404_when_missing(client, db_session):
+    _login_admin(client)
+    pid = client.post("/projects", json=_valid_project_payload("32200")).json()["id"]
+    assert client.put("/projects/999999", json=_details()).status_code == 404
+    client.post("/auth/logout")
+
+    make_user(db_session, "viewer5@ep-platform.com", RoleEnum.viewer)
+    login(client, "viewer5@ep-platform.com")
+    assert client.put(f"/projects/{pid}", json=_details(client="x")).status_code == 403
+
+
 # --- /projects/{id}/boq ---
 
 
@@ -216,9 +272,12 @@ def _boq_payload() -> list[dict]:
         },
         {
             "system_code": "ELS",
+            "manufacturer": "RP-Technik",
             "catalog_no": None,
             "description": "VisionGuard Basisversion & BACnet",
             "quantity": "Lot",
+            "unit": "Set",
+            "remarks": "Software licence",
         },
     ]
 
@@ -242,6 +301,11 @@ def test_boq_starts_empty_and_round_trips(client):
     # a non-numeric quantity survives as written on the sheet
     assert items[1]["quantity"] == "Lot"
     assert items[1]["unit_price"] is None
+    assert (items[1]["manufacturer"], items[1]["unit"], items[1]["remarks"]) == (
+        "RP-Technik",
+        "Set",
+        "Software licence",
+    )
 
     assert client.get(f"/projects/{pid}/boq").json() == items
 
@@ -328,9 +392,29 @@ def test_boq_is_extracted_on_first_open_and_persisted(client, monkeypatch):
     # the system code comes from the sheet the lines were read out of
     assert body["items"][0]["system_code"] == "FAS"
     assert body["items"][0]["group_heading"] == "EST4 Main Fire Alarm Control Panel"
+    # the DRF gives the Fire Alarm system's brand; the FAS sheet's lines take it
+    assert body["items"][0]["manufacturer"] == "EDWARDS"
 
     # unlike the DRF fields, these are stored rather than proposed
     assert len(client.get(f"/projects/{pid}/boq").json()) == 1
+
+
+def test_manufacturer_is_prefilled_only_when_the_system_code_is_unambiguous():
+    from app.models import ProjectSystem
+    from app.routers.projects import _brand_for
+
+    systems = [
+        ProjectSystem(name="Fire Alarm", brand="EDWARDS"),
+        ProjectSystem(name="Central Battery System", brand="CEAG"),
+        ProjectSystem(name="Emergency Light Monitoring", brand="MENVIER"),
+    ]
+    assert _brand_for("FAS", systems) == "EDWARDS"
+    assert _brand_for("eml", systems) == "MENVIER"
+    # ELS can be either emergency-lighting row, and here they disagree
+    assert _brand_for("ELS", systems) is None
+    assert _brand_for("ELS", systems[:2]) == "CEAG"
+    assert _brand_for("NAC", systems) is None
+    assert _brand_for(None, systems) is None
 
 
 def test_boq_extraction_runs_only_once(client, monkeypatch):
@@ -427,10 +511,14 @@ def test_boq_extraction_is_not_retried_after_an_unreadable_sheet(client, monkeyp
     assert any("recognises" in w for w in first["warnings"])
     assert len(calls) == 1
 
-    # Reported once, not re-attempted on every visit.
+    # Not re-attempted on every visit -- but still reported: the read cannot
+    # be repeated, so a warning that only reached the first response would be
+    # lost with it, and the sheet's lines would be silently missing.
     second = client.post(f"/projects/{pid}/boq/ensure").json()
     assert second["extracted"] is False
     assert len(calls) == 1
+    assert second["warnings"] == first["warnings"]
+    assert client.get(f"/projects/{pid}").json()["boq_extraction_warnings"] == first["warnings"]
 
 
 def test_boq_ensure_denied_to_viewer(client, db_session):

@@ -33,7 +33,36 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Fetch a file the API generates (an export) and hand it to the browser as a
+ * download. Separate from `request`, which assumes a JSON reply. */
+async function download(path: string, fallbackName: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}${path}`, { credentials: "include" });
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      detail = (await res.json()).detail ?? detail;
+    } catch {
+      // no JSON body
+    }
+    throw new ApiError(res.status, detail);
+  }
+
+  // Prefer the RFC 5987 form, which carries non-ASCII names intact.
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  const plain = /filename="([^"]+)"/i.exec(disposition)?.[1];
+  const filename = encoded ? decodeURIComponent(encoded) : (plain ?? fallbackName);
+
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
+  download,
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }),

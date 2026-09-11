@@ -7,6 +7,7 @@ os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 
 from app.core.security import hash_password
 from app.database import Base, SessionLocal, engine
@@ -14,9 +15,18 @@ from app.main import app
 from app.models import RoleEnum, User
 
 
+def reset_database() -> None:
+    """Empty the database, migration history included, so app startup
+    rebuilds it through the migrations -- the tests then run against the
+    schema the migrations produce, not the one the models describe."""
+    Base.metadata.drop_all(bind=engine)
+    with engine.begin() as connection:
+        connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
+
+
 @pytest.fixture()
 def client():
-    Base.metadata.drop_all(bind=engine)
+    reset_database()
     with TestClient(app) as c:
         yield c
 
