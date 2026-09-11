@@ -7,6 +7,7 @@ import {
   type Project,
   type ProjectCreate,
   type ProjectResolveResponse,
+  type ProjectSystemInput,
 } from "../lib/types";
 
 function extracted(resolution: ProjectResolveResponse, name: ExtractedFieldName): string {
@@ -35,17 +36,36 @@ export function ReviewProjectForm({
   const [contactPerson, setContactPerson] = useState(() => extracted(resolution, "contact_person"));
   const [contactPhone, setContactPhone] = useState(() => extracted(resolution, "contact_phone"));
   const [contactEmail, setContactEmail] = useState(() => extracted(resolution, "contact_email"));
-  const [scopeOfWork, setScopeOfWork] = useState<string>("");
-  const [systems, setSystems] = useState<string[]>([]);
+  const [scopeOfWork, setScopeOfWork] = useState<string>(
+    () => resolution.extracted_scope_of_work ?? ""
+  );
+  // Keyed by system name so the DRF's rows and the template's rows line up
+  // regardless of the order either lists them in.
+  const [systems, setSystems] = useState<Record<string, ProjectSystemInput>>(() =>
+    Object.fromEntries(resolution.extracted_systems.map((s) => [s.name, s] as const))
+  );
   const [otherInformation, setOtherInformation] = useState("");
 
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  function toggleSystem(system: string) {
-    setSystems((prev) =>
-      prev.includes(system) ? prev.filter((s) => s !== system) : [...prev, system]
-    );
+  function toggleSystem(name: string) {
+    setSystems((prev) => {
+      const next = { ...prev };
+      if (name in next) {
+        delete next[name];
+      } else {
+        next[name] = { name, brand: null, method_statement: false, drawing: false };
+      }
+      return next;
+    });
+  }
+
+  function updateSystem(name: string, patch: Partial<ProjectSystemInput>) {
+    setSystems((prev) => {
+      const current = prev[name];
+      return current ? { ...prev, [name]: { ...current, ...patch } } : prev;
+    });
   }
 
   async function handleSubmit(e: FormEvent) {
@@ -65,7 +85,7 @@ export function ReviewProjectForm({
       contact_phone: contactPhone || null,
       contact_email: contactEmail || null,
       scope_of_work: scopeOfWork || null,
-      systems,
+      systems: SYSTEM_OPTIONS.filter((s) => s in systems).map((s) => systems[s]),
       other_information: otherInformation || null,
       source_folder_path: sourceFolderPath,
       drf_document_path: resolution.drf_candidates[0]?.path ?? null,
@@ -164,18 +184,67 @@ export function ReviewProjectForm({
 
         <div>
           <div className="mb-1 text-sm font-medium text-gray-700">Systems</div>
-          <div className="flex flex-wrap gap-x-4 gap-y-2">
-            {SYSTEM_OPTIONS.map((system) => (
-              <label key={system} className="flex items-center gap-1.5 text-sm text-gray-600">
-                <input
-                  type="checkbox"
-                  checked={systems.includes(system)}
-                  onChange={() => toggleSystem(system)}
-                  className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                />
-                {system}
-              </label>
-            ))}
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-3 py-2 font-medium">System</th>
+                  <th className="px-3 py-2 font-medium">Brand</th>
+                  <th className="w-16 px-3 py-2 text-center font-medium">MS</th>
+                  <th className="w-16 px-3 py-2 text-center font-medium">DWG</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {SYSTEM_OPTIONS.map((system) => {
+                  const selected = systems[system];
+                  return (
+                    <tr key={system} className={selected ? "bg-white" : "bg-gray-50/40"}>
+                      <td className="px-3 py-1.5">
+                        <label className="flex items-center gap-2 text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(selected)}
+                            onChange={() => toggleSystem(system)}
+                            className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                          />
+                          {system}
+                        </label>
+                      </td>
+                      <td className="px-3 py-1.5">
+                        <input
+                          value={selected?.brand ?? ""}
+                          disabled={!selected}
+                          onChange={(e) =>
+                            updateSystem(system, { brand: e.target.value || null })
+                          }
+                          className="input py-1 disabled:bg-gray-50"
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selected?.method_statement ?? false}
+                          disabled={!selected}
+                          onChange={(e) =>
+                            updateSystem(system, { method_statement: e.target.checked })
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                        />
+                      </td>
+                      <td className="px-3 py-1.5 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selected?.drawing ?? false}
+                          disabled={!selected}
+                          onChange={(e) => updateSystem(system, { drawing: e.target.checked })}
+                          className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
 

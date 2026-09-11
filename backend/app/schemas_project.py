@@ -1,12 +1,30 @@
+import re
 from datetime import datetime
+from decimal import Decimal
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel, ConfigDict
 
 from app.models import ProjectStatus
 
+_EP_PREFIX_RE = re.compile(r"^EP[-_ ]*", re.IGNORECASE)
+
+
+def _normalize_ep_number(value: str) -> str:
+    """"EP-30784", "ep 30784" and " 30784 " all name the same project. Left
+    as typed they would be three different unique keys, and the prefixed form
+    would find no folder, because the resolver adds the "EP" itself."""
+    value = _EP_PREFIX_RE.sub("", value.strip()).strip()
+    if not value:
+        raise ValueError("EP number is required")
+    return value
+
+
+EpNumber = Annotated[str, AfterValidator(_normalize_ep_number)]
+
 
 class ProjectResolveRequest(BaseModel):
-    ep_number: str
+    ep_number: EpNumber
     selected_folder: str | None = None
 
 
@@ -22,6 +40,45 @@ class ExtractedFieldOut(BaseModel):
     raw_label: str
 
 
+class ProjectSystemIn(BaseModel):
+    name: str
+    brand: str | None = None
+    method_statement: bool = False
+    drawing: bool = False
+
+
+class ProjectSystemOut(ProjectSystemIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+
+
+class ProjectBoqItemIn(BaseModel):
+    system_code: str | None = None
+    group_heading: str | None = None
+    catalog_no: str | None = None
+    description: str
+    quantity: str | None = None
+    unit_price: Decimal | None = None
+    total_price: Decimal | None = None
+
+
+class ProjectBoqItemOut(ProjectBoqItemIn):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    position: int
+
+
+class BoqEnsureResponse(BaseModel):
+    """The project's BOQ, plus whether this call was the one that read it out
+    of the Design Sheets and anything that could not be read."""
+
+    items: list[ProjectBoqItemOut]
+    extracted: bool
+    warnings: list[str] = []
+
+
 class ProjectResolveResponse(BaseModel):
     ep_number: str
     folder_found: bool
@@ -32,6 +89,8 @@ class ProjectResolveResponse(BaseModel):
     warnings: list[str]
     errors: list[str]
     extracted_fields: dict[str, ExtractedFieldOut] = {}
+    extracted_scope_of_work: str | None = None
+    extracted_systems: list[ProjectSystemIn] = []
     extraction_warnings: list[str] = []
 
 
@@ -49,7 +108,7 @@ class ProjectDesignSheetOut(BaseModel):
 
 
 class ProjectCreate(BaseModel):
-    ep_number: str
+    ep_number: EpNumber
     project_name: str | None = None
     plot_number: str | None = None
     location: str | None = None
@@ -60,7 +119,7 @@ class ProjectCreate(BaseModel):
     contact_phone: str | None = None
     contact_email: str | None = None
     scope_of_work: str | None = None
-    systems: list[str] = []
+    systems: list[ProjectSystemIn] = []
     other_information: str | None = None
     source_folder_path: str | None = None
     drf_document_path: str | None = None
@@ -83,7 +142,7 @@ class ProjectOut(BaseModel):
     contact_phone: str | None
     contact_email: str | None
     scope_of_work: str | None
-    systems: str | None
+    systems: list[ProjectSystemOut]
     other_information: str | None
     source_folder_path: str | None
     drf_document_path: str | None

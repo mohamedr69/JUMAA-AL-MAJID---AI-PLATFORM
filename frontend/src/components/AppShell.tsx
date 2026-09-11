@@ -4,8 +4,10 @@ import { useAuth } from "../context/AuthContext";
 import { ROLE_LABELS } from "../lib/types";
 import { BrandMark } from "./BrandMark";
 
-// Basic app shell for Phase 1. Full left navigation activates once a project
-// workspace exists (Phase 3) — see plan.
+// The outer shell is deliberately chrome-only: navigation between a project's
+// sections belongs to the project workspace (see ProjectWorkspace), which owns
+// the left nav, because those sections only exist in the context of one
+// project.
 export function AppShell() {
   const { user, logout } = useAuth();
 

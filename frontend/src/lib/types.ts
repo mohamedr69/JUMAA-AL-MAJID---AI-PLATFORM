@@ -52,7 +52,49 @@ export interface ProjectResolveResponse {
   warnings: string[];
   errors: string[];
   extracted_fields: Partial<Record<ExtractedFieldName, ExtractedField>>;
+  extracted_scope_of_work: string | null;
+  extracted_systems: ProjectSystemInput[];
   extraction_warnings: string[];
+}
+
+/** A system marked on the DRF: a brand written in, or an MS / DWG tick. */
+export interface ProjectSystemInput {
+  name: string;
+  brand?: string | null;
+  method_statement: boolean;
+  drawing: boolean;
+}
+
+export interface ProjectSystem extends ProjectSystemInput {
+  id: number;
+}
+
+/** A Bill of Quantities line. `quantity` is text because the Design Sheets
+ * use "Lot" as readily as a number. Prices are sent as strings so decimals
+ * survive the round trip without float rounding. */
+export interface ProjectBoqItemInput {
+  system_code?: string | null;
+  /** Heading the line sits under on the Design Sheet, e.g. a panel whose
+   * sub-components are listed beneath it. */
+  group_heading?: string | null;
+  catalog_no?: string | null;
+  description: string;
+  quantity?: string | null;
+  unit_price?: string | null;
+  total_price?: string | null;
+}
+
+export interface ProjectBoqItem extends ProjectBoqItemInput {
+  id: number;
+  position: number;
+}
+
+/** Reply from the BOQ open call. `extracted` is true only on the call that
+ * actually read the Design Sheets, which happens once per project. */
+export interface BoqEnsureResponse {
+  items: ProjectBoqItem[];
+  extracted: boolean;
+  warnings: string[];
 }
 
 export interface ProjectDesignSheetIn {
@@ -76,7 +118,7 @@ export interface ProjectCreate {
   contact_phone?: string | null;
   contact_email?: string | null;
   scope_of_work?: string | null;
-  systems: string[];
+  systems: ProjectSystemInput[];
   other_information?: string | null;
   source_folder_path?: string | null;
   drf_document_path?: string | null;
@@ -99,7 +141,7 @@ export interface Project {
   contact_phone: string | null;
   contact_email: string | null;
   scope_of_work: string | null;
-  systems: string | null;
+  systems: ProjectSystem[];
   other_information: string | null;
   source_folder_path: string | null;
   drf_document_path: string | null;
@@ -107,6 +149,7 @@ export interface Project {
   created_at: string;
 }
 
+// The rows of the DRF's Systems table, in template order.
 export const SYSTEM_OPTIONS = [
   "Fire Alarm",
   "Voice Evacuation",
@@ -119,6 +162,11 @@ export const SYSTEM_OPTIONS = [
   "CCTV",
   "Access Control",
   "Structured Cabling",
+  "Gate Barrier",
+  "SMATV & IPTV",
+  "WIFI Solution",
+  "ICT Switches",
+  "Nurse Call / Disable Toilet Alarm",
   "Others",
 ] as const;
 

@@ -64,6 +64,26 @@ def test_resolve_happy_path(client, monkeypatch, tmp_path):
     assert body["extraction_warnings"]
 
 
+def test_resolve_accepts_the_ep_number_with_its_prefix(client, monkeypatch, tmp_path):
+    """Engineers type the number the way the folders spell it. The resolver
+    adds the "EP" itself, so a typed prefix used to find nothing."""
+    import app.routers.projects as projects_router
+
+    touch(tmp_path / "Samana Developers" / "EP-29495 IVY Garden 2" / "Scan Document" / "EP-29495 DRF.pdf")
+    monkeypatch.setattr(projects_router.settings, "projects_root", str(tmp_path))
+
+    _login_admin(client)
+    for typed in ("EP-29495", "ep 29495", " 29495 "):
+        body = client.post("/projects/resolve", json={"ep_number": typed}).json()
+        assert body["ep_number"] == "29495", typed
+        assert body["folder_found"] is True, typed
+
+
+def test_resolve_rejects_a_blank_ep_number(client):
+    _login_admin(client)
+    assert client.post("/projects/resolve", json={"ep_number": " EP- "}).status_code == 422
+
+
 def test_resolve_ep_not_found(client, monkeypatch, tmp_path):
     import app.routers.projects as projects_router
 
@@ -93,7 +113,15 @@ def _valid_project_payload(ep_number: str = "29495") -> dict:
         "contact_phone": "971543079068",
         "contact_email": "mahammad.bennapade@samanadevelopers.com",
         "scope_of_work": "Design, Supply, T&C",
-        "systems": ["Fire Alarm", "Emergency Light"],
+        "systems": [
+            {
+                "name": "Fire Alarm",
+                "brand": "EDWARDS",
+                "method_statement": True,
+                "drawing": True,
+            },
+            {"name": "Central Battery System", "method_statement": True, "drawing": False},
+        ],
         "other_information": "Quoted as per IFC drawing dated 18-06-2025 only",
         "source_folder_path": r"C:\archive\Samana Developers\EP-29495 IVY Garden 2",
         "drf_document_path": r"C:\archive\Samana Developers\EP-29495 IVY Garden 2\Scan Document\EP-29495 DRF.pdf",
@@ -122,7 +150,10 @@ def test_create_and_fetch_project(client):
     created = create_resp.json()
     assert created["ep_number"] == "29495"
     assert created["status"] == "active"
-    assert created["systems"] == "Fire Alarm,Emergency Light"
+    assert [(s["name"], s["brand"], s["method_statement"], s["drawing"]) for s in created["systems"]] == [
+        ("Fire Alarm", "EDWARDS", True, True),
+        ("Central Battery System", None, True, False),
+    ]
     assert len(created["design_sheets"]) == 1
     assert created["design_sheets"][0]["system_code"] == "FAS"
 
@@ -138,6 +169,17 @@ def test_create_project_duplicate_ep_number_conflicts(client):
 
     second = client.post("/projects", json=_valid_project_payload("30000"))
     assert second.status_code == 409
+
+
+def test_create_project_ep_number_is_stored_without_prefix_or_padding(client):
+    """Otherwise "EP-30100", "30100 " and "30100" are three separate projects
+    for the same job."""
+    _login_admin(client)
+    first = client.post("/projects", json=_valid_project_payload("EP-30100 "))
+    assert first.status_code == 201
+    assert first.json()["ep_number"] == "30100"
+
+    assert client.post("/projects", json=_valid_project_payload(" 30100")).status_code == 409
 
 
 def test_list_projects_visible_to_any_authenticated_role(client, db_session):
@@ -157,3 +199,308 @@ def test_get_missing_project_404(client):
     _login_admin(client)
     resp = client.get("/projects/999999")
     assert resp.status_code == 404
+
+
+# --- /projects/{id}/boq ---
+
+
+def _boq_payload() -> list[dict]:
+    return [
+        {
+            "system_code": "FAS",
+            "catalog_no": "4-CPU",
+            "description": "Central Processor Module",
+            "quantity": "1",
+            "unit_price": "250.00",
+            "total_price": "250.00",
+        },
+        {
+            "system_code": "ELS",
+            "catalog_no": None,
+            "description": "VisionGuard Basisversion & BACnet",
+            "quantity": "Lot",
+        },
+    ]
+
+
+def test_boq_starts_empty_and_round_trips(client):
+    _login_admin(client)
+    project = client.post("/projects", json=_valid_project_payload("33000")).json()
+    pid = project["id"]
+
+    assert client.get(f"/projects/{pid}/boq").json() == []
+
+    resp = client.put(f"/projects/{pid}/boq", json=_boq_payload())
+    assert resp.status_code == 200
+    items = resp.json()
+    assert [i["description"] for i in items] == [
+        "Central Processor Module",
+        "VisionGuard Basisversion & BACnet",
+    ]
+    # position is assigned from list order, not sent by the client
+    assert [i["position"] for i in items] == [0, 1]
+    # a non-numeric quantity survives as written on the sheet
+    assert items[1]["quantity"] == "Lot"
+    assert items[1]["unit_price"] is None
+
+    assert client.get(f"/projects/{pid}/boq").json() == items
+
+
+def test_boq_put_replaces_rather_than_appends(client):
+    _login_admin(client)
+    pid = client.post("/projects", json=_valid_project_payload("33100")).json()["id"]
+    client.put(f"/projects/{pid}/boq", json=_boq_payload())
+
+    resp = client.put(
+        f"/projects/{pid}/boq",
+        json=[{"description": "Only line", "quantity": "2"}],
+    )
+    assert resp.status_code == 200
+    assert [i["description"] for i in resp.json()] == ["Only line"]
+    assert len(client.get(f"/projects/{pid}/boq").json()) == 1
+
+
+def test_boq_is_readable_by_any_role_but_written_only_by_creators(client, db_session):
+    _login_admin(client)
+    pid = client.post("/projects", json=_valid_project_payload("33200")).json()["id"]
+    client.put(f"/projects/{pid}/boq", json=_boq_payload())
+    client.post("/auth/logout")
+
+    make_user(db_session, "viewer3@ep-platform.com", RoleEnum.viewer)
+    login(client, "viewer3@ep-platform.com")
+
+    assert len(client.get(f"/projects/{pid}/boq").json()) == 2
+    assert client.put(f"/projects/{pid}/boq", json=[]).status_code == 403
+
+
+def test_boq_goes_away_with_the_project(client, db_session):
+    from app.models import ProjectBoqItem
+
+    _login_admin(client)
+    pid = client.post("/projects", json=_valid_project_payload("33300")).json()["id"]
+    client.put(f"/projects/{pid}/boq", json=_boq_payload())
+
+    assert client.delete(f"/projects/{pid}").status_code == 204
+    assert db_session.query(ProjectBoqItem).filter_by(project_id=pid).count() == 0
+
+
+def test_boq_on_missing_project_404(client):
+    _login_admin(client)
+    assert client.get("/projects/999999/boq").status_code == 404
+    assert client.put("/projects/999999/boq", json=[]).status_code == 404
+
+
+# --- POST /projects/{id}/boq/ensure ---
+
+
+def _stub_extraction(monkeypatch, calls: list):
+    import app.routers.projects as projects_router
+    from app.services.design_sheet_extractor import ExtractedBoqLine
+
+    def fake(path):
+        calls.append(path)
+        return [
+            ExtractedBoqLine(
+                catalog_no="4-CPU",
+                description="Central Processor Module",
+                quantity="1",
+                group_heading="EST4 Main Fire Alarm Control Panel",
+                confidence=93.0,
+                page=1,
+            )
+        ]
+
+    monkeypatch.setattr(projects_router, "extract_boq_lines", fake)
+
+
+def test_boq_is_extracted_on_first_open_and_persisted(client, monkeypatch):
+    calls: list = []
+    _stub_extraction(monkeypatch, calls)
+
+    _login_admin(client)
+    pid = client.post("/projects", json=_valid_project_payload("34100")).json()["id"]
+
+    resp = client.post(f"/projects/{pid}/boq/ensure")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["extracted"] is True
+    assert body["items"][0]["description"] == "Central Processor Module"
+    # the system code comes from the sheet the lines were read out of
+    assert body["items"][0]["system_code"] == "FAS"
+    assert body["items"][0]["group_heading"] == "EST4 Main Fire Alarm Control Panel"
+
+    # unlike the DRF fields, these are stored rather than proposed
+    assert len(client.get(f"/projects/{pid}/boq").json()) == 1
+
+
+def test_boq_extraction_runs_only_once(client, monkeypatch):
+    """Re-reading would duplicate lines or discard the engineer's edits, so a
+    second open returns what is stored without touching the sheets."""
+    calls: list = []
+    _stub_extraction(monkeypatch, calls)
+
+    _login_admin(client)
+    pid = client.post("/projects", json=_valid_project_payload("34110")).json()["id"]
+
+    first = client.post(f"/projects/{pid}/boq/ensure").json()
+    assert first["extracted"] is True
+    assert len(calls) == 1
+
+    # An edit the engineer makes afterwards must survive the next open.
+    client.put(
+        f"/projects/{pid}/boq",
+        json=[{"system_code": "FAS", "description": "Edited by hand", "quantity": "9"}],
+    )
+
+    second = client.post(f"/projects/{pid}/boq/ensure").json()
+    assert second["extracted"] is False
+    assert len(calls) == 1, "the Design Sheets were read a second time"
+    assert [i["description"] for i in second["items"]] == ["Edited by hand"]
+
+
+def test_boq_extraction_that_loses_the_race_returns_the_winners_lines(client, monkeypatch):
+    """Two overlapping opens (React StrictMode fires every effect twice in dev)
+    used to both pass the stamp check, both OCR, and store every line twice.
+
+    Here a competing request -- another process, so the in-process lock does
+    not stop it -- claims and stores the BOQ while this one is still reading
+    the sheets. This one must not add its own copy, and must return the
+    winner's lines rather than the empty BOQ it saw before the read."""
+    import app.routers.projects as projects_router
+    from app.core.timeutils import utc_now
+    from app.database import SessionLocal
+    from app.models import Project, ProjectBoqItem
+    from app.services.design_sheet_extractor import ExtractedBoqLine
+
+    _login_admin(client)
+    pid = client.post("/projects", json=_valid_project_payload("34150")).json()["id"]
+
+    def slower_than_the_other_request(path):
+        other = SessionLocal()
+        try:
+            project = other.get(Project, pid)
+            project.boq_extracted_at = utc_now()
+            project.boq_items.append(
+                ProjectBoqItem(system_code="FAS", position=0, description="Stored by the winner", quantity="3")
+            )
+            other.commit()
+        finally:
+            other.close()
+        return [
+            ExtractedBoqLine(
+                catalog_no="4-CPU",
+                description="Read by the loser",
+                quantity="1",
+                group_heading=None,
+                confidence=93.0,
+                page=1,
+            )
+        ]
+
+    monkeypatch.setattr(projects_router, "extract_boq_lines", slower_than_the_other_request)
+
+    body = client.post(f"/projects/{pid}/boq/ensure").json()
+    assert body["extracted"] is False
+    assert [i["description"] for i in body["items"]] == ["Stored by the winner"]
+    assert [i["description"] for i in client.get(f"/projects/{pid}/boq").json()] == [
+        "Stored by the winner"
+    ]
+
+
+def test_boq_extraction_is_not_retried_after_an_unreadable_sheet(client, monkeypatch):
+    import app.routers.projects as projects_router
+    from app.services.design_sheet_extractor import DesignSheetExtractionError
+
+    calls: list = []
+
+    def unreadable(path):
+        calls.append(path)
+        raise DesignSheetExtractionError("layout is not one this extractor recognises")
+
+    monkeypatch.setattr(projects_router, "extract_boq_lines", unreadable)
+
+    _login_admin(client)
+    pid = client.post("/projects", json=_valid_project_payload("34200")).json()["id"]
+
+    first = client.post(f"/projects/{pid}/boq/ensure").json()
+    assert first["items"] == []
+    assert any("recognises" in w for w in first["warnings"])
+    assert len(calls) == 1
+
+    # Reported once, not re-attempted on every visit.
+    second = client.post(f"/projects/{pid}/boq/ensure").json()
+    assert second["extracted"] is False
+    assert len(calls) == 1
+
+
+def test_boq_ensure_denied_to_viewer(client, db_session):
+    _login_admin(client)
+    created = client.post("/projects", json=_valid_project_payload("34300")).json()
+    client.post("/auth/logout")
+
+    make_user(db_session, "viewer4@ep-platform.com", RoleEnum.viewer)
+    login(client, "viewer4@ep-platform.com")
+
+    assert client.post(f"/projects/{created['id']}/boq/ensure").status_code == 403
+
+
+# --- DELETE /projects/{id} ---
+
+
+def test_delete_project_removes_it_and_its_children(client, db_session):
+    from app.models import ProjectDesignSheet, ProjectSystem
+
+    _login_admin(client)
+    created = client.post("/projects", json=_valid_project_payload("32000")).json()
+    project_id = created["id"]
+
+    resp = client.delete(f"/projects/{project_id}")
+    assert resp.status_code == 204
+
+    assert client.get(f"/projects/{project_id}").status_code == 404
+    # The cascade matters: orphaned system/design-sheet rows would otherwise
+    # accumulate and be silently attached to a later project reusing the id.
+    assert (
+        db_session.query(ProjectSystem).filter_by(project_id=project_id).count() == 0
+    )
+    assert (
+        db_session.query(ProjectDesignSheet).filter_by(project_id=project_id).count() == 0
+    )
+
+
+def test_delete_project_frees_the_ep_number_for_reuse(client):
+    _login_admin(client)
+    first = client.post("/projects", json=_valid_project_payload("32100")).json()
+    assert client.delete(f"/projects/{first['id']}").status_code == 204
+
+    again = client.post("/projects", json=_valid_project_payload("32100"))
+    assert again.status_code == 201
+
+
+def test_delete_project_denied_to_design_engineer(client, db_session):
+    _login_admin(client)
+    created = client.post("/projects", json=_valid_project_payload("32200")).json()
+    client.post("/auth/logout")
+
+    make_user(db_session, "engineer@ep-platform.com", RoleEnum.design_engineer)
+    login(client, "engineer@ep-platform.com")
+
+    assert client.delete(f"/projects/{created['id']}").status_code == 403
+    # still there
+    assert client.get(f"/projects/{created['id']}").status_code == 200
+
+
+def test_delete_project_allowed_for_design_manager(client, db_session):
+    _login_admin(client)
+    created = client.post("/projects", json=_valid_project_payload("32300")).json()
+    client.post("/auth/logout")
+
+    make_user(db_session, "manager@ep-platform.com", RoleEnum.design_manager)
+    login(client, "manager@ep-platform.com")
+
+    assert client.delete(f"/projects/{created['id']}").status_code == 204
+
+
+def test_delete_missing_project_404(client):
+    _login_admin(client)
+    assert client.delete("/projects/999999").status_code == 404

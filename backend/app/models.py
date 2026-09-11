@@ -1,7 +1,19 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint
+from decimal import Decimal
+
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.timeutils import utc_now
@@ -47,9 +59,8 @@ class Project(Base):
     Reference SSD-P-06 B/IQF.17) seen in the archive, not the mockup's field
     list, where the two disagree:
       - One `contractor` field (the DRF has one), not split Main/MEP.
-      - No `manufacturer` field -- brand is per-system, sourced from the
-        Design Sheet(s), not the DRF, and belongs with BOQ/design data
-        (Phase 3), not project info.
+      - No project-level `manufacturer` field -- brand is per-system and lives
+        on `ProjectSystem`, read from the DRF's Systems table.
       - `design_engineer` is an assignment (FK to a user), never extracted.
     """
 
@@ -75,8 +86,13 @@ class Project(Base):
     contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     scope_of_work: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    systems: Mapped[str | None] = mapped_column(String(255), nullable=True)  # comma-separated
     other_information: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # When the Design Sheets were read into the BOQ. Set once, on the first
+    # attempt, and never cleared: extraction is a starting point the engineer
+    # then edits, so re-running it later would either duplicate their lines or
+    # overwrite their corrections.
+    boq_extracted_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
     design_engineer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     design_engineer = relationship("User", foreign_keys=[design_engineer_id])
@@ -95,6 +111,73 @@ class Project(Base):
     design_sheets: Mapped[list["ProjectDesignSheet"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    systems: Mapped[list["ProjectSystem"]] = relationship(
+        back_populates="project", cascade="all, delete-orphan"
+    )
+    boq_items: Mapped[list["ProjectBoqItem"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="ProjectBoqItem.position",
+    )
+
+
+class ProjectSystem(Base):
+    """One row per system marked on the DRF's Systems table.
+
+    A system is on the project if its row carries any mark: a brand written
+    in, or a Method Statement / Drawing tick. Those three are kept rather than
+    collapsed to a name, because MS and DWG are per-system submittal
+    commitments that the team tracks separately.
+    """
+
+    __tablename__ = "project_systems"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    project: Mapped["Project"] = relationship(back_populates="systems")
+
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    brand: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    method_statement: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    drawing: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+
+class ProjectBoqItem(Base):
+    """One Bill of Quantities line.
+
+    Modelled on the Design Sheets in the archive, which are quotations laid
+    out as qty / catalog no / description / unit price / total price. Those
+    sheets have no single template -- a scanned FAS quotation and an ELS
+    spreadsheet export share only that shape -- so lines are entered and
+    edited here rather than read out of the document.
+    """
+
+    __tablename__ = "project_boq_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    project: Mapped["Project"] = relationship(back_populates="boq_items")
+
+    # Which system's sheet the line came from (FAS, ELS, ...); a project can
+    # have several, and their lines are read and priced separately.
+    system_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    # The quotations group sub-components under a heading (a panel, say) and
+    # indent their parts beneath it. Without this the parts read as unrelated
+    # loose items once they are in a flat table.
+    group_heading: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    catalog_no: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Text, not a number: the sheets use "Lot" as a quantity as readily as
+    # they use "505", and rewriting that as a number would lose what the
+    # document actually says.
+    quantity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    unit_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
+    total_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
 
 
 class ProjectDesignSheet(Base):

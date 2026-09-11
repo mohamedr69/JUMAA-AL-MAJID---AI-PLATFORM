@@ -8,7 +8,10 @@ import { CreateProjectPage } from "./pages/CreateProjectPage";
 import { LoginPage } from "./pages/LoginPage";
 import { OpenProjectPage } from "./pages/OpenProjectPage";
 import { OpeningScreen } from "./pages/OpeningScreen";
-import { ProjectDetailPage } from "./pages/ProjectDetailPage";
+import { ProjectBoqPage } from "./pages/ProjectBoqPage";
+import { ProjectDocumentsPage } from "./pages/ProjectDocumentsPage";
+import { ProjectHomePage } from "./pages/ProjectHomePage";
+import { ProjectWorkspace } from "./pages/ProjectWorkspace";
 
 function LoginRoute() {
   const { user, loading } = useAuth();
@@ -41,7 +44,11 @@ export default function App() {
             }
           />
           <Route path="/projects" element={<OpenProjectPage />} />
-          <Route path="/projects/:id" element={<ProjectDetailPage />} />
+          <Route path="/projects/:id" element={<ProjectWorkspace />}>
+            <Route index element={<ProjectHomePage />} />
+            <Route path="boq" element={<ProjectBoqPage />} />
+            <Route path="documents" element={<ProjectDocumentsPage />} />
+          </Route>
           <Route
             path="/admin/users"
             element={

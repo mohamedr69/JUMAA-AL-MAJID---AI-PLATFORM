@@ -1,12 +1,22 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { ApiError, api } from "../lib/api";
-import type { Project } from "../lib/types";
+import type { Project, Role } from "../lib/types";
+
+// Mirrors DELETER_ROLES in the projects router. The button is hidden for
+// everyone else, but the server is what actually enforces this.
+const DELETER_ROLES: Role[] = ["admin", "design_manager"];
 
 export function OpenProjectPage() {
+  const { user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const canDelete = user !== null && DELETER_ROLES.includes(user.role);
 
   useEffect(() => {
     api
@@ -15,6 +25,20 @@ export function OpenProjectPage() {
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load projects"))
       .finally(() => setLoading(false));
   }, []);
+
+  async function removeProject(id: number) {
+    setDeletingId(id);
+    setError(null);
+    try {
+      await api.delete(`/projects/${id}`);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+      setConfirmingId(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to remove the project");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -31,30 +55,70 @@ export function OpenProjectPage() {
       )}
 
       <div className="mt-4 space-y-2">
-        {projects.map((p) => (
-          <Link
-            key={p.id}
-            to={`/projects/${p.id}`}
-            className="block rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-brand-300 hover:shadow-sm"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-semibold text-navy-900">
+        {projects.map((p) => {
+          const confirming = confirmingId === p.id;
+          const busy = deletingId === p.id;
+          return (
+            <div
+              key={p.id}
+              className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 hover:border-brand-300 hover:shadow-sm"
+            >
+              <Link to={`/projects/${p.id}`} className="min-w-0 flex-1">
+                <div className="truncate font-semibold text-navy-900">
                   EP-{p.ep_number} {p.project_name && `— ${p.project_name}`}
                 </div>
-                <div className="text-xs text-gray-500">{p.client ?? "No client on file"}</div>
-              </div>
+                <div className="truncate text-xs text-gray-500">
+                  {p.client ?? "No client on file"}
+                </div>
+              </Link>
+
               <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
                   p.status === "active" ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"
                 }`}
               >
                 {p.status}
               </span>
+
+              {canDelete &&
+                (confirming ? (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-xs text-gray-500">Remove?</span>
+                    <button
+                      onClick={() => removeProject(p.id)}
+                      disabled={busy}
+                      className="rounded-md bg-red-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                    >
+                      {busy ? "Removing..." : "Confirm"}
+                    </button>
+                    <button
+                      onClick={() => setConfirmingId(null)}
+                      disabled={busy}
+                      className="rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-60"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmingId(p.id)}
+                    aria-label={`Remove project EP-${p.ep_number}`}
+                    className="shrink-0 rounded-md border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                ))}
             </div>
-          </Link>
-        ))}
+          );
+        })}
       </div>
+
+      {canDelete && projects.length > 0 && (
+        <p className="mt-3 text-xs text-gray-400">
+          Removing a project deletes only this platform&apos;s record of it. The files in the
+          project archive are left untouched.
+        </p>
+      )}
     </div>
   );
 }

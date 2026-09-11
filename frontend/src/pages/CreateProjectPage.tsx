@@ -55,7 +55,9 @@ export function CreateProjectPage() {
         epNumber={epNumber}
         sourceFolderPath={sourceFolder}
         resolution={resolution}
-        onCreated={(project: Project) => navigate(`/projects/${project.id}`, { replace: true })}
+        onCreated={(project: Project) =>
+          navigate(`/projects/${project.id}`, { replace: true, state: { justCreated: true } })
+        }
       />
     );
   }
