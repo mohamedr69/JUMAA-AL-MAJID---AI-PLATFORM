@@ -1,0 +1,561 @@
+{
+ "source": {
+  "project": "EP-30784 Binghatti Skyblade",
+  "note": "BOQ lines as extracted from the FAS and EML Design Sheets (OCR text kept as read); generated from the dev database, do not edit by hand."
+ },
+ "lines": [
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "SL2-42D3D-CGL-M",
+   "description": "Surface Mounted Emergency Light |",
+   "quantity": "759"
+  },
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "SL2-65D3D-CGL-M",
+   "description": "Surface Mounted Emergency Light |",
+   "quantity": "458"
+  },
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "RT2RHEO200CGL3HIP ~ M",
+   "description": "RTECH MR HEO CGL+ 200 MNM 3H IP¢",
+   "quantity": "458"
+  },
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "SL2-42D3D-CGL-M",
+   "description": "Wall Mounted Exit, 20 metre viewing",
+   "quantity": "327"
+  },
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "SL210DI",
+   "description": "Pictogram 7",
+   "quantity": "33"
+  },
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "SL2-65D3D-CGL-M",
+   "description": "Wall Mounted Exit, 20 metre viewing",
+   "quantity": "169"
+  },
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "SL210DI",
+   "description": "Pictogram ;",
+   "quantity": "17"
+  },
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "SL2-42D3D-CGL-M +SL2PPLR+SL2RB",
+   "description": "Exit Directional, Corridor Recessed, 20 metre viewing distance",
+   "quantity": "119"
+  },
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "SL2-65D3D-CGL-M +SL2CD +SL2DC3I",
+   "description": "Exit Directional, Hanging Driveway, , 30 metre viewing distance",
+   "quantity": "111"
+  },
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "CTR400CGL2KS-M",
+   "description": "Menvier Brand CGLine+ Web Compact Cont",
+   "quantity": "8"
+  },
+  {
+   "system_code": "EML",
+   "group_heading": null,
+   "catalog_no": "SL2MNM65D3C-M +SL231",
+   "description": "Wall Mounted Exit, 20 metre viewing distance, IP65 7",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": null,
+   "description": "EST4 fire alarm control panel complete with power supply/charger, sealed lead acid maintenance-free rechargeable batteries to power the system for 24 hours standby and 30 minutes alarm condition. Includes:",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-CPU",
+   "description": "Central Processor Module",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-PPS/M",
+   "description": "Primary Power Supply, 230 V",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-LCDLE",
+   "description": "4-LCD w/ cable for 3-CABSB, 7B, 14B, 21B, 4-8ANN, 1",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-FWAL4",
+   "description": "Firewall W/DACT/ EMAIL/DIAG — Provides secure cont",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-BRKT-CB",
+   "description": "Mounting Bracket provides space for mounting any one o}",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-NET-TP",
+   "description": "SFP Network Controller, 2Mbps Shared TX/RX, Twisted",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-USBHUB",
+   "description": "The 4-USBHUB Multi-port USB Hub module mounts in",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-COMREL",
+   "description": "Common Relay Module",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "3-SDDC2",
+   "description": "Dual loop SIGA Data Controller",
+   "quantity": "8"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "3-ZA20A",
+   "description": "Zoned Amplifier, 20 Watt, Class A/B. 20 Watt selectable",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-AUDTELS",
+   "description": "Audio and Telephone Interface/Riser Module",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-MIC",
+   "description": "Paging Microphone",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-FT",
+   "description": "Firefighter Master Handset",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "3-CHAS7",
+   "description": "Seven Space Chassis with Rails",
+   "quantity": "3"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-FIL",
+   "description": "Blank Filler Plate",
+   "quantity": "16"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "3-CAB21B",
+   "description": "White Backbox with 21 x LRM spaces, no door",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "4-CAB24DL",
+   "description": "Door Assembly — Bronze outer door and black inner door",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "BC-1 ,",
+   "description": "Battery cabinet",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Main Fire Alarm Control Panel",
+   "catalog_no": "12V65A",
+   "description": "Battery, 12 V @ 65 AH",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": null,
+   "description": "EST4 fire alarm control panel complete with power supply/charger, sealed lead acid maintenance-free rechargeable batteries to power the system for 24 hours standby and 30 minutes alarm condition. Includes:",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "4-CPU",
+   "description": "Central Processor Module",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "4-PPS/M",
+   "description": "Primary Power Supply, 230 V",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "4-LCDLE",
+   "description": "4-LCD w/ cable for 3-CABS5B, 7B, 14B, 21B, 4-8ANN, 1",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "4-NET-TP",
+   "description": "SFP Network Controller, 2Mbps Shared TX/RX, Twisted",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "3-SDDC2",
+   "description": "Dual loop SIGA Data Controller",
+   "quantity": "4"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "3-CHAS7",
+   "description": "Seven Space Chassis with Rails",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "4-FIL",
+   "description": "Blank Filler Plate",
+   "quantity": "14"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "3-CAB7B",
+   "description": "Wallbox with 1 Chassis Space",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "4-CABI6D",
+   "description": "Door Assembly — Bronze, comes with 16 User Interface sr",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "BC-1",
+   "description": "Battery cabinet",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "EST4 Fire Alarm Panel",
+   "catalog_no": "12V65A",
+   "description": "Battery, 12 V @65 AH ;",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "Amplifier (50 Watt)",
+   "catalog_no": null,
+   "description": "Remote audio closet cabinet wallbox, red. Supports 2 x SIGA amplifiers, and one APS. Components are:",
+   "quantity": "18"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "Amplifier (50 Watt)",
+   "catalog_no": "SIGA-AAS0",
+   "description": "Intelligent Audio Amplifier - 50 Watt",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "Amplifier (50 Watt)",
+   "catalog_no": "APS6A/230",
+   "description": "Auxiliary power supply, 6.5 Amp, 230V",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "Amplifier (50 Watt)",
+   "catalog_no": "SIGA-CT2",
+   "description": "Dual Input Module",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "Amplifier (50 Watt)",
+   "catalog_no": "12V10A",
+   "description": "10Ah Sealed Lead Acid Battery - 12 Vdc",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "Booster Power Supply",
+   "catalog_no": null,
+   "description": "Remote power supply cabinet wallbox, red. Supports one BPS. Components are:",
+   "quantity": "8"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "Booster Power Supply",
+   "catalog_no": "BPS10A/230",
+   "description": "10 Amp Booster Power Supply, 220V",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "Booster Power Supply",
+   "catalog_no": "SIGA-CT2",
+   "description": "Dual Input Module",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "Booster Power Supply",
+   "catalog_no": "12V10A",
+   "description": "10Ah Sealed Lead Acid Battery - 12 Vde",
+   "quantity": "2"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": "Booster Power Supply",
+   "catalog_no": "6538-G5",
+   "description": "Call for Assistance Kit",
+   "quantity": "4"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "SIGA-SB",
+   "description": "Signature Detector Base",
+   "quantity": "2206"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "SIGA-IB",
+   "description": "Detector Base with Isolator",
+   "quantity": "250"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "SIGA-LPS",
+   "description": "Audible (Sounder) Base",
+   "quantity": "746"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "SIGA-278",
+   "description": "‘Manual Pull Station - Double Action, 1-stage",
+   "quantity": "150"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "STI-1230",
+   "description": "Stopper IT without Horn - for Surface Stations",
+   "quantity": "29"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "STI-3002",
+   "description": "Weatherresistant Gasket",
+   "quantity": "29"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "G4SRN",
+   "description": "Wall Speaker, Red, No Marking",
+   "quantity": "142"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "EST-S186C",
+   "description": "Ceiling speaker, ABS fire dome (diameter 17,5 cm)",
+   "quantity": "470"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "757-1A-T",
+   "description": "Temporal Horn, Self-synchronized - 24 Vdc, RED",
+   "quantity": "4"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "WSTIA-T",
+   "description": "15/75 cd Temporal Horn/Strobe - 24 Vdc, RED",
+   "quantity": "56"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "G1IARN",
+   "description": "Compact Wall Horn, Red, No Marking",
+   "quantity": "121"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "6833-4",
+   "description": "Four-state Portable Telephone Handset Receptacle",
+   "quantity": "220"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "TCS-6",
+   "description": "Storage Enclosure for 6830 handsets (6)",
+   "quantity": "1"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "6830-3",
+   "description": "Portabie (Plug-in) lelephone Handset - BLACK",
+   "quantity": "4"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "SIGA-CT2",
+   "description": "Dual Input Module",
+   "quantity": "119"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "SIGA-CR",
+   "description": "Control Relay Module",
+   "quantity": "26"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "SIGA-IO",
+   "description": "Universal Input/Output Module - input with programmable outpu",
+   "quantity": "420"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "SIGA-UM",
+   "description": "Universal Class A/B Module",
+   "quantity": "20"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "SIGA-CC1",
+   "description": "Single Input (Riser) Module",
+   "quantity": "6"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "SIGA-CC2A",
+   "description": "Dual Input (Riser) Module-Class A",
+   "quantity": "80"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "TP606",
+   "description": "2\"x4\" GI Concealed Back Box Single Gange |",
+   "quantity": "49"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "TP434",
+   "description": "4\"x4\" GI Concealed Back Box Double Gange",
+   "quantity": "142"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "27193-11",
+   "description": "Surface Mount Box - Indoor, RED, 1-gang",
+   "quantity": "565"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "27193-21",
+   "description": "Surface Mount Box - Indoor, RED, 2-gang",
+   "quantity": "106"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "757A-WB",
+   "description": "Weatherproof Box, Cast - RED",
+   "quantity": "60"
+  },
+  {
+   "system_code": "FAS",
+   "group_heading": null,
+   "catalog_no": "GRSW-10",
+   "description": "Universal Wiring Plate - 10Packs",
+   "quantity": "15"
+  }
+ ]
+}

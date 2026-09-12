@@ -4,6 +4,9 @@ os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["MAX_FAILED_LOGIN_ATTEMPTS"] = "3"
 os.environ["LOCKOUT_MINUTES"] = "15"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
+# No real datasheet library: the tests build their own, and app startup
+# would otherwise index the synced archive in the background on every test.
+os.environ["DATASHEET_LIBRARIES"] = "{}"
 
 import pytest
 from fastapi.testclient import TestClient

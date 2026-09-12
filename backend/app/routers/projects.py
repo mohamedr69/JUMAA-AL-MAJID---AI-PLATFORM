@@ -2,7 +2,7 @@ import threading
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -567,3 +567,91 @@ def delete_project(
     project = _get_project_or_404(db, project_id)
     db.delete(project)
     db.commit()
+
+
+# --- documents ------------------------------------------------------------------
+
+# A document the resolver could not find is uploaded by hand instead. Only
+# the formats the extractors read are accepted, so an upload cannot turn
+# into a file nothing can open.
+UPLOAD_SUFFIXES = {".pdf", ".xlsx", ".xlsm"}
+MAX_UPLOAD_BYTES = 60 * 1024 * 1024
+
+
+def _save_upload(project: Project, upload: UploadFile, label: str) -> str:
+    suffix = Path(upload.filename or "").suffix.lower()
+    if suffix not in UPLOAD_SUFFIXES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            detail=f"{suffix or 'That file'} is not a format the platform reads (PDF or Excel)",
+        )
+    content = upload.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="The file is larger than 60 MB")
+    if not content:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="The file is empty")
+
+    folder = Path(settings.uploads_root) / f"EP-{project.ep_number}"
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = utc_now().strftime("%Y%m%d-%H%M%S")
+    path = folder / f"{label} {stamp}{suffix}"
+    path.write_bytes(content)
+    return str(path.resolve())
+
+
+@router.post("/{project_id}/documents/drf", response_model=ProjectOut)
+def upload_drf(
+    project_id: int,
+    file: UploadFile = File(...),
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> Project:
+    """Attach a DRF the resolver did not find. The fields it holds are not
+    re-read into the project: those were reviewed when the project was
+    created and are edited under Project Info."""
+    project = _get_project_or_404(db, project_id)
+    project.drf_document_path = _save_upload(project, file, "DRF")
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.post("/{project_id}/documents/design-sheets", response_model=ProjectOut)
+def upload_design_sheet(
+    project_id: int,
+    file: UploadFile = File(...),
+    system_code: str | None = Form(None),
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> Project:
+    """Attach a Design Sheet the resolver did not find. A sheet added after
+    the BOQ has been read is not read into it -- that read happens once per
+    project (see the BOQ section of the README) -- so its lines are added by
+    hand or the sheet is here for the record."""
+    project = _get_project_or_404(db, project_id)
+    code = (system_code or "").strip().upper() or None
+    path = _save_upload(project, file, f"Design Sheet {code}" if code else "Design Sheet")
+    project.design_sheets.append(ProjectDesignSheet(system_code=code, document_path=path))
+    db.commit()
+    db.refresh(project)
+    return project
+
+
+@router.delete("/{project_id}/documents/design-sheets/{sheet_id}", response_model=ProjectOut)
+def remove_design_sheet(
+    project_id: int,
+    sheet_id: int,
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> Project:
+    """Detach a Design Sheet from the project. The file itself is left where
+    it is -- in the archive it was never the platform's to delete, and an
+    uploaded one stays for the record."""
+    project = _get_project_or_404(db, project_id)
+    sheet = next((s for s in project.design_sheets if s.id == sheet_id), None)
+    if sheet is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Design Sheet not found")
+    project.design_sheets.remove(sheet)
+    db.commit()
+    db.refresh(project)
+    return project

@@ -1,0 +1,516 @@
+{
+ "source": {
+  "archive_path": "Samana Developers/EP-29495 IVY Garden 2/Design/APS&BPS.xlsx",
+  "sheet": "Sheet1",
+  "note": "Generated from the sheet by a script; do not edit by hand."
+ },
+ "speaker_types": [
+  {
+   "key": "ceiling",
+   "name": "EST-S186C",
+   "tap_watts": 0.75
+  },
+  {
+   "key": "speaker_strobe_wp",
+   "name": "757-3A-SS70",
+   "tap_watts": 1
+  }
+ ],
+ "zones": [
+  {
+   "name": "UG",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 0
+  },
+  {
+   "name": "BF",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 3,
+    "speaker_strobe_wp": 16
+   },
+   "watts": 18.25
+  },
+  {
+   "name": "GF",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 5,
+    "speaker_strobe_wp": 10
+   },
+   "watts": 13.75
+  },
+  {
+   "name": "P1",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 3,
+    "speaker_strobe_wp": 13
+   },
+   "watts": 15.25
+  },
+  {
+   "name": "P2",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 3,
+    "speaker_strobe_wp": 13
+   },
+   "watts": 15.25
+  },
+  {
+   "name": "P3",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 3,
+    "speaker_strobe_wp": 13
+   },
+   "watts": 15.25
+  },
+  {
+   "name": "P4",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 3,
+    "speaker_strobe_wp": 13
+   },
+   "watts": 15.25
+  },
+  {
+   "name": "1",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 23,
+    "speaker_strobe_wp": 5
+   },
+   "watts": 22.25
+  },
+  {
+   "name": "2",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "3",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "4",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "5",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "6",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "7",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "8",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "9",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "10",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "11",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "12",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "13",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "14",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "15",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "16",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "17",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 26,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 19.5
+  },
+  {
+   "name": "18",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "19",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "20",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "21",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "22",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "23",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "24",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "25",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "26",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "27",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "28",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "29",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "30",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "31",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "32",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 16,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 12
+  },
+  {
+   "name": "33",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 15,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 11.25
+  },
+  {
+   "name": "34",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 14,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 10.5
+  },
+  {
+   "name": "35",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 11,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 8.25
+  },
+  {
+   "name": "R",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 2,
+    "speaker_strobe_wp": 0
+   },
+   "watts": 1.5
+  }
+ ],
+ "engineer_channels": [
+  {
+   "first_zone": 0,
+   "label": "AMP-01"
+  },
+  {
+   "first_zone": 3,
+   "label": "AMP-02"
+  },
+  {
+   "first_zone": 5,
+   "label": "AMP-01"
+  },
+  {
+   "first_zone": 7,
+   "label": "AMP-02"
+  },
+  {
+   "first_zone": 9,
+   "label": "AMP-01"
+  },
+  {
+   "first_zone": 12,
+   "label": "AMP-02"
+  },
+  {
+   "first_zone": 15,
+   "label": "AMP-01"
+  },
+  {
+   "first_zone": 18,
+   "label": "AMP-02"
+  },
+  {
+   "first_zone": 21,
+   "label": "AMP-01"
+  },
+  {
+   "first_zone": 24,
+   "label": "AMP-02"
+  },
+  {
+   "first_zone": 27,
+   "label": "AMP-01"
+  },
+  {
+   "first_zone": 29,
+   "label": "AMP-02"
+  },
+  {
+   "first_zone": 32,
+   "label": "AMP-01"
+  },
+  {
+   "first_zone": 35,
+   "label": "AMP-02"
+  },
+  {
+   "first_zone": 38,
+   "label": "AMP-01"
+  },
+  {
+   "first_zone": 41,
+   "label": "AMP-02"
+  }
+ ],
+ "engineer_aps": [
+  {
+   "name": "APS-02",
+   "location": "GF FCC ROOM",
+   "first_channel": 0
+  },
+  {
+   "name": "APS-03",
+   "location": "P3",
+   "first_channel": 2
+  },
+  {
+   "name": "APS-04",
+   "location": "3RD",
+   "first_channel": 4
+  },
+  {
+   "name": "APS-05",
+   "location": "9TH",
+   "first_channel": 6
+  },
+  {
+   "name": "APS-06",
+   "location": "15TH",
+   "first_channel": 8
+  },
+  {
+   "name": "APS-07",
+   "location": "21",
+   "first_channel": 10
+  },
+  {
+   "name": "APS-08",
+   "location": "26",
+   "first_channel": 12
+  },
+  {
+   "name": "APS-09",
+   "location": "32",
+   "first_channel": 14
+  }
+ ]
+}

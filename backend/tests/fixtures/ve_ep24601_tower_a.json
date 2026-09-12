@@ -1,0 +1,788 @@
+{
+ "source": {
+  "archive_path": "Bilt Middle East/EP-24601 - Construction of 2B+G+6 Podium + Al Safouh, Dubai/EP-24601 Design/AMP TA CALC 06-01-2026.xlsx",
+  "sheet": "TW-A",
+  "note": "Generated from the sheet by a script; do not edit by hand."
+ },
+ "speaker_types": [
+  {
+   "key": "ceiling",
+   "name": "Ceiling Speaker",
+   "tap_watts": 0.75
+  },
+  {
+   "key": "spl_ceiling_flasher",
+   "name": "SPL Ceiling mounted speaker/Flasher",
+   "tap_watts": 0.5
+  },
+  {
+   "key": "wall_flasher_wp",
+   "name": "Wall Speaker flasher w/p",
+   "tap_watts": 1
+  },
+  {
+   "key": "wall_stairs",
+   "name": "Wall Speaker (Stairs)",
+   "tap_watts": 0.5
+  }
+ ],
+ "zones": [
+  {
+   "name": "Staircase -1",
+   "riser": "Stairs",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 25
+   },
+   "watts": 12.5
+  },
+  {
+   "name": "Staircase -2",
+   "riser": "Stairs",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 25
+   },
+   "watts": 12.5
+  },
+  {
+   "name": "Staircase -3",
+   "riser": "Stairs",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 25
+   },
+   "watts": 12.5
+  },
+  {
+   "name": "Staircase -4",
+   "riser": "Stairs",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 25
+   },
+   "watts": 12.5
+  },
+  {
+   "name": "Staircase -5",
+   "riser": "Stairs",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 25
+   },
+   "watts": 12.5
+  },
+  {
+   "name": "Staircase -6",
+   "riser": "Stairs",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 5
+   },
+   "watts": 2.5
+  },
+  {
+   "name": "Staircase -7",
+   "riser": "Stairs",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 5
+   },
+   "watts": 2.5
+  },
+  {
+   "name": "Staircase -8",
+   "riser": "Stairs",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 5
+   },
+   "watts": 2.5
+  },
+  {
+   "name": "Staircase -9",
+   "riser": "Stairs",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 5
+   },
+   "watts": 2.5
+  },
+  {
+   "name": "Staircase -10",
+   "riser": "Stairs",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 5
+   },
+   "watts": 2.5
+  },
+  {
+   "name": "Basement 2",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 2,
+    "wall_flasher_wp": 12,
+    "wall_stairs": 0
+   },
+   "watts": 13
+  },
+  {
+   "name": "Basement 1",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 12,
+    "spl_ceiling_flasher": 2,
+    "wall_flasher_wp": 5,
+    "wall_stairs": 0
+   },
+   "watts": 15
+  },
+  {
+   "name": "Ground Floor",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 12,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 9
+  },
+  {
+   "name": "(unnamed, row 24)",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 46,
+    "spl_ceiling_flasher": 5,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 37
+  },
+  {
+   "name": "Level-P1",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 17,
+    "wall_stairs": 0
+   },
+   "watts": 19
+  },
+  {
+   "name": "Level-P2",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 19,
+    "wall_stairs": 0
+   },
+   "watts": 21
+  },
+  {
+   "name": "Level-P3",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 19,
+    "wall_stairs": 0
+   },
+   "watts": 21
+  },
+  {
+   "name": "Level-P4",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 19,
+    "wall_stairs": 0
+   },
+   "watts": 21
+  },
+  {
+   "name": "Level-P5",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 19,
+    "wall_stairs": 0
+   },
+   "watts": 21
+  },
+  {
+   "name": "Level-P6",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 18,
+    "wall_stairs": 0
+   },
+   "watts": 20
+  },
+  {
+   "name": "REC",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 42,
+    "spl_ceiling_flasher": 2,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 32.5
+  },
+  {
+   "name": "Level 1",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 2",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 3",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 4",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 5",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 6",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 7",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 8",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 9",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 10",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 11",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 12",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 13",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 14",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 15",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 16",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 17",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 18",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 19",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 20",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 21",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 22",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 23",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 24",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 25",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 26",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 27",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 28",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 29",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 4,
+    "wall_stairs": 0
+   },
+   "watts": 9
+  },
+  {
+   "name": "Level 30",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 4,
+    "wall_stairs": 0
+   },
+   "watts": 9
+  },
+  {
+   "name": "Level 31",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 32",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 33",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 34",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 35",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 4,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 5
+  },
+  {
+   "name": "Level 36",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 9,
+    "spl_ceiling_flasher": 4,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 8.75
+  },
+  {
+   "name": "Level 37",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 0
+  },
+  {
+   "name": "Level 38",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 0
+  },
+  {
+   "name": "RF",
+   "riser": "Floors",
+   "counts": {
+    "ceiling": 0,
+    "spl_ceiling_flasher": 0,
+    "wall_flasher_wp": 0,
+    "wall_stairs": 0
+   },
+   "watts": 0
+  }
+ ],
+ "engineer_channels": [
+  {
+   "first_zone": 0,
+   "required_watts": 37.5,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 3,
+   "required_watts": 37.5,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 10,
+   "required_watts": 37,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 13,
+   "required_watts": 37,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 14,
+   "required_watts": 40,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 16,
+   "required_watts": 42,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 18,
+   "required_watts": 41,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 20,
+   "required_watts": 37.5,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 22,
+   "required_watts": 40,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 30,
+   "required_watts": 40,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 38,
+   "required_watts": 40,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 46,
+   "required_watts": 38,
+   "amplifier_watts": 50
+  },
+  {
+   "first_zone": 52,
+   "required_watts": 28.75,
+   "amplifier_watts": 50
+  }
+ ],
+ "engineer_aps": [
+  {
+   "name": "APS-1",
+   "first_channel": 0
+  },
+  {
+   "name": "APS-2",
+   "first_channel": 2
+  },
+  {
+   "name": "APS-3",
+   "first_channel": 4
+  },
+  {
+   "name": "APS-4",
+   "first_channel": 6
+  },
+  {
+   "name": "APS-5",
+   "first_channel": 8
+  },
+  {
+   "name": "APS-6",
+   "first_channel": 10
+  },
+  {
+   "name": "APS-7",
+   "first_channel": 12
+  }
+ ]
+}

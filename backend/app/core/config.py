@@ -30,8 +30,22 @@ class Settings(BaseSettings):
     # against SharePoint -- see app/services/ep_resolver.py docstring.
     projects_root: str | None = None
 
+    # Where documents uploaded through the platform are kept: a project's
+    # own folder under here. Never the archive itself -- the platform reads
+    # the archive, it does not write to it.
+    uploads_root: str = "uploads"
+
     # Path to tesseract.exe. Only needed if it's not already on PATH.
     tesseract_cmd: str | None = None
+
+    # Each manufacturer's datasheet library: the folder its datasheet PDFs
+    # live in, relative to PROJECTS_ROOT (or absolute). Keyed by the brand as
+    # the DRF and the BOQ spell it. The Edwards entry is the folder the
+    # platform owner designated as the permanent reference for Edwards
+    # datasheets; override or extend with DATASHEET_LIBRARIES='{"...": "..."}'.
+    datasheet_libraries: dict[str, str] = {
+        "EDWARDS": "Systems/01- FAVE/01- Edwards - UL&EN/01- EST4",
+    }
 
 
 @lru_cache

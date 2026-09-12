@@ -131,6 +131,70 @@ class Project(Base):
         cascade="all, delete-orphan",
         order_by="ProjectBoqRevision.number",
     )
+    design: Mapped["ProjectDesign | None"] = relationship(
+        back_populates="project", cascade="all, delete-orphan", uselist=False
+    )
+    submittals: Mapped[list["ProjectSubmittal"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="ProjectSubmittal.id",
+    )
+
+
+class ProjectDesign(Base):
+    """The project's design calculation inputs, as one document: the zone
+    schedule (floors and stairs with device counts per zone) and each
+    system's design over it -- so far Voice Evacuation.
+
+    A JSON document validated by app.schemas_design rather than tables per
+    part, because the engineer edits it as a whole (a schedule grid, a
+    channel assignment) and every calculation reads all of it. Results are
+    never stored: they are recomputed from this on every read, so a stored
+    number can never disagree with its inputs.
+    """
+
+    __tablename__ = "project_designs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, unique=True)
+    project: Mapped["Project"] = relationship(back_populates="design")
+
+    document: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_by = relationship("User")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
+class DesignRule(Base):
+    """A design rule the calculations draw on: an amplifier's rating and
+    design limit, a speaker type's default tap. Stored in the database, not
+    code, so it can be corrected without a release.
+
+    Versioned, never edited in place: a change adds a row with the next
+    version and marks the old one superseded. A project's design copies the
+    values it uses (and the rule's id) when the engineer picks the rule, so
+    correcting a rule never silently changes a calculation already made.
+    """
+
+    __tablename__ = "design_rules"
+    __table_args__ = (UniqueConstraint("category", "key", "version", name="uq_design_rule_version"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # "ve.amplifier", "ve.speaker", ...
+    category: Mapped[str] = mapped_column(String(64), nullable=False)
+    key: Mapped[str] = mapped_column(String(64), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    data: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # Where the value comes from -- a datasheet, an approved calculation.
+    source: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_by = relationship("User")
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
 
 class ProjectSystem(Base):
@@ -241,3 +305,77 @@ class ProjectDesignSheet(Base):
 
     system_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
     document_path: Mapped[str] = mapped_column(Text, nullable=False)
+
+
+class SubmittalStatus(str, enum.Enum):
+    """Where a submittal stands with the consultant."""
+
+    not_submitted = "not_submitted"
+    under_review = "under_review"
+    approved = "approved"
+    rejected = "rejected"
+
+
+class ProjectSubmittal(Base):
+    """A material submittal document: one package of materials of one system,
+    submitted to the consultant and revised until approved.
+
+    The register is what the project tracks -- title, system, manufacturer,
+    revision and where it stands -- and its history is kept as events rather
+    than by overwriting, so "approved on the 12th, rejected before that"
+    survives the next revision.
+    """
+
+    __tablename__ = "project_submittals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    project: Mapped["Project"] = relationship(back_populates="submittals")
+
+    title: Mapped[str] = mapped_column(String(200), nullable=False)
+    # The submittal's own reference on the form ("BBY006-GME-MAS-EL-FA-0001"),
+    # which is what a scan of the project folder matches on.
+    reference: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The consultant's reply code: A approved, B approved as noted, C resubmit.
+    reply_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    # The BOQ's system code (FAS, EML, ...); None for a package that spans them.
+    system_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    manufacturer: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # "R00", "R01", ... as the submittal itself is numbered.
+    revision: Mapped[str] = mapped_column(String(16), nullable=False, default="R00")
+    status: Mapped[SubmittalStatus] = mapped_column(
+        Enum(SubmittalStatus), nullable=False, default=SubmittalStatus.not_submitted
+    )
+    # The submittal document in the project archive, when there is one.
+    document_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    events: Mapped[list["ProjectSubmittalEvent"]] = relationship(
+        back_populates="submittal",
+        cascade="all, delete-orphan",
+        order_by="ProjectSubmittalEvent.at.desc()",
+    )
+
+
+class ProjectSubmittalEvent(Base):
+    """What happened to a submittal: created, revised, or its status changed."""
+
+    __tablename__ = "project_submittal_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    submittal_id: Mapped[int] = mapped_column(ForeignKey("project_submittals.id"), nullable=False)
+    submittal: Mapped["ProjectSubmittal"] = relationship(back_populates="events")
+
+    # "created", "status", "revision", "updated"
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    detail: Mapped[str] = mapped_column(Text, nullable=False)
+    by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    by = relationship("User")
+    at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)

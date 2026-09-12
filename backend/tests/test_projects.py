@@ -592,3 +592,72 @@ def test_delete_project_allowed_for_design_manager(client, db_session):
 def test_delete_missing_project_404(client):
     _login_admin(client)
     assert client.delete("/projects/999999").status_code == 404
+
+
+# --- uploading a document the resolver did not find ---
+
+
+def _upload(client, project_id, kind, name="EP-30784 DRF.pdf", content=b"%PDF-1.4 fake", data=None):
+    return client.post(
+        f"/projects/{project_id}/documents/{kind}",
+        files={"file": (name, content, "application/pdf")},
+        data=data or {},
+    )
+
+
+def test_uploading_a_drf_the_search_missed(client, tmp_path, monkeypatch):
+    import app.routers.projects as projects_router
+
+    monkeypatch.setattr(projects_router.settings, "uploads_root", str(tmp_path))
+    _login_admin(client)
+    project = client.post("/projects", json={"ep_number": "30784", "design_sheets": []}).json()
+    assert project["drf_document_path"] is None
+
+    body = _upload(client, project["id"], "drf").json()
+    stored = Path(body["drf_document_path"])
+    assert stored.parent.name == "EP-30784" and stored.suffix == ".pdf"
+    assert stored.read_bytes() == b"%PDF-1.4 fake"
+    # It is the project's DRF from now on.
+    assert client.get(f"/projects/{project['id']}").json()["drf_document_path"] == body["drf_document_path"]
+
+
+def test_uploading_a_design_sheet_and_removing_one(client, tmp_path, monkeypatch):
+    import app.routers.projects as projects_router
+
+    monkeypatch.setattr(projects_router.settings, "uploads_root", str(tmp_path))
+    _login_admin(client)
+    project = client.post("/projects", json={"ep_number": "30784", "design_sheets": []}).json()
+
+    body = _upload(client, project["id"], "design-sheets", name="EML sheet.pdf", data={"system_code": "eml"}).json()
+    (sheet,) = body["design_sheets"]
+    assert sheet["system_code"] == "EML"
+    assert Path(sheet["document_path"]).exists()
+
+    after = client.delete(f"/projects/{project['id']}/documents/design-sheets/{sheet['id']}").json()
+    assert after["design_sheets"] == []
+    # Detaching a sheet does not delete the file.
+    assert Path(sheet["document_path"]).exists()
+    assert client.delete(f"/projects/{project['id']}/documents/design-sheets/{sheet['id']}").status_code == 404
+
+
+def test_only_formats_the_platform_reads_are_accepted(client, tmp_path, monkeypatch):
+    import app.routers.projects as projects_router
+
+    monkeypatch.setattr(projects_router.settings, "uploads_root", str(tmp_path))
+    _login_admin(client)
+    project = client.post("/projects", json={"ep_number": "30784", "design_sheets": []}).json()
+
+    assert _upload(client, project["id"], "drf", name="notes.docx").status_code == 400
+    assert _upload(client, project["id"], "drf", content=b"").status_code == 400
+    assert _upload(client, project["id"], "design-sheets", name="sheet.xlsx").status_code == 200
+
+
+def test_uploading_is_for_editors(client, db_session, tmp_path, monkeypatch):
+    import app.routers.projects as projects_router
+
+    monkeypatch.setattr(projects_router.settings, "uploads_root", str(tmp_path))
+    _login_admin(client)
+    project = client.post("/projects", json={"ep_number": "30784", "design_sheets": []}).json()
+    make_user(db_session, "viewer@ep-platform.com", RoleEnum.viewer)
+    login(client, "viewer@ep-platform.com")
+    assert _upload(client, project["id"], "drf").status_code == 403

@@ -10,14 +10,26 @@ export interface ProjectContext {
   setProject: (project: Project) => void;
 }
 
-/** Sections of the project workspace. Only sections that are actually built
- * are listed -- the left nav is the map of the workspace, so a link to
- * nothing reads as a broken feature rather than a planned one. */
+/** Sections of the project workspace, in the order the platform's design
+ * lays them out. The ones still being built are listed too and say so when
+ * opened (`soon`), rather than being hidden: the nav is the map of the
+ * workspace, and a map with nothing where a section will be is its own kind
+ * of wrong. */
 const SECTIONS = [
-  { to: ".", label: "Home", end: true },
+  { to: ".", label: "Project Home", end: true },
   { to: "info", label: "Project Info", end: false },
-  { to: "boq", label: "BOQ", end: false },
   { to: "documents", label: "Documents", end: false },
+  { to: "boq", label: "BOQ", end: false },
+  { to: "calculations", label: "Calculation", end: false },
+  { to: "compliance", label: "Compliance Statement", end: false },
+  { to: "submittal", label: "Material Submittals", end: false },
+  { to: "drawings", label: "Drawings", end: false, soon: true },
+  { to: "queries", label: "Technical Queries", end: false, soon: true },
+  { to: "logs", label: "Logs", end: false, soon: true },
+  { to: "om-manual", label: "O&M Manual", end: false, soon: true },
+  { to: "reports", label: "Reports", end: false, soon: true },
+  { to: "team", label: "Project Team", end: false, soon: true },
+  { to: "settings", label: "Settings", end: false, soon: true },
 ];
 
 export function ProjectWorkspace() {
@@ -85,7 +97,12 @@ export function ProjectWorkspace() {
                 }`
               }
             >
-              {section.label}
+              <span className="flex items-center justify-between gap-2">
+                {section.label}
+                {section.soon && (
+                  <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">soon</span>
+                )}
+              </span>
             </NavLink>
           ))}
         </nav>
