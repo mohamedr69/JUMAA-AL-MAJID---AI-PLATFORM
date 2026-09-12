@@ -272,6 +272,10 @@ def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool) -> tuple[tupl
                         records[pending] = replace(records[pending], status=decision, reply_text=evidence, page=index + 1)
                 else:
                     pending = None
+            # A submission whose sheets could not be read is worth saying out
+            # loud: silence would read as "nothing was submitted".
+            if transmittal and not any(row.category == "drawings" for row in records):
+                warnings.append(f"{path.name}: no drawing title block could be read in this submission, so no sheet from it is logged.")
             if package:
                 records = [
                     replace(row, status=package[0], reply_text=row.reply_text or package[1])
