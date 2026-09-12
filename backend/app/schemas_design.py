@@ -606,6 +606,14 @@ class DraftMailOut(BaseModel):
 
 
 class ProjectLogDrawingOut(BaseModel):
+    group_reference: str | None = None
+    reference: str | None = None
+    revision: str = "R0"
+    status: str = "UR"
+    floor: str | None = None
+    reply_text: str | None = None
+    page: int = 1
+    source: str = "document"
     system_code: str | None
     name: str
     path: str
@@ -613,6 +621,9 @@ class ProjectLogDrawingOut(BaseModel):
 
 
 class ProjectLogsOut(BaseModel):
+    scanning: bool = False
+    processed_files: int = 0
+    total_files: int = 0
     samples: list[ProjectLogDrawingOut] = Field(default_factory=list)
     material_submittals: list[ProjectLogDrawingOut] = Field(default_factory=list)
     systems: list[str]

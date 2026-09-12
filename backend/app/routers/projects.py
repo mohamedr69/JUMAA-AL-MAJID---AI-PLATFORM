@@ -50,7 +50,7 @@ from app.services.boq_export import boq_workbook
 from app.services.boq_revisions import compare_boq
 from app.services.drf_extractor import extract_drf_fields
 from app.services.ep_resolver import resolve_project
-from app.services.project_directory import find_drawings
+from app.services.log_scan_jobs import get_log_scan
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 settings = get_settings()
@@ -663,6 +663,7 @@ def remove_design_sheet(
 @router.get("/{project_id}/logs", response_model=ProjectLogsOut)
 def project_logs(
     project_id: int,
+    refresh: bool = False,
     _current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ProjectLogsOut:
@@ -676,15 +677,16 @@ def project_logs(
     folder = Path(project.source_folder_path)
     if not folder.is_dir():
         return ProjectLogsOut(systems=sorted(systems), drawings=[], searched=project.source_folder_path, warnings=["The project's archive folder is not reachable."])
-    drawings, warnings = find_drawings(folder, systems)
-    materials, material_warnings = find_drawings(folder, systems, material=True)
-    samples, sample_warnings = find_drawings(folder, systems, sample=True)
-    warnings = list(dict.fromkeys(warnings + material_warnings + sample_warnings))
+    scan = get_log_scan(folder, refresh=refresh)
+    records, warnings = scan.records, scan.warnings
+    def output(row):
+        return ProjectLogDrawingOut(**{key: value for key, value in vars(row).items() if key != "category"})
     return ProjectLogsOut(
-        systems=sorted(systems | {drawing.system_code for drawing in drawings + materials + samples if drawing.system_code}),
-        samples=[ProjectLogDrawingOut(system_code=d.system_code, name=d.name, path=d.path, modified=d.modified) for d in samples],
-        material_submittals=[ProjectLogDrawingOut(system_code=d.system_code, name=d.name, path=d.path, modified=d.modified) for d in materials],
-        drawings=[ProjectLogDrawingOut(system_code=d.system_code, name=d.name, path=d.path, modified=d.modified) for d in drawings],
+        scanning=scan.scanning, processed_files=scan.processed, total_files=scan.total,
+        systems=sorted(systems | {row.system_code for row in records if row.system_code}),
+        material_submittals=[output(row) for row in records if row.category == "submittals"],
+        drawings=[output(row) for row in records if row.category == "drawings"],
+        samples=[output(row) for row in records if row.category == "samples"],
         searched=project.source_folder_path,
         warnings=warnings,
     )

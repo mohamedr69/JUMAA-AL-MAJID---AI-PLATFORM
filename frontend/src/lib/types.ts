@@ -74,6 +74,14 @@ export interface ProjectSystem extends ProjectSystemInput {
 }
 
 export interface ProjectLogDrawing {
+  group_reference?: string | null;
+  reference?: string | null;
+  revision?: string;
+  status?: string;
+  floor?: string | null;
+  reply_text?: string | null;
+  page?: number;
+  source?: string;
   system_code: string | null;
   name: string;
   path: string;
@@ -81,6 +89,9 @@ export interface ProjectLogDrawing {
 }
 
 export interface ProjectLogs {
+  scanning: boolean;
+  processed_files: number;
+  total_files: number;
   samples: ProjectLogDrawing[];
   material_submittals: ProjectLogDrawing[];
   systems: string[];
