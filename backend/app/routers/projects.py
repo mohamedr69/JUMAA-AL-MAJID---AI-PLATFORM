@@ -3,6 +3,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -39,6 +40,7 @@ from app.schemas_project import (
     ProjectResolveResponse,
     ProjectSystemIn,
 )
+from app.schemas_design import ProjectLogDrawingOut, ProjectLogsOut
 from app.services.design_sheet_extractor import (
     DesignSheetExtractionError,
     ExtractedBoqLine,
@@ -48,6 +50,7 @@ from app.services.boq_export import boq_workbook
 from app.services.boq_revisions import compare_boq
 from app.services.drf_extractor import extract_drf_fields
 from app.services.ep_resolver import resolve_project
+from app.services.project_directory import find_drawings
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 settings = get_settings()
@@ -655,3 +658,56 @@ def remove_design_sheet(
     db.commit()
     db.refresh(project)
     return project
+
+
+@router.get("/{project_id}/logs", response_model=ProjectLogsOut)
+def project_logs(
+    project_id: int,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProjectLogsOut:
+    """Return the current drawing index from the project's archive folder."""
+    project = _get_project_or_404(db, project_id)
+    systems = {(system.name or "").upper() for system in project.systems}
+    systems |= {(item.system_code or "").upper() for item in project.boq_items}
+    systems = {code for code in systems if code}
+    if not project.source_folder_path:
+        return ProjectLogsOut(systems=sorted(systems), drawings=[], searched=None, warnings=["The project has no archive folder to search."])
+    folder = Path(project.source_folder_path)
+    if not folder.is_dir():
+        return ProjectLogsOut(systems=sorted(systems), drawings=[], searched=project.source_folder_path, warnings=["The project's archive folder is not reachable."])
+    drawings, warnings = find_drawings(folder, systems)
+    materials, material_warnings = find_drawings(folder, systems, material=True)
+    samples, sample_warnings = find_drawings(folder, systems, sample=True)
+    warnings = list(dict.fromkeys(warnings + material_warnings + sample_warnings))
+    return ProjectLogsOut(
+        systems=sorted(systems | {drawing.system_code for drawing in drawings + materials + samples if drawing.system_code}),
+        samples=[ProjectLogDrawingOut(system_code=d.system_code, name=d.name, path=d.path, modified=d.modified) for d in samples],
+        material_submittals=[ProjectLogDrawingOut(system_code=d.system_code, name=d.name, path=d.path, modified=d.modified) for d in materials],
+        drawings=[ProjectLogDrawingOut(system_code=d.system_code, name=d.name, path=d.path, modified=d.modified) for d in drawings],
+        searched=project.source_folder_path,
+        warnings=warnings,
+    )
+
+
+
+
+@router.get("/{project_id}/logs/file")
+def project_log_file(
+    project_id: int,
+    path: str,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = _get_project_or_404(db, project_id)
+    if not project.source_folder_path:
+        raise HTTPException(404, detail="Project directory not configured")
+    root = Path(project.source_folder_path).resolve()
+    target = (root / path).resolve()
+    if not target.is_relative_to(root):
+        raise HTTPException(403, detail="File is outside the project directory")
+    if target.suffix.lower() not in {".pdf", ".dwg", ".dxf", ".doc", ".docx", ".xls", ".xlsx", ".zip"}:
+        raise HTTPException(400, detail="Unsupported log file type")
+    if not target.is_file():
+        raise HTTPException(404, detail="File is no longer available")
+    return FileResponse(target, filename=target.name, content_disposition_type="inline")

@@ -603,3 +603,19 @@ class DraftMailOut(BaseModel):
     to_name: str | None
     subject: str
     body: str
+
+
+class ProjectLogDrawingOut(BaseModel):
+    system_code: str | None
+    name: str
+    path: str
+    modified: datetime
+
+
+class ProjectLogsOut(BaseModel):
+    samples: list[ProjectLogDrawingOut] = Field(default_factory=list)
+    material_submittals: list[ProjectLogDrawingOut] = Field(default_factory=list)
+    systems: list[str]
+    drawings: list[ProjectLogDrawingOut]
+    searched: str | None
+    warnings: list[str]

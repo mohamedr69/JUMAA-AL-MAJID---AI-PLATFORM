@@ -73,6 +73,22 @@ export interface ProjectSystem extends ProjectSystemInput {
   id: number;
 }
 
+export interface ProjectLogDrawing {
+  system_code: string | null;
+  name: string;
+  path: string;
+  modified: string;
+}
+
+export interface ProjectLogs {
+  samples: ProjectLogDrawing[];
+  material_submittals: ProjectLogDrawing[];
+  systems: string[];
+  drawings: ProjectLogDrawing[];
+  searched: string | null;
+  warnings: string[];
+}
+
 /** A Bill of Quantities line. `quantity` is text because the Design Sheets
  * use "Lot" as readily as a number. Prices are sent as strings so decimals
  * survive the round trip without float rounding. */

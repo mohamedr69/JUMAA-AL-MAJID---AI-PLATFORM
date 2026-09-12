@@ -17,6 +17,7 @@ import { ProjectDocumentsPage } from "./pages/ProjectDocumentsPage";
 import { ProjectHomePage } from "./pages/ProjectHomePage";
 import { ProjectInfoPage } from "./pages/ProjectInfoPage";
 import { ProjectMaterialSubmittalPage } from "./pages/ProjectMaterialSubmittalPage";
+import { ProjectLogsPage } from "./pages/ProjectLogsPage";
 import { UnderMaintenance } from "./components/UnderMaintenance";
 import { ProjectVoiceEvacuationPage } from "./pages/ProjectVoiceEvacuationPage";
 import { ProjectWorkspace } from "./pages/ProjectWorkspace";
@@ -74,8 +75,7 @@ export default function App() {
             <Route path="documents" element={<ProjectDocumentsPage />} />
             {/* Sections of the design still being built: each says so. */}
             <Route path="drawings" element={<UnderMaintenance title="Drawings" />} />
-            <Route path="queries" element={<UnderMaintenance title="Technical Queries" />} />
-            <Route path="logs" element={<UnderMaintenance title="Logs" />} />
+            <Route path="logs" element={<ProjectLogsPage />} />
             <Route path="om-manual" element={<UnderMaintenance title="O&M Manual" />} />
             <Route path="reports" element={<UnderMaintenance title="Reports" />} />
             <Route path="team" element={<UnderMaintenance title="Project Team" />} />

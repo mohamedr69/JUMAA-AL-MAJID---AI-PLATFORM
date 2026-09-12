@@ -99,19 +99,75 @@ export function ProjectCompliancePage() {
             ))}
           </div>
 
-          {system && (
-            <SystemPanel
-              key={system.code}
-              projectId={project.id}
-              searched={data.searched}
-              system={system}
-              canEdit={canEdit}
-              onUploaded={setData}
-            />
-          )}
+          <div className="mt-4 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+            <div>
+              {system && (
+                <SystemPanel
+                  key={system.code}
+                  projectId={project.id}
+                  searched={data.searched}
+                  system={system}
+                  canEdit={canEdit}
+                  onUploaded={setData}
+                />
+              )}
+            </div>
+            <AiQuickActions system={system?.name ?? "the system"} />
+          </div>
         </>
       )}
     </div>
+  );
+}
+
+/** What AI is meant to do here once it is built: read the specification
+ * clause by clause and answer it from the project's own submittals and
+ * calculations. Listed so the intent is visible, disabled so nothing
+ * pretends to have been checked. */
+const AI_ACTIONS = [
+  {
+    title: "Prepare compliance statement",
+    body: "Answer the specification clause by clause from the project's submittals, calculations and datasheets.",
+  },
+  {
+    title: "Check compliance",
+    body: "Compare what is submitted against what the specification asks for, and list where they part company.",
+  },
+];
+
+function AiQuickActions({ system }: { system: string }) {
+  return (
+    <aside>
+      <h2 className="flex items-center gap-2 font-semibold text-navy-900">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+          <path d="m12 3 1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z" />
+          <path d="M18 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
+        </svg>
+        AI Quick Actions
+        <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">soon</span>
+      </h2>
+      <p className="mt-1 text-xs text-gray-500">For {system}. Being built — nothing here runs yet.</p>
+      <div className="mt-3 space-y-3">
+        {AI_ACTIONS.map((action) => (
+          <button
+            key={action.title}
+            disabled
+            title="Under maintenance while it is being built"
+            className="flex w-full cursor-not-allowed items-start gap-3 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-3 text-left opacity-70"
+          >
+            <span className="mt-0.5 text-gray-400">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                <path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L5 16v3h3l4.3-4.3a4 4 0 0 0 5.4-5.4l-2.2 2.2-2.1-2.1z" />
+              </svg>
+            </span>
+            <span className="min-w-0">
+              <span className="block font-semibold text-navy-900">{action.title}</span>
+              <span className="block text-xs text-gray-500">{action.body}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </aside>
   );
 }
 

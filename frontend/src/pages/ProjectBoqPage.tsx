@@ -19,9 +19,10 @@ const UNASSIGNED = " unassigned";
 
 /** Where a BOQ's quantities come from. Reading them off the issued-for-
  * construction drawings is in the platform's design but not built yet. */
-type SourceKey = "design" | "ifc";
+type SourceKey = "design" | "floor" | "ifc";
 const SOURCES: { key: SourceKey; label: string; soon?: boolean }[] = [
   { key: "design", label: "As per Design Sheet" },
+  { key: "floor", label: "BOQ Floor Wise", soon: true },
   { key: "ifc", label: "As per IFC Drawings", soon: true },
 ];
 
@@ -301,7 +302,14 @@ export function ProjectBoqPage() {
         ))}
       </div>
 
-      {source === "ifc" ? (
+      {source === "floor" ? (
+        <div className="mt-4">
+          <UnderMaintenance
+            title="BOQ Floor Wise"
+            note="Reading floor-wise quantities from project schedules is planned for a future release."
+          />
+        </div>
+      ) : source === "ifc" ? (
         <div className="mt-4">
           <UnderMaintenance
             title="BOQ from IFC drawings"

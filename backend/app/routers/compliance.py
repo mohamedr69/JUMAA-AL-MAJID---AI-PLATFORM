@@ -52,12 +52,16 @@ SYSTEM_DRF_ROWS = {
 
 
 def _project_systems(project: Project) -> list[str]:
-    """The systems this project's compliance statements cover: what its
-    Design Sheets and BOQ are for, plus what the DRF marks."""
+    """The systems this project's compliance statements cover: the ones it
+    actually delivers, which is what its Design Sheets and BOQ are for. The
+    DRF's marks are the fallback for a project with neither -- on their own
+    they list more than the project builds (EP-30784's DRF marks Voice
+    Evacuation, which its fire alarm specification covers)."""
     codes = {(sheet.system_code or "").upper() for sheet in project.design_sheets}
     codes |= {(item.system_code or "").upper() for item in project.boq_items}
-    marked = {s.name for s in project.systems}
-    codes |= {code for code, rows in SYSTEM_DRF_ROWS.items() if marked & set(rows)}
+    if not codes & set(SYSTEMS):
+        marked = {s.name for s in project.systems}
+        codes = {code for code, rows in SYSTEM_DRF_ROWS.items() if marked & set(rows)}
     return [code for code in SYSTEMS if code in codes]
 
 
