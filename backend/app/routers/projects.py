@@ -1,3 +1,4 @@
+import os
 import threading
 from pathlib import Path
 from urllib.parse import quote
@@ -41,6 +42,7 @@ from app.schemas_project import (
     ProjectSystemIn,
 )
 from app.schemas_design import ProjectLogDrawingOut, ProjectLogsOut
+from app.services.document_control import extended
 from app.services.design_sheet_extractor import (
     DesignSheetExtractionError,
     ExtractedBoqLine,
@@ -710,6 +712,8 @@ def project_log_file(
         raise HTTPException(403, detail="File is outside the project directory")
     if target.suffix.lower() not in {".pdf", ".dwg", ".dxf", ".doc", ".docx", ".xls", ".xlsx", ".zip"}:
         raise HTTPException(400, detail="Unsupported log file type")
-    if not target.is_file():
+    # Archive folders nest deep enough that Windows needs the extended name.
+    name = extended(str(target))
+    if not os.path.isfile(name):
         raise HTTPException(404, detail="File is no longer available")
-    return FileResponse(target, filename=target.name, content_disposition_type="inline")
+    return FileResponse(name, filename=target.name, content_disposition_type="inline")

@@ -86,6 +86,8 @@ export interface ProjectLogDrawing {
   name: string;
   path: string;
   modified: string;
+  issued?: string | null;
+  note?: string | null;
 }
 
 export interface ProjectLogs {

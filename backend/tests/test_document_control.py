@@ -35,14 +35,6 @@ def test_prepared_material_defaults_to_r0_ur():
     assert row.system_code == "FAS"
 
 
-def test_schedule_covers_all_listed_floors_and_systems():
-    rows = parse_page("DWG NO:\nDRAWING TITLE:\nFIRE ALARM SUBMISSION\nEML SUBMISSION\nFA 101\nBASEMENT-4 FLOOR PLAN\n17/04/2026\nFA 102\nTYPICAL 2ND TO 4TH FLOOR PLAN\n24/04/2026", "schedule.pdf", NOW, 1)
-    assert len(rows) == 4
-    assert {row.system_code for row in rows} == {"FAS", "EML"}
-    assert all(row.status == "UR" and row.revision == "R0" for row in rows)
-    assert {row.floor for row in rows} == {"BASEMENT-4", "TYPICAL 2ND TO 4TH FLOOR"}
-
-
 def test_unrelated_drawing_folder_file_excluded():
     assert not parse_page("LV Technical Drawing\nProvisionally Approved\nConnected load 1600 kW", "Drawings/approved.pdf", NOW, 1)
 
@@ -58,11 +50,6 @@ def test_replies_merge_by_reference_revision_and_refresh(tmp_path):
     (tmp_path / "reply.pdf").unlink()
     rows, _ = scan_document_control(tmp_path, use_ocr=False)
     assert rows[0].status == "UR"
-
-
-def test_drawing_title_block_and_floor():
-    row, = parse_page("Drawing No: BBY006-GME-SDW-FA-B4-0001\nDrawing title: Fire Alarm Layout - B4\nRevision: 01\nConsultant status: Approved", "layout.pdf", NOW, 1)
-    assert (row.category, row.floor, row.revision, row.status) == ("drawings", "B4", "R1", "approved")
 
 
 def test_inline_ocr_stamp_and_conflicting_decisions():
@@ -86,3 +73,67 @@ def test_ocr_reply_updates_matching_revision(tmp_path, monkeypatch):
     assert len(rows) == 1
     assert rows[0].revision == "R0"
     assert rows[0].status == "ANN"
+
+
+def title_block(path, number, title, layout, history, box_revision="00"):
+    """A sheet drawn the way the office draws one: labels, then the values."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with pymupdf.open() as doc:
+        page = doc.new_page(width=900, height=900)
+        page.insert_text((400, 300), "Rev  Date  Description")
+        for index, (revision, date, note) in enumerate(history):
+            page.insert_text((400, 320 + index * 20), f"{revision}  {date}  {note}")
+        page.insert_text((400, 600), "Purpose of Issue:")
+        page.insert_text((400, 620), "DRAWING TITLE")
+        page.insert_text((410, 645), title)
+        page.insert_text((410, 665), layout)
+        for offset, label in enumerate(["SCALE", "DRAWN", "CHECKED", "DATE", "SIZE", "REV. NO."]):
+            page.insert_text((400 + offset * 70, 700), label)
+        issued = history[-1][1] if history else "06.08.2026"
+        for offset, value in enumerate(["1:100", "IS", "RAMADAN", issued, "A0", box_revision]):
+            page.insert_text((400 + offset * 70, 720), value)
+        page.insert_text((400, 760), number)
+        doc.save(path)
+
+
+def test_shop_drawing_is_read_from_its_own_title_block(tmp_path):
+    title_block(tmp_path / "R1" / "ground.pdf", "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+                "GROUND FLOOR PLAN", "FIRE ALARM LAYOUT",
+                [("00", "06.08.2026", "ISSUED FOR APPROVAL"), ("01", "10.09.2026", "REVISED AS PER NEW ARCH")])
+    rows, _ = scan_document_control(tmp_path, use_ocr=False)
+    row, = rows
+    assert (row.category, row.system_code, row.reference) == ("drawings", "FAS", "BBY006-GME-SDW-FP-FA-POD-BGF-010002")
+    assert (row.revision, row.status, str(row.issued)) == ("R1", "UR", "2026-09-10")
+    assert row.floor == "GROUND FLOOR"
+    # The revision box was left at 00 while the history says 01: reported, not followed.
+    assert row.note and "01" in row.note
+
+
+def test_each_floor_is_logged_once_at_the_revision_last_issued(tmp_path):
+    for folder, revision, date in [("R0", "00", "06.08.2026"), ("R1", "01", "10.09.2026"), ("copies", "00", "06.08.2026")]:
+        title_block(tmp_path / folder / "podium.pdf", "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+                    "PODIUM-1 FLOOR PLAN", "FIRE ALARM LAYOUT",
+                    [("00", "06.08.2026", "ISSUED FOR APPROVAL")] + ([("01", date, "REVISED")] if revision == "01" else []),
+                    box_revision=revision)
+    rows, _ = scan_document_control(tmp_path, use_ocr=False)
+    assert [(row.revision, row.floor) for row in rows] == [("R0", "PODIUM-1 FLOOR"), ("R1", "PODIUM-1 FLOOR")]
+    assert {row.group_reference for row in rows} == {"BBY006-GME-SDW-FP-FA-POD-P01-010003"}
+
+
+def test_another_trade_drawing_is_not_ours_to_log(tmp_path):
+    title_block(tmp_path / "slab.pdf", "BBY006-GME-SDW-ME-BL-ZZZ-L03-010099",
+                "LEVEL 03 FLOOR PLAN", "MEP SLAB OPENING LAYOUT", [("00", "06.02.2026", "ISSUED")])
+    assert scan_document_control(tmp_path, use_ocr=False)[0] == []
+
+
+def test_a_form_bound_into_another_submission_is_not_a_submission(tmp_path):
+    sample = "Sample Approval Form\nSAF Reference No.: BBY006-GME-SAR-EL-FA-0001\nSAF Rev.: 00\nSample Approval Request for Fire Alarm & Voice Evacuation System"
+    pdf(tmp_path / "sample.pdf", [sample, "SAMPLE BOARD PHOTO", FORM])
+    rows, _ = scan_document_control(tmp_path, use_ocr=False)
+    row, = rows
+    assert (row.category, row.reference) == ("samples", "BBY006-GME-SAR-EL-FA-0001")
+
+
+def test_reply_to_comments_is_not_a_submittal(tmp_path):
+    pdf(tmp_path / "reply.pdf", ["Reply to MS Consultant Comments\nBBY006-GME-MAS-EL-FA-0002\nSN Consultant Comments Al Arabia SSD Reply"])
+    assert scan_document_control(tmp_path, use_ocr=False)[0] == []

@@ -3,12 +3,15 @@ import type { ProjectLogDrawing, Submittal } from "./types";
 export interface LogRevision {
   title: string; reference: string; revision: string; status: string; groupReference?: string | null;
   path: string | null; system: string | null; updated: string; floor: string; page?: number; evidence?: string | null; source?: string;
+  /** The date the document itself carries, when it states one. */
+  issued?: string | null; note?: string | null;
 }
 export interface LogDocument { key: string; title: string; reference: string; revisions: LogRevision[] }
 export function directoryRevision(file: ProjectLogDrawing): LogRevision {
   return { title: file.name, reference: file.reference ?? file.name, revision: file.revision ?? "R0",
     status: file.status ?? "UR", path: file.path, system: file.system_code, updated: file.modified,
-    floor: file.floor ?? "Not recorded", page: file.page, evidence: file.reply_text, source: file.source, groupReference: file.group_reference };
+    floor: file.floor ?? "Not recorded", page: file.page, evidence: file.reply_text, source: file.source, groupReference: file.group_reference,
+    issued: file.issued, note: file.note };
 }
 export function registerRevision(item: Submittal): LogRevision {
   return { title: item.title, reference: item.reference ?? item.title, revision: item.revision.replace(/^R0+(\d)/i, "R$1"),

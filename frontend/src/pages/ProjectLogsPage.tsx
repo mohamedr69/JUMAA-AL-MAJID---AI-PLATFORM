@@ -48,7 +48,7 @@ const STATUS_TITLES: Record<string, string> = {
 };
 
 function when(value: string): string {
-  const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`);
+  const date = new Date(/^\d{4}-\d\d-\d\d$/.test(value) ? `${value}T00:00:00Z` : /[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`);
   return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
 
@@ -274,7 +274,7 @@ export function ProjectLogsPage() {
                     {expanded.has(doc.key) && (
                       <tr className="bg-brand-50/40">
                         <td colSpan={columns.length} className="p-4">
-                          <RevisionTable doc={doc} statusChip={statusChip} fileHref={fileHref} />
+                          <RevisionTable doc={doc} statusChip={statusChip} fileHref={fileHref} dateLabel={activeChild === "drawings" ? "Issued" : "Response"} />
                         </td>
                       </tr>
                     )}
@@ -352,16 +352,17 @@ function DocumentRow({ doc, drawings, revisionColumns, expanded, onToggle, statu
   );
 }
 
-function RevisionTable({ doc, statusChip, fileHref }: {
+function RevisionTable({ doc, statusChip, fileHref, dateLabel }: {
   doc: LogDocument;
   statusChip: (row: LogRevision) => ReactNode;
   fileHref: (row: LogRevision) => string | null;
+  dateLabel: string;
 }) {
   return (
     <table className="w-full bg-white text-sm">
       <thead className="bg-gray-50">
         <tr>
-          {["Revision", "Status", "Reference number", "Response", "Consultant reply", "File"].map((label) => (
+          {["Revision", "Status", "Reference number", dateLabel, "Consultant reply", "File"].map((label) => (
             <th key={label} className="border border-gray-200 p-3 text-left font-semibold">{label}</th>
           ))}
         </tr>
@@ -374,10 +375,11 @@ function RevisionTable({ doc, statusChip, fileHref }: {
               <td className="border border-gray-200 p-3">
                 {row.revision}
                 {i === 0 && row.revision !== "Not recorded" && <span className="ml-2 rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600">Latest</span>}
+                {row.note && <span title={row.note} className="ml-2 cursor-help text-amber-600">!</span>}
               </td>
               <td className="border border-gray-200 p-3">{statusChip(row)}</td>
               <td className="border border-gray-200 p-3 text-gray-700">{row.reference}</td>
-              <td className="border border-gray-200 p-3 text-gray-700">{when(row.updated)}</td>
+              <td className="border border-gray-200 p-3 text-gray-700">{when(row.issued ?? row.updated)}</td>
               <td className="border border-gray-200 p-3 text-gray-600">{row.evidence ?? "No reply found in the document"}</td>
               <td className="border border-gray-200 p-3">
                 {href

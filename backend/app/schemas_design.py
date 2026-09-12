@@ -7,7 +7,7 @@ app.services.ve_calculation), so a stored number can never disagree with
 the counts it came from.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -618,6 +618,8 @@ class ProjectLogDrawingOut(BaseModel):
     name: str
     path: str
     modified: datetime
+    issued: date | None = None
+    note: str | None = None
 
 
 class ProjectLogsOut(BaseModel):
