@@ -53,9 +53,70 @@ DESIGN_SHEET_EXTENSIONS = (".pdf", ".xlsx", ".xls")
 # FAS: Fire Alarm System, ELS/EML: Emergency Lighting (System), PAVA: Public
 # Address/Voice Alarm, CBS: Central Battery System, VES: Voice Evacuation
 # System, NAC: Notification Appliance Circuit. Filenames use inconsistent
-# abbreviations for the same system (ELS vs EML both seen for Emergency
-# Lighting) -- extend this list as new real filenames turn up.
-SYSTEM_CODE_RE = re.compile(r"\b(FAS|ELS|EML|PAVA|CBS|VES|NAC)\b", re.IGNORECASE)
+# abbreviations for the same system -- ELS and EML both for Emergency
+# Lighting; PA, PAVA, VA and VAS all for the public-address system; VE and
+# VES for voice evacuation -- so the code a filename carries is normalised
+# to the one the platform keys on (`SYSTEM_CODE_ALIASES`). Extend both as
+# new real filenames turn up. "Design.pdf" with no code at all is left
+# unlabelled here; the caller may settle it from the DRF (see
+# `infer_single_system`).
+SYSTEM_CODE_RE = re.compile(r"\b(FAS|ELS|EML|PAVA|PA|VA|VAS|CBS|VES|VE|NAC)\b", re.IGNORECASE)
+
+SYSTEM_CODE_ALIASES: dict[str, str] = {
+    "PA": "PAVA",
+    "VA": "PAVA",
+    "VAS": "PAVA",
+    "VE": "VES",
+}
+
+
+def canonical_system_code(code: str | None) -> str | None:
+    """The platform's spelling of a system code: PA, VA and VAS are PAVA;
+    VE is VES; anything else is itself, upper-cased."""
+    if not code:
+        return None
+    upper = code.strip().upper()
+    return SYSTEM_CODE_ALIASES.get(upper, upper) or None
+
+
+# Which DRF Systems rows each design-sheet code stands for. A generic
+# "Design.pdf" can be assigned a code only when the DRF marks exactly one of
+# these systems -- then it is not ambiguous, it is the project's one system.
+SYSTEM_CODE_DRF_ROWS: dict[str, tuple[str, ...]] = {
+    "FAS": ("Fire Alarm",),
+    "VES": ("Voice Evacuation",),
+    "PAVA": ("PA/VA & BGM",),
+    "CBS": ("Central Battery System",),
+    "EML": ("Emergency Light Monitoring",),
+}
+
+
+def infer_single_system(marked_rows: list[str]) -> str | None:
+    """The one design-sheet code a DRF's marked systems amount to, or None.
+
+    Only when every marked row maps to the same code: a DRF marking Fire
+    Alarm alone gives FAS; one marking Fire Alarm and Voice Evacuation gives
+    nothing, because a sheet with no code could be either. Rows that have no
+    design-sheet code of their own (Fire Telephone rides on the FAS sheet;
+    Smoke Management, CCTV, ...) do not vote.
+    """
+    codes = {
+        code
+        for row in marked_rows
+        for code, rows in SYSTEM_CODE_DRF_ROWS.items()
+        if row in rows
+    }
+    return codes.pop() if len(codes) == 1 else None
+
+
+# The revision a design sheet's filename declares: "FAS Design sheet-R1.pdf",
+# "VE Design Sheet R2.pdf". No marker is revision 0 -- the first issue.
+REVISION_RE = re.compile(r"(?:^|[\s_\-(])R(?:ev\.?)?\s?0*(\d{1,2})(?=[\s_\-).]|$)", re.IGNORECASE)
+
+
+def declared_revision(filename: str) -> int | None:
+    match = REVISION_RE.search(Path(filename).stem)
+    return int(match.group(1)) if match else None
 
 
 def _ep_folder_pattern(ep_number: str) -> re.Pattern:
@@ -116,6 +177,35 @@ class DocumentMatch:
     path: Path
     system_guess: str | None
     matched_via: str
+    # The revision the filename declares (R1, R2, ...); None when it declares
+    # none. Design sheets only.
+    revision: int | None = None
+    # Whether this candidate should be attached by default. A sheet
+    # superseded by a later revision of the same system is offered but not
+    # selected, so a BOQ is read from one issue of each design and not two.
+    selected: bool = True
+
+
+_COPY_RE = re.compile(r"\bcopy\b|\(\d+\)", re.IGNORECASE)
+
+
+def _drf_rank(match: DocumentMatch) -> tuple:
+    """Best DRF candidate first.
+
+    The archive files the same form more than once: "EP-30208 DRF.pdf",
+    "EP-30208 DRF - Copy.pdf" and "EP-30208 DRF - Copy.jpg", and the JPG is a
+    scan of the top half of the page only. Alphabetical order put the JPG
+    first, so the Systems table was read from a file that does not have one.
+    A PDF outranks an image, an original outranks a copy, and the shortest
+    name -- the one with nothing added to it -- outranks the rest.
+    """
+    name = match.path.name
+    return (
+        0 if name.lower().endswith(".pdf") else 1,
+        1 if _COPY_RE.search(name) else 0,
+        len(name),
+        name.lower(),
+    )
 
 
 def find_drf_candidates(
@@ -138,7 +228,7 @@ def find_drf_candidates(
                         matched_via="folder~scan/commercial, filename~DRF",
                     )
                 )
-    return results
+    return sorted(results, key=_drf_rank)
 
 
 def find_design_sheet_candidates(
@@ -160,17 +250,50 @@ def find_design_sheet_candidates(
                 results.append(
                     DocumentMatch(
                         path=Path(dirpath) / fname,
-                        system_guess=system_match.group(1).upper() if system_match else None,
+                        system_guess=canonical_system_code(system_match.group(1)) if system_match else None,
                         matched_via="folder~scan/commercial, filename~Design",
+                        revision=declared_revision(fname),
                     )
                 )
-    return results
+    return mark_superseded(results)
+
+
+def mark_superseded(candidates: list[DocumentMatch]) -> list[DocumentMatch]:
+    """Select one issue of each system's design by default.
+
+    EP-30175 filed "FAS Design.pdf", "FAS Design sheet-R1.pdf", "VE Design
+    sheet-R1.pdf", "VE Design sheet-R2.pdf" and "VES Design.pdf" side by
+    side, and attaching all five read one system's BOQ three times over.
+    Within a system, the highest declared revision is the governing one; a
+    sheet with no revision marker beside a revised one is the original it
+    revised, and is left unselected with a note saying which sheet
+    supersedes it. The reviewer sees every sheet and can tick any of them.
+    Sheets with no system code are never assumed to supersede each other.
+    """
+    by_system: dict[str, list[DocumentMatch]] = {}
+    for candidate in candidates:
+        if candidate.system_guess:
+            by_system.setdefault(candidate.system_guess, []).append(candidate)
+    for group in by_system.values():
+        if len(group) < 2:
+            continue
+        governing = max(group, key=lambda c: (c.revision or 0, c.path.name.lower()))
+        for candidate in group:
+            if candidate is governing:
+                continue
+            candidate.selected = False
+            candidate.matched_via += f"; superseded by {governing.path.name}"
+    return candidates
 
 
 @dataclass
 class ProjectResolution:
     ep_number: str
     matched_folders: list[Path] = field(default_factory=list)
+    # The folder the documents below were found in: the one matched folder,
+    # or the one the caller selected. This -- not the first match -- is the
+    # project's source folder.
+    source_folder: Path | None = None
     drf_candidates: list[DocumentMatch] = field(default_factory=list)
     design_sheet_candidates: list[DocumentMatch] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -220,6 +343,7 @@ def resolve_project(
             return resolution
 
     target_folder = selected_folder if selected_folder is not None else folders[0]
+    resolution.source_folder = target_folder
     resolution.drf_candidates = find_drf_candidates(target_folder, errors)
     resolution.design_sheet_candidates = find_design_sheet_candidates(target_folder, errors)
 

@@ -177,17 +177,17 @@ def test_currents_are_filled_from_the_datasheets(client, tmp_path, monkeypatch):
         ("4-CPU", 211, 211),
         ("3-SDDC2", 264, 336),
         ("3-CHAS7", 0, 0),
+        # Built into the CPU: no current of its own (see INCLUDED_IN_MODULE).
+        ("4-COMREL", 0, 0),
     ]
     assert filled[0]["source"].startswith("Edwards datasheet (01- 4-CPU.pdf), p.1: read automatically")
     assert filled[2]["source"].startswith("No electrical load: mechanical part")
+    assert filled[3]["source"].startswith("No current of its own: built into 4-CPU")
 
     body = client.get(f"/projects/{project_id}/design/battery").json()
     (panel,) = body["panels"]
-    assert panel["missing_parts"] == ["4-COMREL"]
-    assert body["unresolved"] == [
-        {"part_no": "4-COMREL", "description": "Common Relay Module",
-         "reason": "01- 4-CPU.pdf mentions it, but gives no current for this model"}
-    ]
+    assert panel["missing_parts"] == []
+    assert body["unresolved"] == []
     loaded = {line["part_no"]: line for line in panel["lines"] if line["kind"] == "load" and not line["missing_current"]}
     assert loaded["3-SDDC2"]["total_standby_ma"] == 528
     assert "SDDC.pdf" in loaded["3-SDDC2"]["current_source"]
@@ -305,3 +305,205 @@ def test_export_lists_only_parts_that_draw_current_with_live_formulas(client):
     assert openpyxl.load_workbook(BytesIO(one.content)).sheetnames == ["FACP-03"]
     assert "FACP-03" in one.headers["content-disposition"]
     assert client.get(f"/projects/{project_id}/design/battery/export.xlsx", params={"panel": "nope"}).status_code == 404
+
+
+# --- parts built into another module --------------------------------------
+
+
+def test_a_part_built_into_another_module_draws_no_current(client, tmp_path, monkeypatch):
+    """4-COMREL is on the EST4 CPU board. Its current is already inside
+    4-CPU's figure, and no datasheet gives it one of its own -- so left as
+    "missing" it held the panel at a lower bound for ever and no battery was
+    ever proposed. Platform owner, 13 September 2026."""
+    import app.routers.design as design_router
+
+    library = _library(tmp_path)
+    monkeypatch.setattr(design_router, "_datasheet_libraries", lambda: {"EDWARDS": library})
+    _login_admin(client)
+    project_id = _fill_project(client)
+
+    client.post(f"/projects/{project_id}/design/battery/fill-currents")
+    body = client.get(f"/projects/{project_id}/design/battery").json()
+    (panel,) = body["panels"]
+
+    comrel = next(line for line in panel["lines"] if line.get("part_no") == "4-COMREL")
+    assert (comrel["standby_ma"], comrel["alarm_ma"]) == (0, 0)
+    assert "built into 4-CPU" in comrel["current_source"]
+    # The panel is now a firm figure, not a lower bound, so it can be sized.
+    assert panel["lower_bound"] is False
+    assert panel["status"] != "incomplete"
+
+
+def test_a_built_in_part_is_not_given_its_host_s_current(client, tmp_path, monkeypatch):
+    """The host module's datasheet is the one that mentions the part, so
+    reading it would count 4-CPU's own current a second time."""
+    import app.routers.design as design_router
+
+    library = _library(tmp_path)
+    monkeypatch.setattr(design_router, "_datasheet_libraries", lambda: {"EDWARDS": library})
+    _login_admin(client)
+    project_id = _fill_project(client)
+
+    client.post(f"/projects/{project_id}/design/battery/fill-currents")
+    panel, = client.get(f"/projects/{project_id}/design/battery").json()["panels"]
+
+    cpu = next(line for line in panel["lines"] if line.get("part_no") == "4-CPU")
+    comrel = next(line for line in panel["lines"] if line.get("part_no") == "4-COMREL")
+    assert cpu["standby_ma"] == 211
+    assert comrel["standby_ma"] == 0
+
+
+def test_a_battery_is_selected_for_the_load_even_when_the_boq_quotes_less(client, tmp_path, monkeypatch):
+    """The selection follows the load, not the BOQ. Where it comes out above
+    what the BOQ quotes, `quoted_short` marks it so the page can say so --
+    the capacity is right and the BOQ is the thing to change."""
+    import app.routers.design as design_router
+
+    library = _library(tmp_path)
+    monkeypatch.setattr(design_router, "_datasheet_libraries", lambda: {"EDWARDS": library})
+    _login_admin(client)
+    project_id = _fill_project(client)
+    client.post(f"/projects/{project_id}/design/battery/fill-currents")
+    for part, ah in [("12V26A", 26), ("12V42A", 42), ("12V65A", 65)]:
+        assert client.post(
+            "/design-rules/battery-units",
+            json={"part_no": part, "capacity_ah": ah, "voltage": 12, "brand": "ROCKET", "source": "ROCKET datasheet"},
+        ).status_code == 200
+
+    # Quote a battery far below what this panel's load needs. Not one of the
+    # catalogued parts, so its capacity is read from the BOQ description.
+    boq = client.get(f"/projects/{project_id}/boq").json()
+    for item in boq:
+        if item["catalog_no"] == "12V65A":
+            item["catalog_no"] = "12V7A"
+            item["description"] = "Battery, 12 V @ 7 AH"
+    client.put(f"/projects/{project_id}/boq", json=boq)
+
+    panel, = client.get(f"/projects/{project_id}/design/battery").json()["panels"]
+    assert panel["quoted_ah"] == 7
+    assert panel["quoted_short"] is True
+    # Still selected, and sized to the requirement rather than to the quote.
+    assert panel["selected"], "a battery must still be proposed for the real load"
+    assert panel["selected_ah"] >= panel["required_ah"]
+    assert panel["selected_ah"] > panel["quoted_ah"]
+
+
+# --- the calculation as the company's own sheet -----------------------------
+
+
+def test_the_pdf_export_follows_the_company_template(client, tmp_path, monkeypatch):
+    """Laid out to FACP_Battery_Calculation_Clean.pdf in the submittal
+    builder: A3 landscape, one page per panel, the project block, the
+    connected-equipment table and the sizing rows it names."""
+    import pymupdf
+
+    import app.routers.design as design_router
+
+    library = _library(tmp_path)
+    monkeypatch.setattr(design_router, "_datasheet_libraries", lambda: {"EDWARDS": library})
+    _login_admin(client)
+    project_id = _fill_project(client)
+    client.post(f"/projects/{project_id}/design/battery/fill-currents")
+
+    resp = client.get(f"/projects/{project_id}/design/battery/export.pdf")
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "application/pdf"
+    doc = pymupdf.open(stream=resp.content, filetype="pdf")
+    page = doc[0]
+    # The template's page: A3 landscape.
+    assert round(page.rect.width) == 1191 and round(page.rect.height) == 842
+    text = page.get_text()
+    doc.close()
+
+    for heading in ("BATTERY CALCULATION", "Connected equipment", "Battery sizing", "Calculation notes"):
+        assert heading in text
+    for label in ("PROJECT", "CLIENT", "CONSULTANT", "MEP CONTRACTOR", "FAS SUPPLIER", "MANUFACTURER", "DATE"):
+        assert label in text
+    for column in ("Part no.", "Description", "Qty", "Standby / unit", "Alarm / unit", "Standby total", "Alarm total"):
+        assert column in text
+    for row in ("Standby current", "Alarm current", "Standby, 24 h", "Alarm, 30 min",
+                "Base requirement", "With 20% spare", "SELECTED BATTERY"):
+        assert row in text
+
+
+def test_the_sheet_carries_this_project_and_its_numbers(client, tmp_path, monkeypatch):
+    import pymupdf
+
+    import app.routers.design as design_router
+
+    library = _library(tmp_path)
+    monkeypatch.setattr(design_router, "_datasheet_libraries", lambda: {"EDWARDS": library})
+    _login_admin(client)
+    project_id = _fill_project(client)
+    client.post(f"/projects/{project_id}/design/battery/fill-currents")
+    panel = client.get(f"/projects/{project_id}/design/battery").json()["panels"][0]
+
+    resp = client.get(f"/projects/{project_id}/design/battery/export.pdf")
+    doc = pymupdf.open(stream=resp.content, filetype="pdf")
+    text = doc[0].get_text()
+    doc.close()
+
+    assert "Skyblade".upper() in text.upper()
+    assert "4-CPU" in text                                   # a connected part
+    assert f"{panel['standby_ma']:,.3f}" in text             # its own totals
+    assert f"{panel['required_ah']:,.3f}" in text
+
+
+def test_one_page_per_panel_and_a_page_count(client, tmp_path, monkeypatch):
+    import pymupdf
+
+    import app.routers.design as design_router
+
+    library = _library(tmp_path)
+    monkeypatch.setattr(design_router, "_datasheet_libraries", lambda: {"EDWARDS": library})
+    _login_admin(client)
+    project_id = _fill_project(client)
+    panels = client.get(f"/projects/{project_id}/design/battery").json()["panels"]
+
+    resp = client.get(f"/projects/{project_id}/design/battery/export.pdf")
+    doc = pymupdf.open(stream=resp.content, filetype="pdf")
+    pages = len(doc)
+    first = doc[0].get_text()
+    doc.close()
+
+    assert pages == len(panels)
+    assert f"01 / {pages:02d}" in first
+
+
+def test_a_single_panel_can_be_exported(client, tmp_path, monkeypatch):
+    import pymupdf
+
+    import app.routers.design as design_router
+
+    library = _library(tmp_path)
+    monkeypatch.setattr(design_router, "_datasheet_libraries", lambda: {"EDWARDS": library})
+    _login_admin(client)
+    project_id = _fill_project(client)
+    key = client.get(f"/projects/{project_id}/design/battery").json()["panels"][0]["key"]
+
+    resp = client.get(f"/projects/{project_id}/design/battery/export.pdf?panel={key}")
+    doc = pymupdf.open(stream=resp.content, filetype="pdf")
+    assert len(doc) == 1
+    doc.close()
+
+    assert client.get(f"/projects/{project_id}/design/battery/export.pdf?panel=nope").status_code == 404
+
+
+def test_a_panel_still_missing_a_current_is_shown_as_a_lower_bound(client, tmp_path, monkeypatch):
+    """The sheet must not read as a finished figure while a part has no
+    current: every sizing row carries the >= marker instead."""
+    import pymupdf
+
+    _login_admin(client)
+    project_id = _fill_project(client)          # no datasheet library: nothing fills
+
+    resp = client.get(f"/projects/{project_id}/design/battery/export.pdf")
+    doc = pymupdf.open(stream=resp.content, filetype="pdf")
+    text = doc[0].get_text()
+    doc.close()
+
+    # ">=" rather than the sign: the base PDF fonts have no U+2265 and
+    # substitute a middle dot for it.
+    assert ">=" in text
+    assert "Pending: a part has no current yet" in text

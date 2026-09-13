@@ -6,7 +6,7 @@ import { useProject } from "./ProjectWorkspace";
  * listed here too and says so when opened. */
 const CALCULATIONS = [
   { to: "battery", label: "Battery" },
-  { to: "amplifier", label: "Amplifier" },
+  { to: "amplifier", label: "Amplifier", soon: true },
   { to: "power", label: "Power", soon: true },
 ];
 

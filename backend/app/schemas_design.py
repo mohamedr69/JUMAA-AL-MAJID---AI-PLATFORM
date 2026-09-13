@@ -399,6 +399,12 @@ class DatasheetLibraryOut(BaseModel):
     name: str
     folder: str
     available: bool
+    # "library" when it is held in the company library, "archive" when it is
+    # still being read out of the project archive, "missing" when it is
+    # configured and nowhere. What tells the engineer whether a brand has
+    # been copied across yet.
+    source: str = "library"
+    datasheets: int = 0
 
 
 class UnresolvedPartOut(BaseModel):
@@ -583,6 +589,17 @@ class SpecMatchOut(BaseModel):
     matched_on: str
     # Uploaded through the platform rather than found in the archive.
     uploaded: bool = False
+    verification: "SpecVerificationOut | None" = None
+
+
+class SpecVerificationOut(BaseModel):
+    """Whether the specification is this project's, for this system."""
+
+    project: Literal["same", "different", "unknown"]
+    system: Literal["same", "different", "unknown"]
+    evidence: list[str] = []
+    names_in_spec: list[str] = []
+    decided_by: str = "rules"
 
 
 class ComplianceSystemOut(BaseModel):
@@ -596,6 +613,93 @@ class ComplianceOut(BaseModel):
     warnings: list[str]
     # The folder that was searched.
     searched: str | None
+    ai_available: bool = False
+    references: "ReferenceIndexOut | None" = None
+
+
+class SpecSourceIn(BaseModel):
+    system_code: str = Field(min_length=1, max_length=16)
+    path: str = Field(min_length=1)
+    member: str | None = None
+    first_page: int | None = Field(default=None, ge=1)
+    last_page: int | None = Field(default=None, ge=1)
+
+
+class PrepareIn(SpecSourceIn):
+    use_ai: bool = True
+
+
+class StatementRowIn(BaseModel):
+    id: str
+    response: str | None = Field(default=None, max_length=60)
+    remark: str | None = Field(default=None, max_length=500)
+
+
+class StatementRowsIn(BaseModel):
+    rows: list[StatementRowIn]
+
+
+class AutofillIn(BaseModel):
+    scope: Literal["unanswered", "review", "all"] = "unanswered"
+
+
+class SuggestIn(BaseModel):
+    clause_id: str = Field(min_length=1, max_length=16)
+
+
+class SuggestionOut(BaseModel):
+    id: str
+    response: str
+    remark: str
+
+
+class AskIn(BaseModel):
+    clause_id: str | None = Field(default=None, max_length=16)
+    question: str = Field(min_length=1, max_length=600)
+
+
+class AskOut(BaseModel):
+    answer: str
+
+
+class StatementSummaryOut(BaseModel):
+    id: int
+    kind: Literal["prepare", "check"]
+    system_code: str
+    spec: dict
+    verification: dict
+    summary: dict
+    statement_name: str | None
+    ai_calls: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class StatementOut(StatementSummaryOut):
+    rows: list[dict]
+    reference_files: list[dict]
+
+
+class StatementFileOut(BaseModel):
+    path: str
+    filename: str
+    uploaded: bool
+
+
+class ReferenceIndexOut(BaseModel):
+    running: bool
+    indexed: int
+    by_system: dict[str, int]
+    files_seen: int = 0
+    files_read: int = 0
+    errors: int = 0
+    finished_at: float | None = None
+    message: str | None = None
+    root: str = ""
+
+
+SpecMatchOut.model_rebuild()
+ComplianceOut.model_rebuild()
 
 
 class DraftMailOut(BaseModel):
@@ -629,4 +733,55 @@ class ProjectLogsOut(BaseModel):
     systems: list[str]
     drawings: list[ProjectLogDrawingOut]
     searched: str | None
+    warnings: list[str]
+
+
+# --- material submittal package (app/services/submittal_package.py) ---------
+
+
+class PackageDocumentOut(BaseModel):
+    name: str
+    source: str
+    part_no: str | None = None
+    # The BOQ parts one shared datasheet serves; it is merged once.
+    covers: list[str] = []
+    included: bool
+    missing_reason: str | None = None
+
+
+class PackageSectionOut(BaseModel):
+    number: int
+    name: str
+    selected: bool
+    found: int
+    missing: int
+    # Why a selected section has no content: not built, or nothing found.
+    note: str | None = None
+    documents: list[PackageDocumentOut] = []
+
+
+class PackagePlanOut(BaseModel):
+    sections: list[PackageSectionOut]
+    library_found: bool
+    library_path: str | None
+    system_code: str | None
+    warnings: list[str]
+
+
+class PackageBuildIn(BaseModel):
+    """Which sections to assemble. Numbers are the template's, not positions."""
+
+    sections: list[int]
+    system_code: str | None = None
+    revision: str = "R0"
+    title: str | None = None
+
+
+class ChecklistReadOut(BaseModel):
+    """What a filled-in material submittal checklist ticks."""
+
+    # Section number -> "yes" | "no" | "na". A row with no tick is absent:
+    # not ticked is "not filled in", not "not included".
+    answers: dict[int, str]
+    sections: list[int]          # the ones ticked Yes, ready to build
     warnings: list[str]

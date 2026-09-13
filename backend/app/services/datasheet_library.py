@@ -14,13 +14,20 @@ order, which is what keeps a label on the same line as its value: the text
 order of a two-column spec table puts all the labels first.
 """
 
+import gzip
+import hashlib
+import json
+import os
 import re
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import pymupdf
 
+from app.core.config import get_settings
+from app.services import company_library
 from app.services.battery_calculation import part_key
 
 # Datasheets are a few pages; manuals run to hundreds and mention every
@@ -49,6 +56,37 @@ class _Indexed:
     error: str | None = None
     # What a battery datasheet says it is.
     battery: "BatteryDatasheet | None" = None
+    # Size in bytes, paired with the mtime to tell a file that changed from
+    # one whose timestamp a sync merely rewrote.
+    size: int = 0
+
+    def to_dict(self) -> dict:
+        return {
+            "mtime": self.mtime,
+            "size": self.size,
+            "pages": self.pages,
+            "is_datasheet": self.is_datasheet,
+            "document_no": self.document_no,
+            "page_texts": self.page_texts,
+            "current_rows": [[page, row] for page, row in self.current_rows],
+            "error": self.error,
+            "battery": None if self.battery is None else vars(self.battery),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "_Indexed":
+        battery = data.get("battery")
+        return cls(
+            mtime=data["mtime"],
+            size=data.get("size", 0),
+            pages=data["pages"],
+            is_datasheet=data["is_datasheet"],
+            document_no=data["document_no"],
+            page_texts=data["page_texts"],
+            current_rows=[(int(page), row) for page, row in data["current_rows"]],
+            error=data.get("error"),
+            battery=None if battery is None else BatteryDatasheet(**battery),
+        )
 
 
 @dataclass
@@ -127,12 +165,13 @@ def _rows(page: pymupdf.Page) -> list[str]:
     return rows
 
 
-def _index_file(path: Path) -> _Indexed:
-    mtime = path.stat().st_mtime
+def _index_file(path: Path, stat: os.stat_result | None = None) -> _Indexed:
+    stat = stat or path.stat()
+    mtime, size = stat.st_mtime, stat.st_size
     try:
         doc = pymupdf.open(path)
     except Exception as exc:  # noqa: BLE001 -- an online-only or broken file: skip it, say why
-        return _Indexed(mtime, 0, False, None, [], [], error=str(exc))
+        return _Indexed(mtime, 0, False, None, [], [], error=str(exc), size=size)
     with doc:
         first = doc[0].get_text() if doc.page_count else ""
         document_no = _DOCUMENT_NO_RE.search(first)
@@ -145,37 +184,136 @@ def _index_file(path: Path) -> _Indexed:
                 rows += [(number, row) for row in _rows(page) if _CURRENT_RE.search(row)]
         return _Indexed(
             mtime, doc.page_count, is_datasheet, document_no.group(1) if document_no else None, texts, rows,
-            battery=read_battery_datasheet(first),
+            battery=read_battery_datasheet(first), size=size,
         )
+
+
+# The index is written to disk so a restart does not re-read every PDF.
+# Reading the 86 Edwards datasheets takes about eleven seconds off a synced
+# drive and a fraction of a second out of this file.
+_CACHE_VERSION = 3
 
 
 class DatasheetLibrary:
     """One manufacturer's folder of datasheet PDFs, indexed on first use and
-    re-read file by file as files change."""
+    re-read file by file as files change.
 
-    def __init__(self, name: str, folder: Path):
+    Two things keep that cheap. The index is **kept on disk**, keyed by each
+    file's size and timestamp, so a restart re-reads only what changed. And
+    the folder itself is **not re-walked on every lookup**: a BOQ's fifty
+    part numbers are fifty `find` calls, and walking a synced folder fifty
+    times over was the whole cost of opening the page.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        folder: Path,
+        *,
+        cache_file: Path | None = None,
+        rescan_seconds: float = 0.0,
+    ):
         self.name = name
         self.folder = folder
         self._index: dict[Path, _Indexed] = {}
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
+        self._cache_file = cache_file
+        self._rescan_seconds = max(0.0, rescan_seconds)
+        self._loaded = cache_file is None
+        self._scanned_at: float | None = None
 
-    def _refresh(self) -> dict[Path, _Indexed]:
+    # --- the index on disk ------------------------------------------------
+
+    def _load_cache(self) -> None:
+        """Fill the index from the cache file. A cache that cannot be read,
+        or was written by another version or for another folder, is ignored
+        -- it is only ever a saving, never the truth."""
+        self._loaded = True
+        if self._cache_file is None or not self._cache_file.is_file():
+            return
+        try:
+            with gzip.open(self._cache_file, "rt", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if data.get("version") != _CACHE_VERSION or data.get("folder") != str(self.folder):
+                return
+            self._index = {
+                self.folder / relative: _Indexed.from_dict(entry)
+                for relative, entry in data.get("files", {}).items()
+            }
+        except Exception:  # noqa: BLE001 -- a corrupt cache costs a re-read, nothing more
+            self._index = {}
+
+    def _save_cache(self) -> None:
+        if self._cache_file is None:
+            return
+        payload = {
+            "version": _CACHE_VERSION,
+            "folder": str(self.folder),
+            "files": {
+                path.relative_to(self.folder).as_posix(): entry.to_dict()
+                for path, entry in self._index.items()
+            },
+        }
+        try:
+            self._cache_file.parent.mkdir(parents=True, exist_ok=True)
+            # Written beside the target and moved into place, so a cache half
+            # written when the process stops is never read back as a whole one.
+            temporary = self._cache_file.with_suffix(self._cache_file.suffix + f".{os.getpid()}.tmp")
+            with gzip.open(temporary, "wt", encoding="utf-8") as handle:
+                json.dump(payload, handle)
+            os.replace(temporary, self._cache_file)
+        except Exception:  # noqa: BLE001 -- an unwritable cache must not fail a lookup
+            pass
+
+    # --- the index in memory ----------------------------------------------
+
+    def _refresh(self, *, force: bool = False) -> dict[Path, _Indexed]:
         with self._lock:
+            if not self._loaded:
+                self._load_cache()
+            if not force and self._scanned_at is not None:
+                if time.monotonic() - self._scanned_at < self._rescan_seconds:
+                    return dict(self._index)
+
             seen = set()
-            for path in self.folder.rglob("*"):
+            changed = False
+            try:
+                entries = list(self.folder.rglob("*"))
+            except OSError:
+                # An unreachable folder keeps whatever was indexed before,
+                # rather than emptying the library on one bad listing.
+                self._scanned_at = time.monotonic()
+                return dict(self._index)
+
+            for path in entries:
                 if path.suffix.lower() != ".pdf" or not path.is_file():
                     continue
                 seen.add(path)
                 cached = self._index.get(path)
                 try:
-                    mtime = path.stat().st_mtime
+                    stat = path.stat()
                 except OSError:
                     continue
-                if cached is None or cached.mtime != mtime:
-                    self._index[path] = _index_file(path)
+                if cached is None or cached.mtime != stat.st_mtime or cached.size != stat.st_size:
+                    self._index[path] = _index_file(path, stat)
+                    changed = True
             for gone in set(self._index) - seen:
                 del self._index[gone]
+                changed = True
+
+            self._scanned_at = time.monotonic()
+            if changed:
+                self._save_cache()
             return dict(self._index)
+
+    def reindex(self) -> int:
+        """Re-read the folder now, whatever the rescan interval says, and
+        return how many datasheets the library holds."""
+        return len(self._refresh(force=True))
+
+    def count(self) -> int:
+        """How many PDFs the library holds."""
+        return len(self._refresh())
 
     def find(self, part_no: str) -> list[DatasheetMatch]:
         key = part_key(part_no)
@@ -244,22 +382,65 @@ class DatasheetLibrary:
 _libraries: dict[tuple[str, str], DatasheetLibrary] = {}
 _libraries_lock = threading.Lock()
 
+# Told apart from a caller passing None, which means "no archive root".
+_UNSET: object = object()
 
-def get_libraries(configured: dict[str, str], projects_root: str | None) -> dict[str, DatasheetLibrary]:
-    """The configured libraries whose folder exists, by manufacturer."""
-    found: dict[str, DatasheetLibrary] = {}
-    for name, location in configured.items():
-        folder = Path(location)
-        if not folder.is_absolute():
-            if not projects_root:
-                continue
-            folder = Path(projects_root) / location
-        if not folder.is_dir():
-            continue
-        with _libraries_lock:
-            library = _libraries.setdefault((name.upper(), str(folder)), DatasheetLibrary(name.upper(), folder))
-        found[name.upper()] = library
-    return found
+
+def _cache_file_for(name: str, folder: Path) -> Path:
+    """Where this library's index is kept. Named for the manufacturer, and
+    for the folder, so two libraries of one brand never share a file."""
+    digest = hashlib.sha1(str(folder).encode("utf-8", "replace")).hexdigest()[:12]
+    safe = re.sub(r"[^A-Za-z0-9]+", "-", name).strip("-").upper() or "LIBRARY"
+    return company_library.cache_root() / "datasheet-index" / f"{safe}-{digest}.json.gz"
+
+
+def _library_for(name: str, folder: Path) -> DatasheetLibrary:
+    """One `DatasheetLibrary` per (manufacturer, folder), shared across
+    requests -- the index it holds is the point of it."""
+    key = (name.upper(), str(folder))
+    with _libraries_lock:
+        library = _libraries.get(key)
+        if library is None:
+            library = DatasheetLibrary(
+                name.upper(),
+                folder,
+                cache_file=_cache_file_for(name, folder),
+                rescan_seconds=get_settings().library_rescan_seconds,
+            )
+            _libraries[key] = library
+    return library
+
+
+def get_libraries(
+    configured: dict[str, str] | object = _UNSET,
+    projects_root: str | None | object = _UNSET,
+) -> dict[str, DatasheetLibrary]:
+    """The datasheet libraries available, by manufacturer.
+
+    Called with no arguments -- which is how the app calls it -- the
+    manufacturers come from the company library: a folder under
+    `library/datasheets/` is a library named for the brand, with
+    `DATASHEET_LIBRARIES` as an override and the archive as a fallback
+    (`app/services/company_library.py`).
+
+    Called with a mapping and an archive root, it resolves exactly those
+    against that root. That is the older, explicit form, and is what the
+    live-archive tests use to read the real library off the archive.
+    """
+    if configured is _UNSET and projects_root is _UNSET:
+        folders = company_library.datasheet_folders()
+    else:
+        folders = {}
+        for name, location in (configured or {}).items():  # type: ignore[union-attr]
+            folder = Path(location)
+            if not folder.is_absolute():
+                if not projects_root or projects_root is _UNSET:
+                    continue
+                folder = Path(str(projects_root)) / location
+            if folder.is_dir():
+                folders[name.upper()] = folder
+
+    return {name: _library_for(name, folder) for name, folder in folders.items()}
 
 
 def libraries_for(manufacturer: str | None, libraries: dict[str, DatasheetLibrary]) -> list[DatasheetLibrary]:

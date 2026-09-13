@@ -197,7 +197,7 @@ EP30784_EXPECTED = {
 @pytest.mark.parametrize("part", EP30784_EXPECTED)
 def test_live_edwards_currents(part):
     settings = get_settings()
-    library = get_libraries(settings.model_fields["datasheet_libraries"].default, LIVE_ROOT)["EDWARDS"]
+    library = get_libraries(settings.model_fields["archive_datasheet_libraries"].default, LIVE_ROOT)["EDWARDS"]
     got = None
     for match in library.find(part):
         reading = read_part_current(

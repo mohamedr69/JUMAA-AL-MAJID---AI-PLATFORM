@@ -19,7 +19,8 @@ import { ProjectInfoPage } from "./pages/ProjectInfoPage";
 import { ProjectMaterialSubmittalPage } from "./pages/ProjectMaterialSubmittalPage";
 import { ProjectLogsPage } from "./pages/ProjectLogsPage";
 import { UnderMaintenance } from "./components/UnderMaintenance";
-import { ProjectVoiceEvacuationPage } from "./pages/ProjectVoiceEvacuationPage";
+// ProjectVoiceEvacuationPage is deliberately not imported: the Amplifier tab
+// is marked "soon". The page is kept in src/pages for when it is released.
 import { ProjectWorkspace } from "./pages/ProjectWorkspace";
 
 function LoginRoute() {
@@ -61,7 +62,13 @@ export default function App() {
             <Route path="calculations" element={<ProjectCalculationsPage />}>
               <Route index element={<Navigate to="battery" replace />} />
               <Route path="battery" element={<ProjectBatteryPage />} />
-              <Route path="amplifier" element={<ProjectVoiceEvacuationPage />} />
+              {/* Marked "soon" on the platform owner's instruction. The page
+                  component and the VE API are unchanged and still here; only
+                  the route is turned off, so releasing it is one line. */}
+              <Route
+                path="amplifier"
+                element={<UnderMaintenance title="Amplifier calculation" note="Voice Evacuation amplifier loading — zones, speaker taps, channels and racks — sits here once it is released." />}
+              />
               <Route
                 path="power"
                 element={<UnderMaintenance title="Power calculation" note="Panel and auxiliary power supply sizing sits here once it is built." />}

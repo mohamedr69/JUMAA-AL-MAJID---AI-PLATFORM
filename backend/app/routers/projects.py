@@ -31,6 +31,7 @@ from app.schemas_project import (
     BoqRevisionSummaryOut,
     DocumentCandidateOut,
     ExtractedFieldOut,
+    FieldComparisonOut,
     ProjectBoqItemIn,
     ProjectBoqItemOut,
     ProjectCreate,
@@ -39,9 +40,17 @@ from app.schemas_project import (
     ProjectResolveRequest,
     ProjectResolveResponse,
     ProjectSystemIn,
+    ReextractionReportOut,
+    SheetComparisonOut,
+    SystemComparisonOut,
 )
 from app.schemas_design import ProjectLogDrawingOut, ProjectLogsOut
+from app.extraction import pipeline as extraction_pipeline
+from app.extraction.issues import Coverage, Issue, IssueCode, PageCoverage
+from app.services import design_sheet_extractor
 from app.services.design_sheet_extractor import (
+    DesignSheetExtraction,
+    extract_design_sheet,
     DesignSheetExtractionError,
     ExtractedBoqLine,
     extract_boq_lines,
@@ -49,7 +58,8 @@ from app.services.design_sheet_extractor import (
 from app.services.boq_export import boq_workbook
 from app.services.boq_revisions import compare_boq
 from app.services.drf_extractor import extract_drf_fields
-from app.services.ep_resolver import resolve_project
+from app.services.ep_resolver import canonical_system_code, infer_single_system, mark_superseded, resolve_project
+from app.services.reextraction import reextract_project
 from app.services.log_scan_jobs import get_log_scan
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -102,8 +112,10 @@ def resolve(
 
     extracted_fields: dict[str, ExtractedFieldOut] = {}
     extracted_scope_of_work: str | None = None
+    extracted_other_information: str | None = None
     extracted_systems: list[ProjectSystemIn] = []
     extraction_warnings: list[str] = []
+    extraction_issues: list = []
     if result.drf_candidates:
         # Best-effort: a broken/unreadable DRF or a missing OCR install
         # shouldn't fail the whole resolve -- the engineer can still fill
@@ -115,6 +127,8 @@ def resolve(
                 for name, f in extraction.fields.items()
             }
             extracted_scope_of_work = extraction.scope_of_work
+            extracted_other_information = extraction.other_information
+            extraction_issues = list(extraction.issues)
             extracted_systems = [
                 ProjectSystemIn(
                     name=s.name,
@@ -128,26 +142,152 @@ def resolve(
         except Exception as exc:  # noqa: BLE001
             extraction_warnings = [f"DRF field extraction failed: {exc}"]
 
+    # A sheet named "Design.pdf", on a DRF that marks one system: it is that
+    # system's sheet, and saying so is what puts its lines under a system
+    # rather than "Unassigned". A DRF marking two systems settles nothing,
+    # and the sheet stays unlabelled for the engineer to place.
+    inferred = infer_single_system([s.name for s in extracted_systems])
+    if inferred:
+        for candidate in result.design_sheet_candidates:
+            if candidate.system_guess is None:
+                candidate.system_guess = inferred
+                candidate.matched_via += f"; system inferred: the DRF marks {inferred} only"
+        mark_superseded(result.design_sheet_candidates)
+
+    ai_suggestions: list[dict] = []
+    if settings.ai_enabled and result.drf_candidates:
+        ai_suggestions = _resolve_suggestions(db_for_ai(), result, extracted_systems, extraction_issues)
+
+    def candidate_out(m) -> DocumentCandidateOut:
+        return DocumentCandidateOut(
+            path=str(m.path),
+            filename=m.path.name,
+            system_guess=m.system_guess,
+            matched_via=m.matched_via,
+            revision=m.revision,
+            selected=m.selected,
+        )
+
     return ProjectResolveResponse(
         ep_number=result.ep_number,
         folder_found=not result.folder_not_found,
         is_ambiguous=result.is_ambiguous,
         matched_folders=[str(f) for f in result.matched_folders],
-        drf_candidates=[
-            DocumentCandidateOut(path=str(m.path), filename=m.path.name, system_guess=m.system_guess)
-            for m in result.drf_candidates
-        ],
-        design_sheet_candidates=[
-            DocumentCandidateOut(path=str(m.path), filename=m.path.name, system_guess=m.system_guess)
-            for m in result.design_sheet_candidates
-        ],
+        source_folder=str(result.source_folder) if result.source_folder else None,
+        drf_candidates=[candidate_out(m) for m in result.drf_candidates],
+        design_sheet_candidates=[candidate_out(m) for m in result.design_sheet_candidates],
         warnings=result.warnings,
         errors=result.errors,
         extracted_fields=extracted_fields,
         extracted_scope_of_work=extracted_scope_of_work,
         extracted_systems=extracted_systems,
+        extracted_other_information=extracted_other_information,
         extraction_warnings=extraction_warnings,
+        ai_suggestions=ai_suggestions,
     )
+
+
+def db_for_ai():
+    """A session for the resolve-time suggestions, which log usage and
+    read the cache but touch no project."""
+    from app.database import SessionLocal
+
+    return SessionLocal()
+
+
+def _resolve_suggestions(db, result, extracted_systems, extraction_issues) -> list[dict]:
+    """What the model suggests about a resolution, for the review form to
+    show beside the fields -- never applied.
+
+    Two cases: a design sheet with no code on a DRF that marks more than
+    one system (the model may propose one of the marked codes), and a DRF
+    field read at low confidence (the model reads the cell image again).
+    Each is budgeted like a run; a budget that trips leaves the rest
+    unsuggested and says so.
+    """
+    from app.ai.budget import BudgetExceeded, open_budget
+
+    suggestions: list[dict] = []
+    try:
+        budget = open_budget(db, None)
+        marked = [s.name for s in extracted_systems]
+        candidates = sorted({
+            code for code, rows in SYSTEM_CODE_DRF_ROWS.items() if any(r in rows for r in marked)
+        })
+        if len(candidates) > 1:
+            for candidate in result.design_sheet_candidates:
+                if candidate.system_guess is not None:
+                    continue
+                try:
+                    verdict = extraction_pipeline.suggest_sheet_system(
+                        db, candidate.path, candidates=candidates, marked_rows=marked, budget=budget
+                    )
+                except BudgetExceeded as exc:
+                    suggestions.append({"kind": "sheet_system", "target": str(candidate.path), "state": "starved",
+                                        "value": None, "reason": f"budget: {exc.limit}"})
+                    continue
+                if verdict is not None:
+                    suggestions.append({"kind": "sheet_system", "target": str(candidate.path), "state": verdict.state,
+                                        "value": verdict.value, "reason": verdict.reason})
+        drf = result.drf_candidates[0].path
+        for issue in extraction_issues:
+            if issue.code.value != "AMBIGUOUS_OCR":
+                continue
+            try:
+                verdict = extraction_pipeline.suggest_drf_field(db, drf, issue, budget=budget)
+            except BudgetExceeded as exc:
+                suggestions.append({"kind": "drf_field", "target": issue.target, "state": "starved",
+                                    "value": None, "reason": f"budget: {exc.limit}"})
+                continue
+            if verdict is not None:
+                suggestions.append({"kind": "drf_field", "target": issue.target, "state": verdict.state,
+                                    "value": verdict.value, "reason": verdict.reason})
+    except Exception as exc:  # noqa: BLE001 -- suggestions are optional; resolution is not
+        suggestions.append({"kind": "error", "target": "", "state": "failed", "value": None, "reason": str(exc)})
+    finally:
+        db.close()
+    return suggestions
+
+
+def _is_within(path: Path, parent: Path) -> bool:
+    try:
+        return path.resolve().is_relative_to(parent.resolve())
+    except (OSError, ValueError):
+        return False
+
+
+def _validate_source_paths(payload: ProjectCreate) -> None:
+    """A project's documents belong to its folder.
+
+    The paths come from the client, which is what let EP-31112 be saved with
+    a source folder under one contractor and a DRF under another; and a
+    source folder outside the archive would let `/logs/file` serve files
+    from anywhere on the machine. So, where an archive is configured, the
+    source folder must be inside it (or the uploads folder), and every
+    document inside the source folder (or the uploads folder). A machine
+    with no archive configured -- the test suite -- has nothing to check
+    against.
+    """
+    if not settings.projects_root:
+        return
+    archive_roots = [Path(settings.projects_root), Path(settings.uploads_root)]
+    source = Path(payload.source_folder_path) if payload.source_folder_path else None
+    if source is not None and not any(_is_within(source, r) for r in archive_roots):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="The source folder is outside the project archive",
+        )
+    allowed = [r for r in ([source] if source else []) + [Path(settings.uploads_root)]]
+    documents = [("The DRF", payload.drf_document_path)] + [
+        ("A Design Sheet", sheet.document_path) for sheet in payload.design_sheets
+    ]
+    for label, document in documents:
+        if document and not any(_is_within(Path(document), r) for r in allowed):
+            where = f" {source}" if source else " -- the project has no source folder"
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"{label} ({Path(document).name}) is outside the project folder{where}",
+            )
 
 
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
@@ -163,6 +303,7 @@ def create_project(
     existing = db.query(Project).filter(Project.ep_number == payload.ep_number).first()
     if existing:
         raise conflict
+    _validate_source_paths(payload)
 
     project = Project(
         ep_number=payload.ep_number,
@@ -174,7 +315,7 @@ def create_project(
     )
     _apply_details(project, payload)
     project.design_sheets = [
-        ProjectDesignSheet(system_code=ds.system_code, document_path=ds.document_path)
+        ProjectDesignSheet(system_code=canonical_system_code(ds.system_code), document_path=ds.document_path)
         for ds in payload.design_sheets
     ]
 
@@ -319,13 +460,16 @@ def ensure_project_boq(
         # write held open that long would block every other write in the app.
         warnings: list[str] = []
         extracted: list[tuple[str | None, ExtractedBoqLine]] = []
+        # Each sheet's read is kept with what it covered and could not
+        # settle, so a dropped row is a row to review rather than a row gone.
+        reads: list[tuple[ProjectDesignSheet, DesignSheetExtraction]] = []
         for sheet in project.design_sheets:
-            try:
-                lines = extract_boq_lines(Path(sheet.document_path))
-            except DesignSheetExtractionError as exc:
-                warnings.append(f"{Path(sheet.document_path).name}: {exc}")
+            result = _read_design_sheet(Path(sheet.document_path))
+            reads.append((sheet, result))
+            if result.failure:
+                warnings.append(f"{Path(sheet.document_path).name}: {result.failure}")
                 continue
-            extracted.extend((sheet.system_code, line) for line in lines)
+            extracted.extend((sheet.system_code, line) for line in result.lines)
 
         # Test and set the stamp in one statement. Checking it up front and
         # setting it after the OCR is what let two overlapping opens both
@@ -363,8 +507,37 @@ def ensure_project_boq(
             position += 1
 
         db.commit()
-        db.refresh(project)
-        return BoqEnsureResponse(items=project.boq_items, extracted=True, warnings=warnings)
+        for sheet, result in reads:
+            extraction_pipeline.record_design_sheet_run(db, project, sheet, result)
+
+    # The assistance stage runs after the lock is released: it may call a
+    # model, and it must never make the read itself fail. With AI_ENABLED
+    # false it calls nothing.
+    if settings.ai_enabled:
+        try:
+            extraction_pipeline.assist_project(db, project)
+        except Exception as exc:  # noqa: BLE001 -- assistance is optional; the BOQ is not
+            warnings.append(f"AI assistance did not complete: {exc}")
+    db.refresh(project)
+    return BoqEnsureResponse(items=project.boq_items, extracted=True, warnings=warnings)
+
+
+def _read_design_sheet(path: Path) -> DesignSheetExtraction:
+    """One sheet's read, with its coverage and issues.
+
+    `extract_boq_lines` is the seam the test suite stubs -- a fake that
+    returns lines, or raises -- and it is honoured: when the name bound in
+    this module is the real function the detailed read is used, otherwise
+    the stub's lines (or its error) are wrapped as a read that covered one
+    page and settled everything else.
+    """
+    if extract_boq_lines is design_sheet_extractor.extract_boq_lines:
+        return extract_design_sheet(path)
+    try:
+        lines = extract_boq_lines(path)
+    except DesignSheetExtractionError as exc:
+        return DesignSheetExtraction(failure=str(exc), issues=[Issue(IssueCode.UNRECOGNIZED_TABLE_LAYOUT)])
+    return DesignSheetExtraction(lines=lines, coverage=Coverage(pages=[PageCoverage(page=1, processed=True)]))
 
 
 def _stored_boq(project: Project) -> BoqEnsureResponse:
@@ -391,7 +564,7 @@ SYSTEM_CODE_DRF_ROWS: dict[str, tuple[str, ...]] = {
 def _brand_for(system_code: str | None, systems: list[ProjectSystem]) -> str | None:
     """The brand the DRF gives the system a Design Sheet is for. Blank rather
     than a guess when the code could be more than one row and they disagree."""
-    rows = SYSTEM_CODE_DRF_ROWS.get((system_code or "").upper(), ())
+    rows = SYSTEM_CODE_DRF_ROWS.get(canonical_system_code(system_code) or "", ())
     brands = {s.brand.strip() for s in systems if s.name in rows and s.brand and s.brand.strip()}
     return brands.pop() if len(brands) == 1 else None
 
@@ -556,6 +729,55 @@ def compare_boq_versions(
         changes=[
             BoqChangeOut(kind=c.kind, before=c.before, after=c.after, fields=c.fields) for c in changes
         ],
+    )
+
+
+@router.post("/{project_id}/reextract", response_model=ReextractionReportOut)
+def reextract(
+    project_id: int,
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> ReextractionReportOut:
+    """Re-read the project's DRF and Design Sheets and report what differs.
+
+    Unlike `/boq/ensure`, this runs every time it is called -- that is the
+    point: the documents in the archive change after a project is created
+    (a re-scanned DRF, a Design Sheet filed later) and nothing else looks at
+    them again.
+
+    It writes nothing. Differences are reported for an engineer to apply
+    through the ordinary edit paths (`PUT /projects/{id}` for the fields,
+    the BOQ table for the lines), because the stored values are their
+    corrections and a re-read that overwrote them would be the exact
+    regression `boq_extracted_at` was introduced to stop.
+
+    POST rather than GET because it is expensive -- OCR over every sheet --
+    and should not be run by a page render, a prefetch or a refresh.
+    """
+    project = _get_project_or_404(db, project_id)
+    root = Path(settings.projects_root) if settings.projects_root else None
+
+    report = reextract_project(project, root)
+
+    return ReextractionReportOut(
+        ep_number=report.ep_number,
+        folder_found=report.folder_found,
+        folder_path=report.folder_path,
+        drf_path=report.drf_path,
+        fields=[FieldComparisonOut(**vars(f)) for f in report.fields],
+        scope_of_work=(
+            FieldComparisonOut(**vars(report.scope_of_work)) if report.scope_of_work else None
+        ),
+        systems=[SystemComparisonOut(**vars(s)) for s in report.systems],
+        sheets=[SheetComparisonOut(**vars(s)) for s in report.sheets],
+        boq_changes=[
+            BoqChangeOut(kind=c.kind, before=c.before, after=c.after, fields=c.fields)
+            for c in report.boq_changes
+        ],
+        fields_differing=report.fields_differing,
+        has_differences=report.has_differences,
+        warnings=report.warnings,
+        errors=report.errors,
     )
 
 

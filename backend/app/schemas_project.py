@@ -32,6 +32,14 @@ class DocumentCandidateOut(BaseModel):
     path: str
     filename: str
     system_guess: str | None = None
+    # How the resolver matched it, including a note when it is a superseded
+    # revision or its system was inferred from the DRF.
+    matched_via: str = ""
+    # The revision the filename declares (R1, R2); None when it declares none.
+    revision: int | None = None
+    # Whether to attach it by default. A design superseded by a later
+    # revision of the same system is offered unticked.
+    selected: bool = True
 
 
 class ExtractedFieldOut(BaseModel):
@@ -119,6 +127,11 @@ class ProjectResolveResponse(BaseModel):
     folder_found: bool
     is_ambiguous: bool
     matched_folders: list[str]
+    # The folder the documents were found in -- the one match, or the one
+    # the engineer selected. This is the project's source folder; the first
+    # of `matched_folders` is not, and taking it filed EP-31112 under the
+    # wrong contractor.
+    source_folder: str | None = None
     drf_candidates: list[DocumentCandidateOut]
     design_sheet_candidates: list[DocumentCandidateOut]
     warnings: list[str]
@@ -126,7 +139,12 @@ class ProjectResolveResponse(BaseModel):
     extracted_fields: dict[str, ExtractedFieldOut] = {}
     extracted_scope_of_work: str | None = None
     extracted_systems: list[ProjectSystemIn] = []
+    extracted_other_information: str | None = None
     extraction_warnings: list[str] = []
+    # What the model suggests, when assistance is on: a system for an
+    # unlabelled sheet, a second reading of a low-confidence field. Shown
+    # beside the form; never applied by the platform.
+    ai_suggestions: list[dict] = []
 
 
 class ProjectDesignSheetIn(BaseModel):
@@ -191,3 +209,52 @@ class ProjectOut(BaseModel):
     design_sheets: list[ProjectDesignSheetOut]
     boq_extraction_warnings: list[str] | None
     created_at: datetime
+
+
+# --- Re-extraction: re-reading the DRF and Design Sheets and comparing the
+# result with what is stored (app/services/reextraction.py). Everything here
+# is a report; none of it is applied.
+
+
+class FieldComparisonOut(BaseModel):
+    field: str
+    stored: str | None
+    extracted: str | None
+    # "only_stored" is a value the engineer typed that OCR cannot see, not a
+    # regression; "absent" is empty on both sides.
+    status: Literal["match", "differs", "only_stored", "only_extracted", "absent"]
+    confidence: float | None = None
+
+
+class SystemComparisonOut(BaseModel):
+    name: str
+    stored_brand: str | None
+    extracted_brand: str | None
+    status: Literal["match", "differs", "only_stored", "only_extracted", "absent"]
+
+
+class SheetComparisonOut(BaseModel):
+    system_code: str | None
+    path: str
+    filename: str
+    # "new": in the folder but not on the project -- its lines are missing
+    # from the BOQ. "missing": on the project but no longer in the folder.
+    status: Literal["known", "new", "missing"]
+    lines_extracted: int
+    error: str | None = None
+
+
+class ReextractionReportOut(BaseModel):
+    ep_number: str
+    folder_found: bool
+    folder_path: str | None
+    drf_path: str | None
+    fields: list[FieldComparisonOut]
+    scope_of_work: FieldComparisonOut | None
+    systems: list[SystemComparisonOut]
+    sheets: list[SheetComparisonOut]
+    boq_changes: list[BoqChangeOut]
+    fields_differing: int
+    has_differences: bool
+    warnings: list[str]
+    errors: list[str]

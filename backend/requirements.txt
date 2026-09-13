@@ -16,3 +16,13 @@ numpy==2.5.3
 Pillow==12.3.0
 alembic==1.19.2
 openpyxl==3.1.5
+# The company's older compliance statements are .xls (app/compliance).
+xlrd==2.0.1
+# Claude, for the interpretation tasks the deterministic extractors hand off
+# (app/ai). Imported only when AI_ENABLED=true.
+anthropic==1.5.0
+openai==3.13.0
+# Drives Word to convert the warranty letter to PDF, so the package carries
+# the company letterhead rather than a redrawn page. Windows only, and the
+# import is optional: without it the warranty falls back to a drawn page.
+pywin32==312; sys_platform == "win32"

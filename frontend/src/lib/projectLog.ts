@@ -15,11 +15,16 @@ export function registerRevision(item: Submittal): LogRevision {
     status: item.reply_code === "B" ? "ANN" : item.reply_code ? item.status.replaceAll("_", " ") : "UR",
     path: item.document_path, system: item.system_code, updated: item.updated_at, floor: "Not recorded" };
 }
-export function groupRevisions(rows: LogRevision[], system: (value: string | null) => string): LogDocument[] {
+export function groupRevisions(rows: LogRevision[]): LogDocument[] {
   const groups = new Map<string, LogDocument>();
   for (const row of rows) {
     const base = (row.groupReference ?? row.reference).replace(/[-_ ]+(?:REV[ ._-]*|R)\d+$/i, "");
-    const key = `${system(row.system)}:${base.toLowerCase()}`;
+    // Keyed on the reference alone. A submittal reference identifies one
+    // document, so the same number read under two system codes -- which
+    // happened whenever a page named a system the register had filed
+    // differently -- is still that one document, listed once with its
+    // revisions under it, not one row per code.
+    const key = base.toLowerCase();
     const doc = groups.get(key) ?? { key, title: row.title, reference: base, revisions: [] };
     const existing = doc.revisions.findIndex((r) => r.revision === row.revision);
     if (existing < 0) doc.revisions.push(row);

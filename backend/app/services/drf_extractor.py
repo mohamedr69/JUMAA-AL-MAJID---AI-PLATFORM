@@ -34,9 +34,10 @@ from pathlib import Path
 import numpy as np
 import pymupdf
 import pytesseract
-from PIL import Image
+from PIL import Image, ImageOps
 
 from app.core.config import get_settings
+from app.extraction.issues import Issue, IssueCode
 
 settings = get_settings()
 if settings.tesseract_cmd:
@@ -129,6 +130,31 @@ MIN_TICK_DARK_PIXELS = 150
 MIN_BRAND_DARK_PIXELS = 1000
 TICK_CELL_INSET_PX = 6  # keeps cell borders out of the ink measurement
 
+# A short brand leaves fewer dark pixels than MIN_BRAND_DARK_PIXELS: "TOA"
+# measured 616-638 on EP-30208 and EP-30387, below the threshold calibrated
+# on "EDWARDS", and the row was reported as unmarked. Between this probe
+# threshold and the calibrated one the cell is read anyway and the read is
+# kept only when OCR is sure of it -- "TOA" came back at 86-96 confidence,
+# where the scanner noise in an empty cell ("Poe eel") does not.
+MIN_BRAND_PROBE_DARK_PIXELS = 400
+MIN_BRAND_PROBE_CONFIDENCE = 70
+
+# A value read at low confidence and made only of one- and two-letter
+# fragments ("ee ee ee", at 24 on EP-31112) is the scanner's rendering of an
+# empty cell's border, not a value. Blank must come back blank: a field
+# pre-filled with noise is a field the engineer has to notice and clear.
+MAX_NOISE_CONFIDENCE = 45
+MAX_NOISE_TOKEN_LENGTH = 2
+
+# The form's "OTHER INFORMATION (If any)" banner, and how the block under it
+# is told from the rest of the page. The banner is white text on the navy
+# band, so it is read inverted. The notes box beneath it runs to the next
+# horizontal rule -- the Requested / Approved / Accepted row.
+OTHER_INFORMATION_KEYWORD = "otherinformation"
+BANNER_DARK_FRACTION = 0.5
+BANNER_HEIGHT_RANGE_PX = (15, 140)
+MIN_NOTES_BOX_HEIGHT_PX = 40
+
 # Tallest plausible row in the Systems table; used to find where it ends. Its
 # two-line rows reach 89px at RENDER_DPI, while the gap to the next block is
 # 170+.
@@ -210,9 +236,22 @@ class ExtractedSystem:
     drawing: bool
 
 
+# Part of every cache key: a change to how a form is read is a change to
+# what a cached result means.
+PARSER_VERSION = "2026-09-13.2"
+
+
 @dataclass
 class DrfExtractionResult:
     fields: dict[str, ExtractedField] = field(default_factory=dict)
+    # What the read could not settle: a field it found blank, a value it
+    # read at low confidence (with the cell's bbox at RENDER_DPI), for the
+    # review form and, when assistance is on, a second reading.
+    issues: list[Issue] = field(default_factory=list)
+    # The "OTHER INFORMATION (If any)" block, line by line as written --
+    # scope notes ("device fixing only", "quoted as per BOQ", "single
+    # evacuation zone") that were being lost on every project.
+    other_information: str | None = None
     scope_of_work: str | None = None
     systems: list[ExtractedSystem] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
@@ -259,6 +298,122 @@ def _find_field_row_band(h_lines: list[int]) -> tuple[int, int] | None:
         best = (start, len(h_lines) - 1)
 
     return (h_lines[best[0]], h_lines[best[1]]) if best else None
+
+
+def _ocr_words(image: Image.Image, psm: int = 6) -> tuple[list[str], float | None]:
+    """The words Tesseract reads off an image, and their mean confidence
+    (None when it read nothing)."""
+    data = pytesseract.image_to_data(image, config=f"--psm {psm}", output_type=pytesseract.Output.DICT)
+    words, confidences = [], []
+    for text, conf in zip(data["text"], data["conf"]):
+        text = text.strip()
+        if not text or float(conf) < 0:
+            continue
+        words.append(text)
+        confidences.append(float(conf))
+    return words, (sum(confidences) / len(confidences) if confidences else None)
+
+
+def _is_ocr_noise(words: list[str], confidence: float | None) -> bool:
+    """Whether a low-confidence read of nothing but letter fragments is the
+    empty cell it almost certainly is."""
+    if not words:
+        return True
+    if confidence is not None and confidence > MAX_NOISE_CONFIDENCE:
+        return False
+    return all(len(w) <= MAX_NOISE_TOKEN_LENGTH and not any(ch.isdigit() for ch in w) for w in words)
+
+
+def _read_value(crop: Image.Image) -> tuple[str, float]:
+    """A field's value: the block read first, and a sparse-text read as the
+    fallback for a value the block read misses entirely.
+
+    EP-31725's plot number ("2320316", centred alone in its cell) came back
+    empty from the block read and right from the sparse one. The fallback is
+    tried only on an empty read, and keeps only tokens that could be a value
+    -- three characters or more, or carrying a digit -- since sparse mode
+    also picks fragments off the cell border.
+    """
+    words, confidence = _ocr_words(crop, psm=6)
+    if not words:
+        sparse, sparse_confidence = _ocr_words(crop, psm=11)
+        words = [w for w in sparse if len(w) >= 3 or any(ch.isdigit() for ch in w)]
+        confidence = sparse_confidence
+    if _is_ocr_noise(words, confidence):
+        return "", 0.0
+    value = " ".join(words).strip(" :;|_-—")
+    return value, (confidence or 0.0)
+
+
+def _clean_note_line(line: str) -> str:
+    """One line of the notes box, less what the box's borders and the
+    signatures scrawled across it left in the read: leading and trailing
+    punctuation, and trailing one-letter fragments ("... Only _ \\ \\ P")."""
+    words = line.strip().strip("{}[]|\\_~ ").split()
+    while words and sum(ch.isalnum() for ch in words[-1]) <= 1:
+        words.pop()
+    return " ".join(words)
+
+
+def _looks_like_prose(line: str) -> bool:
+    """A line of the notes box that is writing rather than the scribble of a
+    signature or a rule the OCR turned into punctuation: at least one real
+    word, and mostly letters and digits."""
+    stripped = line.strip()
+    if not any(sum(ch.isalpha() for ch in word) >= 3 for word in stripped.split()):
+        return False
+    visible = [ch for ch in stripped if not ch.isspace()]
+    return sum(ch.isalnum() for ch in visible) / len(visible) >= 0.6
+
+
+def _dark_blocks(dark: np.ndarray, top: int, scan_width: int) -> list[tuple[int, int]]:
+    """Runs of rows below `top` that are mostly ink across the scan width:
+    the form's navy banners."""
+    fraction = dark[top:, :scan_width].mean(axis=1)
+    blocks: list[tuple[int, int]] = []
+    start: int | None = None
+    for index, value in enumerate(fraction):
+        if value > BANNER_DARK_FRACTION:
+            if start is None:
+                start = index
+        elif start is not None:
+            blocks.append((top + start, top + index))
+            start = None
+    if start is not None:
+        blocks.append((top + start, top + len(fraction)))
+    low, high = BANNER_HEIGHT_RANGE_PX
+    return [(a, b) for a, b in blocks if low <= b - a <= high]
+
+
+def _read_other_information(
+    gray: Image.Image,
+    dark: np.ndarray,
+    h_lines: list[int],
+    top: int,
+    left: int,
+    result: DrfExtractionResult,
+) -> None:
+    """The OTHER INFORMATION block: found by its banner, read to the rule
+    under it, kept line by line. Read from inside the form's left border --
+    with the border in the crop, "1. Fire alarm" came back "i alarm"."""
+    height, width = dark.shape
+    for y0, y1 in _dark_blocks(dark, top, int(width * 0.8)):
+        banner = ImageOps.invert(gray.crop((0, y0, width, y1)))
+        heading = _normalize_label(pytesseract.image_to_string(banner, config="--psm 6"))
+        if OTHER_INFORMATION_KEYWORD not in heading:
+            continue
+        bottom = next((y for y in h_lines if y > y1 + MIN_NOTES_BOX_HEIGHT_PX), None)
+        if bottom is None:
+            result.warnings.append("The Other Information block has no bottom rule")
+            return
+        text = pytesseract.image_to_string(
+            gray.crop((left, y1 + CROP_INSET_PX, width - CROP_INSET_PX, bottom - CROP_INSET_PX)),
+            config="--psm 6",
+        )
+        kept = [_clean_note_line(line) for line in text.splitlines() if _looks_like_prose(line)]
+        result.other_information = "\n".join(line for line in kept if line) or None
+        return
+    result.warnings.append("Could not locate the Other Information block")
 
 
 def _dark_pixels(dark: np.ndarray, x0: int, x1: int, y0: int, y1: int) -> int:
@@ -386,15 +541,22 @@ def _read_systems(
             drawing = _dark_pixels(dark, dwg_left, dwg_right, y0, y1) >= MIN_TICK_DARK_PIXELS
 
             brand = None
-            if _dark_pixels(dark, brand_left, ms_left, y0, y1) >= MIN_BRAND_DARK_PIXELS:
+            brand_pixels = _dark_pixels(dark, brand_left, ms_left, y0, y1)
+            if brand_pixels >= MIN_BRAND_PROBE_DARK_PIXELS:
                 brand_crop = gray.crop(
                     (brand_left + CROP_INSET_PX, y0 + CROP_INSET_PX, ms_left, y1 - CROP_INSET_PX)
                 )
-                brand = (
-                    pytesseract.image_to_string(brand_crop, config="--psm 6")
-                    .strip()
-                    .strip(" :;|_-—")
-                ) or None
+                words, confidence = _ocr_words(brand_crop, psm=6)
+                text = " ".join(words).strip(" :;|_-—")
+                if brand_pixels >= MIN_BRAND_DARK_PIXELS:
+                    brand = text or None
+                elif (
+                    text
+                    and confidence is not None
+                    and confidence >= MIN_BRAND_PROBE_CONFIDENCE
+                    and not _is_ocr_noise(words, confidence)
+                ):
+                    brand = text
 
             if brand or method_statement or drawing:
                 result.systems.append(
@@ -508,25 +670,22 @@ def extract_fields_from_image(gray: Image.Image) -> DrfExtractionResult:
         value_crop = gray.crop(
             (value_left, y0 + CROP_INSET_PX, value_right_x, y1 - CROP_INSET_PX)
         )
-        value_data = pytesseract.image_to_data(
-            value_crop, config="--psm 6", output_type=pytesseract.Output.DICT
-        )
-        word_confidences = [
-            float(conf)
-            for conf, text in zip(value_data["conf"], value_data["text"])
-            if text.strip() and float(conf) >= 0
-        ]
-        value_text = " ".join(t.strip() for t in value_data["text"] if t.strip())
-        value_text = value_text.strip(" :;|_-—")
-
+        value_text, confidence = _read_value(value_crop)
+        region = (value_left, y0 + CROP_INSET_PX, value_right_x, y1 - CROP_INSET_PX)
         if not value_text:
+            result.issues.append(Issue(IssueCode.MISSING_REQUIRED_FIELD, page=1, region=region,
+                                       target=f"drf_field:{field_name}", detail={"field": field_name}))
             continue
 
         result.fields[field_name] = ExtractedField(
             value=value_text,
-            confidence=sum(word_confidences) / len(word_confidences) if word_confidences else 0.0,
+            confidence=confidence,
             raw_label=label_text,
         )
+        if confidence < settings.ai_ocr_review_confidence:
+            result.issues.append(Issue(IssueCode.AMBIGUOUS_OCR, page=1, region=region,
+                                       target=f"drf_field:{field_name}",
+                                       detail={"field": field_name, "value": value_text, "confidence": confidence}))
 
     for name in FIELD_LABEL_KEYWORDS:
         if name not in result.fields:
@@ -548,5 +707,10 @@ def extract_fields_from_image(gray: Image.Image) -> DrfExtractionResult:
         )
     else:
         result.warnings.append("Could not locate the Systems table")
+
+    # The notes box sits below everything else; a scan that stops short of
+    # the Systems table (a half-page JPG) has no notes to read either.
+    notes_top = systems_rows[-1][1] if systems_rows else field_row_band[1]
+    _read_other_information(gray, dark, h_lines, notes_top, label_left_x + CROP_INSET_PX, result)
 
     return result

@@ -25,6 +25,7 @@ from app.schemas_design import (
     PartCurrentIn,
 )
 from app.seed import BATTERY_UNIT_CATEGORY, PART_CURRENT_CATEGORY
+from app.services import company_library
 from app.services.battery_calculation import part_key
 from app.services.datasheet_library import get_libraries, libraries_for
 
@@ -109,22 +110,53 @@ def save_part_current(
 
 
 def _libraries() -> dict:
-    settings = get_settings()
-    return get_libraries(settings.datasheet_libraries, settings.projects_root)
+    return get_libraries()
 
 
 @router.get("/datasheet-libraries", response_model=list[DatasheetLibraryOut])
 def list_datasheet_libraries(_current_user: User = Depends(get_current_user)) -> list[DatasheetLibraryOut]:
+    """Every manufacturer the platform can look a part up in.
+
+    A brand is a folder under `library/datasheets/`, so this is what the
+    library holds rather than what anyone configured. A brand named in
+    `DATASHEET_LIBRARIES` whose folder is nowhere is listed as unavailable,
+    since a silently absent library reads as a part with no datasheet.
+    """
     settings = get_settings()
     available = _libraries()
-    return [
+    rows = [
         DatasheetLibraryOut(
-            name=name.upper(),
-            folder=str(available[name.upper()].folder) if name.upper() in available else location,
-            available=name.upper() in available,
+            name=name,
+            folder=str(library.folder),
+            available=True,
+            source=company_library.source_of(library.folder),
+            datasheets=library.count(),
         )
-        for name, location in settings.datasheet_libraries.items()
+        for name, library in sorted(available.items())
     ]
+    configured = {**settings.datasheet_libraries, **settings.archive_datasheet_libraries}
+    rows += [
+        DatasheetLibraryOut(name=name.upper(), folder=location, available=False, source="missing")
+        for name, location in sorted(configured.items())
+        if name.upper() not in available
+    ]
+    return rows
+
+
+@router.post("/datasheet-libraries/reindex", response_model=list[DatasheetLibraryOut])
+def reindex_datasheet_libraries(
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+) -> list[DatasheetLibraryOut]:
+    """Re-read the libraries now.
+
+    A library's file listing is trusted for `LIBRARY_RESCAN_SECONDS` so that
+    looking up a BOQ's fifty parts does not walk the folder fifty times.
+    This is the way to see a datasheet added a moment ago without waiting
+    for that interval.
+    """
+    for library in _libraries().values():
+        library.reindex()
+    return list_datasheet_libraries(_current_user)
 
 
 @router.get("/datasheets", response_model=list[DatasheetMatchOut])

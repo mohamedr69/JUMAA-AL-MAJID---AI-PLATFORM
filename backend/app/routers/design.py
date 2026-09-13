@@ -56,9 +56,11 @@ from app.services.battery_calculation import (
     calculate_boq,
     calculate_panel,
     group_lines,
+    included_in_module,
     part_key,
 )
 from app.services.battery_export import battery_workbook
+from app.services.battery_pdf import battery_calculation_pdf, battery_systems_title, panel_manufacturer
 from app.services.datasheet_currents import read_part_current
 from app.services.datasheet_library import get_libraries, libraries_for
 from app.services.ve_calculation import calculate
@@ -220,7 +222,7 @@ def import_voice_evacuation(
 
 def _datasheet_libraries() -> dict:
     settings = get_settings()
-    return get_libraries(settings.datasheet_libraries, settings.projects_root)
+    return get_libraries()
 
 
 def _missing_parts(panels) -> list[BatteryLineOut]:
@@ -297,7 +299,11 @@ def fill_battery_currents(
         libraries = _datasheet_libraries()
         filled: list[FilledCurrentOut] = []
         for line in _missing_parts(result.panels):
-            reading, match = _read_from_datasheets(line, libraries, panel_voltage)
+            host = included_in_module(line.part_no)
+            # Asked before the datasheet, not after: a part built into another
+            # module has no current of its own, so a figure read off the host
+            # module's sheet would be that module's current counted twice.
+            reading, match = (None, None) if host else _read_from_datasheets(line, libraries, panel_voltage)
             if reading and match:
                 pages = ", ".join(str(p) for p in reading.pages)
                 source = f"{match.source.rsplit(', p.', 1)[0]}, p.{pages}: read automatically"
@@ -307,6 +313,16 @@ def fill_battery_currents(
                     "part_no": line.part_no, "standby_ma": reading.standby_ma, "alarm_ma": reading.alarm_ma,
                     "description": line.description, "auto": True,
                     "datasheet": {"library": match.library, "path": match.path, "pages": reading.pages},
+                }
+            elif host:
+                source = (
+                    f"No current of its own: built into {host}, so it is already counted in "
+                    f"{host}'s figure (platform owner)"
+                )
+                data = {
+                    "part_no": line.part_no, "standby_ma": 0, "alarm_ma": 0,
+                    "description": line.description, "auto": True, "no_load": True,
+                    "included_in": host,
                 }
             elif MECHANICAL_RE.search(line.description):
                 source = f"No electrical load: mechanical part (BOQ: \"{line.description[:80]}\"), set automatically"
@@ -475,6 +491,39 @@ def export_battery_calculation(
     return Response(
         content,
         media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": f"attachment; filename=\"{name}\"; filename*=UTF-8''{quote(name)}"},
+    )
+
+
+@router.get("/{project_id}/design/battery/export.pdf")
+def export_battery_calculation_pdf(
+    project_id: int,
+    panel: str | None = None,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """The battery calculation as the sheet the team issues.
+
+    Laid out to FACP_Battery_Calculation_Clean.pdf in the submittal builder,
+    one page per panel. The workbook export stays for working in Excel; this
+    is the one that goes to a consultant.
+    """
+    project = _get_project_or_404(db, project_id)
+    result = _battery_calculation(db, project)
+    panels = [p for p in result.panels if panel is None or p.key == panel]
+    if not panels:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such panel")
+
+    content = battery_calculation_pdf(
+        project,
+        panels,
+        systems=battery_systems_title(project, panels).upper(),
+        manufacturers={p.key: panel_manufacturer(project, p) for p in panels},
+    )
+    name = f"EP-{project.ep_number} Battery Calculation" + (f" {panels[0].name}" if panel else "") + ".pdf"
+    return Response(
+        content,
+        media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=\"{name}\"; filename*=UTF-8''{quote(name)}"},
     )
 

@@ -10,6 +10,7 @@ import {
   type ProjectBoqItemInput,
 } from "../lib/types";
 import { UnderMaintenance } from "../components/UnderMaintenance";
+import { ExtractionReview } from "../components/ExtractionReview";
 import { useProject } from "./ProjectWorkspace";
 
 // Stands in for "no system" so a tab always has a key. Lines only land here
@@ -72,6 +73,8 @@ export function ProjectBoqPage() {
   const [dirty, setDirty] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>(project.boq_extraction_warnings ?? []);
+  // Bumped when a reviewed row is added, so the table reloads with it.
+  const [reviewEpoch, setReviewEpoch] = useState(0);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [extractNote, setExtractNote] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
@@ -360,6 +363,14 @@ export function ProjectBoqPage() {
             ))}
           </ul>
         </div>
+      )}
+      {!loading && (
+        <ExtractionReview
+          key={reviewEpoch}
+          projectId={project.id}
+          canEdit={canEdit}
+          onAccepted={() => setReviewEpoch((n) => n + 1)}
+        />
       )}
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
       {blankRows > 0 && (

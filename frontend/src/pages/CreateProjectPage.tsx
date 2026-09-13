@@ -46,10 +46,10 @@ export function CreateProjectPage() {
   }
 
   if (step === "review" && resolution) {
-    const sourceFolder =
-      resolution.matched_folders.length === 1
-        ? resolution.matched_folders[0]
-        : resolution.matched_folders.find((f) => f) ?? "";
+    // The folder the resolver read the documents from: where the EP number
+    // matched several, the one the engineer picked. Taking the first match
+    // here filed EP-31112 under one contractor with its DRF under another.
+    const sourceFolder = resolution.source_folder ?? resolution.matched_folders[0] ?? "";
     return (
       <ReviewProjectForm
         // As the server normalised it: "EP-29495 " typed is "29495".

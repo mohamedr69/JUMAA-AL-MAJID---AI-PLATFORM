@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
 /** An API address for the browser to open directly (a served PDF). */
 export function apiUrl(path: string): string {
@@ -40,8 +40,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 /** Fetch a file the API generates (an export) and hand it to the browser as a
  * download. Separate from `request`, which assumes a JSON reply. */
-async function download(path: string, fallbackName: string): Promise<void> {
-  const res = await fetch(`${API_BASE_URL}${path}`, { credentials: "include" });
+async function download(path: string, fallbackName: string, body?: unknown): Promise<Response> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: "include",
+    // A file built from a request body -- the submittal package, whose
+    // sections are chosen by the caller -- is a POST, not a GET.
+    ...(body === undefined
+      ? {}
+      : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+  });
   if (!res.ok) {
     let detail = res.statusText;
     try {
@@ -64,6 +71,9 @@ async function download(path: string, fallbackName: string): Promise<void> {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+  // Returned so a caller can read the headers the build reports on (page
+  // count, how many documents were missing).
+  return res;
 }
 
 /** A multipart upload. The browser sets the Content-Type itself, boundary

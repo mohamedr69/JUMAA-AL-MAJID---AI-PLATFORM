@@ -379,3 +379,157 @@ class ProjectSubmittalEvent(Base):
     by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     by = relationship("User")
     at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
+# --- Extraction runs, issues, AI proposals and usage -------------------------
+#
+# A run records one deterministic read of one document: what it covered,
+# its outcome, and the issues it could not settle. A proposal is what a
+# model answered about one issue, with the platform's verdict on it; it
+# moves nothing until an engineer accepts it. Usage is every call, cache
+# hit included, for the diagnostics view and the daily budget.
+
+
+class ExtractionRun(Base):
+    __tablename__ = "extraction_runs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    # "design_sheet" | "drf"
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    document_path: Mapped[str] = mapped_column(Text, nullable=False)
+    document_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    system_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    parser_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    lines_accepted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    coverage: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    failure: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # "auto" (on first open) | "manual" (Assist / Retry)
+    trigger: Mapped[str] = mapped_column(String(16), nullable=False, default="auto")
+    ai_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    ai_cost: Mapped[float] = mapped_column(Numeric(10, 5), nullable=False, default=0)
+    budget_exhausted: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+
+    issues: Mapped[list["ExtractionIssue"]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", order_by="ExtractionIssue.id"
+    )
+
+
+class ExtractionIssue(Base):
+    __tablename__ = "extraction_issues"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("extraction_runs.id"), nullable=False, index=True)
+    run: Mapped["ExtractionRun"] = relationship(back_populates="issues")
+
+    code: Mapped[str] = mapped_column(String(40), nullable=False)
+    severity: Mapped[str] = mapped_column(String(8), nullable=False)
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    region: Mapped[list | None] = mapped_column(JSON, nullable=True)   # [x0, y0, x1, y1] at the render dpi
+    target: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    detail: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    # "open" | "proposed" | "resolved" | "rejected" | "starved"
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="open")
+    state_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resolved_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    resolved_by = relationship("User")
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    resolved_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    proposals: Mapped[list["AiProposal"]] = relationship(
+        back_populates="issue", cascade="all, delete-orphan", order_by="AiProposal.id"
+    )
+
+
+class AiProposal(Base):
+    __tablename__ = "ai_proposals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    issue_id: Mapped[int] = mapped_column(ForeignKey("extraction_issues.id"), nullable=False, index=True)
+    issue: Mapped["ExtractionIssue"] = relationship(back_populates="proposals")
+
+    task: Mapped[str] = mapped_column(String(32), nullable=False)
+    cache_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(8), nullable=False)
+    proposal: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # "validated" | "needs_human_review" | "rejected" | "insufficient_evidence"
+    state: Mapped[str] = mapped_column(String(24), nullable=False)
+    state_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    from_cache: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
+class AiUsage(Base):
+    __tablename__ = "ai_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    run_id: Mapped[int | None] = mapped_column(ForeignKey("extraction_runs.id"), nullable=True)
+    task: Mapped[str] = mapped_column(String(32), nullable=False)
+    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    cached_input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reasoning_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    estimated_cost: Mapped[float] = mapped_column(Numeric(10, 6), nullable=False, default=0)
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cache_hit: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    escalated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # "ok" | "transport" | "rate_limit" | "invalid_response" | "refused" | "auth" | "rejected"
+    outcome: Mapped[str] = mapped_column(String(24), nullable=False)
+    at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False, index=True)
+
+
+class ResultCache(Base):
+    __tablename__ = "result_cache"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True)
+    document_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    task: Mapped[str] = mapped_column(String(32), nullable=False)
+    value: Mapped[dict] = mapped_column(JSON, nullable=False)
+    hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    last_hit_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+
+
+# --- Compliance statements ----------------------------------------------------
+#
+# A prepared statement is the specification's clauses with an answer each and
+# where the answer came from (a rule, a past statement, the model, the
+# engineer). A check is a submitted statement laid against the specification,
+# with what is missing, unanswered or contradicted. Both keep the
+# specification they were made against and the verdict on whether it is this
+# project's.
+
+
+class ComplianceStatement(Base):
+    __tablename__ = "compliance_statements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    # "prepare" | "check"
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    system_code: Mapped[str] = mapped_column(String(16), nullable=False)
+    # {path, member, first_page, last_page, filename, uploaded, sha256,
+    #  section_numbers, title, header_lines}
+    spec: Mapped[dict] = mapped_column(JSON, nullable=False)
+    verification: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    # prepare: [{id, ref, label, level, text, page, heading, response, remark,
+    #            source, state, reference}]
+    # check:   [{id, ref, ..., statement_text, response, remark, findings}]
+    rows: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    reference_files: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    # The statement checked, for kind "check".
+    statement_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)

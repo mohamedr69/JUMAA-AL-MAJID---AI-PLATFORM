@@ -86,3 +86,137 @@ def test_ocr_reply_updates_matching_revision(tmp_path, monkeypatch):
     assert len(rows) == 1
     assert rows[0].revision == "R0"
     assert rows[0].status == "ANN"
+
+
+# --- a reply to the consultant's comments is evidence, not an entry ---------
+
+# Shortened from EP-30784's "03- MS/02- EML/Reply to MS Consultant Comments.pdf".
+# It quotes the submittal it answers, which is what used to register it as
+# that submittal -- displacing the Materials Submittal Form of the same
+# reference and listing the number twice.
+REPLY = """SN
+Consultant Comments
+Al Arabia SSD Reply
+REMARKS
+1
+All luminaires in wet areas must have a minimum ingress protection rating of IP65.
+Comply
+Reply to Consultant Comments on EML submittal
+Ref No : BBY006-GME-MAS-EL-LI-0001 - R.00
+"""
+
+
+def test_reply_sheet_is_not_registered_as_the_submittal_it_answers():
+    row, = parse_page(REPLY, "Reply to MS Consultant Comments.pdf", NOW, 1)
+    assert row.category == "reply"
+    assert row.source == "reply"
+    # It still names what it answers, so a decision on it can be attached.
+    assert row.reference == "BBY006-GME-MAS-EL-LI-0001"
+
+
+def test_a_reply_never_displaces_the_submittal_form(tmp_path):
+    pdf(tmp_path / "01 form.pdf", [FORM.replace("FA-0001", "LI-0001")])
+    pdf(tmp_path / "02 reply.pdf", [REPLY])
+
+    rows, _ = scan_document_control(tmp_path, use_ocr=False)
+
+    submittals = [row for row in rows if row.category == "submittals"]
+    assert [(r.reference, r.revision) for r in submittals] == [("BBY006-GME-MAS-EL-LI-0001", "R0")]
+    # The form's own title, not the reply's.
+    assert submittals[0].name.startswith("Fire Alarm")
+    assert "Reply" not in submittals[0].name
+    # The reply is not a register row of any kind.
+    assert not [row for row in rows if row.category == "reply"]
+
+
+def test_a_reply_carrying_a_decision_settles_the_submittal(tmp_path):
+    pdf(tmp_path / "01 form.pdf", [FORM.replace("FA-0001", "LI-0001")])
+    pdf(tmp_path / "02 reply.pdf", [REPLY + "\nConsultant status: Approved as Noted\n"])
+
+    rows, _ = scan_document_control(tmp_path, use_ocr=False)
+
+    submittal, = [row for row in rows if row.category == "submittals"]
+    assert submittal.status == "ANN"
+
+
+def test_a_reply_alone_is_not_an_approval(tmp_path):
+    """The contractor answering comments says nothing about the outcome."""
+    pdf(tmp_path / "01 form.pdf", [FORM.replace("FA-0001", "LI-0001")])
+    pdf(tmp_path / "02 reply.pdf", [REPLY])
+
+    rows, _ = scan_document_control(tmp_path, use_ocr=False)
+
+    submittal, = [row for row in rows if row.category == "submittals"]
+    assert submittal.status == "UR"
+
+
+# --- drawings: the title block, read by position ---------------------------
+
+# A CAD title block exports its labels and its values as separate runs, so the
+# line after "DRAWING TITLE" is the next label. EP-30784's sheets look like
+# this: reference, title, layout, date, size, revision.
+TITLE_BLOCK = """GENERAL NOTES:
+1)          ALL DIMENSIONS ARE IN MILLIMETERS.
+DRAWING NO.
+REV
+1.)    ALL DIMENSIONS TO BE VERIFIED ON SITE
+PROJECT CODE
+DRAWING CODE
+DRAWING TITLE
+SCALE
+PROJECT NAME
+BBY006-GME-SDW-FP-FA-POD-BGF-010002
+GROUND FLOOR PLAN
+FIRE ALARM LAYOUT
+06.08.2026
+A0
+00
+"""
+
+
+def test_drawing_title_and_floor_come_from_the_title_block():
+    row, = parse_page(TITLE_BLOCK, r"C:\a\1.FAVE\R0\05. Ground Floor\d.pdf", NOW, 1)
+    assert row.category == "drawings"
+    # Was "SCALE" -- the label after the "DRAWING TITLE" label.
+    assert row.name == "GROUND FLOOR PLAN"
+    # Was None on every shop drawing in the archive.
+    assert row.floor == "GROUND FLOOR"
+    # The layout line names the system on the sheet itself.
+    assert row.system_code == "FAS"
+
+
+def test_a_numbered_note_is_not_a_revision():
+    """"REV" is followed by the general notes, whose "1.)" read as R1."""
+    row, = parse_page(TITLE_BLOCK, r"C:\a\1.FAVE\R0\05. Ground Floor\d.pdf", NOW, 1)
+    assert row.revision == "R0"
+
+
+def test_the_submission_folder_gives_the_drawing_revision():
+    """Contractors leave the sheet's own revision at 00 across resubmissions
+    -- on EP-30784 the R0 and R1 submissions of every FAVE drawing both say
+    00 -- so the folder is what separates one submission from the next."""
+    r0, = parse_page(TITLE_BLOCK, r"C:\a\1.FAVE\R0\05. Ground Floor\d.pdf", NOW, 1)
+    r1, = parse_page(TITLE_BLOCK, r"C:\a\1.FAVE\R1\05. Ground Floor\d.pdf", NOW, 1)
+    assert (r0.revision, r1.revision) == ("R0", "R1")
+    # Same drawing, so the two are one row with two revisions, not two rows.
+    assert r0.reference == r1.reference
+
+
+def test_a_submission_read_off_two_pages_is_one_row(tmp_path):
+    """A shop drawing is submitted as a form page plus the sheet. The form
+    has the reference and the stamp, the sheet has the title and the floor;
+    keeping only the higher-ranked page lost the other half."""
+    form = """Shop Drawing Submittal Form
+SDW Reference No. BBY006-GME-SDW-FP-FA-POD-BGF-010002
+SDW Rev.: 00
+Consultant status: Approved as Noted
+"""
+    pdf(tmp_path / "R1" / "submission.pdf", [form, TITLE_BLOCK])
+
+    rows, _ = scan_document_control(tmp_path, use_ocr=False)
+
+    row, = [r for r in rows if r.category == "drawings"]
+    assert row.revision == "R1"
+    assert row.status == "ANN"          # from the form page
+    assert row.name == "GROUND FLOOR PLAN"   # from the sheet
+    assert row.floor == "GROUND FLOOR"       # from the sheet

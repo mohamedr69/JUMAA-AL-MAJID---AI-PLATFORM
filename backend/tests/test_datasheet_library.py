@@ -134,7 +134,7 @@ def test_api_finds_and_serves_datasheets(client, library, monkeypatch):
 
 @requires_live_archive
 def test_live_edwards_library():
-    libraries = get_libraries(settings.model_fields["datasheet_libraries"].default, LIVE_ROOT)
+    libraries = get_libraries(settings.model_fields["archive_datasheet_libraries"].default, LIVE_ROOT)
     edwards = libraries["EDWARDS"]
     match = edwards.find("4-LCDLE")[0]
     assert match.document_no == "E85014-0007"

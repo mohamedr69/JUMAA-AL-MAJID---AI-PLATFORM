@@ -26,7 +26,19 @@ export interface DocumentCandidate {
   path: string;
   filename: string;
   system_guess: string | null;
+  /** How the resolver matched it; after the first ";" come the notes worth
+   * showing: a superseded revision, a system inferred from the DRF. */
+  matched_via: string;
+  /** The revision the filename declares (R1, R2); null when it declares none. */
+  revision: number | null;
+  /** Whether to attach it by default: false for a design superseded by a
+   * later revision of the same system. */
+  selected: boolean;
 }
+
+/** The system codes a design sheet can be filed under. PAVA is what the
+ * archive spells PA, VA, VAS and PAVA; VES is VE too. */
+export const DESIGN_SHEET_SYSTEM_CODES = ["FAS", "VES", "PAVA", "EML", "ELS", "CBS"] as const;
 
 export interface ExtractedField {
   value: string;
@@ -51,6 +63,9 @@ export interface ProjectResolveResponse {
   folder_found: boolean;
   is_ambiguous: boolean;
   matched_folders: string[];
+  /** The folder the documents were found in: the one match, or the one the
+   * engineer selected. The project's source folder. */
+  source_folder: string | null;
   drf_candidates: DocumentCandidate[];
   design_sheet_candidates: DocumentCandidate[];
   warnings: string[];
@@ -58,7 +73,9 @@ export interface ProjectResolveResponse {
   extracted_fields: Partial<Record<ExtractedFieldName, ExtractedField>>;
   extracted_scope_of_work: string | null;
   extracted_systems: ProjectSystemInput[];
+  extracted_other_information: string | null;
   extraction_warnings: string[];
+  ai_suggestions: AiSuggestion[];
 }
 
 /** A system marked on the DRF: a brand written in, or an MS / DWG tick. */
@@ -598,6 +615,18 @@ export interface SpecMatch {
   snippet: string;
   matched_on: string;
   uploaded: boolean;
+  verification: SpecVerification | null;
+}
+
+export type Sameness = "same" | "different" | "unknown";
+
+/** Whether a specification is this project's, for this system. */
+export interface SpecVerification {
+  project: Sameness;
+  system: Sameness;
+  evidence: string[];
+  names_in_spec: string[];
+  decided_by: string;
 }
 
 export interface ComplianceSystem {
@@ -606,10 +635,125 @@ export interface ComplianceSystem {
   specs: SpecMatch[];
 }
 
+export interface ReferenceIndex {
+  running: boolean;
+  indexed: number;
+  by_system: Record<string, number>;
+  files_seen: number;
+  files_read: number;
+  errors: number;
+  finished_at: number | null;
+  message: string | null;
+  root: string;
+}
+
 export interface Compliance {
   systems: ComplianceSystem[];
   warnings: string[];
   searched: string | null;
+  ai_available: boolean;
+  references: ReferenceIndex | null;
+}
+
+export const COMPLIANCE_RESPONSES = [
+  "Comply",
+  "Noted",
+  "Complied with remark",
+  "Not applicable",
+  "By others",
+  "Deviation",
+  "Clarification required",
+] as const;
+
+export interface StatementFinding {
+  code: string;
+  severity: "error" | "warning" | "info";
+  message: string;
+}
+
+/** One clause of a prepared or checked statement. `source` says where the
+ *  answer came from: heading | lead_in | rule | reference | ai | engineer |
+ *  none (prepare); statement | missing (check). */
+export interface StatementRow {
+  id: string;
+  ref: string;
+  label: string;
+  level: number;
+  text: string;
+  page: number;
+  heading: boolean;
+  response: string;
+  remark: string;
+  source: string;
+  state: "ok" | "review";
+  note: string | null;
+  reference: {
+    path?: string;
+    label: string;
+    text: string;
+    response: string;
+    remark?: string;
+    similarity: number;
+    agreeing?: number;
+    disagreeing?: number;
+  } | null;
+  findings?: StatementFinding[];
+}
+
+export interface StatementSummary {
+  id: number;
+  kind: "prepare" | "check";
+  system_code: string;
+  spec: {
+    path: string;
+    member: string | null;
+    first_page: number;
+    last_page: number | null;
+    filename: string;
+    section_numbers: string[];
+    title: string | null;
+    header_lines: string[];
+    clauses: number;
+    warnings: string[];
+  };
+  verification: SpecVerification;
+  summary: {
+    clauses: number;
+    by_source: Record<string, number>;
+    by_response: Record<string, number>;
+    review: number;
+    notes: string[];
+    general?: StatementFinding[];
+    finding_counts?: Record<string, number>;
+    statement_rows?: number;
+    statement_answered?: number;
+    rows_not_in_spec?: number;
+    reviewed_by_ai?: number;
+    pool_size?: number;
+  };
+  statement_name: string | null;
+  ai_calls: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Statement extends StatementSummary {
+  rows: StatementRow[];
+  reference_files: { path: string; shared: number; score: number; title: string[]; answered: number }[];
+}
+
+export interface StatementFile {
+  path: string;
+  filename: string;
+  uploaded: boolean;
+}
+
+export type AutofillScope = "unanswered" | "review" | "all";
+
+export interface Suggestion {
+  id: string;
+  response: string;
+  remark: string;
 }
 
 export interface DraftMail {
@@ -617,4 +761,106 @@ export interface DraftMail {
   to_name: string | null;
   subject: string;
   body: string;
+}
+
+/** A material submittal package: what each index section would contribute
+ *  (GET /projects/{id}/submittal/package/plan). */
+export interface PackageDocument {
+  name: string;
+  source: string;
+  part_no: string | null;
+  /** BOQ parts one shared datasheet serves; it is merged once. */
+  covers: string[];
+  included: boolean;
+  missing_reason: string | null;
+}
+
+export interface PackageSection {
+  number: number;
+  name: string;
+  selected: boolean;
+  found: number;
+  missing: number;
+  note: string | null;
+  documents: PackageDocument[];
+}
+
+export interface PackagePlan {
+  sections: PackageSection[];
+  library_found: boolean;
+  library_path: string | null;
+  system_code: string | null;
+  warnings: string[];
+}
+
+/** What a filled-in material submittal checklist ticks
+ *  (POST /projects/{id}/submittal/package/checklist). */
+export interface ChecklistRead {
+  /** Section number -> "yes" | "no" | "na". A row with no tick is absent. */
+  answers: Record<number, string>;
+  /** The sections ticked Yes, ready to build. */
+  sections: number[];
+  warnings: string[];
+}
+
+/** What a Design Sheet read could not settle (`GET /projects/{id}/extraction`). */
+export interface AiProposalOut {
+  id: number;
+  task: string;
+  model: string;
+  state: "validated" | "needs_human_review" | "rejected" | "insufficient_evidence";
+  state_reason: string;
+  value: string | null;
+  from_cache: boolean;
+  created_at: string;
+}
+
+export interface ExtractionIssue {
+  id: number;
+  code: string;
+  severity: string;
+  page: number | null;
+  target: string;
+  detail: Record<string, unknown>;
+  state: "open" | "proposed" | "resolved" | "rejected" | "starved";
+  state_reason: string | null;
+  llm_eligible: boolean;
+  human_required: boolean;
+  has_evidence_image: boolean;
+  proposals: AiProposalOut[];
+}
+
+export interface ExtractionRun {
+  id: number;
+  kind: string;
+  document_name: string;
+  system_code: string | null;
+  outcome: string;
+  lines_accepted: number;
+  unprocessed_pages: number[];
+  ai_calls: number;
+  ai_cost: number;
+  budget_exhausted: string | null;
+  trigger: string;
+  started_at: string;
+  issues: ExtractionIssue[];
+}
+
+export interface ExtractionState {
+  ai_enabled: boolean;
+  /** Enabled is not the same as usable: false here means the flag is on but
+   * the server has no credential. `ai_status` says which. */
+  ai_ready: boolean;
+  ai_status: string;
+  runs: ExtractionRun[];
+  open_issues: number;
+}
+
+/** A suggestion the model made during resolution; shown, never applied. */
+export interface AiSuggestion {
+  kind: "sheet_system" | "drf_field" | "error";
+  target: string;
+  state: string;
+  value: string | null;
+  reason: string;
 }

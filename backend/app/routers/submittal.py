@@ -12,12 +12,13 @@ rejected before it was approved still says so after the next revision.
 """
 
 import os
+import re
 import threading
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status as http_status
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status as http_status
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -27,8 +28,13 @@ from app.deps import get_current_user, require_role
 from app.models import Project, ProjectSubmittal, ProjectSubmittalEvent, SubmittalStatus, User
 from app.routers.projects import CREATOR_ROLES, DELETER_ROLES, XLSX_MEDIA_TYPE, _get_project_or_404
 from app.schemas_design import (
+    ChecklistReadOut,
     MaterialItemOut,
     MaterialSubmittalOut,
+    PackageBuildIn,
+    PackageDocumentOut,
+    PackagePlanOut,
+    PackageSectionOut,
     ScannedFormOut,
     StorageFolderOut,
     SubmittalEventOut,
@@ -40,9 +46,25 @@ from app.schemas_design import (
     SubmittalSuggestionOut,
 )
 from app.services.battery_calculation import part_key
+from app.services import company_library
 from app.services.datasheet_library import get_libraries, libraries_for
+from app.services.spec_finder import find_specs
 from app.services.submittal_export import submittal_register_workbook
+from app.services.submittal_package import (
+    BATTERY_SECTION,
+    DATASHEET_SECTION,
+    SECTION_NAMES,
+    SECTIONS,
+    SPEC_SECTION,
+    PackageBuildError,
+    PackagePlan,
+    build_package,
+    plan_package,
+    read_checklist,
+)
 from app.services.submittal_scanner import scan_folder
+
+settings = get_settings()
 
 router = APIRouter(prefix="/projects", tags=["submittal"])
 
@@ -61,14 +83,21 @@ SYSTEM_TITLES = {
     "VES": "Voice Evacuation System",
     "CBS": "Central Battery System",
     "FT": "Fire Telephone System",
+    "PAVA": "Public Address & Voice Alarm System",
 }
+
+# The DRF rows a Fire Alarm submittal covers: the one design sheet quotes
+# the panel, the voice evacuation and the fire telephone together. Not the
+# project's other systems -- a cover that listed Central Battery System on a
+# fire alarm package was the platform's doing, not the engineer's.
+FAS_FAMILY_ROWS = ("Fire Alarm", "Voice Evacuation", "Fire Telephone")
 
 
 def _materials(project: Project) -> list[MaterialItemOut]:
     """The BOQ's parts, one per part number per system, each with the
     datasheet found for it in its manufacturer's library."""
     settings = get_settings()
-    libraries = get_libraries(settings.datasheet_libraries, settings.projects_root)
+    libraries = get_libraries()
 
     items: dict[tuple[str | None, str], MaterialItemOut] = {}
     for line in project.boq_items:
@@ -120,7 +149,7 @@ def list_materials(
         items=items,
         systems=sorted({i.system_code or "" for i in items}),
         with_datasheet=sum(1 for i in items if i.datasheet_path),
-        libraries=sorted(get_libraries(settings.datasheet_libraries, settings.projects_root)),
+        libraries=sorted(get_libraries()),
     )
 
 
@@ -196,22 +225,28 @@ def list_submittals(
         counts[submittal.status.value] += 1
     counts["total"] = len(items)
 
-    activity = sorted(
-        (
-            SubmittalEventOut(
-                kind=event.kind,
-                detail=event.detail,
-                by=event.by.full_name if event.by else None,
-                at=event.at,
-                submittal_id=submittal.id,
-                submittal_title=submittal.title,
-            )
-            for submittal in project.submittals
-            for event in submittal.events
-        ),
-        key=lambda e: e.at,
+    # Sorted over the rows, not the output models, so the row id is available
+    # as a tie-break: two events logged in one request (a revision and a
+    # status change together) share a timestamp exactly -- the clock is
+    # coarser than one request -- and a stable sort then leaves them
+    # oldest-first inside that timestamp, showing "Approved" under the
+    # "Revision R01" it actually followed.
+    newest_first = sorted(
+        ((submittal, event) for submittal in project.submittals for event in submittal.events),
+        key=lambda pair: (pair[1].at, pair[1].id),
         reverse=True,
     )[:RECENT_ACTIVITY]
+    activity = [
+        SubmittalEventOut(
+            kind=event.kind,
+            detail=event.detail,
+            by=event.by.full_name if event.by else None,
+            at=event.at,
+            submittal_id=submittal.id,
+            submittal_title=submittal.title,
+        )
+        for submittal, event in newest_first
+    ]
 
     # A system the BOQ has materials for but the register has no submittal for.
     covered = {s.system_code for s in project.submittals}
@@ -446,3 +481,239 @@ def submittal_folder(
 ) -> dict:
     project = _get_project_or_404(db, project_id)
     return {"path": project.source_folder_path, "exists": bool(project.source_folder_path and os.path.isdir(project.source_folder_path))}
+
+
+# --- building the package ---------------------------------------------------
+
+# Assembling is slow (hundreds of pages of PDF) and reads the shared library,
+# so one at a time per process, as the BOQ extraction does.
+_package_lock = threading.Lock()
+
+
+def _submittal_library() -> Path | None:
+    """The submittal builder folder, or None if it is not reachable.
+
+    The company library holds it (`library/submittal`); the archive copy is
+    the fallback for a machine that has not synced it yet. See
+    `app/services/company_library.py`.
+    """
+    return company_library.submittal_folder()
+
+
+def _specs_for(project: Project, system_code: str | None) -> list[tuple[str, str]]:
+    """The project's specification, as (label, path) for the package."""
+    if not project.source_folder_path:
+        return []
+    folder = Path(project.source_folder_path)
+    if not folder.is_dir():
+        return []
+    try:
+        matches, _errors = find_specs(folder, {(system_code or "").upper()} if system_code else set())
+    except Exception:  # noqa: BLE001
+        return []
+    # Only a specification served straight from a file can be merged; one
+    # inside a zip is read for the compliance statement, not for the package.
+    # The same spec filed loose and again inside its archive is one document.
+    seen: set[str] = set()
+    documents: list[tuple[str, str]] = []
+    for match in sorted(matches, key=lambda m: m.path):
+        if match.member or match.filename.lower() in seen:
+            continue
+        full = folder / match.path
+        if full.suffix.lower() != ".pdf" or not full.is_file():
+            continue
+        seen.add(match.filename.lower())
+        documents.append((full.name, str(full)))
+    return documents
+
+
+def _battery_panels(db: Session, project: Project, sections: set[int]):
+    """The panels the battery section encloses, sized from the saved BOQ.
+
+    Computed here because the calculation reads the part-current catalogue
+    out of the database, which the package service has no handle on. Asked
+    for only when the section is chosen -- it is not a cheap call.
+    """
+    if BATTERY_SECTION not in sections:
+        return []
+    from app.routers.design import _battery_calculation
+
+    try:
+        return list(_battery_calculation(db, project).panels)
+    except Exception:  # noqa: BLE001
+        # A calculation that cannot be produced leaves the section with its
+        # divider and a note, rather than failing the whole package.
+        return []
+
+
+def _plan_for(project: Project, sections: set[int], system_code: str | None, db: Session | None = None) -> PackagePlan:
+    library = _submittal_library()
+    # The project's own folder, not the archive root: see _search_archive.
+    folder = Path(project.source_folder_path) if project.source_folder_path else None
+    # Both of these are expensive against a synced archive -- indexing the
+    # datasheet library, and walking the project folder for a specification --
+    # so neither is done unless a chosen section actually needs it.
+    libraries = get_libraries() if DATASHEET_SECTION in sections else {}
+    specs = _specs_for(project, system_code) if SPEC_SECTION in sections else []
+    panels = _battery_panels(db, project, sections) if db is not None else []
+    return plan_package(
+        project, sections, library, folder, libraries,
+        spec_documents=specs, system_code=system_code, battery_panels=panels,
+    )
+
+
+def _plan_out(project: Project, plan: PackagePlan, system_code: str | None) -> PackagePlanOut:
+    return PackagePlanOut(
+        sections=[
+            PackageSectionOut(
+                number=s.number, name=s.name, selected=s.selected,
+                found=s.found, missing=s.missing, note=s.note,
+                documents=[
+                    PackageDocumentOut(
+                        name=d.name, source=d.source, part_no=d.part_no, covers=d.covers,
+                        included=bool(d.path) or d.source == "generated",
+                        missing_reason=d.missing_reason,
+                    )
+                    for d in s.documents
+                ],
+            )
+            for s in plan.sections
+        ],
+        library_found=plan.library_found,
+        library_path=plan.library_path,
+        system_code=system_code,
+        warnings=plan.warnings,
+    )
+
+
+@router.get("/{project_id}/submittal/package/plan", response_model=PackagePlanOut)
+def package_plan(
+    project_id: int,
+    sections: str | None = None,
+    system_code: str | None = None,
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> PackagePlanOut:
+    """What each chosen section would contribute, without assembling anything.
+
+    This is what the checklist shows before the package is built: which
+    documents the submittal builder holds, which came from the project, and
+    which are missing -- so a gap is dealt with before the package goes out,
+    not found in it afterwards.
+    """
+    project = _get_project_or_404(db, project_id)
+    chosen = _parse_sections(sections)
+    plan = _plan_for(project, chosen, system_code, db)
+    return _plan_out(project, plan, system_code)
+
+
+def _parse_sections(sections: str | None) -> set[int]:
+    """"1,5,7" -> {1, 5, 7}. Everything, when nothing is named."""
+    if sections is None or not sections.strip():
+        return {number for number, _ in SECTIONS}
+    chosen = set()
+    for part in sections.split(","):
+        part = part.strip()
+        if part.isdigit() and int(part) in SECTION_NAMES:
+            chosen.add(int(part))
+    return chosen
+
+
+@router.post("/{project_id}/submittal/package")
+def build_submittal_package(
+    project_id: int,
+    payload: PackageBuildIn,
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+):
+    """Assemble the package and return it as one PDF.
+
+    Nothing is stored: the package is the documents it was built from, and
+    keeping a copy would be a second version of them to go stale. Issue it by
+    saving the download into the project folder.
+    """
+    project = _get_project_or_404(db, project_id)
+    chosen = {n for n in payload.sections if n in SECTION_NAMES}
+    if not chosen:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="Choose at least one section")
+
+    with _package_lock:
+        plan = _plan_for(project, chosen, payload.system_code, db)
+        panels = _battery_panels(db, project, chosen)
+        try:
+            built = build_package(
+                project, plan, _submittal_library(),
+                revision=payload.revision or "R0",
+                systems=payload.title or _system_title(project, payload.system_code),
+                system_code=payload.system_code,
+                battery_panels=panels,
+            )
+        except PackageBuildError as exc:
+            raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
+
+    name = f"EP-{project.ep_number} - Material Submittal - {payload.revision or 'R0'}.pdf"
+    return Response(
+        built.pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"{name}\"; filename*=UTF-8''{quote(name)}",
+            "X-Package-Pages": str(built.pages),
+            "X-Package-Warnings": str(len(built.warnings)),
+        },
+    )
+
+
+def _system_title(project: Project, system_code: str | None) -> str:
+    """What the cover calls the systems, from the DRF's own wording -- and
+    only the systems this package is for."""
+    code = (system_code or "").strip().upper()
+    if code == "FAS":
+        covered = [s.name for s in project.systems if s.name in FAS_FAMILY_ROWS]
+        if covered:
+            return _join_systems(covered)
+    return SYSTEM_TITLES.get(code, "Material Submittal")
+
+
+def _join_systems(names: list[str]) -> str:
+    """"Fire Alarm, Voice Evacuation & Fire Telephone System". A name that
+    already ends in "System" loses it first, so nothing reads "System
+    System"."""
+    bare = [re.sub(r"\s+system$", "", name.strip(), flags=re.IGNORECASE) for name in names]
+    joined = ", ".join(bare[:-1]) + (" & " if len(bare) > 1 else "") + bare[-1]
+    return joined + " System"
+
+
+MAX_CHECKLIST_BYTES = 20 * 1024 * 1024
+
+
+@router.post("/{project_id}/submittal/package/checklist", response_model=ChecklistReadOut)
+async def read_submittal_checklist(
+    project_id: int,
+    file: UploadFile = File(...),
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> ChecklistReadOut:
+    """Read a filled-in checklist and say which sections it ticks.
+
+    The checklist is the form the team already fills in for every submittal,
+    so attaching it is the same choice as ticking the custom index -- made
+    once, on paper, by whoever signed it.
+    """
+    _get_project_or_404(db, project_id)
+    if not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="Attach the checklist as a PDF")
+    data = await file.read()
+    if len(data) > MAX_CHECKLIST_BYTES:
+        raise HTTPException(status_code=http_status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="The checklist is too large")
+
+    answers, warnings = read_checklist(data)
+    if not answers:
+        raise HTTPException(
+            status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=warnings[0] if warnings else "No ticks were found on this checklist",
+        )
+    return ChecklistReadOut(
+        answers=answers,
+        sections=sorted(n for n, mark in answers.items() if mark == "yes"),
+        warnings=warnings,
+    )

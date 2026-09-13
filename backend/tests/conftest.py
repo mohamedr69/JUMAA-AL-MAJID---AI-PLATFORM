@@ -1,12 +1,28 @@
 import os
+import tempfile
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["MAX_FAILED_LOGIN_ATTEMPTS"] = "3"
 os.environ["LOCKOUT_MINUTES"] = "15"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"
-# No real datasheet library: the tests build their own, and app startup
-# would otherwise index the synced archive in the background on every test.
+# No real library: the tests build their own. The company library is pointed
+# at an empty temporary folder and the archive fallback is turned off, so
+# app startup never indexes anything -- without this, a developer who has
+# synced the real Edwards library would have the whole suite read it, and
+# the live-archive tests would stop being opt-in.
 os.environ["DATASHEET_LIBRARIES"] = "{}"
+# No archive either: a test that needs one points PROJECTS_ROOT at its own
+# tmp_path. Without this the developer's .env archive leaked in, and the
+# source-folder validation on project creation checked test paths against
+# a real OneDrive tree.
+os.environ["PROJECTS_ROOT"] = ""
+os.environ["PROJECTS_ROOT_AUTODETECT"] = "false"
+os.environ["ARCHIVE_DATASHEET_LIBRARIES"] = "{}"
+os.environ["ARCHIVE_SUBMITTAL_LIBRARY"] = ""
+os.environ["LIBRARY_ROOT"] = tempfile.mkdtemp(prefix="ep-test-library-")
+os.environ["CACHE_ROOT"] = tempfile.mkdtemp(prefix="ep-test-cache-")
+# A library built during a test is read back in the same test: no throttle.
+os.environ["LIBRARY_RESCAN_SECONDS"] = "0"
 
 import pytest
 from fastapi.testclient import TestClient

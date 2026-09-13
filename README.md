@@ -12,6 +12,39 @@ Phase 4: design calculations -- Voice Evacuation amplifier loading
 speaker counts, checked against a load limit held as a design rule), and
 panel standby battery sizing and selection from the BOQ.
 
+## Setting up on a machine
+
+Everything lives in this one folder: `backend/` (FastAPI), `frontend/`
+(React), `docs/`. Nothing about the machine is written into the code --
+paths come from `backend/.env`, and the project archive is found by itself.
+
+```
+git clone https://github.com/mohamedr69/JUMAA-AL-MAJID---AI-PLATFORM.git
+cd JUMAA-AL-MAJID---AI-PLATFORM
+
+cd backend
+python -m venv venv
+.\venv\Scripts\pip install -r requirements.txt
+copy .env.example .env      # set SECRET_KEY and the AI key (see the comments)
+.\venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+
+cd ..\frontend
+npm install
+npm run dev                 # http://localhost:5173
+```
+
+**The project archive (OneDrive).** The platform reads the SharePoint
+library that OneDrive syncs to every office machine, `SSD FIRE ALARM
+PROJECTS - Fire Alarm 2021 Projects`. Nothing needs setting: at startup it
+looks for that folder by name under the user's profile and the
+`%OneDriveCommercial%` / `%OneDrive%` folders (`app/core/config.py`,
+`find_synced_folder`). Only an archive kept somewhere unusual needs
+`PROJECTS_ROOT` in `.env`. The archive is only ever read.
+
+Optional on a machine: Tesseract OCR for reading scanned forms (below), and
+`python scripts\sync_library.py` to fill `backend/library` with the company
+documents (the folder structure is in the repository, the documents are not).
+
 ## Backend (FastAPI)
 
 ```
@@ -45,6 +78,68 @@ This replaced `Base.metadata.create_all`, which created missing tables but never
 - DRF field extraction needs [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) installed separately (it's a system binary, not a pip package). Set `TESSERACT_CMD` in `.env` to its `tesseract.exe` path if it's not already on `PATH`.
 - Design Sheet -> BOQ extraction uses the same Tesseract install as the DRF. No API key or network access is involved.
 
+### The company library
+
+Everything a submittal needs that is **not about a particular project** -- the
+company documents, the templates a package is built from, and the
+manufacturers' datasheets -- lives in one local folder with a fixed structure
+(`LIBRARY_ROOT`, by default `backend/library`). `backend/library/README.md`
+documents the layout; `app/services/company_library.py` is the code.
+
+These were read out of the synced archive, and that was wrong twice over.
+
+**It was slow.** Every directory entry in a OneDrive tree is a
+cloud-placeholder lookup. Indexing the Edwards datasheets took **30 seconds on
+every start**, and none of that work is about the project being opened. Held
+locally with the index kept on disk, the same 105 datasheets come back in
+**0.06 s** after the first read -- measured, not estimated.
+
+**It was not portable.** `Systems/01- FAVE/01- Edwards - UL&EN/01- EST4` is one
+company's filing on one synced drive. A second company, or the same company on
+a second machine, has neither -- which is most of what stopped this platform
+being used for anything else.
+
+A manufacturer is **discovered, not configured**: a folder under
+`library/datasheets/` is a library named for the brand, so adding Menvier is
+dropping a folder in, with no list to edit. `DATASHEET_LIBRARIES` remains as an
+override for a library kept elsewhere.
+
+```
+cd backend
+.\venv\Scripts\python scripts\sync_library.py            # copy it out of the archive
+.\venv\Scripts\python scripts\sync_library.py --status    # what is held, and where from
+```
+
+The sync reads the archive and never writes to it, and skips files whose size
+and timestamp already match, so running it again after one datasheet is added
+copies that datasheet alone.
+
+Three things make the move safe to do gradually:
+
+- **The archive is still the fallback**, per document
+  (`ARCHIVE_DATASHEET_LIBRARIES`, `ARCHIVE_SUBMITTAL_LIBRARY`). A machine
+  part-way through works; it is only slower for what it has not got yet.
+- **An empty folder is not a library.** The scaffold creates every folder of
+  the structure empty, and taking one on existence alone hid the archive copy
+  -- a package then came out with no company documents and nothing saying why.
+  A shelf counts only once it holds a document.
+- **The index is not in the library.** It goes under `CACHE_ROOT`
+  (`backend/.cache`), because a library folder can be read-only or synced, and
+  a cache written into a synced folder is uploaded for no reason. It is keyed
+  by each file's size and timestamp, so a changed datasheet is re-read and
+  nothing else is.
+
+A library's file listing is trusted for `LIBRARY_RESCAN_SECONDS` (60 by
+default): a BOQ's fifty part numbers are fifty lookups, and re-walking the
+folder for each was the whole cost of the page. `POST
+/design-rules/datasheet-libraries/reindex` is the way to pick up a datasheet
+added a moment ago without waiting.
+
+Git tracks the structure and ignores the documents: a trade licence, ISO
+certificates and test reports are the company's own papers, and the Edwards
+library alone is 435 MB. A clone gets the shape and fills it with the sync
+script.
+
 ### The two extractors
 
 Both are deterministic OCR, but they read different shapes and so work differently.
@@ -67,6 +162,154 @@ The stamp is *claimed* rather than checked: the sheets are OCR'd first, then a s
 
 This is a deliberate exception to the "extracted values are suggestions, never auto-submitted" rule that governs the DRF fields -- a BOQ is too long to hand-confirm line by line, so it is written and left editable instead. One consequence worth knowing: because it runs only once, there is no way to re-read a sheet later from the UI.
 
+### After the ten-project review (13 September 2026)
+
+Ten real projects were created and reviewed against their source forms
+(`docs/REVIEW_FIXES.md` has the finding-by-finding record). What the review
+found, and what changed:
+
+- **The source folder is the folder the engineer chose.** Where an EP
+  number matched two folders, the review form took the *first* match as the
+  source folder while the DRF came from the *selected* one, so EP-31112 was
+  filed under one contractor with its DRF under another. The resolver now
+  returns `source_folder`, the form saves that, and creation refuses a DRF or
+  Design Sheet outside the source folder (or a source folder outside the
+  archive) -- which also closes the hole that let `/logs/file` serve any
+  file under a client-supplied path.
+- **The DRF's notes are read.** The `OTHER INFORMATION` block -- "device
+  fixing only", "quoted as per BOQ", "single evacuation zone" -- was not
+  extracted at all and was empty on all ten forms. It is found by its banner,
+  read to the rule beneath it, and pre-fills the review form line by line.
+- **Short brands are read.** "TOA" leaves fewer dark pixels than the
+  threshold calibrated on "EDWARDS", so the PA/VA & BGM row came back
+  unmarked on EP-30208 and EP-30387. Between a lower probe threshold and the
+  calibrated one the cell is read and kept only at high OCR confidence.
+- **Blank stays blank.** A low-confidence read made of letter fragments ("ee
+  ee ee" on EP-31112's empty plot number) is dropped rather than offered as
+  a value; and a value the block read misses altogether (EP-31725's plot
+  number, centred alone in its cell) gets a sparse-text second read.
+- **The right DRF is read.** The archive files the same form several times
+  and the JPG copy of EP-30208's is the top half of the page only. A PDF now
+  outranks an image, an original outranks a copy.
+- **One system identity.** PA, VA, VAS and PAVA are one code (`PAVA`), VE is
+  `VES`, everywhere: the resolver, the BOQ's manufacturer pre-fill, Compliance,
+  the specification finder, the submittal builder, the document log. A
+  "Design.pdf" with no code takes the DRF's one marked system where the DRF
+  marks exactly one; where it marks two, the sheet stays unlabelled and the
+  form says so. The review form lists every sheet with a checkbox and a
+  system to choose.
+- **One issue of each design.** EP-30175 filed FAS and VE sheets as R1, R2
+  and unrevised side by side; attaching all of them read one system's BOQ
+  three times over. Within a system the highest declared revision is
+  selected by default and the rest are offered unticked, marked "superseded
+  by ...". The reviewer can tick any of them.
+- **Every box on a multi-building sheet.** EP-30208's PA design sheet is
+  nine ruled boxes, one per building, over four pages; the extractor read
+  the longest box on each page and lost 47 of 97 rows. Every box is read
+  now, under the building banner above it, which becomes the section of each
+  line's group heading ("DHAID - B2 BUILDING / f. Speakers"). The same part
+  in two buildings is two lines, not a duplicate. The sheet reads 92 of its
+  97 rows and 701 of its 700 quantity, against 50 and 232 before; the
+  remaining rows are individual quantity misreads, which are dropped rather
+  than guessed as they always were.
+- **The battery sheet paginates.** A panel with more parts than the sheet
+  holds continues its table on further sheets with the header repeated;
+  EP-30175's FACP-01 clipped at about twenty of its parts. The sheet names
+  the panel's own manufacturer -- from its BOQ lines, else the DRF's brand
+  for its system -- and says "not established" rather than taking the first
+  brand on the DRF; "EST4" appears only for Edwards. The screen's warnings
+  (a lower-bound load, no selection, charger compatibility unchecked) are
+  printed beside the selection.
+- **The submittal builder says what it did.** The browser could not read
+  the page-count header (`"? pages assembled"`); it is exposed now. The
+  cover names only the fire alarm family for an FAS package and never
+  "System System"; the divider's printed "PAGE 07" follows the section
+  number; a build that fails names the stage and document that failed.
+- **A session in use does not expire.** The cookie carried a fixed
+  30-minute term from login; a request in its second half re-issues it,
+  so a session ends only after 30 minutes of nothing.
+
+Projects created before these changes are not rewritten. `python
+scripts/repair_projects.py` lists, per project, the design-sheet codes, BOQ
+line codes and source folder it would correct and why; `--apply` makes
+exactly those changes. Where the platform cannot tell after the fact --
+unassigned lines from two sheets of different systems -- it says so and
+leaves them to the BOQ page.
+
+### Selective AI assistance (GPT or Claude, off by default)
+
+The platform is deterministic: OCR, geometry, rules, arithmetic. What it
+cannot settle it now records as **issues** with a code, a page and a region
+-- a quantity cell the parser could not read, a page with no recognisable
+table, a design sheet with no system code -- and each read is stored as a
+**run** with its coverage (every page: processed or not, and why) and an
+outcome that cannot pass a partial read as a complete one. That happens
+whether or not AI is on, and the BOQ page shows the rows needing review
+with the cell's own image.
+
+With `AI_ENABLED=true` (`app/ai`), a model is asked about the issues a
+Python **router** (`app/extraction/issues.py`) marks eligible, and nothing
+else. Which model is one setting: `AI_PROVIDER=openai` (the OpenAI SDK) or
+`AI_PROVIDER=claude` (the Anthropic SDK), each behind the same interface,
+with the same evidence, the same schema and the same validation. The
+eligible issues are:
+
+- an unreadable **quantity cell** -- it sees that cell's crop and its row,
+  and proposes a number, which is *validated* only if an independent
+  Tesseract re-read of the same crop agrees, else shown as unconfirmed;
+- an unlabelled **design sheet** on a DRF marking several systems -- it
+  sees the sheet's first-page words and the marked rows, and may suggest
+  one of those codes; the reviewer picks;
+- a **DRF field read at low confidence** -- a second reading of the cell
+  image, validated the same way.
+
+Never: a blank field, a missing datasheet current, a revision choice, a
+source-folder mismatch, an unsupported file, or any arithmetic. Layout
+interpretation for unrecognised sheets is routed but disabled until a
+labelled evaluation set exists.
+
+A proposal moves nothing. Accepting one on the BOQ page adds the row as the
+engineer, through the same rows the BOQ editor writes, and is refused if
+the engineer has since typed that line in. Results are cached by content
+hash plus task, evidence, parser, prompt, schema, model and policy
+versions -- never by filename -- and identical simultaneous requests share
+one call. Budgets (`AI_MAX_*`) are reserved before each call and reconciled
+after; a limit that trips leaves the issue *starved* and the run
+`BUDGET_EXHAUSTED`, never "done". `GET /admin/ai/usage` is the diagnostics
+view: calls, tokens, cost, cache hits, latency.
+
+Setup: `pip install -r requirements.txt`, then in `backend/.env` set
+`AI_ENABLED=true`, `AI_PROVIDER`, `AI_MODEL_SMALL` / `AI_MODEL_STANDARD`
+and `AI_API_KEY` (that file is gitignored; the vendor's own environment
+variable works instead if you prefer). Model IDs are settings, checked
+against the account's own model list rather than assumed. Prices start at
+zero on purpose -- a made-up price is worse than none -- so set
+`AI_PRICE_INPUT_PER_MILLION` and `AI_PRICE_OUTPUT_PER_MILLION` from the
+vendor's pricing page to turn on the cost column and the per-job cost cap;
+the call-count and time limits bind either way.
+
+`python scripts/ai_selftest.py` makes one short call on a drawn cell and
+says whether images, the schema and the validation all work on the
+configured model (`--all` tries a shortlist). Tests use a scripted
+provider; nothing in the suite calls a live model.
+
+### Re-reading the documents
+
+Both reads above happen once. The DRF is read to fill the review form at creation and never looked at again; the Design Sheets are read into the BOQ on first open and the `boq_extracted_at` stamp stops that repeating. So the archive moves on and the project does not -- a re-scanned DRF, a Design Sheet filed a week later, a field mistyped at review: nothing surfaces any of them.
+
+`POST /projects/{id}/reextract` (`app/services/reextraction.py`) re-reads both, **every time it is called**, and reports what differs. Sheets come from the project folder as it stands now rather than from the stored `project_design_sheets` rows, which is what lets a sheet filed after creation appear at all -- it is reported as `new`, and its lines are the ones missing from the BOQ entirely.
+
+**It writes nothing.** That is the point of the split: the stored values are the engineer's corrections, and a re-read that applied itself would be exactly the regression `boq_extracted_at` was introduced to stop. Differences are reported for someone to apply through the ordinary edit paths (`PUT /projects/{id}` for the fields, the BOQ table for the lines). It is POST rather than GET because it costs OCR over every sheet, and should not be run by a page render or a refresh.
+
+What counts as a difference is deliberately narrow, so the report stays worth reading:
+
+- **Fields** compare on letters and digits only. `"Wadi Al Safa 5,  DLRC ,Dubai."` against `"Wadi Al Safa 5, DLRC, Dubai"` is a match, not a change -- OCR spacing and punctuation noise would otherwise bury the real differences.
+- **A field OCR cannot read is `only_stored`, not a conflict.** The engineer typed it in *because* the scan was unreadable; flagging that on every run would train them to ignore the report.
+- **BOQ lines** are paired by the same `line_key` an issued-revision comparison uses (system, group, part number, description), and only the columns a sheet actually carries take part. Manufacturer, unit, prices and remarks are filled in by the platform or the engineer and are not on the sheets -- comparing them would report every line as changed on every run.
+- A broken DRF does not lose the BOQ comparison, and an unreadable sheet does not lose the rest of the report.
+
+Tests are in `tests/test_reextraction.py`: the synthetic ones stub both extractors and pin the comparison rules, and one opt-in live test builds a real project from its DRF and re-reads it, which is what catches an extractor regression -- a field that quietly starts losing its first word shows up there as a difference against a project built from the previous read.
+
 ### Working with the BOQ
 
 The page follows the platform owner's design: the project and revision at the top with Export BOQ and Add Item, then the **sources** a BOQ can come from.
@@ -85,7 +328,7 @@ Uploads go to `UPLOADS_ROOT` (a folder per project), not into the archive: the p
 
 ### Calculation
 
-The design calculations share one section after BOQ, with a tab per system: **Battery** (panel standby batteries, below), **Amplifier** (Voice Evacuation amplifier loading, below) and **Power**, which is marked "soon" and says so. Each tab is its own route (`/projects/{id}/calculations/battery|amplifier|power`), so a calculation can be linked to; the pages' former paths (`/batteries`, `/design/ve`) redirect there.
+The design calculations share one section after BOQ, with a tab per system: **Battery** (panel standby batteries, below) and two marked "soon", which say so when opened -- **Amplifier** (Voice Evacuation amplifier loading, below) and **Power**. Each tab is its own route (`/projects/{id}/calculations/battery|amplifier|power`), so a calculation can be linked to; the pages' former paths (`/batteries`, `/design/ve`) redirect there.
 
 - **Columns** follow the plan: system (the tab), group, manufacturer, model / part no., description, quantity, unit, remarks -- plus unit and total price, which the Design Sheets have as columns. Prices are blank on every sheet in the archive, so they are kept for the engineer to fill rather than extracted.
 - **Filter and totals.** The filter matches part no., description, manufacturer, group, unit and remarks within the current tab. The totals under the table sum the numeric quantities of the lines shown; lines quoted as a word ("Lot") are counted separately rather than guessed at.
@@ -95,7 +338,9 @@ The design calculations share one section after BOQ, with a tab per system: **Ba
 
 ### Voice Evacuation amplifier loading
 
-A project's VE design (Project -> VE Amplifiers) is imported from the engineer's amplifier calculation workbook, picked from the project's archive folder, and is then an editable schedule: zones with their speaker counts, the tap wattage of each speaker type, the channels (runs of zones on one amplifier output, with its rating) and the racks / APS cabinets that group channels. It is stored as one JSON document per project (`project_designs`, validated by `app/schemas_design.py`). Results are never stored: every read recalculates them (`app/services/ve_calculation.py`), so a figure cannot disagree with the counts it came from.
+**The Amplifier tab is marked "soon" and opens the under-maintenance page**, on the platform owner's instruction. Nothing below was removed: the page component (`frontend/src/pages/ProjectVoiceEvacuationPage.tsx`), the API and the calculation are all still here and still tested, and releasing the tab is putting the component back on the `amplifier` route in `App.tsx`. It is described here as it works, because that is what comes back.
+
+A project's VE design is imported from the engineer's amplifier calculation workbook, picked from the project's archive folder, and is then an editable schedule: zones with their speaker counts, the tap wattage of each speaker type, the channels (runs of zones on one amplifier output, with its rating) and the racks / APS cabinets that group channels. It is stored as one JSON document per project (`project_designs`, validated by `app/schemas_design.py`). Results are never stored: every read recalculates them (`app/services/ve_calculation.py`), so a figure cannot disagree with the counts it came from.
 
 **The arithmetic is the engineers' own**, read off their workbooks: zone watts = sum of count x tap, a channel's required watts = the plain sum of its zones, a rack's totals = the sums of its channels. Tested against two real workbooks (EP-24601, EP-29495), whose every zone and channel figure it reproduces.
 
@@ -121,7 +366,7 @@ Project -> Panel Batteries sizes each fire alarm panel's standby battery from th
 
 The battery the **BOQ quotes** is no longer the panel's battery, only a check: `quoted_short` says the quote is smaller than the requirement (EP-30784's main panel quotes 65 Ah against 110.88 Ah), which the page and the export show beside the selection. A panel's status is `ok` (load fully known and a battery selected), `incomplete` (a current missing, a quantity unreadable, or nothing itemized) or `no_selection` (no battery of the brand on file).
 
-**Datasheet libraries.** Each manufacturer's datasheet PDFs live in one folder of the archive, set in `DATASHEET_LIBRARIES` (relative to `PROJECTS_ROOT`). The built-in default is the folder the platform owner designated as the permanent reference for Edwards: `Systems/01- FAVE/01- Edwards - UL&EN/01- EST4`. **Currents are filled from the datasheets automatically.** When an engineer opens Panel Batteries, every part without a current is looked up (`POST /projects/{id}/design/battery/fill-currents`). Its datasheet is found in the library (`app/services/datasheet_library.py`): by filename first ("01- 4-CPU.pdf"), then a datasheet named for its family ("4-NET.pdf" for 4-NET-TP), then any datasheet that mentions it. Its standby and alarm mA are then read off (`app/services/datasheet_currents.py`) and recorded in the catalogue with the datasheet, document number and page as the source. Only parts without a current are touched, so an entry someone corrected is never overwritten.
+**Datasheet libraries.** Each manufacturer's datasheet PDFs live in one folder of the company library (`library/datasheets/<BRAND>`), and a folder there *is* a library -- see "The company library" above. **Currents are filled from the datasheets automatically.** When an engineer opens Panel Batteries, every part without a current is looked up (`POST /projects/{id}/design/battery/fill-currents`). Its datasheet is found in the library (`app/services/datasheet_library.py`): by filename first ("01- 4-CPU.pdf"), then a datasheet named for its family ("4-NET.pdf" for 4-NET-TP), then any datasheet that mentions it. Its standby and alarm mA are then read off (`app/services/datasheet_currents.py`) and recorded in the catalogue with the datasheet, document number and page as the source. Only parts without a current are touched, so an entry someone corrected is never overwritten.
 
 Datasheet tables are not uniform, so a figure is placed by geometry. Its label is the nearest Standby / Alarm / Current word. Its model is a model named right after it, else the column of a header row naming several models, else the nearest bold section title above it on that half of the page, else the part its datasheet is named for. Headings are told from row labels that merely start with a model by their type (bold, medium or larger). Where a datasheet gives more than one figure, the **worst case** is filled, since a larger figure can only oversize a battery: 4-USBHUB 560 mA fully loaded rather than 44 mA idle; 24L24S 3.0 mA + 0.23 mA Ã— 24 indicators = 8.52 mA; 4-NET-TP 45 mA (CAT5e) rather than 32 mA. Figures per supply voltage are taken at 24 V. The 4-CPU's "Alarm: see the 4-COMREL" takes its standby figure, the relays being their own BOQ line. Figures that belong to another model are never borrowed: 4-2ANN's datasheet gives the 4-ANNCPU's current, and 4-2ANN is left for the engineer. A part with no datasheet current whose BOQ description is mechanical (chassis, filler plate, backbox, cabinet, door, bracket) is recorded as no load. Anything else is listed on the page with the reason and a small entry form. For EP-30784 that is 4-COMREL (no datasheet in the library) and nothing else; its 12 modules read are pinned by live tests.
 
@@ -172,7 +417,7 @@ The same submittal is filed twice, where it was prepared and again under the app
 
 Not built: compiling the submittal package itself (cover, index, merged datasheets), and the design's two AI actions (submittal review, compliance check) -- the page does not show them rather than show buttons that do nothing.
 
-The left nav lists Home, Project Info, BOQ, Panel Batteries, Material Submittal and Documents. VE Amplifiers was taken off it on the platform owner's instruction; the page and its API remain at `/projects/{id}/design/ve`.
+The left nav lists Home, Project Info, BOQ, Panel Batteries, Material Submittal and Documents. VE Amplifiers was taken off it on the platform owner's instruction, and the Amplifier calculation tab is now marked "soon" as well; the API remains at `/projects/{id}/design/ve` and the page component is kept for when it is released.
 
 ## Frontend (React + Vite + Tailwind)
 
@@ -191,6 +436,63 @@ Runs at http://localhost:5173, expects the backend at http://localhost:8000 (ove
 - SQLite for dev (`DATABASE_URL` in `.env`); swap to Postgres for production via the same `DATABASE_URL`.
 - Brand assets (logo, hero photo, exact colors) in `frontend/src/branding.ts`, `BrandMark.tsx`, `CitySkylineBackdrop.tsx` are placeholders reconstructed from the mockups â€” swap for the approved files when available.
 - DRF extraction (`app/services/drf_extractor.py`) is OCR + grid-line detection, not an AI model â€” by design, per the plan's "AI handles document understanding, Python handles deterministic logic" split, this counts as deterministic since it's pattern/geometry matching against a known fixed form template, not a language model. It targets the current DRF template (Document Reference SSD-P-06 B/IQF.17); a template redesign would need it revisited. Extracted values are always shown as editable, pre-filled suggestions with a confidence indicator â€” never auto-submitted.
+
+### What the log reads, and what it refuses to read
+
+The register is built by reading every PDF in the project folder, and four
+things about that read were wrong against the real archive (EP-30784):
+
+- **Files over the Windows path limit were silently skipped.** `Path.is_file()`
+  answers *False* for a path of 260 characters or more rather than raising, so
+  54 of that project's 287 PDFs were never opened -- and being the deepest
+  paths, they were almost exactly the shop drawings and consultant replies the
+  log exists to track. Paths are now taken through the `\\?\` prefix
+  (`_os_path`), which also means MuPDF cannot open them itself, so such a file
+  is read here and handed over as bytes.
+- **A reply to the consultant's comments registered itself as the submittal it
+  answers.** The reply quotes the reference it replies to ("Ref No :
+  BBY006-GME-MAS-EL-LI-0001 - R.00"), which was enough to file it as that
+  submittal and displace the Materials Submittal Form of the same number. A
+  reply is now evidence attached to a submission, never an entry: it is read
+  only for a consultant decision it may carry, and dropped. A reply on its own
+  is not an approval -- the contractor answering comments says nothing about
+  the outcome.
+- **Drawing titles read as "SCALE" and no drawing had a floor.** A CAD title
+  block exports its labels and its values as two separate text runs, so the
+  line after the "DRAWING TITLE" label is the next *label*. The values sit
+  together after the drawing reference instead, and are now read positionally
+  from it (`title_block`) -- which is what recovers the floor.
+- **Revisions came from the general notes.** "REV" is likewise followed by
+  whatever the export put next, on these sheets the notes, whose "1.)" read as
+  revision 1. The revision of a shop drawing now comes from its submission
+  folder (`.../1.FAVE/R1/05. Ground Floor/...`), because contractors leave the
+  sheet's own revision at 00 across resubmissions -- on EP-30784 the R0 and R1
+  submissions of every FAVE drawing both say 00, so the folder is the only
+  thing separating them. Used for the revision only: a folder still never
+  establishes approval.
+
+A submission read off several pages is **one row**: a shop drawing arrives as a
+form page plus the sheet, and the two carry different halves of one fact (the
+form has the reference and the stamp, the sheet has the title and the floor).
+Keeping whichever page ranked higher threw the other half away.
+
+**A file that cannot be read is reported, not passed over.** A OneDrive file
+that is still online-only says so and names the fix -- make the folder
+available offline -- rather than being called corrupt.
+
+**The page shows nothing until the scan finishes**, behind a progress bar. A
+half-read scan shows a drawing with no later revision because that file has
+not been opened yet, and a submittal as UR because the page carrying the
+stamp is still ahead of it. Both read as fact and neither is one.
+
+The two tables follow the platform owner's design and differ on purpose.
+**Drawings** are one row per floor with a column per revision -- what is asked
+of them is "which floors are issued, and where has each got to". **Material
+Submittals** are one row per reference showing the latest revision, its status
+and the earlier ones as a history trail (`R0 Rejected -> R1 ANN`): a submittal
+has no floor and its older revisions are superseded, so a column each would be
+mostly empty. A reference is grouped on its own, not per system code, so one
+document read under two codes is still listed once.
 
 ### Project logs
 

@@ -1,13 +1,15 @@
 import threading
+import time
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
+from app.core.security import create_access_token, decode_access_token
 from app.database import SessionLocal, engine
 from app.migrations import upgrade_to_head
-from app.routers import auth, compliance, design, design_rules, modules, projects, submittal, users
+from app.routers import auth, compliance, design, design_rules, extraction, modules, projects, submittal, users
 from app.seed import seed_default_admin, seed_design_rules
 from app.services.datasheet_library import get_libraries
 
@@ -25,7 +27,7 @@ async def lifespan(app: FastAPI):
         db.close()
     # Reading every datasheet takes a while over a synced drive; do it in
     # the background now rather than on the first lookup.
-    for library in get_libraries(settings.datasheet_libraries, settings.projects_root).values():
+    for library in get_libraries().values():
         threading.Thread(target=library.warm, daemon=True).start()
     yield
 
@@ -39,9 +41,48 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     # The frontend runs on another origin, where the browser hides response
-    # headers it isn't told it may read; this one carries an export's filename.
-    expose_headers=["Content-Disposition"],
+    # headers it isn't told it may read: the export's filename, and what the
+    # package builder reports about the file it built -- without these two
+    # the page said "? pages assembled".
+    expose_headers=["Content-Disposition", "X-Package-Pages", "X-Package-Warnings"],
 )
+
+
+@app.middleware("http")
+async def slide_session(request: Request, call_next):
+    """Renew the session cookie while it is in use.
+
+    The cookie carried a fixed 30-minute expiry from login, so an engineer
+    half-way through a BOQ or waiting on a long search was signed out
+    mid-work -- the ten-project review hit it twice. A request made in the
+    second half of the cookie's life now re-issues it for a full term, so a
+    session ends only after 30 minutes of nothing. Login sets its own
+    cookie and logout clears it; neither is touched.
+    """
+    response = await call_next(request)
+    if request.url.path.startswith("/auth/"):
+        return response
+    token = request.cookies.get(settings.cookie_name)
+    if not token:
+        return response
+    try:
+        payload = decode_access_token(token)
+    except Exception:  # noqa: BLE001 -- an expired or bad token is the route's 401 to give, not ours
+        return response
+    lifetime = settings.access_token_expire_minutes * 60
+    expires = payload.get("exp")
+    if expires is None or expires - time.time() > lifetime / 2:
+        return response
+    response.set_cookie(
+        key=settings.cookie_name,
+        value=create_access_token(subject=str(payload["sub"]), role=str(payload.get("role", ""))),
+        httponly=True,
+        samesite="lax",
+        secure=settings.cookie_secure,
+        max_age=lifetime,
+        path="/",
+    )
+    return response
 
 app.include_router(auth.router)
 app.include_router(users.router)
@@ -51,6 +92,8 @@ app.include_router(design.router)
 app.include_router(design_rules.router)
 app.include_router(submittal.router)
 app.include_router(compliance.router)
+app.include_router(extraction.router)
+app.include_router(extraction.admin_router)
 
 
 @app.get("/health")

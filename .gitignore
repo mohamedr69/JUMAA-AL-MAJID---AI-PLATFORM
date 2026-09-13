@@ -8,6 +8,10 @@ __pycache__/
 # Env
 .env
 
+# Server logs
+*.log
+*.log.err
+
 # Documents uploaded through the platform: project files, not source.
 backend/uploads/
 
@@ -21,3 +25,15 @@ dist/
 .idea/
 Thumbs.db
 .DS_Store
+
+# The company library: the structure is tracked, the documents are not.
+# A trade licence, ISO certificates and test reports are the company's own
+# papers, and a datasheet library runs to hundreds of megabytes. A clone gets
+# the shape and fills it with `backend/scripts/sync_library.py`.
+backend/library/**
+!backend/library/README.md
+!backend/library/**/
+!backend/library/**/.gitkeep
+
+# Derived data: the datasheet index, rebuilt from the library on demand.
+backend/.cache/

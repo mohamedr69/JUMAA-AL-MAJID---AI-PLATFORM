@@ -3,6 +3,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
+import os
 import re
 import io
 from threading import RLock
@@ -10,6 +11,33 @@ import pymupdf
 from app.services.submittal_scanner import ocr_available
 
 _SCAN_LOCK = RLock()
+
+# Windows refuses a path of 260 characters or more through the ordinary file
+# APIs, and Path.is_file() answers False for one rather than raising -- so a
+# deeply nested archive folder silently loses files instead of reporting
+# them. On EP-30784 that was 54 of 287 PDFs, every one of them a shop drawing
+# or a consultant reply, i.e. exactly the documents this scan exists to find.
+# The \\?\ prefix lifts the limit; it needs a fully-qualified backslash path,
+# and UNC paths take a different prefix, so those are left alone.
+_LONG_PATH_PREFIX = "\\\\?\\"
+
+
+def _os_path(path: Path) -> str:
+    text = os.fspath(path)
+    if os.name != "nt" or len(text) < 250 or text.startswith("\\\\"):
+        return text
+    return _LONG_PATH_PREFIX + os.path.abspath(text)
+
+
+def _open_pdf(path: Path):
+    r"""Open a PDF, reading it through the long-path API where the ordinary
+    one cannot reach it. MuPDF does its own file opening and does not honour
+    the \\?\ prefix, so such a file is read here and handed over as bytes."""
+    name = _os_path(path)
+    if not name.startswith(_LONG_PATH_PREFIX):
+        return pymupdf.open(path)
+    with open(name, "rb") as handle:
+        return pymupdf.open(stream=handle.read(), filetype="pdf")
 
 def _ocr_page(page):
     import pytesseract
@@ -21,10 +49,53 @@ def _ocr_page(page):
 
 
 REF = re.compile(r"\b[A-Z0-9]+(?:-[A-Z0-9]+)*-(MAS|SDW|DWG|SAR)-[A-Z0-9-]+", re.I)
-REV = re.compile(r"\b(?:MAS\s+|SDW\s+|DWG\s+|SAR\s+)?REV(?:ISION)?\.?\s*[:.-]?\s*\n?\s*R?\s*(\d{1,3})\b", re.I)
+# The trailing guard rejects a numbered list item. A CAD title block keeps
+# labels and values in separate text runs, so the line after the "REV" label
+# is whatever the export put next -- on every EP-30784 shop drawing that is
+# the general notes, whose "1.)" was read as revision 1.
+REV = re.compile(r"\b(?:MAS\s+|SDW\s+|DWG\s+|SAR\s+)?REV(?:ISION)?\.?\s*[:.-]?\s*\n?\s*R?\s*(\d{1,3})\b(?!\s*\.?\))", re.I)
+
+# Shop drawings are filed one folder per submission (.../1.FAVE/R1/05. Ground
+# Floor/...). The sheet's own title block carries the *drawing's* revision,
+# which contractors routinely leave at 00 across resubmissions -- on EP-30784
+# both the R0 and the R1 submission of every FAVE drawing say 00 -- so the
+# folder is the only thing separating one submission from the next. Used for
+# the revision only: a folder still never establishes approval.
+FOLDER_REV = re.compile(r"[\\/]R\.?\s?0*(\d{1,2})(?=[\\/]|$)", re.I)
+
+
+def folder_revision(path: str) -> str | None:
+    found = FOLDER_REV.findall(path)
+    return f"R{int(found[-1])}" if found else None
 DRAW_REF = re.compile(r"(?:DRAWING\s*(?:NO\.?|NUMBER)|DWG\s*NO\.?)\s*:?\s*\n?\s*([A-Z0-9][A-Z0-9 /-]{3,70})", re.I)
 TITLE = re.compile(r"(?:DRAWING\s*TITLE|TITLE)\s*:?\s*\n?\s*([^\n]+)", re.I)
-SYSTEMS = [("FRC", r"fire[ -]*(?:rated|resistant)\s*cable"), ("EML", r"emergency\s*light|monitored\s*self[ -]*contained"), ("FAS", r"fire\s*alarm|voice\s*evacuation|fire\s*telephone")]
+SYSTEMS = [
+    ("FRC", r"fire[ -]*(?:rated|resistant)\s*cable"),
+    ("EML", r"emergency\s*light|monitored\s*self[ -]*contained"),
+    ("PAVA", r"public\s*address|\bpa\s*/?\s*va\b|\bpava\b|voice\s*alarm|background\s*music|\bbgm\b"),
+    ("FAS", r"fire\s*alarm|voice\s*evacuation|fire\s*telephone"),
+]
+
+# A contractor's answer to the consultant's comments. It quotes the submittal
+# it answers ("Ref No : BBY006-GME-MAS-EL-LI-0001 - R.00"), which used to be
+# enough to register it as that submittal -- so the reply sheet displaced the
+# Materials Submittal Form it belongs to, and the same reference appeared
+# twice. It is evidence attached to a submission, never a submission itself.
+REPLY_SHEET = re.compile(
+    r"reply\s+to\s+(?:the\s+)?(?:MS\s+|the\s+)?consultant(?:'s|s)?\s*(?:comments?|remarks?)"
+    r"|consultant\s+comments?\s*(?:\n|\r|\s)*(?:.{0,40}\s)?reply"
+    r"|repl(?:y|ies)\s+to\s+(?:QA\s*/?\s*QC|comments)",
+    re.I,
+)
+
+# The submission form itself: the controlled form these registers are built
+# from. Its own labels, not a document that merely mentions one.
+SUBMISSION_FORM = re.compile(
+    r"materials?\s+submittal\s+form|MAS\s+Reference\s+No|MAS\s+Rev"
+    r"|sample\s+approval\s+(?:request\s+)?form|SAR\s+Reference\s+No"
+    r"|shop\s*drawing\s+(?:submittal\s+)?form|SDW\s+Reference\s+No|SDW\s+Rev|SDW\.?\s+Ref\.?\s+No",
+    re.I,
+)
 
 @dataclass(frozen=True)
 class ControlledDocument:
@@ -69,6 +140,30 @@ def read_decision(text: str) -> tuple[str, str | None]:
     return "UR", "Conflicting review decisions; verification required." if decisions else None
 
 
+def title_block(text: str, reference: str) -> tuple[str | None, str | None]:
+    """The drawing title and layout from a CAD title block.
+
+    The block is a grid of labels and a grid of values, and the PDF text layer
+    carries each grid as its own run -- so the line after the "DRAWING TITLE"
+    label is the next *label* ("SCALE"), which is what the register was
+    showing as the title of almost every shop drawing. The values sit together
+    after the drawing reference instead:
+
+        BBY006-...-010002 | GROUND FLOOR PLAN | FIRE ALARM LAYOUT | 06.08.2026
+
+    so they are read positionally from the reference. This is what recovers
+    the floor, which a label-based read never found on a single drawing.
+    """
+    index = text.find(reference)
+    if index < 0: return None, None
+    values = [line.strip() for line in text[index + len(reference):].splitlines() if line.strip()]
+    # A label ("SDW Date:"), a date or a sheet size is not a drawing title.
+    def usable(value: str | None) -> str | None:
+        if not value or value.endswith(":") or not re.search(r"[A-Za-z]{3}", value): return None
+        return None if re.fullmatch(r"[\d.\-/ ]+|A\d|\d+:\d+", value) else value
+    return usable(values[0] if values else None), usable(values[1] if len(values) > 1 else None)
+
+
 def floor_name(title: str) -> str | None:
     for pattern in [r"TYPICAL\s+.*?FLOOR", r"BASEMENT[ -]*\d+", r"PODIUM[ -]*\d+", r"(?:\d+(?:ST|ND|RD|TH)\s+|GROUND\s+|.*?ROOF\s+)FLOOR", r"UNDER\s*GROUND", r"\b(?:B\d+|L\d+|GF|RF)\b"]:
         found = re.search(pattern, title, re.I)
@@ -89,6 +184,19 @@ def parse_page(text: str, path: str, modified: datetime, page: int) -> list[Cont
         return schedule
     match = REF.search(text)
     drawing_match = DRAW_REF.search(text)
+    # A reply sheet quotes the reference it answers. Registering it would
+    # displace the submission form carrying that reference, so it is only
+    # ever read for the decision it may carry (source="reply"), and
+    # _scan_document_control attaches that to the submission itself.
+    if REPLY_SHEET.search(text) and not SUBMISSION_FORM.search(text):
+        if not match: return []
+        decision, evidence = read_decision(text)
+        reference = re.sub(r"-R\d+$", "", match.group().rstrip("-."), flags=re.I)
+        revision_match = REV.search(text) or re.search(r"\bR\.?\s*(\d{1,3})\b", text)
+        return [ControlledDocument(
+            None, "Reply to consultant comments", path, modified, reference,
+            f"R{int(revision_match.group(1))}" if revision_match else "R0",
+            decision, None, evidence, page, source="reply", category="reply")]
     if match:
         reference = match.group().rstrip("-.")
         category = {"MAS": "submittals", "SAR": "samples", "SDW": "drawings", "DWG": "drawings"}[match.group(1).upper()]
@@ -103,9 +211,17 @@ def parse_page(text: str, path: str, modified: datetime, page: int) -> list[Cont
     revision_match = REV.search(text)
     suffix = re.search(r"-R(\d+)$", reference, re.I)
     revision = f"R{int(revision_match.group(1) if revision_match else suffix.group(1) if suffix else 0)}"
+    if category == "drawings":
+        revision = folder_revision(path) or revision
     reference = re.sub(r"-R\d+$", "", reference, flags=re.I)
+    layout = None
+    if category == "drawings" and not SUBMISSION_FORM.search(text):
+        # A drawing sheet: read the title block by position (see title_block).
+        block_title, layout = title_block(text, reference)
+    else:
+        block_title = None
     title_match = re.search(r"(?:Material\s+Submittal\s+for|Sample\s+Approval\s+Request\s+for)\s+([^\n]+)", text, re.I) if category != "drawings" else TITLE.search(text)
-    title = title_match.group(1).strip() if title_match else reference
+    title = block_title or (title_match.group(1).strip() if title_match else reference)
     if category != "drawings" and title_match:
         following = text[title_match.end():].splitlines()
         for continuation in following[:4]:
@@ -115,7 +231,10 @@ def parse_page(text: str, path: str, modified: datetime, page: int) -> list[Cont
             title += " " + continuation
     if re.search(r"\bcables?\b", title, re.I): code_hint = "FRC"
     else: code_hint = None
-    code = code_hint or next((code for code, pattern in SYSTEMS if re.search(pattern, title, re.I)), None)
+    # The title block's layout line ("FIRE ALARM LAYOUT") names the system on
+    # the sheet itself, which beats inferring it from the reference.
+    named = f"{title} {layout}" if layout else title
+    code = code_hint or next((code for code, pattern in SYSTEMS if re.search(pattern, named, re.I)), None)
     if code is None:
         code = "FAS" if re.search(r"-(?:FA|FAS|VE|FT)-", reference, re.I) else "EML" if re.search(r"-(?:LI|ELM|EML)-", reference, re.I) else "FRC" if re.search(r"-FRC-", reference, re.I) else None
     if code is None and category == "drawings": return []
@@ -139,7 +258,7 @@ def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool) -> tuple[tupl
     path = Path(filename)
     modified = datetime.fromtimestamp(stamp / 1e9, timezone.utc)
     try:
-        with pymupdf.open(path) as pdf:
+        with _open_pdf(path) as pdf:
             pending = None
             ocr_count = 0
             for index, page in enumerate(pdf):
@@ -179,34 +298,80 @@ def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool) -> tuple[tupl
                         records[pending] = replace(records[pending], status=decision, reply_text=evidence, page=index + 1)
                 else:
                     pending = None
+    except OSError as exc:
+        # A OneDrive file that is still online-only cannot be read at all.
+        # It is not a corrupt document and saying so sends the reader to the
+        # wrong problem: the fix is to make the folder available offline.
+        if exc.errno == 22 or "cloud" in str(exc).lower():
+            warnings.append(f"{path.name} is not downloaded from OneDrive; make the project folder available offline, then refresh.")
+        else:
+            warnings.append(f"Could not read {path.name}.")
     except Exception:
         warnings.append(f"Could not read {path.name}.")
     return tuple(records), tuple(dict.fromkeys(warnings))
+
+
+def _merge(old: ControlledDocument, new: ControlledDocument) -> ControlledDocument:
+    """One submission, read off several pages, is one register row.
+
+    A shop-drawing submission is a form page followed by the sheet itself, and
+    the two carry different halves of the same fact: the form has the
+    reference and the consultant's stamp, the sheet has the title and the
+    floor. Picking whichever page ranked higher discarded the other half --
+    which is why every drawing that was submitted under a form showed the
+    reference as its title and no floor at all.
+    """
+    best = new if (old.status == "UR" and new.status != "UR") else old
+    if best.status == old.status and new.source == "document" and old.source != "document":
+        best = new
+    return replace(
+        best,
+        # A title that is just the reference is a fallback, not a title.
+        name=next((r.name for r in (best, old, new) if r.name and r.name != r.reference), best.name),
+        floor=best.floor or old.floor or new.floor,
+        reply_text=best.reply_text or old.reply_text or new.reply_text,
+        group_reference=best.group_reference or old.group_reference or new.group_reference,
+    )
 
 
 def _scan_document_control(root: Path, use_ocr: bool = True, progress=None) -> tuple[list[ControlledDocument], list[str]]:
     enabled = use_ocr and ocr_available()
     warnings = [] if enabled or not use_ocr else ["OCR is unavailable. Image-only documents or consultant stamps may need verification; no approval is assumed."]
     found = {}
-    paths = sorted(path for path in root.rglob("*") if path.is_file() and path.suffix.lower() == ".pdf")
+    # os.path.isfile through _os_path, not Path.is_file(), so a path over the
+    # Windows limit is still seen -- see _os_path.
+    paths = sorted(
+        path for path in root.rglob("*")
+        if path.suffix.lower() == ".pdf" and os.path.isfile(_os_path(path))
+    )
     for index, path in enumerate(paths):
         try:
-            stat = path.stat()
+            stat = os.stat(_os_path(path))
             records, notes = _read_pdf(str(path), stat.st_mtime_ns, stat.st_size, enabled)
             warnings.extend(notes)
             for row in records:
                 row = replace(row, path=path.relative_to(root).as_posix())
                 key = (row.category, row.system_code, row.reference.upper(), row.revision)
                 old = found.get(key)
-                rank = lambda r: (r.status != "UR", r.source == "document", r.modified)
-                if old is None or rank(row) > rank(old): found[key] = row
+                found[key] = row if old is None else _merge(old, row)
         except OSError:
             warnings.append(f"Could not access {path.name}.")
         if progress:
             progress(list(found.values()), list(dict.fromkeys(warnings)), index + 1, len(paths))
+    # Replies are evidence, not entries: a reply carrying a consultant
+    # decision settles the submission it answers, and is then dropped. One
+    # that carries no decision (the contractor answering comments, which is
+    # the usual case) leaves the submission exactly as it was -- a reply is
+    # not itself an approval.
+    rows = [row for row in found.values() if row.category != "reply"]
+    for reply in (row for row in found.values() if row.category == "reply"):
+        if reply.status == "UR": continue
+        for i, row in enumerate(rows):
+            if row.reference.upper() == reply.reference.upper() and row.revision == reply.revision and row.status == "UR":
+                rows[i] = replace(row, status=reply.status, reply_text=reply.reply_text)
+
     # Match an issued drawing to a unique scheduled floor in the same system.
     # Keep its actual drawing reference, while retaining a stable register row.
-    rows = list(found.values())
     schedules = [r for r in rows if r.source == "drawing schedule"]
     for i, row in enumerate(rows):
         if row.category != "drawings" or row.source != "document" or not row.floor: continue

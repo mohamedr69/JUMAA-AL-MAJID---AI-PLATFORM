@@ -7,7 +7,7 @@ import re
 
 
 DRAWING_SUFFIXES = {".pdf", ".dwg", ".dxf", ".zip"}
-SYSTEM_CODE_RE = re.compile(r"(?<![A-Z0-9])(?:FAS|EML|ELS|VES|CBS|FT)(?![A-Z0-9])", re.IGNORECASE)
+SYSTEM_CODE_RE = re.compile(r"(?<![A-Z0-9])(?:FAS|EML|ELS|VES|CBS|FT|PAVA|PA|VA)(?![A-Z0-9])", re.IGNORECASE)
 DRAWING_WORD_RE = re.compile(r"drawing|layout|shop[ _-]?drawing|as[ _-]?built|ifc", re.IGNORECASE)
 
 
@@ -23,7 +23,7 @@ def find_drawings(root: Path, systems: set[str], *, material: bool = False, samp
     """Find likely drawing files without changing the project or database."""
     drawings: list[ProjectDrawing] = []
     warnings: list[str] = []
-    codes = set(systems) | {"FAS", "FA", "EML", "ELS", "VE", "VES", "CBS", "FT", "FRC", "Fire Alarm", "Voice Evacuation", "Fire Telephone", "Emergency Light Monitoring", "Monitored Self Contained"}
+    codes = set(systems) | {"FAS", "FA", "EML", "ELS", "VE", "VES", "CBS", "FT", "FRC", "PAVA", "PA", "VA", "VAS", "Fire Alarm", "Voice Evacuation", "Fire Telephone", "Emergency Light Monitoring", "Monitored Self Contained", "Public Address"}
     code_pattern = re.compile(r"(?<![A-Z0-9])(?:" + "|".join(re.escape(code) for code in sorted(codes, key=len, reverse=True)) + r")(?![A-Z0-9])", re.IGNORECASE)
     word_pattern = re.compile(r"material[ _-]*submittals?|submittals?|(?<![a-z])MAS(?![a-z])", re.IGNORECASE) if material else DRAWING_WORD_RE
     if sample:

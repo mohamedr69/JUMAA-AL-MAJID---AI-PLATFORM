@@ -48,6 +48,10 @@ function needsInput(panel: BatteryPanel): boolean {
 function tone(panel: BatteryPanel): { dot: string; chip: string; label: string } {
   if (needsInput(panel)) return { dot: "bg-orange-500", chip: "bg-orange-50 text-orange-700", label: "Needs input" };
   if (panel.status === "no_selection") return { dot: "bg-gray-400", chip: "bg-gray-100 text-gray-600", label: "No battery selected" };
+  // Calculated, but the battery the load needs is larger than the one quoted
+  // -- the panel heading has to carry that, or it is only visible to someone
+  // who opens the panel.
+  if (panel.quoted_short) return { dot: "bg-red-500", chip: "bg-red-50 text-red-700", label: "BOQ battery too small" };
   return { dot: "bg-green-500", chip: "bg-green-50 text-green-700", label: "Calculated" };
 }
 
@@ -159,11 +163,16 @@ export function ProjectBatteryPage() {
     await fillThenLoad(false);
   }
 
-  async function exportXlsx(panelKey?: string) {
+  // PDF is the sheet that goes to a consultant, laid out to the company's
+  // template; the workbook stays for working in Excel.
+  async function exportCalculation(format: "pdf" | "xlsx", panelKey?: string) {
     setBusy("exporting");
     try {
       const query = panelKey ? `?${new URLSearchParams({ panel: panelKey })}` : "";
-      await api.download(`/projects/${project.id}/design/battery/export.xlsx${query}`, `EP-${project.ep_number} Battery Calculation.xlsx`);
+      await api.download(
+        `/projects/${project.id}/design/battery/export.${format}${query}`,
+        `EP-${project.ep_number} Battery Calculation.${format}`,
+      );
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Export failed");
     } finally {
@@ -202,12 +211,20 @@ export function ProjectBatteryPage() {
         <Stat icon={<IconAlert />} tint="bg-orange-50 text-orange-500" value={panels.length - calculated} label="Need input" />
         <div className="ml-auto flex items-center gap-3">
           <button
-            onClick={() => exportXlsx()}
+            onClick={() => exportCalculation("pdf")}
             disabled={!panels.length || busy !== null || dirty}
             title={dirty ? "Save first -- the export is of the saved calculation" : undefined}
             className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-navy-900 hover:bg-gray-50 disabled:opacity-50"
           >
-            <IconDownload /> Export all
+            <IconDownload /> Export all (PDF)
+          </button>
+          <button
+            onClick={() => exportCalculation("xlsx")}
+            disabled={!panels.length || busy !== null || dirty}
+            title={dirty ? "Save first -- the export is of the saved calculation" : undefined}
+            className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-navy-900 hover:bg-gray-50 disabled:opacity-50"
+          >
+            <IconDownload /> Workbook
           </button>
           {canEdit && (
             <button
@@ -276,7 +293,7 @@ export function ProjectBatteryPage() {
               dirty={dirty}
               onEdit={(patch) => editPanel(panel.key, patch)}
               onCatalogueSaved={async () => accept(await fetchCalculation(), true)}
-              onExport={() => exportXlsx(panel.key)}
+              onExport={(format) => exportCalculation(format, panel.key)}
               onRecalculate={recalculate}
             />
           )}
@@ -325,7 +342,7 @@ function PanelDetail({
   dirty: boolean;
   onEdit: (patch: Partial<PanelSettings>) => void;
   onCatalogueSaved: () => void;
-  onExport: () => void;
+  onExport: (format: "pdf" | "xlsx") => void;
   onRecalculate: () => void;
 }) {
   const t = tone(panel);
@@ -391,13 +408,21 @@ function PanelDetail({
         <Headline icon={<IconBolt />} tint="bg-blue-50/70" iconTint="text-blue-600" label="Standby current" value={`${atLeast}${fmt(standbyA)} A`} />
         <Headline icon={<IconBell />} tint="bg-red-50/70" iconTint="text-red-500" label="Alarm current" value={`${atLeast}${fmt(alarmA)} A`} />
         <Headline icon={<IconCalc />} tint="bg-indigo-50/70" iconTint="text-indigo-600" label="Required capacity" value={`${atLeast}${fmt(panel.required_ah)} Ah`} />
+        {/* The battery is selected from the load requirement, so when it
+            comes out above what the BOQ quotes the tile says so rather than
+            reading as a plain green pass -- that difference is a change the
+            BOQ needs. */}
         <Headline
           icon={<IconBattery />}
-          tint={panel.selected ? "bg-green-50/70" : panel.lower_bound ? "bg-orange-50/70" : "bg-gray-50"}
-          iconTint={panel.selected ? "text-green-600" : "text-gray-400"}
+          tint={panel.quoted_short ? "bg-red-50/70" : panel.selected ? "bg-green-50/70" : panel.lower_bound ? "bg-orange-50/70" : "bg-gray-50"}
+          iconTint={panel.quoted_short ? "text-red-600" : panel.selected ? "text-green-600" : "text-gray-400"}
           label="Selected battery"
           value={panel.selected ? `${int(panel.selected_ah)} Ah` : "—"}
-          hint={panel.selected ? describeSelection(panel.selected) : undefined}
+          hint={
+            panel.selected
+              ? `${describeSelection(panel.selected)}${panel.quoted_short ? ` · above the ${int(bankAh(panel.quoted))} Ah in the BOQ` : ""}`
+              : undefined
+          }
         />
       </div>
 
@@ -622,21 +647,32 @@ function PanelDetail({
                   : `No ${brandName} battery is on file to select from. Add its datasheet to the library, or a battery unit below.`}
               </div>
             )}
+            {/* A panel whose selection is above the quoted battery is not a
+                pass: the capacity is right but the BOQ is not, and saying
+                "sufficient" there would hide the one thing to act on. */}
             <div
               className={`mt-3 flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
-                panel.lower_bound ? "bg-orange-50 text-orange-700" : panel.selected ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"
+                panel.lower_bound
+                  ? "bg-orange-50 text-orange-700"
+                  : panel.quoted_short
+                    ? "bg-red-50 font-semibold text-red-700 ring-1 ring-red-200"
+                    : panel.selected
+                      ? "bg-green-50 text-green-700"
+                      : "bg-gray-100 text-gray-600"
               }`}
             >
-              {panel.selected && !panel.lower_bound ? <IconCheck /> : <IconAlert />}
+              {panel.selected && !panel.lower_bound && !panel.quoted_short ? <IconCheck /> : <IconAlert />}
               {panel.lower_bound
                 ? `Needs input · ${panel.missing_parts.length} part${panel.missing_parts.length === 1 ? "" : "s"} without a current`
-                : panel.selected
-                  ? "Capacity sufficient · charger compatibility pending"
-                  : `Needs a battery of at least ${fmt(panel.required_ah)} Ah`}
+                : panel.quoted_short
+                  ? `BOQ battery too small · the load needs ${fmt(panel.required_ah)} Ah, the BOQ quotes ${int(bankAh(panel.quoted))} Ah`
+                  : panel.selected
+                    ? "Capacity sufficient · charger compatibility pending"
+                    : `Needs a battery of at least ${fmt(panel.required_ah)} Ah`}
             </div>
-            <div className="mt-2 text-xs text-gray-600">
+            <div className={`mt-2 text-xs ${panel.quoted_short ? "text-red-700" : "text-gray-600"}`}>
               BOQ quotes {panel.quoted.length ? `${describeUnits(panel.quoted)} (${int(bankAh(panel.quoted))} Ah)` : "no battery"} for this panel
-              {panel.quoted_short && <span className="font-semibold text-red-700"> · smaller than required, update the BOQ</span>}
+              {panel.quoted_short && <span className="font-semibold"> · update the BOQ to {panel.selected ? describeSelection(panel.selected) : `at least ${fmt(panel.required_ah)} Ah`}</span>}
             </div>
           </div>
         </div>
@@ -644,12 +680,20 @@ function PanelDetail({
 
       <div className="mt-4 flex flex-wrap justify-end gap-3">
         <button
-          onClick={onExport}
+          onClick={() => onExport("pdf")}
           disabled={busy || dirty}
           title={dirty ? "Save first -- the export is of the saved calculation" : undefined}
           className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-navy-900 hover:bg-gray-50 disabled:opacity-50"
         >
-          <IconDownload /> Export this panel
+          <IconDownload /> Export this panel (PDF)
+        </button>
+        <button
+          onClick={() => onExport("xlsx")}
+          disabled={busy || dirty}
+          title={dirty ? "Save first -- the export is of the saved calculation" : undefined}
+          className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-navy-900 hover:bg-gray-50 disabled:opacity-50"
+        >
+          <IconDownload /> Workbook
         </button>
         {canEdit && (
           <button

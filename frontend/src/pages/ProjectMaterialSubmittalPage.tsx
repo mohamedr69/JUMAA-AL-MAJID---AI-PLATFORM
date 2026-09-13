@@ -13,6 +13,7 @@ import {
   type SubmittalStatus,
   type SubmittalSuggestion,
 } from "../lib/types";
+import { SubmittalPackageBuilder } from "../components/SubmittalPackageBuilder";
 import { useProject } from "./ProjectWorkspace";
 
 const ALL = "__all__";
@@ -42,6 +43,7 @@ export function ProjectMaterialSubmittalPage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState(ALL);
   const [filter, setFilter] = useState("");
+  const [packaging, setPackaging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState<SubmittalSuggestion | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
@@ -402,6 +404,20 @@ export function ProjectMaterialSubmittalPage() {
               <CreateForm suggestion={creating} busy={busy} onCancel={() => setCreating(null)} onCreate={create} />
             ) : (
               <div className="mt-3 space-y-3">
+                {/* Assembling the package is the action this page is for, so
+                    it leads. The card below it registers a submittal in the
+                    log without building anything -- two different jobs that
+                    both used to be called "Create Material Submittal". */}
+                {canEdit && (
+                  <ActionCard
+                    tint="bg-blue-50/70"
+                    icon={<IconDoc />}
+                    title="Create Material Submittal"
+                    body="Assemble the package: cover, index, dividers, schedule, datasheets and the company documents."
+                    disabled={!data}
+                    onClick={() => setPackaging(true)}
+                  />
+                )}
                 {canEdit && (
                   <ActionCard
                     tint="bg-green-50/70"
@@ -414,10 +430,10 @@ export function ProjectMaterialSubmittalPage() {
                 )}
                 {canEdit && (
                   <ActionCard
-                    tint="bg-blue-50/70"
-                    icon={<IconDoc />}
-                    title="Create Material Submittal"
-                    body="Start a submittal from the project's BOQ."
+                    tint="bg-white"
+                    icon={<IconPlus />}
+                    title="Add to the register"
+                    body="Record a submittal in the log without assembling it."
                     onClick={() => setCreating({ title: "", system_code: null, manufacturer: null, materials: 0, materials_with_datasheet: 0 })}
                   />
                 )}
@@ -443,6 +459,14 @@ export function ProjectMaterialSubmittalPage() {
             )}
           </aside>
         </div>
+      )}
+
+      {packaging && (
+        <SubmittalPackageBuilder
+          project={project}
+          systems={(data?.systems ?? []).filter(Boolean).length ? (data?.systems ?? []).filter(Boolean) : ["FAS"]}
+          onClose={() => setPackaging(false)}
+        />
       )}
     </div>
   );

@@ -59,6 +59,26 @@ MECHANICAL_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Parts that draw no current of their own because they are built into another
+# module, so whatever they draw is already inside that module's figure.
+# Counting them again would double it; leaving them missing is worse still --
+# their own datasheet will never give a current, so the panel stays a lower
+# bound for ever and no battery is ever proposed for it.
+#
+# Keyed by part_key(). The value is the module the part belongs to, which is
+# what the recorded source says.
+INCLUDED_IN_MODULE: dict[str, str] = {
+    # The common relay is on the EST4 CPU board and has no separate datasheet
+    # entry (platform owner, 13 September 2026).
+    "4-COMREL": "4-CPU",
+}
+
+
+def included_in_module(part_no: str | None) -> str | None:
+    """The module a part is built into, if it is one of them."""
+    return INCLUDED_IN_MODULE.get(part_key(part_no or ""))
+
+
 _EPSILON = 1e-9
 
 
