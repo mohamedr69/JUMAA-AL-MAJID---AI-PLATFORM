@@ -1,0 +1,39 @@
+Output Module – SIGA-CC1, SIGA-CC1I, SIGI-CC1
+Single Riser Input Signal Module
+
+- Factory fixed default
+personality of [5] single riser
+selector
+
+- Capable of routing one riser
+out to the field devices
+
+- Ratings
+• 24 Vdc @ 2 A maximum
+• 50W for 25V audio and 35W for 70V audio
+
+- Used for NAC circuits where
+the output polarity reverses
+for activation
+
+- Two Gang Mounting
+- Uses one module address
+
+Use 235196P bi-polar transient protector while connecting to bells.
+
+Example SIGA-CC1 Supporting Fire Fighters Phone
+
+The unit can be configured to provide either for three-state or four-state operation. Note, however, that three-state telephones do not
+comply with UL 864 ninth edition.
+
+➢ Three-state telephones monitor the riser and
+report three distinct states:
+	➢ ground faults,
+	➢ open circuits,
+	➢ off-hook conditions.
+➢ In addition to these three states, four-state
+telephones report:
+	➢ short circuit conditions, as well.
+
+On-hook = the phone is idle (handset on the cradle, no current flow).
+Off-hook = the phone is active (handset lifted, current flows through the circuit).

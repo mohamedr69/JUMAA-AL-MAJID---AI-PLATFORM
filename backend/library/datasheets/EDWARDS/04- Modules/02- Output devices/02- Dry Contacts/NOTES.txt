@@ -1,0 +1,44 @@
+Output Module – SIGA-CR, SIGA-CRI, SIGI-CR Control Relay Module
+Also Available as SIGA-MCR Control Relay Module
+
+- Factory fixed personality of [8]
+dry contact
+
+- Terminals:
+  • Normally Open
+  • Normally Closed
+  • Common
+
+
+Ratings:
+  • 0.5A @ 120 Vac
+•  1A @ 30 Vdc (pilot duty)
+
+- Single Gang Mounting
+
+- Uses one module address
+
+Output Module SIGA-CRH, SIGA-CRHI Control Relay Module
+
+Factory fixed personality of [8] dry contact
+Relay type 2 Form C Relays, programmable
+
+Ratings:
+• 240 V 50/60Hz @7A (PF 0.75), @1.5A (PF 0.35)
+• 120 V 50/60Hz @7A (PF 0.75), @3.0A (PF 0.35)
+• 24 VDC @6A resistive
+
+Uses one module address
+
+Output Module – SIGA-CRR and SIGA- MCRR
+Control Reversing Relay Modules
+
+- Factory fixed personality of [8]
+dry contac
+
+Use to power and activate the
+SIGA-AB4G Sounder base.
+
+- Single Gang Mounting
+- Uses one module address
+

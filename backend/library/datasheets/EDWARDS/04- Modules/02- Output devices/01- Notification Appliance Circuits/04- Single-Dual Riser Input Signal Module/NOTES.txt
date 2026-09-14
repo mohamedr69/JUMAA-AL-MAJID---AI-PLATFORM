@@ -1,0 +1,12 @@
+Output Module – SIGA-CC2A / SIGA-CC2AI / SIGA-MCC2A,
+SIGI-CC2A Single/Dual Riser Input Signal Module
+
+Class A or B operation
+
+Support three and four state fire
+phone
+
+- Synchronized signal support
+
+- Two gang mounting
+- Uses two module addresses

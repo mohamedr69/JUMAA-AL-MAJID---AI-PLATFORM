@@ -1,0 +1,6 @@
+SIGA-270P, SIGI-270P
+• Pull Handle – Pre Alarm
+• Turn Key – Activate Alarm
+• Handle must be pulled to insert Key
+
+2 Module addresses --> one for pre alarm, one for alarm

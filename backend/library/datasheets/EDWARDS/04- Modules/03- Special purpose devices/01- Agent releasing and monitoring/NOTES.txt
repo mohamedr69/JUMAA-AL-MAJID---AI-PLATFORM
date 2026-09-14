@@ -1,0 +1,7 @@
+- Supports a variety of fire suppression applications
+- Uses six module addresses, providing:
+• Two supervised releasing output circuits
+• Two supervised pre releasing output circuits
+• One supervised manual releasing input circuit
+• One supervised normally open abort circuit
+• One first alarm Form C, output relay

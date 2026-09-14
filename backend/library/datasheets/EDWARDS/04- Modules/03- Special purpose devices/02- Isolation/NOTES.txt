@@ -1,0 +1,9 @@
+- Factory fixed default personality of [23]
+riser monitor that enables you to
+monitor a 12Vdc/24Vdc riser,
+25Vac/75Vac audio riser and 24Vdc
+telephone riser
+- Two Gang Mounting
+- Uses one module address
+
+USED TO MONITOR RISER

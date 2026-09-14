@@ -1,0 +1,28 @@
+Input Module - SIGA-CT2, SIGA-CT2I, SIGI-CT2 Dual Input Module
+
+SIGA-CT2
+SIGA-CT2I EN Approved
+SIGI-CT2 built-in isolator 
+
+The M Series Signature Modules OUT Mount onto one of the three SIGA-UIO motherboards
+
+UIO-2
+UIO-6
+UIO-6R
+
+- Supports:
+ • Normally open contact devices
+ • Zones of Conventional Devices
+ • Latching or Non-latching
+
+- Programmable device types:
+ • Alarm
+ • Heat
+ • Waterflow
+ • Supervisory
+ • Tamper
+ • Monitor
+ • Pull
+
+Single Gang Mounting
+Uses two module address

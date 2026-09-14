@@ -1,0 +1,17 @@
+Code 1 Normally Open Alarm Latching Class B
+Code 2 Normally Open Delayed Latching Class B
+Code 3 Normally Open Active Non-Latching Class B
+Code 4 Normally Open Active Latching Class B
+Code 5 Single Input Riser Select
+Code 7 Dual Input Riser Select
+Code 8 Dry Contact Output (Form C Relay)
+Code 9 Normally Open Alarm Latching Class A
+Code 10 Normally Open Delayed Latching Class A
+Code 11 Normally Open Active Non-Latching Class A
+Code 12 Normally Open Active Latching Class A
+Code 13 2-Wire Smoke Non Verified Class B (SIGA-UM & SIGA-MAB)
+Code 14 2-Wire Smoke Verified Class B (SIGA-UM & SIGA-MAB)
+Code 15 Single Output Class A (SIGA-UM & SIGA-MAB)
+Code 16 Single Output Class B (SIGA-UM & SIGA-MAB)
+Code 20 2-Wire Smoke Non Verified Class A (SIGA-UM & SIGA-MAB)
+Code 21 2-Wire Smoke Verified Class A (SIGA-UM & SIGA-MAB)
