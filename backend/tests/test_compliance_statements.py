@@ -3,8 +3,11 @@
 The synthetic specification copies the shape of EP-30784's 283111: a running
 header naming the project and plot on every page, the section number, PART /
 article / paragraph / item labels each on a line of their own, a table of
-contents. The past statement copies EP-16481's workbook: a title block, then
-clause | answer columns with one answer merged down a list.
+contents. The submitted statement copies EP-16481's workbook: a title block,
+then clause | answer columns with one answer merged down a list.
+
+Filling a statement from the knowledge base and reviewing a clause with the
+model are in test_compliance_knowledge.
 """
 
 import io
@@ -16,8 +19,7 @@ import pytest
 
 import app.ai.provider as provider_module
 from app.ai.provider import RecordingProvider
-from app.compliance import references, statements
-from app.compliance.references import Reference, fingerprint
+from app.compliance import statements
 from app.compliance.spec_text import read_bytes
 from app.compliance.verify import verify
 from app.core.config import get_settings
@@ -84,34 +86,13 @@ def statement_xlsx(rows: list[tuple[str, str, str]], title: str = "PROJECT NAME 
     return buffer.getvalue()
 
 
-PAST_ROWS = [
-    ("A", "Drawings and general provisions of the Contract apply to this Section.", "Noted"),
-    ("A", "This Section includes fire alarm systems with manual stations and detectors.", "Comply"),
-    ("1", "Operating Voltage: 24-V dc, nominal.", "Comply"),
-    ("2", "Self-Restoring: Detectors do not require resetting.", "Comply"),
-    ("B", "Graphic annunciator mounted at the fire command centre.", "Not applicable as per the design drawing"),
-    ("C", "A strip printer mounted in the main FACP enclosure.", "Comply"),
-    ("D", "Magnetic door holders.", "By others"),
-]
-
-
 @pytest.fixture()
-def no_pacing(monkeypatch):
-    monkeypatch.setattr(settings, "ai_output_tokens_per_minute", 0)
-    monkeypatch.setattr(settings, "ai_compliance_max_output_tokens", 3000)
-
-
-@pytest.fixture()
-def past_statements():
-    statement = statements.read_statement(statement_xlsx(PAST_ROWS, title="PROJECT NAME : DCP-01 JVC"), "past.xlsx")
-    ref = Reference(
-        path="ADC Energy/EP-16481/Compliance Statement.xlsx", systems=["FAS"], title=statement.title_lines,
-        rows=[[r.label, r.text, r.response, r.remark] for r in statement.rows],
-        fingerprints=[fingerprint(r.text) if r.answer else "" for r in statement.rows], mtime=0, size=0,
-    )
-    references.reset_for_tests({ref.path: ref})
-    yield ref
-    references.reset_for_tests(None)
+def no_ai():
+    """A provider that records every call, so a test can assert none was made."""
+    provider = RecordingProvider()
+    provider_module.set_provider(provider)
+    yield provider
+    provider_module.set_provider(None)
 
 
 # --- reading the specification -----------------------------------------------------
@@ -177,25 +158,6 @@ def test_a_file_that_is_not_a_statement():
         statements.read_statement(b"%PDF", "statement.pdf")
 
 
-def test_past_statements_are_indexed_from_the_archive(tmp_path, monkeypatch):
-    archive = tmp_path / "archive"
-    folder = archive / "ADC Energy" / "EP-16481" / "MS FAS"
-    folder.mkdir(parents=True)
-    (folder / "Compliance Statement.xlsx").write_bytes(statement_xlsx(PAST_ROWS))
-    (folder / "BOQ.xlsx").write_bytes(statement_xlsx(PAST_ROWS))  # not named as a statement
-    monkeypatch.setattr(settings, "projects_root", str(archive))
-    references.reset_for_tests({})
-    try:
-        status = references.scan(full=True)
-        assert status["indexed"] == 1 and status["by_system"] == {"FAS": 1}
-        (ref,) = references.references("FAS")
-        assert ref.answered == len(PAST_ROWS)
-        # A second walk reads nothing that has not changed.
-        assert references.scan()["files_read"] == 0
-    finally:
-        references.reset_for_tests(None)
-
-
 # --- finding the specification ------------------------------------------------------------
 
 
@@ -241,6 +203,8 @@ def test_uploaded_specifications_are_listed_for_the_system_chosen(client, tmp_pa
     listed = client.get(f"/projects/{project_id}/compliance").json()
     # Project Info's systems are the tabs, even with no Design Sheet or BOQ.
     assert [s["code"] for s in listed["systems"]] == ["FAS", "CBS"]
+    # The page carries the knowledge base's status, never a path.
+    assert listed["knowledge"]["records"]["responses"] == 0 and "root" not in listed["knowledge"]
 
     doc = pymupdf.open()
     doc.new_page().insert_text((50, 60), "( I ) FIRE DETECTION SYSTEM\nPART 1 - GENERAL\n1.1\nDESCRIPTION:", fontsize=9)
@@ -284,11 +248,7 @@ def test_a_specification_inside_a_past_submittal(tmp_path):
 # --- prepare and check through the API ---------------------------------------------------
 
 
-def _answers(ids_and_responses):
-    return {"answers": [{"id": i, "response": r, "remark": ""} for i, r in ids_and_responses]}
-
-
-def test_prepare_reuses_past_answers_and_asks_the_model_only_the_rest(client, tmp_path, monkeypatch, past_statements, no_pacing):
+def test_prepare_applies_the_rules_and_calls_no_model(client, tmp_path, monkeypatch, no_ai):
     monkeypatch.setattr(settings, "uploads_root", str(tmp_path / "uploads"))
     monkeypatch.setattr(settings, "ai_enabled", True)
     _clear_cache()
@@ -300,94 +260,70 @@ def test_prepare_reuses_past_answers_and_asks_the_model_only_the_rest(client, tm
     listed = client.get(f"/projects/{project_id}/compliance").json()
     spec = listed["systems"][0]["specs"][0]
     assert spec["verification"]["system"] == "same"
-
-    provider = RecordingProvider()
-    provider_module.set_provider(provider)
-    try:
-        # The model will be asked about exactly the clauses nothing settled;
-        # answer them by id (ids come from the reading, so read them first).
-        clauses = read_bytes((folder / "Specification" / "283111 - FIRE DETECTION.pdf").read_bytes()).clauses
-        by_ref = {c.ref: c.id for c in clauses}
-        provider.answers = [_answers([(by_ref["2.1.B"], "Comply"), (by_ref["2.1.D"], "Complied with remark")])]
-        body = {"system_code": "FAS", "path": spec["path"], "member": spec["member"], "first_page": spec["first_page"],
-                "last_page": spec["last_page"], "use_ai": True}
-        resp = client.post(f"/projects/{project_id}/compliance/prepare", json=body)
-        assert resp.status_code == 200, resp.text
-        statement = resp.json()
-    finally:
-        provider_module.set_provider(None)
-
+    body = {"system_code": "FAS", "path": spec["path"], "member": spec["member"], "first_page": spec["first_page"],
+            "last_page": spec["last_page"]}
+    resp = client.post(f"/projects/{project_id}/compliance/prepare", json=body)
+    assert resp.status_code == 200, resp.text
+    statement = resp.json()
     rows = {r["ref"]: r for r in statement["rows"]}
     # Rules: related sections and definitions are noted without asking.
-    assert (rows["1.2.B.1"]["response"], rows["1.2.B.1"]["source"]) == ("Noted", "rule")
+    assert (rows["1.2.B.1"]["response"], rows["1.2.B.1"]["source"], rows["1.2.B.1"]["workflow"]) == ("Noted", "rule", "autofilled")
     assert (rows["1.3.A"]["response"], rows["1.3.A"]["source"]) == ("Noted", "rule")
-    # Past statement, word for word, "Comply": reused.
-    assert (rows["1.2.A"]["response"], rows["1.2.A"]["source"]) == ("Comply", "reference")
-    assert rows["1.2.A"]["reference"]["path"] == past_statements.path
-    assert (rows["2.1.A.1"]["response"], rows["2.1.A.1"]["source"]) == ("Comply", "reference")
-    # A lead-in is answered by its items and never sent.
+    # A lead-in is answered by its items.
     assert rows["2.1.A"]["source"] == "lead_in"
-    assert (rows["2.1.C"]["response"], rows["2.1.C"]["source"]) == ("Comply", "reference")
-    # "Not applicable" in a past statement depends on that project: asked,
-    # with the past answer as a hint. So is a clause nobody answered before.
-    assert (rows["2.1.B"]["response"], rows["2.1.B"]["source"]) == ("Comply", "ai")
-    assert (rows["2.1.D"]["response"], rows["2.1.D"]["source"]) == ("Complied with remark", "ai")
-    # One call, and it carried only those two clauses.
-    assert provider.calls == 1
-    sent = "\n".join(p.text for p in provider.requests[0].parts)
-    assert by_ref["2.1.B"] in sent and by_ref["2.1.D"] in sent
-    assert f"[{by_ref['1.2.A']}]" not in sent and f"[{by_ref['2.1.C']}]" not in sent
-    assert "past answer to a similar clause: Not applicable" in sent
-    assert statement["summary"]["by_source"]["ai"] == 2 and statement["ai_calls"] == 1
+    # Everything else waits, unfilled, with both statuses open.
+    assert rows["2.1.A.1"]["response"] == "" and rows["2.1.A.1"]["workflow"] == "unfilled"
+    assert rows["2.1.A.1"]["technical"] == {"status": None, "origin": None, "verified": False}
+    assert statement["summary"]["by_workflow"]["unfilled"] == 6 and statement["ai_calls"] == 0
+    assert statement["summary"]["inputs"]["spec_sha256"] == statement["spec"]["sha256"]
+    assert no_ai.calls == 0
 
-    # The engineer's change replaces the proposal.
+    # The engineer's change replaces the proposal and is audited.
     edited = client.patch(f"/projects/{project_id}/compliance/statements/{statement['id']}",
-                          json={"rows": [{"id": rows["2.1.C"]["id"], "response": "Not applicable", "remark": "No printer in BOQ"}]})
+                          json={"rows": [{"id": rows["2.1.C"]["id"], "response": "Not applicable", "remark": "No printer in BOQ",
+                                          "technical_status": "not_applicable"}]})
     assert edited.status_code == 200
     changed = next(r for r in edited.json()["rows"] if r["ref"] == "2.1.C")
-    assert (changed["response"], changed["source"], changed["remark"]) == ("Not applicable", "engineer", "No printer in BOQ")
+    assert (changed["response"], changed["source"], changed["origin"], changed["remark"]) == ("Not applicable", "engineer", "manual", "No printer in BOQ")
+    assert changed["technical"]["status"] == "not_applicable" and changed["workflow"] == "autofilled"
+    # A row cannot be marked reviewed without a response.
+    empty = client.post(f"/projects/{project_id}/compliance/statements/{statement['id']}/rows/{rows['2.1.D']['id']}/reviewed",
+                        json={"reviewed": True})
+    assert empty.status_code == 400
 
-    # And the workbook carries it.
+    # And the workbook carries the change.
     export = client.get(f"/projects/{project_id}/compliance/statements/{statement['id']}/export")
     assert export.status_code == 200
     sheet = openpyxl.load_workbook(io.BytesIO(export.content)).active
     values = [[c for c in row] for row in sheet.iter_rows(values_only=True)]
     assert any(row[1] == "A strip printer mounted in the main FACP enclosure." and row[2] == "Not applicable" for row in values)
     assert any(str(row[0]).startswith("PROJECT NAME : BINGHATTI SKYBLADE") for row in values if row[0])
-
-    # Preparing the same statement again asks nothing: the answers are cached.
-    provider = RecordingProvider()
-    provider_module.set_provider(provider)
-    try:
-        again = client.post(f"/projects/{project_id}/compliance/prepare", json=body).json()
-    finally:
-        provider_module.set_provider(None)
-    assert provider.calls == 0 and again["summary"]["by_source"]["ai"] == 2
+    assert no_ai.calls == 0
 
 
-def test_prepare_without_ai_leaves_the_rest_for_review(client, tmp_path, monkeypatch, past_statements, no_pacing):
+def test_the_audit_records_every_change(client, db_session, tmp_path, monkeypatch, no_ai):
+    from app.models import ComplianceAudit
+
     monkeypatch.setattr(settings, "uploads_root", str(tmp_path / "uploads"))
-    monkeypatch.setattr(settings, "ai_enabled", False)
     _clear_cache()
     folder = tmp_path / "EP-30784"
     spec_pdf(folder / "Specification" / "283111 - FIRE DETECTION.pdf")
     login(client, settings.default_admin_email, settings.default_admin_password)
     project_id = _project(client, folder)
     spec = client.get(f"/projects/{project_id}/compliance").json()["systems"][0]["specs"][0]
+    statement = client.post(f"/projects/{project_id}/compliance/prepare", json={"system_code": "FAS", "path": spec["path"]}).json()
+    clause = next(r["id"] for r in statement["rows"] if r["ref"] == "2.1.B")
+    client.patch(f"/projects/{project_id}/compliance/statements/{statement['id']}", json={"rows": [{"id": clause, "response": "Comply"}]})
+    client.post(f"/projects/{project_id}/compliance/statements/{statement['id']}/rows/{clause}/reviewed", json={"reviewed": True})
+    trail = db_session.query(ComplianceAudit).filter_by(statement_id=statement["id"], clause_id=clause).order_by(ComplianceAudit.id).all()
+    assert [(a.action, a.origin, a.previous_response, a.current_response, a.review_status) for a in trail] == [
+        ("manual", "manual", "", "Comply", "autofilled"), ("reviewed", "manual", "Comply", "Comply", "reviewed")]
+    assert trail[0].spec_sha256 == statement["spec"]["sha256"] and trail[0].boq_hash and trail[0].user_id == 1
 
-    statement = client.post(f"/projects/{project_id}/compliance/prepare",
-                            json={"system_code": "FAS", "path": spec["path"], "use_ai": True}).json()
-    rows = {r["ref"]: r for r in statement["rows"]}
-    # The past answer is offered, flagged for the engineer.
-    assert (rows["2.1.B"]["response"], rows["2.1.B"]["state"]) == ("Not applicable", "review")
-    assert statement["ai_calls"] == 0
-    assert any("not available" in note for note in statement["summary"]["notes"])
 
-
-def test_check_finds_what_a_statement_misses(client, db_session, tmp_path, monkeypatch, no_pacing):
+def test_check_finds_what_a_statement_misses(client, db_session, tmp_path, monkeypatch, no_ai):
     monkeypatch.setattr(settings, "uploads_root", str(tmp_path / "uploads"))
     monkeypatch.setattr(settings, "ai_enabled", True)
-    references.reset_for_tests({})
     _clear_cache()
     folder = tmp_path / "EP-30784"
     spec_pdf(folder / "Specification" / "283111 - FIRE DETECTION.pdf", plot="3466814")
@@ -409,19 +345,11 @@ def test_check_finds_what_a_statement_misses(client, db_session, tmp_path, monke
         title="PROJECT NAME : DISTRICT COOLING PLANT JVC",
         manufacturer="NOTIFIER",
     )
-    clauses = read_bytes((folder / "Specification" / "283111 - FIRE DETECTION.pdf").read_bytes()).clauses
-    by_ref = {c.ref: c.id for c in clauses}
-    provider = RecordingProvider([{"findings": [{"id": by_ref["2.1.C"], "verdict": "conflict",
-                                                  "note": "The BOQ quotes a printer."}]}])
-    provider_module.set_provider(provider)
-    try:
-        resp = client.post(
-            f"/projects/{project_id}/compliance/check",
-            data={"system_code": "FAS", "path": spec["path"], "use_ai": "true"},
-            files={"file": ("FAS Compliance.xlsx", submitted, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
-        )
-    finally:
-        provider_module.set_provider(None)
+    resp = client.post(
+        f"/projects/{project_id}/compliance/check",
+        data={"system_code": "FAS", "path": spec["path"]},
+        files={"file": ("FAS Compliance.xlsx", submitted, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
     assert resp.status_code == 200, resp.text
     result = resp.json()
     codes = {f["code"] for f in result["summary"]["general"]}
@@ -430,11 +358,12 @@ def test_check_finds_what_a_statement_misses(client, db_session, tmp_path, monke
     finding = lambda ref: {f["code"] for f in rows[ref]["findings"]}  # noqa: E731
     assert "missing" in finding("2.1.A.2")
     assert "unanswered" in finding("2.1.B")
-    assert "ai_conflict" in finding("2.1.C")
+    assert "hard_requirement" in finding("2.1.A.1")
     assert finding("1.2.A") == set()
     assert rows["2.1.A"]["source"] == "lead_in"
     assert result["summary"]["rows_not_in_spec"] >= 1
-    assert provider.calls == 1
+    # Checking calls no model, whatever the settings say.
+    assert no_ai.calls == 0 and result["ai_calls"] == 0
 
     # Not a statement at all: said plainly.
     bad = client.post(f"/projects/{project_id}/compliance/check",
@@ -443,66 +372,7 @@ def test_check_finds_what_a_statement_misses(client, db_session, tmp_path, monke
     assert bad.status_code == 400
 
 
-def test_autofill_suggest_and_ask(client, tmp_path, monkeypatch, past_statements, no_pacing):
-    """The assistant panel: start without AI, then fill the unanswered
-    clauses, get one suggestion to apply, and ask a question."""
-    monkeypatch.setattr(settings, "uploads_root", str(tmp_path / "uploads"))
-    monkeypatch.setattr(settings, "ai_enabled", True)
-    _clear_cache()
-    folder = tmp_path / "EP-30784"
-    spec_pdf(folder / "Specification" / "283111 - FIRE DETECTION.pdf")
-    login(client, settings.default_admin_email, settings.default_admin_password)
-    project_id = _project(client, folder)
-    spec = client.get(f"/projects/{project_id}/compliance").json()["systems"][0]["specs"][0]
-    body = {"system_code": "FAS", "path": spec["path"], "use_ai": False}
-    statement = client.post(f"/projects/{project_id}/compliance/prepare", json=body).json()
-    rows = {r["ref"]: r for r in statement["rows"]}
-    assert rows["2.1.D"]["response"] == "" and statement["ai_calls"] == 0
-    unanswered = [r["id"] for r in statement["rows"] if not r["heading"] and r["source"] not in ("lead_in",) and not r["response"]]
-    assert rows["2.1.D"]["id"] in unanswered
-
-    provider = RecordingProvider([
-        _answers([(i, "Comply") for i in unanswered]),                       # autofill
-        _answers([(rows["2.1.B"]["id"], "By others")]),                      # suggest
-        {"answer": "The BOQ lists no graphic annunciator, so Not applicable is defensible."},   # ask
-    ])
-    provider_module.set_provider(provider)
-    try:
-        filled = client.post(f"/projects/{project_id}/compliance/statements/{statement['id']}/autofill",
-                             json={"scope": "unanswered"})
-        assert filled.status_code == 200, filled.text
-        after = {r["ref"]: r for r in filled.json()["rows"]}
-        assert (after["2.1.D"]["response"], after["2.1.D"]["source"]) == ("Comply", "ai")
-        # What was answered already is untouched.
-        assert after["1.2.A"]["source"] == "reference" and filled.json()["ai_calls"] == 1
-        # Only the unanswered ids were sent.
-        sent = "\n".join(p.text for p in provider.requests[0].parts)
-        assert all(f"[{i}]" in sent for i in unanswered) and f"[{rows['1.2.A']['id']}]" not in sent
-
-        suggestion = client.post(f"/projects/{project_id}/compliance/statements/{statement['id']}/suggest",
-                                 json={"clause_id": rows["2.1.B"]["id"]})
-        assert suggestion.status_code == 200, suggestion.text
-        assert suggestion.json()["response"] == "By others"
-        # A suggestion writes nothing until applied: the row still carries
-        # the past statement's answer, offered for review.
-        current = client.get(f"/projects/{project_id}/compliance/statements/{statement['id']}").json()
-        assert next(r for r in current["rows"] if r["ref"] == "2.1.B")["response"] == "Not applicable"
-
-        asked = client.post(f"/projects/{project_id}/compliance/statements/{statement['id']}/ask",
-                            json={"clause_id": rows["2.1.B"]["id"], "question": "Is Not applicable right here?"})
-        assert asked.status_code == 200, asked.text
-        assert "graphic annunciator" in asked.json()["answer"]
-        assert "Is Not applicable right here?" in "\n".join(p.text for p in provider.requests[2].parts)
-
-        # Nothing left to fill: said plainly, no call made.
-        again = client.post(f"/projects/{project_id}/compliance/statements/{statement['id']}/autofill",
-                            json={"scope": "unanswered"})
-        assert again.status_code == 400 and provider.calls == 3
-    finally:
-        provider_module.set_provider(None)
-
-
-def test_statements_are_for_editors(client, db_session, tmp_path, monkeypatch, no_pacing):
+def test_statements_are_for_editors(client, db_session, tmp_path, monkeypatch):
     from app.models import RoleEnum
 
     from .conftest import make_user
@@ -515,6 +385,6 @@ def test_statements_are_for_editors(client, db_session, tmp_path, monkeypatch, n
     project_id = _project(client, folder)
     make_user(db_session, "viewer@ep-platform.com", RoleEnum.viewer)
     login(client, "viewer@ep-platform.com")
-    body = {"system_code": "FAS", "path": "Specification/283111 - FIRE DETECTION.pdf", "use_ai": False}
+    body = {"system_code": "FAS", "path": "Specification/283111 - FIRE DETECTION.pdf"}
     assert client.post(f"/projects/{project_id}/compliance/prepare", json=body).status_code == 403
     assert client.get(f"/projects/{project_id}/compliance/statements").json() == []

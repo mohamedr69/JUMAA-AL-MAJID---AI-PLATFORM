@@ -10,9 +10,11 @@ app.services.spec_finder), says whether each one is really this project's
 forward: ask the contractor for it, with a draft mail ready to send, or
 upload the copy the engineer has.
 
-With a specification in hand, the two quick actions: prepare a statement
-(app.compliance.service.prepare) and check a submitted one
-(app.compliance.service.check).
+With a specification in hand: prepare a statement (rules only), auto-fill
+it from the compliance knowledge base (deterministic, no model), keep it
+under review row by row, and -- for one clause, on the engineer's click --
+ask the model (app.knowledge.review). Checking a submitted statement is
+coverage and identity, no model either.
 """
 
 import re
@@ -25,33 +27,34 @@ import pymupdf
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.compliance import assist, references, service, writer
+from app.compliance import assist, service, writer
 from app.compliance.spec_text import read_bytes
 from app.compliance.verify import verify
 from app.core.config import get_settings
 from app.core.timeutils import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_role
+from app.knowledge import importer, review
 from app.models import ComplianceStatement, Project, User
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404, _save_upload
 from app.schemas_design import (
-    AskIn,
-    AskOut,
-    AutofillIn,
     ComplianceOut,
     ComplianceSystemOut,
     DraftMailOut,
+    KnowledgeStatusOut,
     PrepareIn,
-    SuggestIn,
-    SuggestionOut,
-    ReferenceIndexOut,
+    ReviewDecisionIn,
+    ReviewIn,
+    ReviewedIn,
     SpecMatchOut,
     SpecSourceIn,
     SpecVerificationOut,
     StatementFileOut,
     StatementOut,
+    StatementRowOut,
     StatementRowsIn,
     StatementSummaryOut,
+    UseAnswerIn,
 )
 from app.services.spec_finder import (
     SYSTEMS,
@@ -217,6 +220,10 @@ def _out(match) -> SpecMatchOut:
     )
 
 
+def _knowledge_status(db: Session) -> KnowledgeStatusOut:
+    return KnowledgeStatusOut(**importer.status(db))
+
+
 @router.get("/{project_id}/compliance", response_model=ComplianceOut)
 def get_compliance(
     project_id: int,
@@ -239,7 +246,7 @@ def get_compliance(
         warnings=warnings,
         searched=project.source_folder_path,
         ai_available=assist.available(),
-        references=ReferenceIndexOut(**references.status()),
+        knowledge=_knowledge_status(db),
     )
 
 
@@ -352,10 +359,18 @@ def _source(body: SpecSourceIn) -> service.SpecSource:
 
 
 def _statement_or_404(db: Session, project: Project, statement_id: int) -> ComplianceStatement:
+    """The statement, and only if it belongs to this project: a statement id
+    under another project's path is not found, whatever the caller's role."""
     statement = db.get(ComplianceStatement, statement_id)
     if statement is None or statement.project_id != project.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such compliance statement")
     return statement
+
+
+def _statement_out(db: Session, project: Project, statement: ComplianceStatement) -> StatementOut:
+    """A statement as the page gets it, rechecked against its inputs first."""
+    statement = service.recheck(db, project, statement)
+    return StatementOut.model_validate(statement, from_attributes=True)
 
 
 @router.post("/{project_id}/compliance/verify", response_model=SpecVerificationOut)
@@ -366,7 +381,8 @@ def verify_specification(
     db: Session = Depends(get_db),
 ) -> SpecVerificationOut:
     """Whether a specification is this project's, for this system. The rules
-    first; the model only when they cannot tell."""
+    first; the model only when they cannot tell -- and only on this explicit
+    action."""
     project = _get_project_or_404(db, project_id)
     code = _system_code(body.system_code)
     source = _source(body)
@@ -387,12 +403,12 @@ def prepare_statement(
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> StatementOut:
-    """Prepare a compliance statement against a specification: past answers
-    and rules first, the model for what they leave."""
+    """Prepare a compliance statement against a specification: the clauses
+    and the rules. No model is called."""
     project = _get_project_or_404(db, project_id)
     code = _system_code(body.system_code)
     try:
-        statement = service.prepare(db, project, code, _source(body), current_user, use_ai=body.use_ai)
+        statement = service.prepare(db, project, code, _source(body), current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return StatementOut.model_validate(statement, from_attributes=True)
@@ -406,14 +422,13 @@ def check_statement(
     member: str | None = Form(None),
     first_page: int | None = Form(None),
     last_page: int | None = Form(None),
-    use_ai: bool = Form(True),
     statement_path: str | None = Form(None),
     file: UploadFile | None = File(None),
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> StatementOut:
     """Check a compliance statement -- uploaded, or one already in the project
-    folder -- against the specification."""
+    folder -- against the specification. No model is called."""
     project = _get_project_or_404(db, project_id)
     code = _system_code(system_code)
     source = service.SpecSource(path=path, member=member or None, first_page=first_page, last_page=last_page)
@@ -424,7 +439,7 @@ def check_statement(
             content, name = service.open_statement_file(project, statement_path)
         else:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Upload a statement or choose one from the project")
-        statement = service.check(db, project, code, source, content, name, current_user, use_ai=use_ai)
+        statement = service.check(db, project, code, source, content, name, current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return StatementOut.model_validate(statement, from_attributes=True)
@@ -453,7 +468,7 @@ def get_statement(
     db: Session = Depends(get_db),
 ) -> StatementOut:
     project = _get_project_or_404(db, project_id)
-    return StatementOut.model_validate(_statement_or_404(db, project, statement_id), from_attributes=True)
+    return _statement_out(db, project, _statement_or_404(db, project, statement_id))
 
 
 @router.patch("/{project_id}/compliance/statements/{statement_id}", response_model=StatementOut)
@@ -461,7 +476,7 @@ def edit_statement(
     project_id: int,
     statement_id: int,
     body: StatementRowsIn,
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> StatementOut:
     """The engineer's own answers: they replace whatever proposed the row."""
@@ -469,7 +484,7 @@ def edit_statement(
     statement = _statement_or_404(db, project, statement_id)
     if statement.kind != "prepare":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Only a prepared statement can be edited")
-    updated = service.update_rows(db, statement, [row.model_dump() for row in body.rows])
+    updated = service.update_rows(db, project, statement, [row.model_dump() for row in body.rows], current_user)
     return StatementOut.model_validate(updated, from_attributes=True)
 
 
@@ -477,52 +492,104 @@ def edit_statement(
 def autofill_statement(
     project_id: int,
     statement_id: int,
-    body: AutofillIn,
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> StatementOut:
-    """Ask the model about the clauses in scope, many per call."""
+    """Fill the empty rows from the knowledge base. Deterministic; no model."""
     project = _get_project_or_404(db, project_id)
     statement = _statement_or_404(db, project, statement_id)
     try:
-        updated = service.autofill(db, project, statement, body.scope)
+        updated = service.autofill(db, project, statement, current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return StatementOut.model_validate(updated, from_attributes=True)
 
 
-@router.post("/{project_id}/compliance/statements/{statement_id}/suggest", response_model=SuggestionOut)
-def suggest_response(
+@router.post("/{project_id}/compliance/statements/{statement_id}/rows/{clause_id}/review", response_model=StatementRowOut)
+def review_row(
     project_id: int,
     statement_id: int,
-    body: SuggestIn,
-    _current_user: User = Depends(get_current_user),
+    clause_id: str,
+    body: ReviewIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
-) -> SuggestionOut:
-    """The model's proposal for one clause, for the engineer to apply or not."""
+) -> StatementRowOut:
+    """Ask the model about this one clause -- the only model call in the
+    workflow, and only on this action. The same request id returns the
+    stored answer; a review already running is refused (409)."""
+    project = _get_project_or_404(db, project_id)
+    statement = _statement_or_404(db, project, statement_id)
+    if statement.kind != "prepare":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Only a prepared statement can be reviewed")
+    before = next((r for r in statement.rows if r["id"] == clause_id), None)
+    stored = (before or {}).get("ai_review") if before else None
+    try:
+        row = review.review_clause(db, project, statement, clause_id, instruction=body.instruction, request_id=body.request_id)
+    except review.InFlight as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except review.ReviewError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    if row.get("ai_review") is not stored and row.get("ai_review") != stored:
+        service.record_review(db, project, statement, row, current_user)
+    return StatementRowOut(**row)
+
+
+@router.post("/{project_id}/compliance/statements/{statement_id}/rows/{clause_id}/suggestion", response_model=StatementOut)
+def decide_suggestion(
+    project_id: int,
+    statement_id: int,
+    clause_id: str,
+    body: ReviewDecisionIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> StatementOut:
+    """Accept, edit or reject the model's suggestion for a row."""
     project = _get_project_or_404(db, project_id)
     statement = _statement_or_404(db, project, statement_id)
     try:
-        return SuggestionOut(**service.suggest(db, project, statement, body.clause_id))
+        updated = service.decide_suggestion(db, project, statement, clause_id, body.action, current_user,
+                                            response=body.response, remark=body.remark)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return StatementOut.model_validate(updated, from_attributes=True)
 
 
-@router.post("/{project_id}/compliance/statements/{statement_id}/ask", response_model=AskOut)
-def ask_about_clause(
+@router.post("/{project_id}/compliance/statements/{statement_id}/rows/{clause_id}/use-answer", response_model=StatementOut)
+def use_past_answer(
     project_id: int,
     statement_id: int,
-    body: AskIn,
-    _current_user: User = Depends(get_current_user),
+    clause_id: str,
+    body: UseAnswerIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
-) -> AskOut:
-    """A question about a clause, answered from the project's facts."""
+) -> StatementOut:
+    """Take one of the past answers shown for this clause as its draft."""
     project = _get_project_or_404(db, project_id)
     statement = _statement_or_404(db, project, statement_id)
     try:
-        return AskOut(answer=service.ask(db, project, statement, body.clause_id, body.question))
+        updated = service.use_answer(db, project, statement, clause_id, body.response_id, current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return StatementOut.model_validate(updated, from_attributes=True)
+
+
+@router.post("/{project_id}/compliance/statements/{statement_id}/rows/{clause_id}/reviewed", response_model=StatementOut)
+def mark_row_reviewed(
+    project_id: int,
+    statement_id: int,
+    clause_id: str,
+    body: ReviewedIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> StatementOut:
+    """The explicit review action: the row becomes the engineer's."""
+    project = _get_project_or_404(db, project_id)
+    statement = _statement_or_404(db, project, statement_id)
+    try:
+        updated = service.mark_reviewed(db, project, statement, clause_id, current_user, reviewed=body.reviewed)
+    except service.ComplianceError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return StatementOut.model_validate(updated, from_attributes=True)
 
 
 @router.delete("/{project_id}/compliance/specs", status_code=status.HTTP_204_NO_CONTENT)
@@ -589,18 +656,8 @@ def statement_files(
     return [StatementFileOut(**f) for f in service.statement_files(project)]
 
 
-@router.get("/compliance/references", response_model=ReferenceIndexOut)
-def reference_index(_current_user: User = Depends(get_current_user)) -> ReferenceIndexOut:
-    """The index of the company's past statements: how many, and whether a
-    walk of the archive is running."""
-    return ReferenceIndexOut(**references.status())
-
-
-@router.post("/compliance/references/scan", response_model=ReferenceIndexOut)
-def scan_references(
-    full: bool = False,
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
-) -> ReferenceIndexOut:
-    """Walk the archive for past statements in the background."""
-    references.start_scan(full=full)
-    return ReferenceIndexOut(**references.status())
+@router.get("/compliance/knowledge", response_model=KnowledgeStatusOut)
+def knowledge_status(_current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> KnowledgeStatusOut:
+    """What the knowledge base holds and when it was last refreshed. Updating
+    it is an administrator's action (see app.routers.knowledge)."""
+    return _knowledge_status(db)

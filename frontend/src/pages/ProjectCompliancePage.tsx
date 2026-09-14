@@ -4,18 +4,22 @@ import { ApiError, api, apiUrl } from "../lib/api";
 import {
   COMPLIANCE_RESPONSES,
   PROJECT_EDITOR_ROLES,
-  type AutofillScope,
+  TECHNICAL_LABELS,
+  WORKFLOW_LABELS,
   type Compliance,
   type ComplianceSystem,
   type DraftMail,
-  type ReferenceIndex,
+  type KnowledgeCandidate,
+  type KnowledgeMatch,
+  type KnowledgeStatus,
   type SpecMatch,
   type SpecVerification,
   type Statement,
   type StatementFile,
   type StatementRow,
   type StatementSummary,
-  type Suggestion,
+  type TechnicalStatus,
+  type WorkflowStatus,
 } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
@@ -35,7 +39,8 @@ function specKey(spec: SpecRef & { last_page?: number | null }): string {
 
 /** The API sends naive UTC; without a zone the browser would read it as
  * local time. */
-function formatWhen(value: string): string {
+function formatWhen(value: string | null | undefined): string {
+  if (!value) return "never";
   const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`);
   return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
@@ -46,6 +51,10 @@ function errorText(err: unknown, fallback: string): string {
 
 function answerable(row: StatementRow): boolean {
   return !row.heading && row.source !== "lead_in";
+}
+
+function newRequestId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 }
 
 /** How a response reads at a glance: met, met with a qualification, or not. */
@@ -63,6 +72,30 @@ const TONE_STYLES: Record<Tone, { dot: string; text: string; border: string }> =
   warn: { dot: "bg-amber-500", text: "text-amber-700", border: "border-amber-200" },
   bad: { dot: "bg-red-500", text: "text-red-700", border: "border-red-200" },
   none: { dot: "bg-gray-300", text: "text-gray-500", border: "border-gray-300" },
+};
+
+const WORKFLOW_STYLES: Record<WorkflowStatus, string> = {
+  unfilled: "bg-gray-100 text-gray-600",
+  autofilled: "bg-blue-50 text-brand-700",
+  candidate: "bg-amber-50 text-amber-800",
+  ai_pending: "bg-purple-50 text-purple-700",
+  reviewed: "bg-green-50 text-green-700",
+  recheck: "bg-red-50 text-red-700",
+};
+
+function matchLabelOf(match: KnowledgeMatch): string {
+  if (match.result === "candidate" && match.same_wording) return "Same requirement — past answer not reusable as recorded";
+  return MATCH_LABELS[match.result];
+}
+
+const MATCH_LABELS: Record<KnowledgeMatch["result"], string> = {
+  eligible: "Eligible match",
+  flagged: "Same requirement — filled from a flagged record, verify the source",
+  candidate: "Similar requirement — candidate requires review",
+  missing_model: "Missing model — BOQ clarification required",
+  scope: "Missing scope condition — scope verification required",
+  conflict: "Conflicting candidates — conflict requires review",
+  none: "No database match",
 };
 
 function ToneIcon({ tone, className = "h-4 w-4" }: { tone: Tone; className?: string }) {
@@ -103,6 +136,27 @@ const btnPrimary =
   "inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50";
 const btnSecondary =
   "inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-navy-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
+const btnSmall =
+  "inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-navy-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50";
+
+function WorkflowBadge({ workflow }: { workflow: WorkflowStatus | undefined }) {
+  const key = workflow ?? "unfilled";
+  return <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${WORKFLOW_STYLES[key]}`}>{WORKFLOW_LABELS[key]}</span>;
+}
+
+function TechnicalChip({ technical }: { technical: StatementRow["technical"] }) {
+  if (!technical?.status) return null;
+  const label = TECHNICAL_LABELS[technical.status];
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${technical.verified ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-600"}`}
+      title={technical.verified ? "Confirmed by the engineer" : "Proposed — not verified for this project"}
+    >
+      {label}
+      {technical.verified ? " ✓" : " (proposed)"}
+    </span>
+  );
+}
 
 // --- page ----------------------------------------------------------------------------
 
@@ -251,18 +305,28 @@ function SystemWorkspace({
   const [selectedClause, setSelectedClause] = useState<string | null>(null);
   const [check, setCheck] = useState<Statement | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Rows with a review call in flight, so a double-click is one request and
+  // the row itself says it is waiting.
+  const [reviewing, setReviewing] = useState<Record<string, boolean>>({});
 
   const specs = system.specs.map((spec) => ({ ...spec, verification: verifications[specKey(spec)] ?? spec.verification }));
   const chosen =
     specs.find((s) => specKey(s) === selectedSpec) ?? specs.find((s) => s.verification?.project !== "different") ?? specs[0] ?? null;
 
-  // The latest draft opens with the tab.
+  // The latest draft opens with the tab -- whenever the list of statements
+  // arrives, which can be after the specifications when their search is
+  // cached. Statements made here arrive through replace(), not a fetch.
+  const loadedId = useRef<number | null>(null);
   useEffect(() => {
     if (!latest) {
       setLoadingStatement(false);
       return;
     }
+    if (loadedId.current === latest.id) return;
+    loadedId.current = latest.id;
     let cancelled = false;
+    let settled = false;
+    setLoadingStatement(true);
     api
       .get<Statement>(`/projects/${projectId}/compliance/statements/${latest.id}`)
       .then((s) => {
@@ -270,19 +334,48 @@ function SystemWorkspace({
       })
       .catch(() => undefined)
       .finally(() => {
+        settled = true;
         if (!cancelled) setLoadingStatement(false);
       });
     return () => {
+      // A fetch cancelled before it settled (StrictMode's second mount, a
+      // tab change) has not loaded anything: let the next run fetch again.
       cancelled = true;
+      if (!settled) loadedId.current = null;
     };
-    // Only on first open: later statements arrive through replace().
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId]);
+  }, [projectId, latest]);
 
   function replace(next: Statement | null) {
+    loadedId.current = next?.id ?? null;
     setStatement(next);
     onLatest(next ?? undefined);
     if (!next) setSelectedClause(null);
+  }
+
+  /** One row came back changed (a review): keep the rest as they are. */
+  function replaceRow(row: StatementRow) {
+    setStatement((current) => (current ? { ...current, rows: current.rows.map((r) => (r.id === row.id ? { ...r, ...row } : r)) } : current));
+  }
+
+  async function reviewWithAi(clauseId: string, instruction: string) {
+    if (!statement || reviewing[clauseId]) return;
+    setReviewing((all) => ({ ...all, [clauseId]: true }));
+    setError(null);
+    try {
+      const row = await api.post<StatementRow>(`/projects/${projectId}/compliance/statements/${statement.id}/rows/${clauseId}/review`, {
+        instruction: instruction.trim() || null,
+        request_id: newRequestId(),
+      });
+      replaceRow(row);
+    } catch (err) {
+      setError(errorText(err, "The review could not be run"));
+    } finally {
+      setReviewing((all) => {
+        const rest = { ...all };
+        delete rest[clauseId];
+        return rest;
+      });
+    }
   }
 
   return (
@@ -301,7 +394,7 @@ function SystemWorkspace({
         aiAvailable={data.ai_available}
         searched={data.searched}
       />
-      <div className="mt-4 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="mt-4 grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
         <ClausesCard
           projectId={projectId}
           system={system}
@@ -309,21 +402,26 @@ function SystemWorkspace({
           statement={statement}
           loading={loadingStatement}
           canEdit={canEdit}
+          aiAvailable={data.ai_available}
           selectedClause={selectedClause}
+          reviewing={reviewing}
           onSelectClause={setSelectedClause}
           onStatement={replace}
+          onReview={(id) => void reviewWithAi(id, "")}
           onError={setError}
         />
-        <AssistantPanel
+        <SidePanel
           projectId={projectId}
           system={system}
           spec={chosen}
           statement={statement}
           canEdit={canEdit}
           aiAvailable={data.ai_available}
-          referenceIndex={data.references}
+          knowledge={data.knowledge}
           selectedClause={selectedClause}
+          reviewing={reviewing}
           onStatement={replace}
+          onReview={reviewWithAi}
           onCheck={setCheck}
           onError={setError}
         />
@@ -649,7 +747,16 @@ function MailCard({ mail, copied, onCopied, onUncopied }: { mail: DraftMail; cop
 
 // --- the clauses -----------------------------------------------------------------------
 
-type Filter = "all" | "unanswered" | "review" | "ai";
+type Filter = "all" | "unfilled" | "review" | "autofilled" | "reviewed";
+
+function inFilter(row: StatementRow, filter: Filter): boolean {
+  const workflow = row.workflow ?? "unfilled";
+  if (filter === "unfilled") return !row.response;
+  if (filter === "review") return workflow === "candidate" || workflow === "ai_pending" || workflow === "recheck";
+  if (filter === "autofilled") return workflow === "autofilled" && row.origin === "database";
+  if (filter === "reviewed") return workflow === "reviewed";
+  return true;
+}
 
 function ClausesCard({
   projectId,
@@ -658,9 +765,12 @@ function ClausesCard({
   statement,
   loading,
   canEdit,
+  aiAvailable,
   selectedClause,
+  reviewing,
   onSelectClause,
   onStatement,
+  onReview,
   onError,
 }: {
   projectId: number;
@@ -669,9 +779,12 @@ function ClausesCard({
   statement: Statement | null;
   loading: boolean;
   canEdit: boolean;
+  aiAvailable: boolean;
   selectedClause: string | null;
+  reviewing: Record<string, boolean>;
   onSelectClause: (id: string | null) => void;
   onStatement: (statement: Statement | null) => void;
+  onReview: (clauseId: string) => void;
   onError: (message: string | null) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -724,10 +837,10 @@ function ClausesCard({
     saveTimer.current = window.setTimeout(() => void flush(), 1200);
   }
 
-  async function start(useAi: boolean) {
+  async function start() {
     if (!spec) return;
     if (spec.verification?.project === "different" && !window.confirm("This specification was written for another project. Continue anyway?")) return;
-    setBusy(useAi ? "prepare-ai" : "prepare");
+    setBusy("prepare");
     setElapsed(0);
     onError(null);
     try {
@@ -738,7 +851,6 @@ function ClausesCard({
           member: spec.member,
           first_page: spec.first_page,
           last_page: spec.last_page,
-          use_ai: useAi,
         })
       );
       setPending({});
@@ -775,11 +887,22 @@ function ClausesCard({
     }
   }
 
+  async function markReviewed(row: StatementRow, reviewed: boolean) {
+    if (!statement) return;
+    onError(null);
+    try {
+      await flush();
+      onStatement(await api.post<Statement>(`/projects/${projectId}/compliance/statements/${statement.id}/rows/${row.id}/reviewed`, { reviewed }));
+    } catch (err) {
+      onError(errorText(err, "Could not update the review status"));
+    }
+  }
+
   const rows = useMemo(() => {
     if (!statement) return [];
     return statement.rows.map((row) => {
       const change = pending[row.id];
-      return change ? { ...row, response: change.response ?? row.response, remark: change.remark ?? row.remark, source: "engineer" } : row;
+      return change ? { ...row, response: change.response ?? row.response, remark: change.remark ?? row.remark, source: "engineer", origin: "manual" as const } : row;
     });
   }, [pending, statement]);
 
@@ -790,15 +913,14 @@ function ClausesCard({
     return { total: clauses.length, ...counts, answered: clauses.length - counts.none };
   }, [rows]);
 
+  const workflowCounts = useMemo(() => {
+    const counts: Record<Filter, number> = { all: 0, unfilled: 0, review: 0, autofilled: 0, reviewed: 0 };
+    for (const row of rows.filter(answerable)) for (const key of Object.keys(counts) as Filter[]) if (inFilter(row, key)) counts[key] += 1;
+    return counts;
+  }, [rows]);
+
   const visible = useMemo(() => {
-    const keep = (row: StatementRow) => {
-      if (!answerable(row)) return true;
-      if (filter === "unanswered") return !row.response;
-      if (filter === "review") return row.state === "review";
-      if (filter === "ai") return row.source === "ai";
-      return true;
-    };
-    const kept = rows.filter(keep);
+    const kept = rows.filter((row) => !answerable(row) || inFilter(row, filter));
     // A heading with nothing under it is noise in a filtered view.
     return filter === "all" ? kept : kept.filter((row, i) => answerable(row) || (kept[i + 1] && answerable(kept[i + 1])));
   }, [filter, rows]);
@@ -814,16 +936,12 @@ function ClausesCard({
         {spec ? (
           <>
             <p className="mt-1 text-sm text-gray-500">
-              Read the specification clause by clause. Each clause is answered from the company's past {system.code} statements and a few
-              rules first; what they leave is yours, or the AI assistant's.
+              Read the specification clause by clause. Definitions, references and related sections are noted by rule; every other clause
+              waits for Auto-fill from the knowledge base, or for you.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <button onClick={() => start(false)} disabled={!canEdit || busy !== null} className={btnPrimary}>
+              <button onClick={start} disabled={!canEdit || busy !== null} className={btnPrimary}>
                 {busy === "prepare" ? `Reading… ${elapsed}s` : "Start statement"}
-              </button>
-              <button onClick={() => start(true)} disabled={!canEdit || busy !== null} className={btnSecondary} title="Read the clauses and auto-fill the rest with AI in one go">
-                <Sparkle />
-                {busy === "prepare-ai" ? `Preparing… ${elapsed}s` : "Start and auto-fill with AI"}
               </button>
             </div>
             {!canEdit && <p className="mt-3 text-xs text-gray-400">Viewers can read statements; an engineer starts them.</p>}
@@ -844,7 +962,7 @@ function ClausesCard({
         <div className="flex flex-wrap items-baseline gap-3">
           <h2 className="text-lg font-semibold text-navy-900">Specification clauses</h2>
           <span className="text-sm text-gray-500">
-            {tally.answered} of {tally.total} answered
+            {tally.answered} of {tally.total} answered · {workflowCounts.reviewed} reviewed
           </span>
         </div>
         <div className="flex items-center gap-3">
@@ -862,9 +980,10 @@ function ClausesCard({
           {(
             [
               ["all", "All"],
-              ["unanswered", `Unanswered (${tally.none})`],
-              ["review", `To review (${rows.filter((r) => answerable(r) && r.state === "review").length})`],
-              ["ai", `From AI (${rows.filter((r) => r.source === "ai").length})`],
+              ["unfilled", `Unfilled (${workflowCounts.unfilled})`],
+              ["review", `To review (${workflowCounts.review})`],
+              ["autofilled", `Auto-filled (${workflowCounts.autofilled})`],
+              ["reviewed", `Reviewed (${workflowCounts.reviewed})`],
             ] as [Filter, string][]
           ).map(([key, label]) => (
             <button
@@ -901,7 +1020,7 @@ function ClausesCard({
             <tr>
               <th className="w-20 px-4 py-2.5">Clause</th>
               <th className="px-4 py-2.5">Specification requirement</th>
-              <th className="w-52 px-4 py-2.5">Compliance</th>
+              <th className="w-56 px-4 py-2.5">Compliance</th>
               <th className="w-64 px-4 py-2.5">Remarks</th>
             </tr>
           </thead>
@@ -913,9 +1032,13 @@ function ClausesCard({
                 statement={statement}
                 row={row}
                 editable={canEdit}
+                aiAvailable={aiAvailable}
+                reviewing={Boolean(reviewing[row.id])}
                 selected={row.id === selectedClause}
                 onSelect={() => onSelectClause(row.id === selectedClause ? null : row.id)}
                 onEdit={(change) => edit(row.id, change)}
+                onReview={() => onReview(row.id)}
+                onReviewed={(reviewed) => void markReviewed(row, reviewed)}
               />
             ))}
             {visible.length === 0 && (
@@ -935,7 +1058,7 @@ function ClausesCard({
             <circle cx="12" cy="12" r="9" />
             <path d="M12 8h.01M12 11v5" />
           </svg>
-          AI suggestions require review · {statement.spec.clauses} clauses read from {statement.spec.filename}
+          Drafts and suggestions are proposals until you mark a row reviewed · {statement.spec.clauses} clauses read from {statement.spec.filename}
           {canEdit && (
             <>
               {" · "}
@@ -956,8 +1079,8 @@ function ClausesCard({
 
 const SOURCE_LABELS: Record<string, string> = {
   rule: "By rule",
-  reference: "From a past statement",
-  ai: "Suggested by AI",
+  database: "From the knowledge base",
+  ai: "From an AI suggestion",
   engineer: "Answered by you",
   none: "Not answered yet",
 };
@@ -967,17 +1090,25 @@ function ClauseRow({
   statement,
   row,
   editable,
+  aiAvailable,
+  reviewing,
   selected,
   onSelect,
   onEdit,
+  onReview,
+  onReviewed,
 }: {
   projectId: number;
   statement: Statement;
   row: StatementRow;
   editable: boolean;
+  aiAvailable: boolean;
+  reviewing: boolean;
   selected: boolean;
   onSelect: () => void;
   onEdit: (change: { response?: string; remark?: string }) => void;
+  onReview: () => void;
+  onReviewed: (reviewed: boolean) => void;
 }) {
   if (row.heading) {
     return (
@@ -990,11 +1121,15 @@ function ClauseRow({
     );
   }
   const leadIn = row.source === "lead_in";
-  const reference = row.reference;
+  const workflow = row.workflow ?? "unfilled";
+  const review = row.ai_review;
+  const matchLabel = row.match && row.match.result !== "eligible" ? matchLabelOf(row.match) : null;
   return (
     <tr
       onClick={onSelect}
-      className={`cursor-pointer border-t border-gray-100 align-top ${selected ? "bg-brand-50/70" : row.state === "review" && row.source !== "engineer" ? "bg-amber-50/40" : "hover:bg-gray-50/60"}`}
+      className={`cursor-pointer border-t border-gray-100 align-top ${
+        selected ? "bg-brand-50/70" : workflow === "recheck" ? "bg-red-50/40" : workflow === "candidate" || workflow === "ai_pending" ? "bg-amber-50/40" : "hover:bg-gray-50/60"
+      }`}
     >
       <td className="px-4 py-2.5 text-xs text-gray-500">
         <a
@@ -1011,10 +1146,33 @@ function ClauseRow({
       <td className="px-4 py-2.5 text-gray-800" style={{ paddingLeft: `${1 + Math.max(0, row.level - 2) * 1}rem` }}>
         {row.text}
         {!leadIn && (
-          <div className="mt-1 text-[11px] text-gray-400" title={reference?.path}>
-            {SOURCE_LABELS[row.source] ?? row.source}
-            {row.source === "reference" && reference && ` · ${Math.round(reference.similarity * 100)}% the same clause`}
-            {row.note ? ` · ${row.note}` : ""}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-400">
+            <WorkflowBadge workflow={workflow} />
+            <span>{SOURCE_LABELS[row.source] ?? row.source}</span>
+            {matchLabel && <span className="text-amber-700">· {matchLabel}</span>}
+            {row.note ? <span>· {row.note}</span> : null}
+            {reviewing && <span className="text-purple-700">· Reviewing with AI…</span>}
+            {!reviewing && review?.status === "failed" && <span className="text-red-600">· AI review failed: {review.error}</span>}
+            {!reviewing && review?.status === "done" && !review.decision && <span className="text-purple-700">· Suggestion waiting</span>}
+          </div>
+        )}
+        {!leadIn && editable && (
+          <div className="mt-1.5 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {aiAvailable && (
+              <button onClick={onReview} disabled={reviewing} className={btnSmall} title="Ask the AI about this clause only">
+                <Sparkle className="h-3 w-3" />
+                {reviewing ? "Reviewing…" : review ? "Review again" : "Review with AI"}
+              </button>
+            )}
+            {workflow === "reviewed" ? (
+              <button onClick={() => onReviewed(false)} className={btnSmall}>
+                Unmark reviewed
+              </button>
+            ) : (
+              <button onClick={() => onReviewed(true)} disabled={!row.response} className={btnSmall} title={row.response ? "" : "Give the clause a response first"}>
+                Mark reviewed
+              </button>
+            )}
           </div>
         )}
       </td>
@@ -1022,7 +1180,12 @@ function ClauseRow({
         {leadIn ? (
           <span className="text-xs text-gray-400">Answered by its items</span>
         ) : (
-          <ResponseSelect value={row.response} disabled={!editable} onChange={(response) => onEdit({ response })} />
+          <>
+            <ResponseSelect value={row.response} disabled={!editable} onChange={(response) => onEdit({ response })} />
+            <div className="mt-1">
+              <TechnicalChip technical={row.technical} />
+            </div>
+          </>
         )}
       </td>
       <td className="px-4 py-2" onClick={(e) => e.stopPropagation()}>
@@ -1119,18 +1282,20 @@ function ResponseSelect({ value, disabled, onChange }: { value: string; disabled
   );
 }
 
-// --- the assistant ---------------------------------------------------------------------
+// --- the side panel: knowledge base, auto-fill, the selected clause ------------------------
 
-function AssistantPanel({
+function SidePanel({
   projectId,
   system,
   spec,
   statement,
   canEdit,
   aiAvailable,
-  referenceIndex,
+  knowledge,
   selectedClause,
+  reviewing,
   onStatement,
+  onReview,
   onCheck,
   onError,
 }: {
@@ -1140,25 +1305,31 @@ function AssistantPanel({
   statement: Statement | null;
   canEdit: boolean;
   aiAvailable: boolean;
-  referenceIndex: ReferenceIndex | null;
+  knowledge: KnowledgeStatus | null;
   selectedClause: string | null;
+  reviewing: Record<string, boolean>;
   onStatement: (statement: Statement | null) => void;
+  onReview: (clauseId: string, instruction: string) => Promise<void>;
   onCheck: (statement: Statement | null) => void;
   onError: (message: string | null) => void;
 }) {
-  const [scope, setScope] = useState<AutofillScope>("unanswered");
   const [busy, setBusy] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
-  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
-  const [question, setQuestion] = useState("");
-  const [answer, setAnswer] = useState<{ clause: string | null; text: string } | null>(null);
-  const [index, setIndex] = useState<ReferenceIndex | null>(referenceIndex);
+  const [instruction, setInstruction] = useState("");
+  const [editing, setEditing] = useState<{ response: string; remark: string } | null>(null);
   const [showCheck, setShowCheck] = useState(false);
   const [files, setFiles] = useState<StatementFile[] | null>(null);
   const [statementPath, setStatementPath] = useState("");
   const upload = useRef<HTMLInputElement>(null);
 
   const clause = statement?.rows.find((r) => r.id === selectedClause) ?? null;
+  const review = clause?.ai_review ?? null;
+  const inFlight = clause ? Boolean(reviewing[clause.id]) : false;
+
+  useEffect(() => {
+    setInstruction("");
+    setEditing(null);
+  }, [selectedClause]);
 
   useEffect(() => {
     if (!busy) return;
@@ -1166,14 +1337,6 @@ function AssistantPanel({
     const timer = window.setInterval(() => setElapsed(Math.round((Date.now() - started) / 1000)), 1000);
     return () => window.clearInterval(timer);
   }, [busy]);
-
-  useEffect(() => {
-    if (!index?.running) return;
-    const timer = window.setInterval(() => {
-      api.get<ReferenceIndex>(`/projects/compliance/references`).then(setIndex).catch(() => undefined);
-    }, 5000);
-    return () => window.clearInterval(timer);
-  }, [index?.running]);
 
   useEffect(() => {
     if (!showCheck || files !== null) return;
@@ -1189,7 +1352,7 @@ function AssistantPanel({
     setElapsed(0);
     onError(null);
     try {
-      onStatement(await api.post<Statement>(`/projects/${projectId}/compliance/statements/${statement.id}/autofill`, { scope }));
+      onStatement(await api.post<Statement>(`/projects/${projectId}/compliance/statements/${statement.id}/autofill`));
     } catch (err) {
       onError(errorText(err, "Could not fill the statement"));
     } finally {
@@ -1197,52 +1360,38 @@ function AssistantPanel({
     }
   }
 
-  async function suggest() {
+  async function useAnswer(responseId: string) {
     if (!statement || !clause) return;
-    setBusy("suggest");
-    setElapsed(0);
-    onError(null);
-    try {
-      setSuggestion(await api.post<Suggestion>(`/projects/${projectId}/compliance/statements/${statement.id}/suggest`, { clause_id: clause.id }));
-    } catch (err) {
-      onError(errorText(err, "Could not get a suggestion"));
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function apply() {
-    if (!statement || !suggestion) return;
-    setBusy("apply");
+    setBusy("use");
     onError(null);
     try {
       onStatement(
-        await api.patch<Statement>(`/projects/${projectId}/compliance/statements/${statement.id}`, {
-          rows: [{ id: suggestion.id, response: suggestion.response, remark: suggestion.remark }],
+        await api.post<Statement>(`/projects/${projectId}/compliance/statements/${statement.id}/rows/${clause.id}/use-answer`, {
+          response_id: responseId,
         })
       );
-      setSuggestion(null);
     } catch (err) {
-      onError(errorText(err, "Could not apply the suggestion"));
+      onError(errorText(err, "Could not use that answer"));
     } finally {
       setBusy(null);
     }
   }
 
-  async function ask() {
-    if (!statement || !question.trim()) return;
-    setBusy("ask");
-    setElapsed(0);
+  async function decide(action: "accept" | "edit" | "reject") {
+    if (!statement || !clause) return;
+    setBusy("decide");
     onError(null);
     try {
-      const reply = await api.post<{ answer: string }>(`/projects/${projectId}/compliance/statements/${statement.id}/ask`, {
-        clause_id: clause?.id ?? null,
-        question: question.trim(),
-      });
-      setAnswer({ clause: clause?.ref ?? null, text: reply.answer });
-      setQuestion("");
+      onStatement(
+        await api.post<Statement>(`/projects/${projectId}/compliance/statements/${statement.id}/rows/${clause.id}/suggestion`, {
+          action,
+          response: action === "edit" ? editing?.response : undefined,
+          remark: action === "edit" ? editing?.remark : undefined,
+        })
+      );
+      setEditing(null);
     } catch (err) {
-      onError(errorText(err, "The assistant could not answer"));
+      onError(errorText(err, "Could not apply the decision"));
     } finally {
       setBusy(null);
     }
@@ -1260,7 +1409,6 @@ function AssistantPanel({
       if (spec.member) body.append("member", spec.member);
       if (spec.first_page) body.append("first_page", String(spec.first_page));
       if (spec.last_page) body.append("last_page", String(spec.last_page));
-      body.append("use_ai", String(aiAvailable));
       if (file) body.append("file", file);
       else body.append("statement_path", statementPath);
       onCheck(await api.upload<Statement>(`/projects/${projectId}/compliance/check`, body));
@@ -1271,127 +1419,133 @@ function AssistantPanel({
     }
   }
 
-  async function rescan() {
-    try {
-      setIndex(await api.post<ReferenceIndex>(`/projects/compliance/references/scan`));
-    } catch (err) {
-      onError(errorText(err, "Could not start the index"));
-    }
-  }
-
-  const ready = aiAvailable && statement !== null;
-  const indexed = index?.by_system?.[system.code] ?? 0;
-  const unanswered = statement ? statement.rows.filter((r) => answerable(r) && !r.response).length : 0;
+  // The statement as it stands, not the last run: a second Auto-fill finds
+  // nothing new to fill, and the rows it filled before are still filled.
+  const counts = useMemo(() => {
+    const rows = (statement?.rows ?? []).filter((r) => answerable(r) && r.match);
+    if (rows.length === 0) return null;
+    const result = (r: StatementRow) => r.match?.result;
+    return {
+      filled: rows.filter((r) => r.origin === "database" && r.match?.result !== "flagged").length,
+      flagged: rows.filter((r) => r.origin === "database" && r.match?.result === "flagged").length,
+      candidates: rows.filter((r) => !r.response && result(r) === "candidate").length,
+      blocked: rows.filter((r) => !r.response && ["missing_model", "scope", "conflict"].includes(result(r) ?? "")).length,
+      unmatched: rows.filter((r) => !r.response && result(r) === "none").length,
+    };
+  }, [statement]);
+  const eligible = knowledge?.records.eligible_responses ?? 0;
+  const systemStats = knowledge ? Object.entries(knowledge.by_system).filter(([label]) => label.startsWith(system.code === "VES" ? "FA" : system.code.replace("FAS", "FA"))) : [];
 
   return (
     <aside className="rounded-xl border border-gray-200 bg-white p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-lg font-semibold text-navy-900">
-          <Sparkle className="h-5 w-5 text-brand-600" />
-          AI Assistant
-        </h2>
-        <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${aiAvailable ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${aiAvailable ? "bg-green-500" : "bg-gray-400"}`} />
-          {aiAvailable ? "Ready" : "Off"}
-        </span>
-      </div>
-
-      <h3 className="mt-4 font-semibold text-navy-900">Fill your statement faster</h3>
+      <h2 className="text-lg font-semibold text-navy-900">Knowledge base</h2>
       <p className="mt-0.5 text-xs text-gray-500">
-        Draft clause responses from the specification, the project's BOQ and the company's past statements. Everything the AI writes is a
-        suggestion for you to review.
+        The company's past compliance responses. Auto-fill writes in only answers to the same wording, for the manufacturer and models this
+        project's BOQ proposes — as drafts for you to review. It never calls the AI.
       </p>
-
-      <div className="mt-4 text-xs font-semibold text-gray-700">Using these sources</div>
-      <ul className="mt-1.5 space-y-1.5">
-        <SourceLine
-          label={statement?.spec.filename ?? spec?.filename ?? "No specification yet"}
-          detail={statement ? `${statement.spec.clauses} clauses` : spec ? `${spec.pages ?? "?"} pages` : ""}
-        />
-        <SourceLine
-          label={`Past ${system.code} compliance statements`}
-          detail={index?.running ? `indexing… ${index.indexed}` : `${indexed} indexed`}
-          action={canEdit ? { label: index?.running ? "Indexing…" : "Update", onClick: rescan, disabled: Boolean(index?.running) } : undefined}
-        />
-        <SourceLine label="Project facts & BOQ" detail="Project Info, BOQ" />
-      </ul>
-      {index?.message && <div className="mt-1 text-xs text-amber-700">{index.message}</div>}
-
-      <div className="mt-4 text-xs font-semibold text-gray-700">Fill scope</div>
-      <select value={scope} onChange={(e) => setScope(e.target.value as AutofillScope)} className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-        <option value="unanswered">Unanswered clauses only{statement ? ` (${unanswered})` : ""}</option>
-        <option value="review">Clauses marked for review</option>
-        <option value="all">All clauses (keeps your own answers)</option>
-      </select>
-      <button onClick={autofill} disabled={!ready || !canEdit || busy !== null} className={`${btnPrimary} mt-3 w-full justify-center`}>
-        <Sparkle />
-        {busy === "fill" ? `Filling… ${elapsed}s` : "Auto-fill with AI"}
-      </button>
-      {!statement && <p className="mt-1.5 text-xs text-gray-400">Start the statement first; the assistant works on its clauses.</p>}
-      {busy && elapsed > 20 && (
-        <p className="mt-1.5 text-xs text-amber-700">Calls are paced to the AI provider's per-minute allowance; a long specification can take a few minutes.</p>
-      )}
-
-      <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/60 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-sm font-semibold text-navy-900">Suggested response</div>
-          {suggestion && (
-            <span className={`inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-semibold ${TONE_STYLES[toneOf(suggestion.response)].text}`}>
-              <ToneIcon tone={toneOf(suggestion.response)} className="h-3.5 w-3.5" />
-              {suggestion.response}
-            </span>
-          )}
-        </div>
-        {clause ? (
+      <div className="mt-2 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-600">
+        {knowledge && knowledge.records.responses > 0 ? (
           <>
-            <div className="mt-0.5 text-xs text-gray-500">Clause {clause.ref}</div>
-            {suggestion && suggestion.id === clause.id ? (
-              <>
-                <p className="mt-2 text-sm text-gray-700">{suggestion.remark || "No remark needed."}</p>
-                {canEdit && (
-                  <button onClick={apply} disabled={busy !== null} className={`${btnSecondary} mt-3 w-full justify-center border-brand-200 text-brand-700 hover:bg-brand-50`}>
-                    {busy === "apply" ? "Applying…" : "Apply suggestion"}
-                  </button>
-                )}
-              </>
-            ) : (
-              <button onClick={suggest} disabled={!ready || busy !== null} className={`${btnSecondary} mt-2 w-full justify-center`}>
-                {busy === "suggest" ? `Thinking… ${elapsed}s` : "Suggest a response"}
-              </button>
-            )}
+            <div>
+              <span className="font-semibold text-navy-900">{eligible.toLocaleString()}</span> responses eligible for auto-fill of{" "}
+              {knowledge.records.responses.toLocaleString()}
+              {systemStats.length > 0 && ` · ${systemStats.map(([label, n]) => `${label}: ${n.eligible.toLocaleString()}`).join(", ")}`}
+            </div>
+            <div className="text-gray-400">Last refreshed {formatWhen(knowledge.last_refreshed_at)} · updated by an administrator</div>
           </>
         ) : (
-          <p className="mt-1 text-xs text-gray-500">Click a clause in the table to get a suggestion for it.</p>
+          <div className="text-amber-700">No knowledge has been imported yet. An administrator updates it under Knowledge base.</div>
         )}
       </div>
-      <p className="mt-1.5 text-[11px] text-gray-400">Review suggestions before export.</p>
-
-      {answer && (
-        <div className="mt-3 rounded-xl border border-brand-100 bg-brand-50/50 p-3 text-sm text-gray-800">
-          {answer.clause && <div className="text-xs text-gray-500">About clause {answer.clause}</div>}
-          <p className="mt-0.5 whitespace-pre-wrap">{answer.text}</p>
+      <button onClick={autofill} disabled={!statement || !canEdit || busy !== null} className={`${btnPrimary} mt-3 w-full justify-center`}>
+        {busy === "fill" ? `Filling… ${elapsed}s` : "Auto-fill from knowledge base"}
+      </button>
+      {counts && (
+        <div className="mt-1.5 grid grid-cols-5 gap-1 text-center text-[11px]">
+          {(
+            [
+              ["Filled", counts.filled, "text-brand-700"],
+              ["To verify", counts.flagged, "text-amber-700"],
+              ["Candidates", counts.candidates, "text-amber-700"],
+              ["Blocked", counts.blocked, "text-red-700"],
+              ["No match", counts.unmatched, "text-gray-500"],
+            ] as [string, number, string][]
+          ).map(([label, value, color]) => (
+            <div key={label} className="rounded-lg bg-gray-50 py-1">
+              <div className={`text-sm font-semibold ${color}`}>{value}</div>
+              <div className="text-gray-500">{label}</div>
+            </div>
+          ))}
         </div>
       )}
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void ask();
-        }}
-        className="mt-3 flex items-center gap-2"
-      >
-        <input
-          value={question}
-          onChange={(e) => setQuestion(e.target.value)}
-          disabled={!ready || busy !== null}
-          placeholder={clause ? `Ask AI about clause ${clause.ref}…` : "Ask AI about a clause…"}
-          className="min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-gray-50"
-        />
-        <button type="submit" disabled={!ready || busy !== null || !question.trim()} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50" title="Ask">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
-            <path d="M22 2 11 13M22 2l-7 20-4-9-9-4z" />
-          </svg>
-        </button>
-      </form>
+      {!statement && <p className="mt-1.5 text-xs text-gray-400">Start the statement first.</p>}
+
+      <div className="mt-4 border-t border-gray-100 pt-3">
+        <h3 className="font-semibold text-navy-900">{clause ? `Clause ${clause.ref}` : "Selected clause"}</h3>
+        {!clause && <p className="mt-1 text-xs text-gray-500">Click a clause in the table to see where its answer came from and to review it.</p>}
+        {clause && (
+          <>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <WorkflowBadge workflow={clause.workflow} />
+              <TechnicalChip technical={clause.technical} />
+            </div>
+            <MatchDetails key={clause.id} match={clause.match ?? null} onUse={canEdit ? (id) => void useAnswer(id) : undefined} busy={busy === "use"} />
+
+            <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-navy-900">
+                <Sparkle className="h-4 w-4 text-brand-600" />
+                Review with AI
+                <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${aiAvailable ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
+                  {aiAvailable ? "Ready" : "Off"}
+                </span>
+              </div>
+              <p className="mt-0.5 text-[11px] text-gray-500">
+                Sends this clause, its BOQ lines, the scope and its past answers — nothing else — and only when you click.
+              </p>
+              {canEdit && (
+                <>
+                  <textarea
+                    value={instruction}
+                    onChange={(e) => setInstruction(e.target.value)}
+                    disabled={!aiAvailable || inFlight}
+                    rows={2}
+                    placeholder="Optional instruction, e.g. “Check the standby duration against the BOQ batteries.”"
+                    className="mt-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-xs outline-none placeholder:text-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 disabled:bg-gray-50"
+                  />
+                  <button
+                    onClick={() => void onReview(clause.id, instruction)}
+                    disabled={!aiAvailable || inFlight || busy !== null}
+                    className={`${btnSecondary} mt-2 w-full justify-center`}
+                  >
+                    {inFlight ? "Reviewing…" : review ? "Review again" : "Review this clause"}
+                  </button>
+                </>
+              )}
+
+              {review && !inFlight && (
+                <div className="mt-3 border-t border-gray-200 pt-2 text-xs">
+                  {review.status === "failed" ? (
+                    <div className="rounded-lg bg-red-50 px-2 py-1.5 text-red-700">
+                      The review failed: {review.error}. Nothing was retried — press Review again when ready.
+                    </div>
+                  ) : review.suggestion ? (
+                    <SuggestionCard
+                      review={review}
+                      current={clause}
+                      editing={editing}
+                      canEdit={canEdit}
+                      busy={busy === "decide"}
+                      onEditStart={() => setEditing({ response: review.suggestion!.suggested_response, remark: review.suggestion!.suggested_remark })}
+                      onEditChange={setEditing}
+                      onDecide={decide}
+                    />
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
       <div className="mt-5 border-t border-gray-100 pt-4">
         <button onClick={() => setShowCheck((v) => !v)} className="flex w-full items-center justify-between text-sm font-semibold text-navy-900">
@@ -1401,8 +1555,8 @@ function AssistantPanel({
         {showCheck && (
           <div className="mt-2">
             <p className="text-xs text-gray-500">
-              Lay a statement (.xlsx, .xls, .docx) against this specification: missing and unanswered clauses, another project's or
-              manufacturer's name, and answers that contradict the BOQ.
+              Lay a statement (.xlsx, .xls, .docx) against this specification: missing and unanswered clauses, and another project's or
+              manufacturer's name.
             </p>
             <select value={statementPath} onChange={(e) => setStatementPath(e.target.value)} className="mt-2 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs">
               <option value="">{files === null ? "Looking for statements…" : files.length ? "Choose a statement in the project" : "No statement in the project folder"}</option>
@@ -1438,23 +1592,214 @@ function AssistantPanel({
   );
 }
 
-function SourceLine({ label, detail, action }: { label: string; detail: string; action?: { label: string; onClick: () => void; disabled?: boolean } }) {
+function SourceLine({ source }: { source: KnowledgeCandidate["sources"][number] }) {
   return (
-    <li className="flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0 text-gray-400">
-        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
-        <path d="M14 3v5h5" />
-      </svg>
-      <span className="min-w-0 flex-1 truncate font-medium text-gray-700" title={label}>
-        {label}
-      </span>
-      <span className="shrink-0 text-gray-400">{detail}</span>
-      {action && (
-        <button onClick={action.onClick} disabled={action.disabled} className="shrink-0 font-medium text-brand-600 hover:underline disabled:opacity-50">
-          {action.label}
-        </button>
-      )}
+    <li>
+      <span className="font-mono text-[10px] text-gray-500">{source.source_id}</span> {source.filename}
+      {source.project ? ` · ${source.project}` : ""}
+      {source.page ? ` · p${source.page}` : ""}
+      {source.document_revision ? ` · ${source.document_revision}` : ""}
+      {source.superseded && <span className="text-amber-700"> · superseded</span>}
+      {source.review_status && <span className="text-gray-400"> · {source.review_status.slice(0, 60)}</span>}
     </li>
+  );
+}
+
+/** Where a row's answer came from, or why the knowledge base gave none. */
+function MatchDetails({ match, onUse, busy }: { match: KnowledgeMatch | null; onUse?: (responseId: string) => void; busy?: boolean }) {
+  // Until toggled: open when the past answers are what there is to look at.
+  const [toggled, setToggled] = useState<boolean | null>(null);
+  if (!match) return <p className="mt-2 text-xs text-gray-500">Not looked up yet — run Auto-fill.</p>;
+  const tone = match.result === "eligible" ? "text-green-700" : match.result === "none" ? "text-gray-500" : "text-amber-700";
+  const open = toggled ?? (match.result !== "eligible" && match.result !== "flagged");
+  return (
+    <div className="mt-2 text-xs">
+      <div className={`font-semibold ${tone}`}>{matchLabelOf(match)}</div>
+      <p className="mt-0.5 text-gray-600">{match.explanation}</p>
+      {match.response_id && (
+        <div className="mt-2 rounded-lg border border-gray-200 bg-white p-2">
+          <div className="text-gray-500">
+            Record <span className="font-mono text-[10px]">{match.response_id}</span>
+            {match.requirement_id && (
+              <>
+                {" "}
+                · requirement <span className="font-mono text-[10px]">{match.requirement_id}</span>
+              </>
+            )}
+            {match.equivalence && " · via a validated equivalence"}
+          </div>
+          <div className="mt-1 text-gray-800">“{match.historical_response}”</div>
+          <div className="mt-1 text-gray-500">
+            Historical status: {match.historical_status ?? "unknown"} (proposed) · {match.manufacturer ?? "manufacturer unconfirmed"}
+            {match.brand && match.brand !== match.manufacturer ? ` (${match.brand})` : ""}
+            {match.models ? ` · models ${match.models}` : ""}
+          </div>
+          {match.remarks && <div className="mt-1 text-gray-600">Remarks: {match.remarks}</div>}
+          {match.boq_item && (
+            <div className="mt-1 text-gray-600">
+              BOQ: {match.boq_item.manufacturer ?? "—"} {match.boq_item.model ?? ""} — {match.boq_item.description}
+              {match.boq_item.quantity ? ` (${match.boq_item.quantity} ${match.boq_item.unit ?? ""})` : ""}
+            </div>
+          )}
+          {match.sources && match.sources.length > 0 && (
+            <ul className="mt-1 space-y-0.5 text-gray-600">
+              {match.sources.map((s) => (
+                <SourceLine key={`${s.source_id}-${s.page}`} source={s} />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {match.unresolved.length > 0 && (
+        <ul className="mt-2 list-disc space-y-0.5 pl-4 text-amber-800">
+          {match.unresolved.map((u) => (
+            <li key={u}>{u}</li>
+          ))}
+        </ul>
+      )}
+      {match.candidates.length > 0 && (
+        <div className="mt-2">
+          <button onClick={() => setToggled(!open)} className="font-medium text-brand-600 hover:underline">
+            {open ? "Hide" : "Show"} {match.candidates.length} past {match.candidates.length === 1 ? "answer" : "answers"}
+          </button>
+          {open && (
+            <ul className="mt-1 space-y-2">
+              {match.candidates.map((c) => (
+                <li key={c.response_id} className="rounded-lg border border-gray-200 bg-white p-2">
+                  <div className="text-gray-500">
+                    <span className="font-mono text-[10px]">{c.response_id}</span> · {c.manufacturer ?? "unconfirmed"} · {c.historical_status ?? "?"}
+                    {c.similarity !== null && c.similarity < 1 ? ` · ${Math.round(c.similarity * 100)}% alike` : ""}
+                    {c.eligibility === "blocked" && <span className="text-amber-700"> · not eligible: {c.eligibility_reasons}</span>}
+                  </div>
+                  {c.requirement_text && c.similarity !== null && c.similarity < 1 && <div className="mt-0.5 text-gray-500">Their clause: “{c.requirement_text}”</div>}
+                  <div className="mt-0.5 text-gray-800">“{c.historical_response}”</div>
+                  {c.remarks && <div className="mt-0.5 text-gray-600">Remarks: {c.remarks}</div>}
+                  {onUse && c.response && (
+                    <button onClick={() => onUse(c.response_id)} disabled={busy} className={`${btnSmall} mt-1 border-brand-200 text-brand-700`}>
+                      {busy ? "Using…" : `Use this answer (${c.response})`}
+                    </button>
+                  )}
+                  {c.sources.length > 0 && (
+                    <ul className="mt-0.5 text-gray-500">
+                      {c.sources.slice(0, 2).map((s) => (
+                        <SourceLine key={`${s.source_id}-${s.page}`} source={s} />
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SuggestionCard({
+  review,
+  current,
+  editing,
+  canEdit,
+  busy,
+  onEditStart,
+  onEditChange,
+  onDecide,
+}: {
+  review: NonNullable<StatementRow["ai_review"]>;
+  current: StatementRow;
+  editing: { response: string; remark: string } | null;
+  canEdit: boolean;
+  busy: boolean;
+  onEditStart: () => void;
+  onEditChange: (value: { response: string; remark: string } | null) => void;
+  onDecide: (action: "accept" | "edit" | "reject") => void;
+}) {
+  const s = review.suggestion!;
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold text-navy-900">Suggestion</span>
+        <span className="text-[10px] text-gray-400">
+          {formatWhen(review.at)} · {review.model}
+          {review.decision ? ` · ${review.decision}` : ""}
+        </span>
+      </div>
+      <div className="mt-1.5 grid grid-cols-2 gap-2">
+        <div className="rounded-lg border border-gray-200 bg-white p-2">
+          <div className="text-[10px] uppercase text-gray-400">Current</div>
+          <div className={`mt-0.5 font-medium ${TONE_STYLES[toneOf(current.response)].text}`}>{current.response || "—"}</div>
+          <div className="text-gray-600">{current.remark || <span className="text-gray-400">no remark</span>}</div>
+        </div>
+        <div className="rounded-lg border border-brand-200 bg-brand-50/50 p-2">
+          <div className="text-[10px] uppercase text-brand-700">Suggested</div>
+          {editing ? (
+            <>
+              <select
+                value={editing.response}
+                onChange={(e) => onEditChange({ ...editing, response: e.target.value })}
+                className="mt-0.5 w-full rounded border border-gray-300 px-1 py-0.5 text-xs"
+              >
+                {COMPLIANCE_RESPONSES.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </select>
+              <input
+                value={editing.remark}
+                onChange={(e) => onEditChange({ ...editing, remark: e.target.value })}
+                className="mt-1 w-full rounded border border-gray-300 px-1 py-0.5 text-xs"
+                placeholder="Remark"
+              />
+            </>
+          ) : (
+            <>
+              <div className={`mt-0.5 font-medium ${TONE_STYLES[toneOf(s.suggested_response)].text}`}>{s.suggested_response}</div>
+              <div className="text-gray-700">{s.suggested_remark || <span className="text-gray-400">no remark</span>}</div>
+            </>
+          )}
+          <div className="mt-1 text-gray-500">Status: {TECHNICAL_LABELS[s.proposed_compliance_status as TechnicalStatus]} (proposed)</div>
+        </div>
+      </div>
+      {s.review_notes && <p className="mt-1.5 text-gray-700">{s.review_notes}</p>}
+      {s.evidence_references.length > 0 && <div className="mt-1 text-gray-500">Evidence: {s.evidence_references.join("; ")}</div>}
+      {s.deviations.length > 0 && (
+        <div className="mt-1 text-red-700">
+          Deviations: {s.deviations.join("; ")}
+        </div>
+      )}
+      {s.missing_information.length > 0 && (
+        <div className="mt-1 text-amber-800">
+          Missing: {s.missing_information.join("; ")}
+        </div>
+      )}
+      {canEdit && !review.decision && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {editing ? (
+            <>
+              <button onClick={() => onDecide("edit")} disabled={busy} className={`${btnSmall} border-brand-200 text-brand-700`}>
+                Apply edit
+              </button>
+              <button onClick={() => onEditChange(null)} disabled={busy} className={btnSmall}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => onDecide("accept")} disabled={busy} className={`${btnSmall} border-brand-200 text-brand-700`}>
+                Accept
+              </button>
+              <button onClick={onEditStart} disabled={busy} className={btnSmall}>
+                Edit
+              </button>
+              <button onClick={() => onDecide("reject")} disabled={busy} className={`${btnSmall} text-red-700`}>
+                Reject
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {review.decision && <p className="mt-1.5 text-[11px] text-gray-400">Accepting a suggestion makes it the draft; mark the row reviewed once you have checked it.</p>}
+    </div>
   );
 }
 
@@ -1473,7 +1818,6 @@ function CheckResults({ projectId, statement, onClose }: { projectId: number; st
     ["Clauses", summary.clauses],
     ["Missing", summary.finding_counts?.missing ?? 0],
     ["Unanswered", summary.finding_counts?.unanswered ?? 0],
-    ["Contradict BOQ", summary.finding_counts?.ai_conflict ?? 0],
     ["Rows not in spec", summary.rows_not_in_spec ?? 0],
   ];
 
@@ -1483,8 +1827,7 @@ function CheckResults({ projectId, statement, onClose }: { projectId: number; st
         <div>
           <h2 className="font-semibold text-navy-900">Check of {statement.statement_name}</h2>
           <div className="mt-1 text-xs text-gray-500">
-            Against {statement.spec.filename} · {formatWhen(statement.created_at)} · {statement.ai_calls} AI call{statement.ai_calls === 1 ? "" : "s"}
-            {summary.reviewed_by_ai ? ` · ${summary.reviewed_by_ai} answers reviewed against the BOQ` : ""}
+            Against {statement.spec.filename} · {formatWhen(statement.created_at)} · coverage and identity only
           </div>
         </div>
         <button onClick={onClose} className={btnSecondary}>
@@ -1507,7 +1850,7 @@ function CheckResults({ projectId, statement, onClose }: { projectId: number; st
             {note}
           </div>
         ))}
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {counts.map(([label, value]) => (
             <div key={label} className="rounded-lg bg-gray-50 px-3 py-2">
               <div className="text-lg font-semibold text-navy-900">{value}</div>
@@ -1575,7 +1918,6 @@ function CheckResults({ projectId, statement, onClose }: { projectId: number; st
                           key={finding.code + finding.message}
                           className={`text-xs ${finding.severity === "error" ? "text-red-700" : finding.severity === "warning" ? "text-amber-700" : "text-gray-500"}`}
                         >
-                          {finding.code.startsWith("ai_") ? "AI: " : ""}
                           {finding.message}
                         </li>
                       ))}

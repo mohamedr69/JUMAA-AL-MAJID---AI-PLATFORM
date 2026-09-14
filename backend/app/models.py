@@ -533,3 +533,258 @@ class ComplianceStatement(Base):
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+# --- the compliance knowledge base -------------------------------------------------
+#
+# The company's historical compliance-statement responses, imported from the
+# Compliance Response Database workbook (app.knowledge.importer) into the
+# application's own database, so that autofill is a query and never opens
+# the source files. IDs are the source's stable content-derived IDs (SRC-,
+# REQ-, MAP-, RSP-) so a record can always be traced back. Rows that a later
+# import no longer finds are kept, inactive, not deleted.
+
+
+class KnowledgeImport(Base):
+    """One run of the import: what it found, what it changed, how it ended."""
+
+    __tablename__ = "knowledge_imports"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    # "running" | "succeeded" | "unchanged" | "failed"
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
+    # The source collection's own name, never its filesystem path.
+    source_label: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    workbook_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    workbook_built: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    files_discovered: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    files_imported: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    files_unchanged: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    files_failed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    files_skipped: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    records_added: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    records_updated: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    records_inactive: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    records_flagged: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # {"files": [{path, role, action, note}], "counts": {...}, "errors": [...]}
+    report: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+
+
+class KnowledgeFile(Base):
+    """A file of the source collection as last seen: its hash decides whether
+    the next import reads it again."""
+
+    __tablename__ = "knowledge_files"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    relative_path: Mapped[str] = mapped_column(String(512), nullable=False, unique=True)
+    # "canonical" | "index" | "duplicate_export" | "intermediate" | "documentation" | "agent" | "other"
+    role: Mapped[str] = mapped_column(String(24), nullable=False)
+    sha1: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mtime: Mapped[float | None] = mapped_column(Numeric(16, 3), nullable=True)
+    # "imported" | "unchanged" | "skipped" | "failed" | "online_only"
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_import_id: Mapped[int | None] = mapped_column(ForeignKey("knowledge_imports.id"), nullable=True)
+
+
+class KnowledgeSource(Base):
+    """A past submittal document the records were read from."""
+
+    __tablename__ = "knowledge_sources"
+
+    source_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    file_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    duplicate_copies: Mapped[str | None] = mapped_column(Text, nullable=True)
+    project: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    job_number: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    client: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    system: Mapped[str | None] = mapped_column(String(48), nullable=True, index=True)
+    manufacturer: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    brand: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    specification_family: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    section_numbers: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    document_revision: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    document_date: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    document_review_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extraction_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Issues the source's review report logged against this document.
+    source_review_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("knowledge_imports.id"), nullable=False, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+
+
+class KnowledgeRequirement(Base):
+    """A distinct specification requirement, as printed."""
+
+    __tablename__ = "knowledge_requirements"
+
+    requirement_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    system: Mapped[str | None] = mapped_column(String(48), nullable=True, index=True)
+    subsystem: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    topic: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    exact_requirement_text: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_requirement_text: Mapped[str] = mapped_column(Text, nullable=False)
+    requirement_hash: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    merge_review_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    technical_variant: Mapped[str | None] = mapped_column(Text, nullable=True)
+    numbers: Mapped[str | None] = mapped_column(Text, nullable=True)
+    n_sources: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    import_id: Mapped[int] = mapped_column(ForeignKey("knowledge_imports.id"), nullable=False, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+
+
+class KnowledgeMapping(Base):
+    """Where a requirement occurred: which specification, section, clause and
+    source page. A requirement maps to many."""
+
+    __tablename__ = "knowledge_mappings"
+
+    mapping_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    requirement_id: Mapped[str] = mapped_column(ForeignKey("knowledge_requirements.requirement_id"), nullable=False, index=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("knowledge_sources.source_id"), nullable=False, index=True)
+    specification_family: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    specification_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    specification_edition: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    section_number: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    clause_number: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    clause_label: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    heading_context: Mapped[str | None] = mapped_column(Text, nullable=True)
+    original_requirement_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pdf_page: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    printed_page: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    extraction_method: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    pairing_confidence: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("knowledge_imports.id"), nullable=False, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+
+
+class KnowledgeResponse(Base):
+    """What the company answered to a requirement, once per distinct wording
+    and manufacturer."""
+
+    __tablename__ = "knowledge_responses"
+
+    response_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    requirement_id: Mapped[str] = mapped_column(ForeignKey("knowledge_requirements.requirement_id"), nullable=False, index=True)
+    system: Mapped[str | None] = mapped_column(String(48), nullable=True, index=True)
+    manufacturer: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    brand: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    applicable_models: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scope_conditions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    responsible_party: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    historical_response: Mapped[str] = mapped_column(Text, nullable=False)
+    remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
+    historical_compliance_status: Mapped[str | None] = mapped_column(String(48), nullable=True, index=True)
+    cited_references: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_flag: Mapped[str | None] = mapped_column(Text, nullable=True)
+    specification_families: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    n_sources: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Every source link superseded by a later revision of the same document.
+    superseded: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    # "eligible" | "blocked" -- the policy in app.knowledge.autofill, applied at import.
+    autofill_eligibility: Mapped[str] = mapped_column(String(16), nullable=False, default="blocked", index=True)
+    eligibility_reasons: Mapped[str | None] = mapped_column(Text, nullable=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("knowledge_imports.id"), nullable=False, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+
+
+class KnowledgeResponseSource(Base):
+    """A response as it appeared in one source document, with that
+    document's review outcome."""
+
+    __tablename__ = "knowledge_response_sources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    response_id: Mapped[str] = mapped_column(ForeignKey("knowledge_responses.response_id"), nullable=False, index=True)
+    mapping_id: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    source_id: Mapped[str] = mapped_column(ForeignKey("knowledge_sources.source_id"), nullable=False, index=True)
+    pdf_page: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    historical_review_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    consultant_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
+    superseded_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("knowledge_imports.id"), nullable=False, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class KnowledgeModel(Base):
+    """A model number a response names, one row each, for lookup."""
+
+    __tablename__ = "knowledge_models"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    response_id: Mapped[str] = mapped_column(ForeignKey("knowledge_responses.response_id"), nullable=False, index=True)
+    model: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+
+
+class KnowledgeEquivalence(Base):
+    """Two requirements the source proposed as equivalent wording. Only an
+    engineer's validation makes one usable for autofill."""
+
+    __tablename__ = "knowledge_equivalences"
+    __table_args__ = (UniqueConstraint("source_requirement_id", "equivalent_requirement_id", name="uq_knowledge_equivalence"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    source_requirement_id: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    equivalent_requirement_id: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    similarity: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
+    proposal: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # "proposed" | "validated" | "rejected"
+    engineer_validation_status: Mapped[str] = mapped_column(String(16), nullable=False, default="proposed", index=True)
+    validated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    validated_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    applicability_conditions: Mapped[str | None] = mapped_column(Text, nullable=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("knowledge_imports.id"), nullable=False, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class KnowledgeIssue(Base):
+    """An unresolved issue the source's review report logged against a record."""
+
+    __tablename__ = "knowledge_issues"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    issue_type: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    record_id: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    import_id: Mapped[int] = mapped_column(ForeignKey("knowledge_imports.id"), nullable=False, index=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+
+class ComplianceAudit(Base):
+    """Every change to a compliance statement row: what it was, what it
+    became, from where, by whom, against which inputs."""
+
+    __tablename__ = "compliance_audit"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    statement_id: Mapped[int] = mapped_column(ForeignKey("compliance_statements.id"), nullable=False, index=True)
+    clause_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    # "autofill" | "manual" | "ai_review" | "ai_accept" | "ai_reject" | "reviewed" | "recheck"
+    action: Mapped[str] = mapped_column(String(24), nullable=False)
+    # "manual" | "database" | "ai" | "system"
+    origin: Mapped[str] = mapped_column(String(16), nullable=False)
+    spec_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    boq_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    scope_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    knowledge_import_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    knowledge_record_ids: Mapped[str | None] = mapped_column(Text, nullable=True)
+    previous_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    current_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    previous_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    current_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    review_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    ai_model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    ai_prompt_version: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    ai_usage: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False, index=True)

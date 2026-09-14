@@ -1,17 +1,15 @@
-"""Finding the past answer to a clause.
+"""Laying a statement against a specification, clause by clause.
 
-First the statements closest to the new specification: the ones that share
-the most clauses word for word (a fingerprint match), which is how a
-statement written against the same master specification shows itself. Then,
-per clause, the closest clause among those statements, by the words they
-share in order. When several statements answered the same clause, the answer
-most of them gave wins -- one engineer's slip does not become the rule.
+Per clause, the closest row among the statement's, by the words they share
+in order -- word for word first (a fingerprint match), else the rows sharing
+the rarest words. Checking a submitted statement is this against the one
+file; preparing a new one is a lookup in the knowledge base
+(app.compliance.knowledge), which answers from every statement at once.
 """
 
 from __future__ import annotations
 
 import math
-import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -20,7 +18,6 @@ from .references import Reference, fingerprint, normalize
 from .spec_text import Clause
 from .statements import canonical
 
-MAX_REFERENCES = 6
 MAX_CANDIDATES = 10
 _STOP = {
     "the", "shall", "be", "and", "of", "to", "a", "an", "in", "for", "with", "all", "as", "by", "or", "on", "is",
@@ -36,7 +33,7 @@ def tokens(text: str) -> list[str]:
 @dataclass
 class RankedReference:
     reference: Reference
-    shared: int          # clauses of the new specification it answered word for word
+    shared: int          # clauses of the specification it answered word for word
     score: float
 
 
@@ -51,31 +48,6 @@ class ClauseMatch:
     reference_text: str
     agreeing: int        # statements that gave this answer to a clause this close
     disagreeing: int
-
-
-def rank(clauses: list[Clause], pool: list[Reference], *, brand: str | None = None,
-         exclude: set[str] | None = None) -> list[RankedReference]:
-    wanted = {fingerprint(c.text) for c in clauses if not c.heading and len(c.text) >= 12}
-    vocabulary = Counter(t for c in clauses for t in set(tokens(c.text)))
-    ranked: list[RankedReference] = []
-    for ref in pool:
-        if exclude and ref.path in exclude:
-            continue
-        shared = len(wanted & set(f for f in ref.fingerprints if f))
-        if shared == 0:
-            # Nothing word for word: fall back to the vocabulary they share,
-            # which still tells a fire alarm statement from a lighting one.
-            ref_words = {t for row, f in zip(ref.rows, ref.fingerprints) if f for t in tokens(row[1])}
-            overlap = sum(1 for t in vocabulary if t in ref_words) / max(1, len(vocabulary))
-            score = overlap * 0.5
-        else:
-            score = shared / max(1, len(wanted)) + 0.5
-        if brand and any(brand.lower() in line.lower() for line in ref.title):
-            score += 0.05
-        if score > 0.05:
-            ranked.append(RankedReference(ref, shared, score))
-    ranked.sort(key=lambda r: (-r.score, -r.reference.answered))
-    return ranked[:MAX_REFERENCES]
 
 
 def _similarity(a: list[str], b: list[str]) -> float:
@@ -144,13 +116,3 @@ def match(clauses: list[Clause], ranked: list[RankedReference], *, hint_below: f
             disagreeing=sum(votes.values()) - agreeing,
         )
     return found
-
-
-_BRAND_RE = re.compile(r"\b(edwards|notifier|simplex|siemens|honeywell|morley|esser|hochiki|apollo|kidde|bosch|"
-                       r"gent|advanced|cooper|menvier|eaton|ctec|c-tec|zeta|nittan|toa|bose|inter-m|dsppa|"
-                       r"schneider|legrand|zemper|kentec|teknim|ziton|aritech|mircom|firelite|fire-lite|system sensor)\b",
-                       re.IGNORECASE)
-
-
-def brands_in(text: str) -> set[str]:
-    return {m.lower() for m in _BRAND_RE.findall(text or "")}

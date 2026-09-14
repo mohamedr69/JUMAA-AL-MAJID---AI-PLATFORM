@@ -1,25 +1,32 @@
-"""Prepare a compliance statement, or check one, end to end.
+"""Prepare a compliance statement, fill it from the knowledge base, keep it
+under review, or check a submitted one -- end to end.
 
-Prepare, for each clause of the specification, in this order -- the first
-that answers wins, and the model is the last resort:
+Two workflows, kept apart on purpose:
 
-1. a heading is not answered;
-2. a rule: definitions, references, related sections and the standards lists
-   are "Noted";
-3. a past statement answered the same clause (word-level similarity at least
-   COMPLIANCE_REUSE_SIMILARITY) with "Comply" or "Noted", and its remark names
-   no other manufacturer -- reused as it stands;
-4. everything else -- a clause no past statement answered, or answered with
-   something that depends on the project ("Not applicable", "By others", a
-   deviation) -- goes to the model in batches, with the past answer as a hint
-   and the project's BOQ as the facts;
-5. with no model, or a model that did not answer, the nearest past answer is
-   offered for review, or the row is left for the engineer.
+A. Everything deterministic. Preparing reads the specification's clauses
+   and applies the rules (a heading is not answered; definitions,
+   references and related sections are "Noted"). Auto-fill looks every
+   empty clause up in the compliance knowledge base (app.knowledge.autofill)
+   and writes in the answers that stand on their own -- as drafts, their
+   historical status proposed, never verified. Checking lays a submitted
+   statement against the specification. None of this calls a model: not
+   opening the tab, not preparing, not filling, not saving, not exporting,
+   not checking, not when the BOQ or the knowledge base changes.
 
-Check lays a submitted statement against the specification: a clause with no
-row is missing, a row with no answer is unanswered, a header that names
-another project or manufacturer is wrong. Only answers to clauses that set a
-hard requirement are sent to the model, to judge against the BOQ.
+B. One clause, on request. The engineer picks a clause and asks for a
+   review (app.knowledge.review); the suggestion sits beside the draft until
+   they accept, edit or reject it. Accepting is not reviewing: only the
+   explicit "mark reviewed" action makes a row the engineer's.
+
+Every row carries two statuses. Its WORKFLOW status -- unfilled, autofilled
+(a draft from the knowledge base), candidate (something to look at, nothing
+written), ai_pending (a suggestion awaits a decision), reviewed (the
+engineer's), recheck (an input changed under it) -- and its TECHNICAL
+status -- complies, does not comply, partially, insufficient evidence, not
+applicable -- which is proposed until an engineer marks the row reviewed.
+Every change is audited with the inputs it was made against, and when the
+specification, the BOQ, the scope or the knowledge base changes, the rows
+that came from them are flagged for recheck, their text untouched.
 """
 
 from __future__ import annotations
@@ -31,13 +38,16 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.models import ComplianceStatement, Project, User
+from app.knowledge import autofill as knowledge_autofill
+from app.knowledge import policy
+from app.knowledge.importer import last_import_id
+from app.models import ComplianceAudit, ComplianceStatement, Project, User
 from app.services.spec_finder import SYSTEMS, open_spec
 
 from . import assist, matcher, references
 from .references import Reference, fingerprint
 from .spec_text import Clause, SpecText, read_bytes
-from .statements import canonical, read_statement
+from .statements import RESPONSES, read_statement
 from .verify import Verdict, verify, words
 
 # The DRF / project system rows that mean each system code.
@@ -58,12 +68,10 @@ _NOTED_TEXT = re.compile(
     r"(nfpa|bs|en|ul|iec|iso|astm|fm|ieee|nema|ansi|tia|eia|dcd|ce)\s?[\d-]+\b.{0,120}$|(?-i:[A-Z]{2,8})\s*:\s*.{0,80}$)",
     re.IGNORECASE,
 )
-_HARD_REQUIREMENT = re.compile(
-    r"\d|\bUL\b|\bFM\b|\bEN\s?54|\blisted\b|\bapproved\b|\bminimum\b|\bmaximum\b|not\s+less|not\s+exceed|"
-    r"manufactur|\bIP\s?\d\d|\bhours?\b|\bdB\b|\bvolt|\bamp|\bbrand\b|\bmodel\b",
-    re.IGNORECASE,
-)
-MAX_REVIEW_CLAUSES = 60
+WORKFLOW_LABELS = {
+    "unfilled": "Unfilled", "autofilled": "Auto-filled draft", "candidate": "Candidate requires review",
+    "ai_pending": "AI suggestion pending review", "reviewed": "Engineer reviewed", "recheck": "Needs recheck",
+}
 
 
 class ComplianceError(Exception):
@@ -115,7 +123,7 @@ def spec_record(source: SpecSource, spec: SpecText, uploaded: bool) -> dict:
     }
 
 
-# --- the project's facts, as the model is given them ---------------------------------
+# --- the project's facts ---------------------------------------------------------------------
 
 
 def project_brands(project: Project, system_code: str) -> set[str]:
@@ -123,6 +131,12 @@ def project_brands(project: Project, system_code: str) -> set[str]:
     brands = {(s.brand or "").strip() for s in project.systems if s.name in names}
     brands |= {(i.manufacturer or "").strip() for i in project.boq_items if (i.system_code or "").upper() == system_code}
     return {b for b in brands if b}
+
+
+def offered_brands(project: Project, system_code: str) -> set[str]:
+    """The project's manufacturers by their canonical names ("Edwards EST4"
+    and "EDWARDS" are one), so they compare with what a statement names."""
+    return {policy.canonical_manufacturer(b) or b.upper() for b in project_brands(project, system_code)}
 
 
 def project_facts(project: Project, system_code: str) -> str:
@@ -145,26 +159,18 @@ def project_facts(project: Project, system_code: str) -> str:
     return "\n".join(lines)
 
 
-def boq_text(project: Project, system_code: str, limit_chars: int = 3500) -> str:
-    items = [i for i in project.boq_items if (i.system_code or "").upper() == system_code]
-    if not items:
-        return "No BOQ lines are recorded for this system."
-    lines, heading = [], None
-    for item in sorted(items, key=lambda i: i.position):
-        if item.group_heading and item.group_heading != heading:
-            heading = item.group_heading
-            lines.append(f"# {heading}")
-        parts = [item.catalog_no or "", item.description or "", f"qty {item.quantity}" if item.quantity else ""]
-        lines.append(" | ".join(p for p in parts if p))
-    text = "\n".join(lines)
-    return text if len(text) <= limit_chars else text[:limit_chars] + "\n(... more lines not shown)"
+def inputs_of(project: Project, system_code: str, spec_sha256: str) -> dict:
+    """The inputs a statement's drafts were made against, to tell later
+    whether they moved."""
+    return {"spec_sha256": spec_sha256, "boq_hash": knowledge_autofill.boq_hash(project, system_code),
+            "scope_hash": knowledge_autofill.scope_hash(project), "knowledge_import_id": last_import_id()}
 
 
-# --- verification --------------------------------------------------------------------
+# --- verification (rules; the model only on the explicit Verify action) ---------------------
 
 
 def verify_spec(db: Session, project: Project, system_code: str, spec: SpecText, filename: str, *,
-                use_ai: bool) -> Verdict:
+                use_ai: bool = False) -> Verdict:
     verdict = verify(project, system_code, spec, filename)
     if verdict.settled or not use_ai or not assist.available():
         return verdict
@@ -187,7 +193,7 @@ def verify_spec(db: Session, project: Project, system_code: str, spec: SpecText,
     return verdict
 
 
-# --- prepare ---------------------------------------------------------------------------
+# --- rows ----------------------------------------------------------------------------------------
 
 
 def is_lead_in(clauses: list[Clause], index: int) -> bool:
@@ -201,64 +207,79 @@ def is_lead_in(clauses: list[Clause], index: int) -> bool:
 def _row(clause: Clause) -> dict:
     return {"id": clause.id, "ref": clause.ref, "label": clause.label, "level": clause.level, "text": clause.text,
             "page": clause.page, "heading": clause.heading, "response": "", "remark": "", "source": "none",
-            "state": "ok", "reference": None, "note": None}
+            "state": "ok", "note": None, "origin": "none", "workflow": "unfilled",
+            "technical": {"status": None, "origin": None, "verified": False}, "match": None, "ai_review": None}
 
 
-def _reference_info(found: matcher.ClauseMatch) -> dict:
-    return {"path": found.reference_path, "label": found.reference_label, "text": found.reference_text,
-            "response": found.response, "remark": found.remark, "similarity": found.similarity,
-            "agreeing": found.agreeing, "disagreeing": found.disagreeing}
+def _answerable(row: dict) -> bool:
+    return not row.get("heading") and row.get("source") != "lead_in"
 
 
-def _payload(row: dict) -> dict:
-    ref = row.get("reference")
-    hint = None
-    if ref and ref.get("response"):
-        hint = ref["response"] + (f" ({ref['remark']})" if ref.get("remark") else "")
-    return {"id": row["id"], "ref": row["ref"], "text": row["text"], "hint": hint}
+LEGACY_NOTE = "Filled by the earlier past-statement matcher, before the knowledge base rules: check it."
 
 
-def ask_model(db: Session, project: Project, system_code: str, spec_sha256: str, rows: list[dict], *,
-              provider=None, apply: bool = True) -> tuple[int, list[str]]:
-    """Ask the model about `rows`, in batches, and write its answers into
-    them (source "ai"). Returns (calls made, notes for the engineer)."""
-    session = assist.open_session(db, project.id, spec_sha256, provider)
-    facts, boq = project_facts(project, system_code), boq_text(project, system_code)
-    size = assist.batch_size()
-    notes: list[str] = []
-    for start in range(0, len(rows), size):
-        batch = rows[start:start + size]
-        answers = assist.answer_clauses(session, facts, boq, [_payload(row) for row in batch])
-        for row in batch:
-            answer = answers.get(row["id"])
-            if answer and apply:
-                row.update(response=answer["response"], remark=answer["remark"], source="ai",
-                           state="review" if answer["response"] in ("Deviation", "Clarification required") else "ok")
-            elif answer:
-                row["suggestion"] = {"response": answer["response"], "remark": answer["remark"]}
-        if session.exhausted:
-            notes.append(f"The model's budget ran out ({session.exhausted}); the remaining clauses are left for review.")
-            break
-    if session.errors:
-        notes.append(f"{len(session.errors)} model call(s) failed: {session.errors[-1]}")
-    return session.calls, notes
+def upgrade_row(row: dict) -> dict:
+    """A row saved before rows carried a workflow and technical status, in
+    the current shape. Its response is kept as it was; where it came from
+    decides the status it gets. An answer the earlier similarity matcher
+    wrote was never checked against the eligibility rules, so it becomes a
+    candidate for review, not a draft."""
+    if "workflow" in row:
+        return row
+    row = dict(row)
+    source = row.get("source") or "none"
+    for stale in ("reference", "similar", "suggestion"):
+        row.pop(stale, None)
+    row.update(match=None, ai_review=None, technical={"status": None, "origin": None, "verified": False})
+    if row.get("heading") or source == "lead_in" or not row.get("response"):
+        row.update(origin="none", workflow="unfilled", state="ok")
+        if source in ("reference", "ai", "none"):
+            row["source"] = "none" if not row.get("heading") and source != "lead_in" else source
+    elif source == "rule":
+        row.update(origin="rule", workflow="autofilled", state="ok",
+                   technical={"status": "not_applicable", "origin": "rule", "verified": False})
+    elif source == "engineer":
+        row.update(origin="manual", workflow="autofilled", state="ok")
+    else:  # "reference" (the earlier matcher) or "ai" (the earlier bulk fill)
+        row.update(origin="legacy", workflow="candidate", state="review", note=LEGACY_NOTE)
+    return row
 
 
-def prepare(db: Session, project: Project, system_code: str, source: SpecSource, user: User | None, *,
-            use_ai: bool = True, provider=None) -> ComplianceStatement:
-    settings = get_settings()
+def rows_of(statement: ComplianceStatement) -> list[dict]:
+    """The statement's rows as copies, in the current shape."""
+    return [upgrade_row(dict(row)) for row in statement.rows]
+
+
+def _audit(db: Session, project: Project, statement: ComplianceStatement, row: dict, *, action: str, origin: str,
+           previous: dict, user: User | None, **extra) -> None:
+    inputs = (statement.summary or {}).get("inputs") or {}
+    db.add(ComplianceAudit(
+        project_id=project.id, statement_id=statement.id, clause_id=row["id"], action=action, origin=origin,
+        spec_sha256=statement.spec.get("sha256"), boq_hash=inputs.get("boq_hash"), scope_hash=inputs.get("scope_hash"),
+        knowledge_import_id=inputs.get("knowledge_import_id"),
+        knowledge_record_ids=extra.pop("knowledge_record_ids", None),
+        previous_response=previous.get("response"), current_response=row.get("response"),
+        previous_status=(previous.get("technical") or {}).get("status"), current_status=(row.get("technical") or {}).get("status"),
+        review_status=row.get("workflow"), user_id=user.id if user else None, **extra,
+    ))
+
+
+def _snapshot(row: dict) -> dict:
+    return {"response": row.get("response"), "remark": row.get("remark"), "technical": dict(row.get("technical") or {})}
+
+
+# --- prepare ---------------------------------------------------------------------------------------
+
+
+def prepare(db: Session, project: Project, system_code: str, source: SpecSource, user: User | None) -> ComplianceStatement:
+    """Read the specification and apply the rules. Every other row is left
+    unfilled for auto-fill and the engineer. No model is called."""
     spec, _content, uploaded = load_spec(project, source)
     if not spec.clauses:
         raise ComplianceError(spec.warnings[0] if spec.warnings else "No clauses could be read from the specification.")
-    verdict = verify_spec(db, project, system_code, spec, Path(source.member or source.path).name, use_ai=use_ai)
-
-    brands = {b.lower() for b in project_brands(project, system_code)}
-    pool = references.references(system_code)
-    ranked = matcher.rank(spec.clauses, pool, brand=next(iter(brands), None))
-    found = matcher.match(spec.clauses, ranked, hint_below=settings.compliance_hint_similarity)
+    verdict = verify_spec(db, project, system_code, spec, Path(source.member or source.path).name, use_ai=False)
 
     rows: list[dict] = []
-    pending: list[dict] = []
     heading_text = ""
     for index, clause in enumerate(spec.clauses):
         row = _row(clause)
@@ -273,40 +294,14 @@ def prepare(db: Session, project: Project, system_code: str, source: SpecSource,
             row["source"] = "lead_in"
             continue
         if _NOTED_HEADINGS.match(heading_text) or _NOTED_TEXT.match(clause.text):
-            row.update(response="Noted", source="rule", note="Informative clause: definitions, references or related sections.")
-            continue
-        match = found.get(clause.id)
-        if match is not None:
-            row["reference"] = _reference_info(match)
-            foreign = matcher.brands_in(match.remark) - brands
-            if (match.similarity >= settings.compliance_reuse_similarity and match.answer in ("Comply", "Noted")
-                    and not foreign):
-                row.update(response=match.answer, remark=match.remark, source="reference")
-                continue
-        pending.append(row)
-
-    ai_calls = 0
-    notes: list[str] = []
-    if pending and use_ai and assist.available(provider):
-        ai_calls, notes = ask_model(db, project, system_code, spec.sha256, pending, provider=provider)
-    elif pending and use_ai:
-        notes.append("AI assistance is not available; clauses without a past answer are left for review.")
-
-    for row in pending:
-        if row["source"] != "none":
-            continue
-        ref = row["reference"]
-        if ref:
-            row.update(response=canonical(ref["response"]) or "", remark=ref["remark"], source="reference", state="review")
-        else:
-            row["state"] = "review"
+            row.update(response="Noted", source="rule", origin="rule", workflow="autofilled",
+                       note="Informative clause: definitions, references or related sections.",
+                       technical={"status": "not_applicable", "origin": "rule", "verified": False})
 
     statement = ComplianceStatement(
         project_id=project.id, kind="prepare", system_code=system_code,
-        spec=spec_record(source, spec, uploaded), verification=verdict.as_dict(), rows=rows,
-        reference_files=[{"path": r.reference.path, "shared": r.shared, "score": round(r.score, 3),
-                          "title": r.reference.title[:3], "answered": r.reference.answered} for r in ranked],
-        summary=summarize(rows, notes, pool_size=len(pool)), ai_calls=ai_calls,
+        spec=spec_record(source, spec, uploaded), verification=verdict.as_dict(), rows=rows, reference_files=[],
+        summary=summarize(rows, [], inputs=inputs_of(project, system_code, spec.sha256)), ai_calls=0,
         created_by_id=user.id if user else None,
     )
     db.add(statement)
@@ -316,104 +311,138 @@ def prepare(db: Session, project: Project, system_code: str, source: SpecSource,
 
 
 def summarize(rows: list[dict], notes: list[str] | None = None, **extra) -> dict:
-    answerable = [r for r in rows if not r.get("heading") and r.get("source") != "lead_in"]
+    answerable = [r for r in rows if _answerable(r)]
     by_source: dict[str, int] = {}
     by_response: dict[str, int] = {}
+    by_workflow: dict[str, int] = {}
     for row in answerable:
         by_source[row["source"]] = by_source.get(row["source"], 0) + 1
         key = row.get("response") or "unanswered"
         by_response[key] = by_response.get(key, 0) + 1
-    return {"clauses": len(answerable), "by_source": by_source, "by_response": by_response,
-            "review": sum(1 for r in answerable if r.get("state") == "review"), "notes": notes or [], **extra}
-
-
-def _answerable(row: dict) -> bool:
-    return not row.get("heading") and row.get("source") != "lead_in"
+        by_workflow[row.get("workflow", "unfilled")] = by_workflow.get(row.get("workflow", "unfilled"), 0) + 1
+    return {"clauses": len(answerable), "by_source": by_source, "by_response": by_response, "by_workflow": by_workflow,
+            "review": sum(1 for r in answerable if r.get("workflow") in ("candidate", "ai_pending", "recheck")),
+            "notes": notes or [], **extra}
 
 
 def _resummarize(statement: ComplianceStatement, notes: list[str] | None = None) -> None:
-    kept = {k: v for k, v in statement.summary.items() if k not in ("clauses", "by_source", "by_response", "review", "notes")}
+    kept = {k: v for k, v in statement.summary.items()
+            if k not in ("clauses", "by_source", "by_response", "by_workflow", "review", "notes")}
     statement.summary = summarize(statement.rows, notes if notes is not None else statement.summary.get("notes"), **kept)
 
 
-def autofill(db: Session, project: Project, statement: ComplianceStatement, scope: str, *,
-             provider=None) -> ComplianceStatement:
-    """Fill a prepared statement's clauses from the model. Scope:
-    "unanswered" -- rows with no response; "review" -- rows flagged for the
-    engineer; "all" -- every row the engineer has not answered by hand."""
+# --- auto-fill from the knowledge base ------------------------------------------------------------
+
+
+def autofill(db: Session, project: Project, statement: ComplianceStatement, user: User | None) -> ComplianceStatement:
+    """Fill the empty rows the knowledge base can answer. Rows the engineer
+    answered, reviewed, or has a suggestion waiting on are left alone. No
+    model is called."""
     if statement.kind != "prepare":
         raise ComplianceError("Only a prepared statement can be filled")
-    if not assist.available(provider):
-        raise ComplianceError("AI assistance is not available")
-    rows = [dict(row) for row in statement.rows]
-    if scope == "all":
-        chosen = [r for r in rows if _answerable(r) and r["source"] != "engineer"]
-    elif scope == "review":
-        chosen = [r for r in rows if _answerable(r) and r["state"] == "review" and r["source"] != "engineer"]
-    else:
-        chosen = [r for r in rows if _answerable(r) and not r.get("response")]
+    rows = rows_of(statement)
+    chosen = [r for r in rows if _answerable(r) and not r.get("response") and r.get("workflow") in ("unfilled", "candidate")
+              and not (r.get("ai_review") or {}).get("suggestion")]
+    counts = {"filled": 0, "flagged": 0, "candidates": 0, "unmatched": 0, "blocked": 0}
+    if chosen:
+        assessments = knowledge_autofill.assess(db, project, statement.system_code, [(r["id"], r["text"]) for r in chosen])
+        for row in chosen:
+            assessment = assessments.get(row["id"])
+            if assessment is None:
+                continue
+            row["match"] = assessment.match
+            previous = _snapshot(row)
+            if assessment.result in ("eligible", "flagged"):
+                clean = assessment.result == "eligible"
+                row.update(response=assessment.response, remark=assessment.remark, source="database", origin="database",
+                           workflow="autofilled" if clean else "candidate", state="ok" if clean else "review",
+                           note=None if clean else "Past record flagged in the source: check its PDF page before relying on it.",
+                           technical={"status": assessment.technical_status, "origin": "historical", "verified": False})
+                counts["filled" if clean else "flagged"] += 1
+                _audit(db, project, statement, row, action="autofill", origin="database", previous=previous, user=user,
+                       knowledge_record_ids=", ".join(i for i in (assessment.match.get("requirement_id"), assessment.match.get("response_id")) if i),
+                       detail={"result": assessment.result})
+            elif assessment.result == "none":
+                row.update(workflow="unfilled", state="ok")
+                counts["unmatched"] += 1
+            else:
+                row.update(workflow="candidate", state="review")
+                counts["candidates" if assessment.result == "candidate" else "blocked"] += 1
     if not chosen:
-        raise ComplianceError("Nothing to fill: every clause in that scope already has a response")
-    calls, notes = ask_model(db, project, statement.system_code, statement.spec["sha256"], chosen, provider=provider)
+        notes = ["Auto-fill had nothing to look up: every clause already has a response, a review in progress, or a suggestion waiting."]
+    else:
+        notes = [f"Auto-fill ({len(chosen)} empty row{'s' if len(chosen) != 1 else ''} looked up): {counts['filled']} filled, "
+                 f"{counts['flagged']} filled from flagged records (verify the source), {counts['candidates']} candidates to review, "
+                 f"{counts['blocked']} blocked (BOQ, scope or conflict), {counts['unmatched']} with no match."]
     statement.rows = rows
-    statement.ai_calls = (statement.ai_calls or 0) + calls
+    statement.summary = {**statement.summary, "autofill": counts, "inputs": inputs_of(project, statement.system_code, statement.spec["sha256"])}
     _resummarize(statement, notes)
     db.commit()
     db.refresh(statement)
     return statement
 
 
-def suggest(db: Session, project: Project, statement: ComplianceStatement, clause_id: str, *, provider=None) -> dict:
-    """The model's proposed response for one clause, not written anywhere:
-    the engineer applies it or not."""
-    row = next((dict(r) for r in statement.rows if r["id"] == clause_id), None)
+def use_answer(db: Session, project: Project, statement: ComplianceStatement, clause_id: str, response_id: str,
+               user: User | None) -> ComplianceStatement:
+    """The engineer picks one of the past answers the knowledge base showed
+    for a clause, and it becomes the row's draft. Only an answer that was
+    shown for this clause can be picked; no model is called."""
+    from app.models import KnowledgeResponse
+
+    rows = rows_of(statement)
+    row = next((r for r in rows if r["id"] == clause_id), None)
     if row is None or not _answerable(row):
         raise ComplianceError("No such clause")
-    if not assist.available(provider):
-        raise ComplianceError("AI assistance is not available")
-    _calls, notes = ask_model(db, project, statement.system_code, statement.spec["sha256"], [row],
-                              provider=provider, apply=False)
-    suggestion = row.get("suggestion")
-    if suggestion is None:
-        raise ComplianceError(notes[-1] if notes else "The model gave no answer for this clause")
-    return {"id": clause_id, **suggestion}
-
-
-def ask(db: Session, project: Project, statement: ComplianceStatement, clause_id: str | None, question: str, *,
-        provider=None) -> str:
-    """A free question about a clause (or the statement), answered from the
-    project's facts and BOQ."""
-    row = next((r for r in statement.rows if r["id"] == clause_id), None) if clause_id else None
-    if clause_id and row is None:
-        raise ComplianceError("No such clause")
-    if not assist.available(provider):
-        raise ComplianceError("AI assistance is not available")
-    session = assist.open_session(db, project.id, statement.spec["sha256"], provider)
-    clause = (f"{row['ref']}: {row['text']}\nCurrent response: {row.get('response') or 'none'}"
-              + (f" -- {row['remark']}" if row and row.get("remark") else "")) if row else "(no clause chosen)"
-    answer = assist.ask_clause(session, project_facts(project, statement.system_code),
-                               boq_text(project, statement.system_code), clause, question)
-    if answer is None:
-        raise ComplianceError(session.errors[-1] if session.errors else session.exhausted or "The model gave no answer")
-    statement.ai_calls = (statement.ai_calls or 0) + session.calls
+    match = row.get("match") or {}
+    shown = {match.get("response_id")} | {c.get("response_id") for c in match.get("candidates") or []}
+    if response_id not in shown - {None}:
+        raise ComplianceError("That answer was not offered for this clause")
+    record = db.get(KnowledgeResponse, response_id)
+    if record is None:
+        raise ComplianceError("That answer is no longer in the knowledge base")
+    response, remark, technical = knowledge_autofill.draft_of(record.historical_compliance_status, record.historical_response, record.remarks)
+    if not response:
+        raise ComplianceError("That past answer has no response the statement can carry; write the row yourself")
+    previous = _snapshot(row)
+    row.update(response=response, remark=remark, source="database", origin="database", workflow="autofilled", state="ok",
+               note=f"Past answer {response_id} chosen by the engineer.",
+               technical={"status": technical, "origin": "historical", "verified": False})
+    _audit(db, project, statement, row, action="use_answer", origin="manual", previous=previous, user=user,
+           knowledge_record_ids=f"{record.requirement_id}, {response_id}")
+    statement.rows = rows
+    _resummarize(statement)
     db.commit()
-    return answer
+    db.refresh(statement)
+    return statement
 
 
-def update_rows(db: Session, statement: ComplianceStatement, changes: list[dict]) -> ComplianceStatement:
-    by_id = {row["id"]: dict(row) for row in statement.rows}
+# --- the engineer's own actions ----------------------------------------------------------------------
+
+
+def update_rows(db: Session, project: Project, statement: ComplianceStatement, changes: list[dict], user: User | None) -> ComplianceStatement:
+    """The engineer's own answers: they replace whatever proposed the row.
+    Typing is not reviewing -- the row's workflow status is left for the
+    explicit action, except that an unfilled row becomes the engineer's."""
+    by_id = {row["id"]: row for row in rows_of(statement)}
     for change in changes:
         row = by_id.get(change.get("id"))
         if row is None or row.get("heading"):
             continue
         if row.get("source") == "lead_in" and not (change.get("response") or change.get("remark")):
             continue
+        previous = _snapshot(row)
         if "response" in change and change["response"] is not None:
             row["response"] = change["response"]
         if "remark" in change and change["remark"] is not None:
             row["remark"] = change["remark"][:500]
+        if "technical_status" in change and change["technical_status"] in policy.TECHNICAL_STATUSES:
+            row["technical"] = {"status": change["technical_status"], "origin": "engineer", "verified": row.get("workflow") == "reviewed"}
         row["source"] = "engineer"
+        row["origin"] = "manual"
         row["state"] = "ok"
+        if row.get("workflow") in ("unfilled", "candidate", "autofilled", "recheck"):
+            row["workflow"] = "unfilled" if not row["response"] else row["workflow"] if row["workflow"] == "reviewed" else "autofilled"
+        _audit(db, project, statement, row, action="manual", origin="manual", previous=previous, user=user)
         by_id[row["id"]] = row
     statement.rows = [by_id[row["id"]] for row in statement.rows]
     _resummarize(statement)
@@ -422,7 +451,139 @@ def update_rows(db: Session, statement: ComplianceStatement, changes: list[dict]
     return statement
 
 
+def mark_reviewed(db: Session, project: Project, statement: ComplianceStatement, clause_id: str, user: User | None,
+                  *, reviewed: bool = True) -> ComplianceStatement:
+    """The explicit review action: the row and its technical status become
+    the engineer's. Undone, the row goes back to a draft."""
+    rows = rows_of(statement)
+    row = next((r for r in rows if r["id"] == clause_id), None)
+    if row is None or not _answerable(row):
+        raise ComplianceError("No such clause")
+    if reviewed and not row.get("response"):
+        raise ComplianceError("Give the clause a response before marking it reviewed")
+    previous = _snapshot(row)
+    technical = dict(row.get("technical") or {})
+    if reviewed:
+        row["workflow"] = "reviewed"
+        row["technical"] = {"status": technical.get("status"), "origin": "engineer", "verified": True}
+    else:
+        row["workflow"] = "autofilled" if row.get("origin") in ("database", "ai") else "unfilled" if not row.get("response") else "autofilled"
+        row["technical"] = {**technical, "verified": False}
+    row["state"] = "ok"
+    _audit(db, project, statement, row, action="reviewed" if reviewed else "unreviewed", origin="manual", previous=previous, user=user)
+    statement.rows = rows
+    _resummarize(statement)
+    db.commit()
+    db.refresh(statement)
+    return statement
+
+
+def decide_suggestion(db: Session, project: Project, statement: ComplianceStatement, clause_id: str, action: str,
+                      user: User | None, *, response: str | None = None, remark: str | None = None) -> ComplianceStatement:
+    """Accept, edit or reject the model's suggestion for a row. Accepting
+    writes it in as the draft -- it does not make the row reviewed."""
+    rows = rows_of(statement)
+    row = next((r for r in rows if r["id"] == clause_id), None)
+    if row is None or not _answerable(row):
+        raise ComplianceError("No such clause")
+    review = dict(row.get("ai_review") or {})
+    suggestion = review.get("suggestion")
+    if not suggestion:
+        raise ComplianceError("There is no suggestion to decide on")
+    previous = _snapshot(row)
+    if action in ("accept", "edit"):
+        chosen_response = response if action == "edit" and response is not None else suggestion["suggested_response"]
+        if chosen_response not in RESPONSES:
+            raise ComplianceError("Unknown response")
+        row.update(response=chosen_response,
+                   remark=(remark if action == "edit" and remark is not None else suggestion["suggested_remark"])[:500],
+                   source="ai", origin="ai", state="ok", workflow="ai_pending",
+                   technical={"status": suggestion["proposed_compliance_status"], "origin": "ai", "verified": False})
+        review["decision"] = "edited" if action == "edit" else "accepted"
+    elif action == "reject":
+        review["decision"] = "rejected"
+        if row.get("workflow") == "ai_pending":
+            row["workflow"] = review.get("previous_workflow") or ("autofilled" if row.get("response") else "unfilled")
+    else:
+        raise ComplianceError("Unknown decision")
+    row["ai_review"] = review
+    _audit(db, project, statement, row, action=f"ai_{review['decision']}", origin="ai", previous=previous, user=user,
+           ai_model=review.get("model"), ai_prompt_version=review.get("prompt_version"))
+    statement.rows = rows
+    _resummarize(statement)
+    db.commit()
+    db.refresh(statement)
+    return statement
+
+
+def record_review(db: Session, project: Project, statement: ComplianceStatement, row: dict, user: User | None) -> None:
+    """The audit line for a review the model just gave (or failed to)."""
+    review = row.get("ai_review") or {}
+    _audit(db, project, statement, row, action="ai_review", origin="ai", previous=_snapshot(row), user=user,
+           ai_model=review.get("model"), ai_prompt_version=review.get("prompt_version"),
+           ai_usage={"calls": review.get("calls"), "from_cache": review.get("from_cache"), "status": review.get("status")},
+           detail={"error": review.get("error")} if review.get("error") else None)
+    db.commit()
+
+
+# --- inputs that moved ---------------------------------------------------------------------------------
+
+
+def recheck(db: Session, project: Project, statement: ComplianceStatement) -> ComplianceStatement:
+    """Compare the statement's drafts with the inputs they were made against.
+    When the BOQ, the scope or the knowledge base has changed, every row
+    that came from the knowledge base or the model is flagged for recheck --
+    its text kept, nothing rewritten, no model called."""
+    if statement.kind != "prepare":
+        return statement
+    if any("workflow" not in row for row in statement.rows):
+        # Saved before rows carried their statuses: bring it up to date once.
+        statement.rows = rows_of(statement)
+        statement.summary = {**(statement.summary or {}),
+                             "inputs": (statement.summary or {}).get("inputs") or inputs_of(project, statement.system_code, statement.spec["sha256"])}
+        legacy = sum(1 for row in statement.rows if row.get("origin") == "legacy")
+        _resummarize(statement, [f"{legacy} answer{'s' if legacy != 1 else ''} from the earlier past-statement matcher kept and "
+                                 "marked for review; empty clauses can now be auto-filled from the knowledge base."] if legacy else [])
+        db.commit()
+        db.refresh(statement)
+    recorded = (statement.summary or {}).get("inputs") or {}
+    current = inputs_of(project, statement.system_code, statement.spec["sha256"])
+    changed = [k for k in ("boq_hash", "scope_hash", "knowledge_import_id") if recorded.get(k) not in (None, current[k])]
+    if not changed:
+        return statement
+    rows = rows_of(statement)
+    flagged = 0
+    for row in rows:
+        if row.get("origin") in ("database", "ai") and row.get("workflow") not in ("recheck", "reviewed"):
+            previous = _snapshot(row)
+            row["workflow"] = "recheck"
+            row["state"] = "review"
+            row["note"] = "Inputs changed since this draft: " + ", ".join(
+                {"boq_hash": "the BOQ", "scope_hash": "the scope of work", "knowledge_import_id": "the knowledge base"}[k] for k in changed)
+            _audit(db, project, statement, row, action="recheck", origin="system", previous=previous, user=None,
+                   detail={"changed": changed})
+            flagged += 1
+    statement.rows = rows
+    statement.summary = {**statement.summary, "inputs": current}
+    notes = list(statement.summary.get("notes") or [])
+    if flagged:
+        notes.append(f"{flagged} row{'s' if flagged != 1 else ''} flagged for recheck: "
+                     + ", ".join({"boq_hash": "the BOQ", "scope_hash": "the scope of work", "knowledge_import_id": "the knowledge base"}[k] for k in changed)
+                     + " changed.")
+    _resummarize(statement, notes[-5:])
+    db.commit()
+    db.refresh(statement)
+    return statement
+
+
 # --- check -----------------------------------------------------------------------------
+
+
+_HARD_REQUIREMENT = re.compile(
+    r"\d|\bUL\b|\bFM\b|\bEN\s?54|\blisted\b|\bapproved\b|\bminimum\b|\bmaximum\b|not\s+less|not\s+exceed|"
+    r"manufactur|\bIP\s?\d\d|\bhours?\b|\bdB\b|\bvolt|\bamp|\bbrand\b|\bmodel\b",
+    re.IGNORECASE,
+)
 
 
 def statement_files(project: Project) -> list[dict]:
@@ -451,7 +612,11 @@ def _finding(code: str, severity: str, message: str) -> dict:
 
 
 def check(db: Session, project: Project, system_code: str, source: SpecSource, statement_bytes: bytes,
-          statement_name: str, user: User | None, *, use_ai: bool = True, provider=None) -> ComplianceStatement:
+          statement_name: str, user: User | None) -> ComplianceStatement:
+    """Lay a submitted statement against the specification: a clause with
+    no row is missing, a row with no answer is unanswered, a header that
+    names another project or manufacturer is wrong. Coverage and identity
+    only -- no model is called."""
     spec, _content, uploaded = load_spec(project, source)
     if not spec.clauses:
         raise ComplianceError(spec.warnings[0] if spec.warnings else "No clauses could be read from the specification.")
@@ -461,7 +626,7 @@ def check(db: Session, project: Project, system_code: str, source: SpecSource, s
         raise ComplianceError(str(exc)) from exc
     if submitted is None:
         raise ComplianceError("No compliance table could be found in the statement.")
-    verdict = verify_spec(db, project, system_code, spec, Path(source.member or source.path).name, use_ai=use_ai)
+    verdict = verify_spec(db, project, system_code, spec, Path(source.member or source.path).name, use_ai=False)
 
     general: list[dict] = []
     if verdict.project == "different":
@@ -471,12 +636,12 @@ def check(db: Session, project: Project, system_code: str, source: SpecSource, s
         general.append(_finding("spec_other_system", "error", "The specification is not for this system."))
 
     title = " ".join(submitted.title_lines)
-    brands = {b.lower() for b in project_brands(project, system_code)}
-    other_brands = matcher.brands_in(title) - brands
+    brands = offered_brands(project, system_code)
+    other_brands = {policy.canonical_manufacturer(w) for w in re.findall(r"[A-Za-z][A-Za-z\-]+", title)} - {None} - brands
     if brands and other_brands:
         general.append(_finding("statement_other_manufacturer", "error",
-                                f"The statement's header names {', '.join(sorted(other_brands))}; the project offers "
-                                f"{', '.join(sorted(brands))}."))
+                                f"The statement's header names {', '.join(b.title() for b in sorted(other_brands))}; "
+                                f"the project offers {', '.join(b.title() for b in sorted(brands))}."))
     name_match = re.search(r"project\s*(name)?\s*[:\-]\s*(.+?)(?:\s{2,}|$)", title, re.IGNORECASE)
     if name_match:
         written = words(name_match.group(2))
@@ -522,46 +687,13 @@ def check(db: Session, project: Project, system_code: str, source: SpecSource, s
         if found.similarity < 0.95:
             row["findings"].append(_finding("altered", "info",
                                             f"The clause is worded differently in the statement ({round(found.similarity * 100)}% alike)."))
-        foreign = matcher.brands_in(found.remark) - brands
+        foreign = {policy.canonical_manufacturer(w) for w in re.findall(r"[A-Za-z][A-Za-z\-]+", found.remark or "")} - {None} - brands
         if brands and foreign:
-            row["findings"].append(_finding("other_manufacturer", "warning", f"The remark names {', '.join(sorted(foreign))}."))
-
-    ai_calls, notes = 0, []
-    # The answers most likely wrong first: the ones that depend on the project
-    # (not applicable, by others, a deviation), then a "Comply" to a clause
-    # that names a product, a listing or a value.
-    reviewable = [r for r in rows if r["source"] == "statement" and r["response"] and r["response"] != "Noted"
-                  and (r["response"] != "Comply" or _HARD_REQUIREMENT.search(r["text"]))]
-    reviewable.sort(key=lambda r: r["response"] == "Comply")  # stable: specification order within each
-    reviewable = reviewable[:MAX_REVIEW_CLAUSES]
-    if reviewable and use_ai and assist.available(provider):
-        session = assist.open_session(db, project.id, spec.sha256, provider)
-        facts, boq = project_facts(project, system_code), boq_text(project, system_code)
-        size = assist.batch_size()
-        for start in range(0, len(reviewable), size):
-            batch = reviewable[start:start + size]
-            findings = assist.review_clauses(session, facts, boq, [
-                {"id": r["id"], "ref": r["ref"], "text": r["text"], "response": r["response"], "remark": r["remark"]}
-                for r in batch
-            ])
-            for row in batch:
-                verdict_ = findings.get(row["id"])
-                if verdict_ and verdict_["verdict"] != "ok":
-                    # A conflict with the BOQ is worth the engineer's look; "the
-                    # facts cannot tell" mostly is not (EP-30784: "no evidence of
-                    # 5 years' experience"), so it is shown but not flagged.
-                    conflict = verdict_["verdict"] == "conflict"
-                    row["findings"].append(_finding(
-                        "ai_conflict" if conflict else "ai_unclear", "warning" if conflict else "info",
-                        verdict_["note"] or "The answer may not match the project's BOQ."))
-            if session.exhausted:
-                notes.append(f"The model's budget ran out ({session.exhausted}); later clauses were not reviewed.")
-                break
-        ai_calls = session.calls
-        if session.errors:
-            notes.append(f"{len(session.errors)} model call(s) failed: {session.errors[-1]}")
-    elif reviewable and use_ai:
-        notes.append("AI assistance is not available; answers were checked for coverage only.")
+            row["findings"].append(_finding("other_manufacturer", "warning",
+                                            f"The remark names {', '.join(b.title() for b in sorted(foreign))}."))
+        if found.answer == "Comply" and _HARD_REQUIREMENT.search(clause.text):
+            row["findings"].append(_finding("hard_requirement", "info",
+                                            "States a value, listing or product: check the answer against the BOQ."))
 
     for row in rows:
         row["state"] = "review" if any(f["severity"] in ("error", "warning") for f in row.get("findings", [])) else "ok"
@@ -574,10 +706,10 @@ def check(db: Session, project: Project, system_code: str, source: SpecSource, s
     statement = ComplianceStatement(
         project_id=project.id, kind="check", system_code=system_code, spec=spec_record(source, spec, uploaded),
         verification=verdict.as_dict(), rows=rows, reference_files=[],
-        summary={**summarize(rows, notes), "general": general, "finding_counts": counts,
+        summary={**summarize(rows, []), "general": general, "finding_counts": counts,
                  "statement_rows": len(submitted.rows), "statement_answered": len(submitted.answered),
-                 "rows_not_in_spec": max(0, extra_rows), "reviewed_by_ai": len(reviewable) if ai_calls else 0},
-        statement_name=statement_name, ai_calls=ai_calls, created_by_id=user.id if user else None,
+                 "rows_not_in_spec": max(0, extra_rows)},
+        statement_name=statement_name, ai_calls=0, created_by_id=user.id if user else None,
     )
     db.add(statement)
     db.commit()

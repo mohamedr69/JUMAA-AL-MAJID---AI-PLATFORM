@@ -194,6 +194,14 @@ class Settings(BaseSettings):
     # Below this a past clause is not the same clause at all.
     compliance_hint_similarity: float = 0.6
 
+    # --- The compliance knowledge base --------------------------------
+    # The source collection: the folder holding the Compliance Response
+    # Database workbook (Compliance_Response_Database.xlsx) and its exports.
+    # An import source only -- the records are copied into the application
+    # database, which is what autofill queries. Unset means no import can
+    # run on this machine; the knowledge already imported keeps working.
+    compliance_knowledge_source: str | None = None
+
     # --- Fallback: the library as it was filed in the archive -----------
     # Used only for what the local library does not hold, so a machine that
     # has not copied it across yet behaves exactly as before.

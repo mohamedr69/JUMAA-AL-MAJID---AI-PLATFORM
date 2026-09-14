@@ -3,6 +3,7 @@ import { AppShell } from "./components/AppShell";
 import { ProtectedRoute, RoleRoute } from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AccessDeniedPage } from "./pages/AccessDeniedPage";
+import { AdminKnowledgePage } from "./pages/AdminKnowledgePage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { CreateProjectPage } from "./pages/CreateProjectPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -93,6 +94,14 @@ export default function App() {
             element={
               <RoleRoute roles={["admin"]}>
                 <AdminUsersPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/admin/knowledge"
+            element={
+              <RoleRoute roles={["admin"]}>
+                <AdminKnowledgePage />
               </RoleRoute>
             }
           />

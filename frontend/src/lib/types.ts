@@ -635,16 +635,50 @@ export interface ComplianceSystem {
   specs: SpecMatch[];
 }
 
-export interface ReferenceIndex {
+/** One import of the compliance knowledge base. */
+export interface KnowledgeImport {
+  id: number;
+  status: "running" | "succeeded" | "unchanged" | "failed";
+  started_at: string;
+  finished_at: string | null;
+  source_label: string | null;
+  workbook_built: string | null;
+  files_discovered: number;
+  files_imported: number;
+  files_unchanged: number;
+  files_failed: number;
+  files_skipped: number;
+  records_added: number;
+  records_updated: number;
+  records_inactive: number;
+  records_flagged: number;
+  error: string | null;
+}
+
+/** What the knowledge base holds and how it got there. */
+export interface KnowledgeStatus {
   running: boolean;
-  indexed: number;
-  by_system: Record<string, number>;
-  files_seen: number;
-  files_read: number;
-  errors: number;
-  finished_at: number | null;
-  message: string | null;
-  root: string;
+  phase: string | null;
+  detail: string | null;
+  source_configured: boolean;
+  last_successful: KnowledgeImport | null;
+  last: KnowledgeImport | null;
+  last_refreshed_at: string | null;
+  records: { sources: number; requirements: number; responses: number; eligible_responses: number };
+  by_system: Record<string, { responses: number; eligible: number }>;
+  manufacturers: Record<string, number>;
+}
+
+export interface KnowledgeImportReport {
+  id: number;
+  status: string;
+  error: string | null;
+  started_at: string;
+  finished_at: string | null;
+  workbook_built: string | null;
+  counts: Record<string, unknown>;
+  files: { role: string; action: string; note: string | null; count: number; examples: string[] }[];
+  canonical: { path: string; role: string; action: string; note: string } | null;
 }
 
 export interface Compliance {
@@ -652,7 +686,7 @@ export interface Compliance {
   warnings: string[];
   searched: string | null;
   ai_available: boolean;
-  references: ReferenceIndex | null;
+  knowledge: KnowledgeStatus | null;
 }
 
 export const COMPLIANCE_RESPONSES = [
@@ -671,8 +705,106 @@ export interface StatementFinding {
   message: string;
 }
 
+export type WorkflowStatus = "unfilled" | "autofilled" | "candidate" | "ai_pending" | "reviewed" | "recheck";
+export type TechnicalStatus = "complies" | "does_not_comply" | "partially_complies" | "insufficient_evidence" | "not_applicable";
+
+export const WORKFLOW_LABELS: Record<WorkflowStatus, string> = {
+  unfilled: "Unfilled",
+  autofilled: "Auto-filled draft",
+  candidate: "Candidate requires review",
+  ai_pending: "AI suggestion pending review",
+  reviewed: "Engineer reviewed",
+  recheck: "Needs recheck",
+};
+
+export const TECHNICAL_LABELS: Record<TechnicalStatus, string> = {
+  complies: "Complies",
+  does_not_comply: "Does not comply",
+  partially_complies: "Partially complies",
+  insufficient_evidence: "Insufficient evidence",
+  not_applicable: "Not applicable",
+};
+
+/** A past answer the knowledge base holds for a clause. */
+export interface KnowledgeCandidate {
+  requirement_id: string;
+  requirement_text: string;
+  response_id: string;
+  historical_response: string;
+  historical_status: string | null;
+  proposed_status: TechnicalStatus;
+  response: string;
+  remarks: string | null;
+  manufacturer: string | null;
+  brand: string | null;
+  models: string | null;
+  eligibility: "eligible" | "blocked";
+  eligibility_reasons: string | null;
+  similarity: number | null;
+  sources: KnowledgeSourceRef[];
+}
+
+export interface KnowledgeSourceRef {
+  source_id: string;
+  filename: string;
+  project: string | null;
+  job_number: string | null;
+  page: string | null;
+  review_status: string | null;
+  superseded: boolean;
+  document_date: string | null;
+  document_revision: string | null;
+}
+
+/** What the knowledge base found for a clause: the match, or why not. */
+export interface KnowledgeMatch {
+  result: "eligible" | "flagged" | "conflict" | "missing_model" | "scope" | "candidate" | "none";
+  explanation: string;
+  unresolved: string[];
+  candidates: KnowledgeCandidate[];
+  requirement_id?: string;
+  requirement_text?: string;
+  equivalence?: boolean;
+  /** The candidates answered the same wording (not merely similar). */
+  same_wording?: boolean;
+  response_id?: string;
+  historical_response?: string;
+  historical_status?: string | null;
+  manufacturer?: string | null;
+  brand?: string | null;
+  models?: string | null;
+  remarks?: string | null;
+  scope_conditions?: string | null;
+  responsible_party?: string | null;
+  sources?: KnowledgeSourceRef[];
+  boq_item?: { id: number; description: string; manufacturer: string | null; model: string | null; quantity: string | null; unit: string | null } | null;
+}
+
+/** The model's review of one clause, kept on the row. */
+export interface AiReview {
+  request_id: string;
+  status: "done" | "failed";
+  at: string;
+  model: string;
+  prompt_version: string;
+  instruction: string;
+  from_cache: boolean;
+  decision: "accepted" | "edited" | "rejected" | null;
+  error: string | null;
+  suggestion: {
+    clause_id: string;
+    suggested_response: string;
+    suggested_remark: string;
+    proposed_compliance_status: TechnicalStatus;
+    evidence_references: string[];
+    missing_information: string[];
+    deviations: string[];
+    review_notes: string;
+  } | null;
+}
+
 /** One clause of a prepared or checked statement. `source` says where the
- *  answer came from: heading | lead_in | rule | reference | ai | engineer |
+ *  answer came from: heading | lead_in | rule | database | ai | engineer |
  *  none (prepare); statement | missing (check). */
 export interface StatementRow {
   id: string;
@@ -687,16 +819,13 @@ export interface StatementRow {
   source: string;
   state: "ok" | "review";
   note: string | null;
-  reference: {
-    path?: string;
-    label: string;
-    text: string;
-    response: string;
-    remark?: string;
-    similarity: number;
-    agreeing?: number;
-    disagreeing?: number;
-  } | null;
+  origin?: "none" | "rule" | "database" | "ai" | "manual";
+  workflow?: WorkflowStatus;
+  technical?: { status: TechnicalStatus | null; origin: "historical" | "engineer" | "ai" | "rule" | null; verified: boolean } | null;
+  match?: KnowledgeMatch | null;
+  ai_review?: AiReview | null;
+  /** The submitted statement's row (check). */
+  reference?: { label: string; text: string; response: string; similarity: number } | null;
   findings?: StatementFinding[];
 }
 
@@ -728,8 +857,9 @@ export interface StatementSummary {
     statement_rows?: number;
     statement_answered?: number;
     rows_not_in_spec?: number;
-    reviewed_by_ai?: number;
-    pool_size?: number;
+    by_workflow?: Record<string, number>;
+    autofill?: { filled: number; flagged?: number; candidates: number; unmatched: number; blocked: number };
+    inputs?: { spec_sha256: string; boq_hash: string; scope_hash: string; knowledge_import_id: number | null };
   };
   statement_name: string | null;
   ai_calls: number;
@@ -739,7 +869,7 @@ export interface StatementSummary {
 
 export interface Statement extends StatementSummary {
   rows: StatementRow[];
-  reference_files: { path: string; shared: number; score: number; title: string[]; answered: number }[];
+  reference_files: unknown[];
 }
 
 export interface StatementFile {
@@ -748,13 +878,6 @@ export interface StatementFile {
   uploaded: boolean;
 }
 
-export type AutofillScope = "unanswered" | "review" | "all";
-
-export interface Suggestion {
-  id: string;
-  response: string;
-  remark: string;
-}
 
 export interface DraftMail {
   to: string | null;

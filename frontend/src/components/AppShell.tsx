@@ -21,9 +21,14 @@ export function AppShell() {
 
         <div className="flex items-center gap-4 text-sm">
           {user?.role === "admin" && (
-            <Link to="/admin/users" className="text-gray-600 hover:text-brand-600">
-              Users
-            </Link>
+            <>
+              <Link to="/admin/knowledge" className="text-gray-600 hover:text-brand-600">
+                Knowledge base
+              </Link>
+              <Link to="/admin/users" className="text-gray-600 hover:text-brand-600">
+                Users
+              </Link>
+            </>
           )}
           {user && (
             <div className="flex items-center gap-3">

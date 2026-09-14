@@ -614,7 +614,7 @@ class ComplianceOut(BaseModel):
     # The folder that was searched.
     searched: str | None
     ai_available: bool = False
-    references: "ReferenceIndexOut | None" = None
+    knowledge: "KnowledgeStatusOut | None" = None
 
 
 class SpecSourceIn(BaseModel):
@@ -626,40 +626,57 @@ class SpecSourceIn(BaseModel):
 
 
 class PrepareIn(SpecSourceIn):
-    use_ai: bool = True
+    pass
 
 
 class StatementRowIn(BaseModel):
     id: str
     response: str | None = Field(default=None, max_length=60)
     remark: str | None = Field(default=None, max_length=500)
+    technical_status: str | None = Field(default=None, max_length=32)
 
 
 class StatementRowsIn(BaseModel):
     rows: list[StatementRowIn]
 
 
-class AutofillIn(BaseModel):
-    scope: Literal["unanswered", "review", "all"] = "unanswered"
+class ReviewIn(BaseModel):
+    """One clause, reviewed by the model on the engineer's click. The request
+    id makes a double-click one request."""
+
+    instruction: str | None = Field(default=None, max_length=600)
+    request_id: str | None = Field(default=None, max_length=64)
 
 
-class SuggestIn(BaseModel):
-    clause_id: str = Field(min_length=1, max_length=16)
+class ReviewDecisionIn(BaseModel):
+    action: Literal["accept", "edit", "reject"]
+    response: str | None = Field(default=None, max_length=60)
+    remark: str | None = Field(default=None, max_length=500)
 
 
-class SuggestionOut(BaseModel):
+class ReviewedIn(BaseModel):
+    reviewed: bool = True
+
+
+class UseAnswerIn(BaseModel):
+    response_id: str = Field(min_length=1, max_length=16)
+
+
+class StatementRowOut(BaseModel):
+    """One row of a prepared statement, as stored (the rows are JSON)."""
+
+    model_config = {"extra": "allow"}
+
     id: str
-    response: str
-    remark: str
-
-
-class AskIn(BaseModel):
-    clause_id: str | None = Field(default=None, max_length=16)
-    question: str = Field(min_length=1, max_length=600)
-
-
-class AskOut(BaseModel):
-    answer: str
+    ref: str
+    text: str
+    response: str = ""
+    remark: str = ""
+    source: str = "none"
+    workflow: str = "unfilled"
+    ai_review: dict | None = None
+    match: dict | None = None
+    technical: dict | None = None
 
 
 class StatementSummaryOut(BaseModel):
@@ -686,16 +703,61 @@ class StatementFileOut(BaseModel):
     uploaded: bool
 
 
-class ReferenceIndexOut(BaseModel):
+class KnowledgeImportOut(BaseModel):
+    """One import of the knowledge base, as the pages show it."""
+
+    id: int
+    status: str
+    started_at: datetime
+    finished_at: datetime | None
+    source_label: str | None
+    workbook_built: str | None
+    files_discovered: int
+    files_imported: int
+    files_unchanged: int
+    files_failed: int
+    files_skipped: int
+    records_added: int
+    records_updated: int
+    records_inactive: int
+    records_flagged: int
+    error: str | None
+
+
+class KnowledgeStatusOut(BaseModel):
+    """What the knowledge base holds and how it got there. Never a
+    filesystem path."""
+
     running: bool
-    indexed: int
-    by_system: dict[str, int]
-    files_seen: int = 0
-    files_read: int = 0
-    errors: int = 0
-    finished_at: float | None = None
-    message: str | None = None
-    root: str = ""
+    phase: str | None = None
+    detail: str | None = None
+    source_configured: bool
+    last_successful: KnowledgeImportOut | None
+    last: KnowledgeImportOut | None
+    last_refreshed_at: datetime | None
+    records: dict[str, int]
+    by_system: dict[str, dict[str, int]]
+    manufacturers: dict[str, int]
+
+
+class KnowledgeImportFilesOut(BaseModel):
+    role: str
+    action: str
+    note: str | None
+    count: int
+    examples: list[str]
+
+
+class KnowledgeImportReportOut(BaseModel):
+    id: int
+    status: str
+    error: str | None
+    started_at: datetime
+    finished_at: datetime | None
+    workbook_built: str | None
+    counts: dict
+    files: list[KnowledgeImportFilesOut]
+    canonical: dict | None
 
 
 SpecMatchOut.model_rebuild()
