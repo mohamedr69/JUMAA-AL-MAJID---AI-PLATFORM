@@ -677,6 +677,21 @@ class StatementRowOut(BaseModel):
     ai_review: dict | None = None
     match: dict | None = None
     technical: dict | None = None
+    # How an AI fill classified the row: filled | confirmed | needs_review |
+    # conflict. The page highlights the last two for the engineer.
+    ai_class: str | None = None
+
+
+class AiFillIn(BaseModel):
+    """Which rows an AI fill should answer."""
+
+    scope: Literal["unanswered", "review", "all"] = "unanswered"
+
+
+class ClearAnswersIn(BaseModel):
+    """Clear every answer on a statement; optionally keep the engineer's own remarks."""
+
+    keep_manual_remarks: bool = False
 
 
 class StatementSummaryOut(BaseModel):
@@ -690,6 +705,12 @@ class StatementSummaryOut(BaseModel):
     ai_calls: int
     created_at: datetime
     updated_at: datetime
+    # The engineer's approval; export is refused without it.
+    approved: bool = False
+    approved_at: datetime | None = None
+    approved_by_name: str | None = None
+    # Why it cannot be approved yet (empty when it can, or already is).
+    approval_blockers: list[str] = []
 
 
 class StatementOut(StatementSummaryOut):

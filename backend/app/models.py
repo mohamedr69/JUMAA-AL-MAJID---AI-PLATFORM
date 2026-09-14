@@ -87,6 +87,10 @@ class Project(Base):
 
     scope_of_work: Mapped[str | None] = mapped_column(String(64), nullable=True)
     other_information: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # An Edwards fire alarm carries the voice evacuation and fire telephone in
+    # one system (app.services.system_rules) unless this says a separate voice
+    # evacuation panel is provided.
+    separate_ve_panel: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
 
     # When the Design Sheets were read into the BOQ. Set once, on the first
     # attempt, and never cleared: extraction is a starting point the engineer
@@ -139,6 +143,18 @@ class Project(Base):
         cascade="all, delete-orphan",
         order_by="ProjectSubmittal.id",
     )
+
+    @property
+    def voice_evacuation_integrated(self) -> bool:
+        from app.services import system_rules
+
+        return system_rules.project_integrated(self)
+
+    @property
+    def system_codes(self) -> list[str]:
+        from app.services import system_rules
+
+        return system_rules.project_codes(self)
 
 
 class ProjectDesign(Base):
@@ -530,9 +546,53 @@ class ComplianceStatement(Base):
     # The statement checked, for kind "check".
     statement_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # The engineer's sign-off on a prepared statement. Nothing is exported
+    # without it, and it is withdrawn the moment an answer changes under it
+    # (app.compliance.service.approval_fingerprint).
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    # Kept as signed, so the exported statement names the engineer even if
+    # the account is renamed later.
+    approved_by_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The answers as approved: the fingerprint of every row's response,
+    # remark, technical status and workflow at the moment of approval.
+    approved_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class ComplianceLearnedAnswer(Base):
+    """An answer an engineer signed off -- a clause marked reviewed, or every
+    answered clause of an approved statement. The next statement reuses it:
+    the same wording is drafted from it without a model, and the nearest ones
+    travel with the clauses the AI answers, as the company's preferred answers.
+
+    One row per statement clause; reviewing it again updates it, and taking
+    the review back retires it."""
+
+    __tablename__ = "compliance_learned_answers"
+    __table_args__ = (UniqueConstraint("statement_id", "clause_id", name="uq_learned_statement_clause"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    statement_id: Mapped[int] = mapped_column(ForeignKey("compliance_statements.id"), nullable=False, index=True)
+    clause_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    clause_ref: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    system_code: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    clause_text: Mapped[str] = mapped_column(Text, nullable=False)
+    # app.knowledge.normalize.requirement_hash of the clause: what "the same wording" means.
+    clause_hash: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    response: Mapped[str] = mapped_column(String(48), nullable=False)
+    remark: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    technical_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # The project's manufacturers for the system when it was signed off, canonical and comma-separated.
+    manufacturers: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    project_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    approved_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    approved_by_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    approved_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
 
 
 # --- the compliance knowledge base -------------------------------------------------

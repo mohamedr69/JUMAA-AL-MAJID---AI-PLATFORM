@@ -26,7 +26,7 @@ from app.models import KnowledgeEquivalence, KnowledgeResponse, Project, Project
 
 from .conftest import login, make_user
 from .test_compliance import _clear_cache, _project
-from .test_compliance_statements import BODY, spec_pdf
+from .test_compliance_statements import BODY, approve_all, spec_pdf
 
 settings = get_settings()
 
@@ -340,7 +340,7 @@ def test_autofill_fills_eligible_exact_matches_and_only_those(client, db_session
     # Nothing near: no match.
     assert after["2.1.H"]["match"]["result"] == "none"
     counts = filled.json()["summary"]["autofill"]
-    assert counts == {"filled": 1, "flagged": 2, "candidates": 3, "unmatched": 1, "blocked": 3}
+    assert counts == {"filled": 1, "flagged": 2, "candidates": 3, "unmatched": 1, "blocked": 3, "learned": 0}
     assert no_ai.calls == 0
 
     # The engineer picks a past answer shown for a candidate; nothing else
@@ -370,9 +370,62 @@ def test_autofill_fills_eligible_exact_matches_and_only_those(client, db_session
     assert again_rows["2.1.A.1"]["workflow"] == "reviewed"
     assert no_ai.calls == 0
 
-    # Opening, saving, exporting: no model.
+    # Opening, saving, approving, exporting: no model.
     assert client.get(f"/projects/{project_id}/compliance/statements/{statement['id']}").status_code == 200
+    approve_all(client, project_id, statement["id"])
     assert client.get(f"/projects/{project_id}/compliance/statements/{statement['id']}/export").status_code == 200
+    assert client.get(f"/projects/{project_id}/compliance/statements/{statement['id']}/export.pdf").status_code == 200
+    assert no_ai.calls == 0
+
+    # Clear all: every answer, remark, match and review goes; the engineer's
+    # own remark stays when asked, and the approval is withdrawn.
+    cleared = client.post(f"/projects/{project_id}/compliance/statements/{statement['id']}/clear", json={"keep_manual_remarks": True})
+    assert cleared.status_code == 200, cleared.text
+    body = cleared.json()
+    cleared_rows = {r["ref"]: r for r in body["rows"]}
+    assert all(r["response"] == "" and r["workflow"] == "unfilled" and r["match"] is None
+               for r in body["rows"] if not r["heading"] and r["source"] != "lead_in")
+    assert cleared_rows["2.1.B"]["remark"] == "No annunciator in BOQ" and cleared_rows["2.1.A.1"]["remark"] == ""
+    assert body["approved"] is False and "autofill" not in body["summary"]
+    wiped = client.post(f"/projects/{project_id}/compliance/statements/{statement['id']}/clear", json={}).json()
+    assert next(r for r in wiped["rows"] if r["ref"] == "2.1.B")["remark"] == ""
+    assert no_ai.calls == 0
+
+
+def test_an_engineer_approved_answer_is_reused_on_the_next_statement(client, db_session, tmp_path, monkeypatch, knowledge, no_ai):
+    monkeypatch.setattr(settings, "uploads_root", str(tmp_path / "uploads"))
+    _clear_cache()
+    login(client, settings.default_admin_email, settings.default_admin_password)
+    folder = tmp_path / "EP-30784"
+    project_id = _project_with_boq(client, db_session, folder)
+    first = _prepared(client, project_id, folder)
+    base = f"/projects/{project_id}/compliance/statements/{first['id']}"
+    rows = {r["ref"]: r for r in first["rows"]}
+    # The engineer answers a clause in their own words and signs it off.
+    clause = rows["2.1.E"]
+    client.patch(base, json={"rows": [{"id": clause["id"], "response": "Comply",
+                                       "remark": "Comply with training by Al Arabia on the proposed EST4 system."}]})
+    assert client.post(f"{base}/rows/{clause['id']}/reviewed", json={"reviewed": True}).status_code == 200
+
+    second = client.post(f"/projects/{project_id}/compliance/prepare", json={
+        "system_code": "FAS", "path": first["spec"]["path"], "member": first["spec"].get("member"),
+        "first_page": first["spec"].get("first_page"), "last_page": first["spec"].get("last_page")}).json()
+    filled = client.post(f"/projects/{project_id}/compliance/statements/{second['id']}/autofill").json()
+    row = next(r for r in filled["rows"] if r["ref"] == "2.1.E")
+    assert (row["response"], row["remark"]) == ("Comply", "Comply with training by Al Arabia on the proposed EST4 system.")
+    assert (row["source"], row["origin"], row["workflow"]) == ("learned", "database", "autofilled")
+    assert row["match"]["learned"] is True and "approved by" in row["match"]["explanation"]
+    assert filled["summary"]["autofill"]["learned"] == 1
+    # A draft still: the new statement's engineer reviews it.
+    assert row["technical"]["verified"] is False
+
+    # Taking the review back retires the learned answer.
+    assert client.post(f"{base}/rows/{clause['id']}/reviewed", json={"reviewed": False}).status_code == 200
+    third = client.post(f"/projects/{project_id}/compliance/prepare", json={
+        "system_code": "FAS", "path": first["spec"]["path"], "member": first["spec"].get("member"),
+        "first_page": first["spec"].get("first_page"), "last_page": first["spec"].get("last_page")}).json()
+    refilled = client.post(f"/projects/{project_id}/compliance/statements/{third['id']}/autofill").json()
+    assert next(r for r in refilled["rows"] if r["ref"] == "2.1.E")["source"] != "learned"
     assert no_ai.calls == 0
 
 
@@ -454,7 +507,6 @@ def _review(clause_id: str, **overrides) -> dict:
 def test_one_clause_is_reviewed_only_on_request(client, db_session, tmp_path, monkeypatch, knowledge):
     monkeypatch.setattr(settings, "uploads_root", str(tmp_path / "uploads"))
     monkeypatch.setattr(settings, "ai_enabled", True)
-    monkeypatch.setattr(settings, "ai_output_tokens_per_minute", 0)
     _clear_cache()
     login(client, settings.default_admin_email, settings.default_admin_password)
     folder = tmp_path / "EP-30784"

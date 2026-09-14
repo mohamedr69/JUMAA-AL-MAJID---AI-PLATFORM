@@ -111,8 +111,28 @@ class Inspection:
 
 
 def source_root() -> Path | None:
-    configured = (get_settings().compliance_knowledge_source or "").strip()
-    return Path(os.path.expandvars(configured)).expanduser() if configured else None
+    settings = get_settings()
+    configured = (settings.compliance_knowledge_source or "").strip()
+    if configured:
+        return Path(os.path.expandvars(configured)).expanduser()
+    if settings.compliance_knowledge_autodetect:
+        from app.core.config import REPO_DIR
+
+        default = REPO_DIR / "data base"
+        if (default / CANONICAL_WORKBOOK).is_file():
+            return default
+    return None
+
+
+def import_on_start() -> bool:
+    """Import the knowledge base in the background when this database has
+    none yet and the source is here -- a new machine's first start. Returns
+    whether an import was started."""
+    if not get_settings().compliance_knowledge_import_on_start or source_root() is None:
+        return False
+    if last_import_id() is not None:
+        return False
+    return start_import()
 
 
 def _role(relative: str) -> str:

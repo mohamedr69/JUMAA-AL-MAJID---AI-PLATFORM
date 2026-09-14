@@ -86,11 +86,9 @@ def boq_material_map(project: Project, system_code: str) -> list[BoqLine]:
     """The BOQ lines for this system, with the manufacturer each line
     proposes: its own, else the one Project Info records for the system.
     A description alone never names a model."""
-    names = {
-        "FAS": ("Fire Alarm", "Fire Telephone"), "VES": ("Voice Evacuation",),
-        "EML": ("Emergency Light Monitoring", "Emergency Lighting"), "CBS": ("Central Battery System",),
-        "PAVA": ("PA/VA & BGM", "Public Address"),
-    }.get(system_code, ())
+    from app.services import system_rules
+
+    names = system_rules.drf_rows(system_code, project)
     system_brand = next(((s.brand or "").strip() for s in project.systems if s.name in names and (s.brand or "").strip()), None)
     lines: list[BoqLine] = []
     for item in sorted(project.boq_items, key=lambda i: i.position):
@@ -109,8 +107,9 @@ def boq_material_map(project: Project, system_code: str) -> list[BoqLine]:
 def project_manufacturers(project: Project, system_code: str, boq: list[BoqLine] | None = None) -> set[str]:
     boq = boq if boq is not None else boq_material_map(project, system_code)
     makers = {policy.canonical_manufacturer(line.manufacturer) for line in boq}
-    names = {"FAS": ("Fire Alarm", "Fire Telephone"), "VES": ("Voice Evacuation",), "EML": ("Emergency Light Monitoring", "Emergency Lighting"),
-             "CBS": ("Central Battery System",), "PAVA": ("PA/VA & BGM", "Public Address")}.get(system_code, ())
+    from app.services import system_rules
+
+    names = system_rules.drf_rows(system_code, project)
     makers |= {policy.canonical_manufacturer(s.brand) for s in project.systems if s.name in names}
     return {m for m in makers if m}
 

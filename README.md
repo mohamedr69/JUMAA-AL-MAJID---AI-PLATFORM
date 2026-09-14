@@ -12,6 +12,34 @@ Phase 4: design calculations -- Voice Evacuation amplifier loading
 speaker counts, checked against a load limit held as a design rule), and
 panel standby battery sizing and selection from the BOQ.
 
+## Setting up on a new PC (quick start)
+
+Install **Python 3.12**, **Node.js**, **Git**, and optionally **Tesseract OCR**
+(scanned DRFs and Design Sheets) and **Claude Code** (the AI features). Then:
+
+```
+git clone https://github.com/mohamedr69/JUMAA-AL-MAJID---AI-PLATFORM.git
+cd JUMAA-AL-MAJID---AI-PLATFORM
+setup.bat        # once: Python packages, backend\.env with a new secret key, npm packages
+start.bat        # every time: API on :8000, web app on :5173, opens the browser
+```
+
+Nothing else needs setting:
+
+- **Database**: created on the first start (`backend/ep_platform.db`), with the
+  default admin from `.env` (`admin@ep-platform.com` / `ChangeMe123!` -- change it).
+- **Project archive**: the synced OneDrive library is found by name (below).
+- **Company library** (documents, templates, stamp, datasheets): in `backend/library/`.
+- **Compliance knowledge base**: `data base/Compliance_Response_Database.xlsx` is
+  imported in the background on the first start.
+- **Tesseract**: found on the PATH or where its installer puts it.
+- **AI**: Claude through Claude Code on the Claude subscription (`AI_PROVIDER=claude-code`,
+  no API key). Install Claude Code and run `claude` once to sign in, as the same
+  Windows user that runs the platform.
+
+Projects, statements and approvals live in each PC's own database; they are not
+shared by the repository.
+
 ## Setting up on a machine
 
 Everything lives in this one folder: `backend/` (FastAPI), `frontend/`

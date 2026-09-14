@@ -50,7 +50,7 @@ def test_materials_are_paired_with_their_datasheets(client, tmp_path, monkeypatc
     project_id = _project(client)
 
     body = client.get(f"/projects/{project_id}/submittal/materials").json()
-    assert body["systems"] == ["EML", "FAS"]
+    assert body["systems"] == ["ELS", "FAS"]
     assert (len(body["items"]), body["with_datasheet"]) == (4, 2)
     items = {i["part_no"]: i for i in body["items"]}
 
@@ -94,7 +94,7 @@ def test_the_register_starts_from_what_the_boq_implies(client, tmp_path, monkeyp
     assert body["items"] == [] and body["counts"]["total"] == 0
     # One suggestion per system with materials, with its materials counted.
     assert [(s["title"], s["system_code"], s["materials"], s["materials_with_datasheet"]) for s in body["suggestions"]] == [
-        ("Emergency Light Monitoring System", "EML", 1, 0),
+        ("Emergency Lighting System", "ELS", 1, 0),
         ("Fire Alarm System", "FAS", 3, 2),
     ]
 
@@ -110,7 +110,7 @@ def test_the_register_starts_from_what_the_boq_implies(client, tmp_path, monkeyp
     body = _register(client, project_id)
     assert body["counts"] == {"not_submitted": 1, "under_review": 0, "approved": 0, "rejected": 0, "total": 1}
     # The system it covers is no longer suggested.
-    assert [s["system_code"] for s in body["suggestions"]] == ["EML"]
+    assert [s["system_code"] for s in body["suggestions"]] == ["ELS"]
     assert [(e["kind"], e["detail"], e["by"]) for e in body["activity"]] == [
         ("created", "Created R00", "Platform Administrator")
     ]

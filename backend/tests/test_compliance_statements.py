@@ -86,6 +86,27 @@ def statement_xlsx(rows: list[tuple[str, str, str]], title: str = "PROJECT NAME 
     return buffer.getvalue()
 
 
+def answer_the_rest(client, project_id: int, statement_id: int, response: str = "Comply") -> dict:
+    """Give every clause still without a response one, as the engineer would."""
+    current = client.get(f"/projects/{project_id}/compliance/statements/{statement_id}").json()
+    empty = [r["id"] for r in current["rows"] if not r.get("heading") and r["source"] != "lead_in" and not r["response"]]
+    if not empty:
+        return current
+    return client.patch(f"/projects/{project_id}/compliance/statements/{statement_id}",
+                        json={"rows": [{"id": i, "response": response} for i in empty]}).json()
+
+
+def approve_all(client, project_id: int, statement_id: int) -> dict:
+    """Answer what is left, review what waits on a review, and approve."""
+    current = answer_the_rest(client, project_id, statement_id)
+    for row in current["rows"]:
+        if row.get("workflow") in ("candidate", "ai_pending", "recheck") and row["response"]:
+            client.post(f"/projects/{project_id}/compliance/statements/{statement_id}/rows/{row['id']}/reviewed", json={"reviewed": True})
+    resp = client.post(f"/projects/{project_id}/compliance/statements/{statement_id}/approval")
+    assert resp.status_code == 200, resp.text
+    return resp.json()
+
+
 @pytest.fixture()
 def no_ai():
     """A provider that records every call, so a test can assert none was made."""
@@ -202,7 +223,7 @@ def test_uploaded_specifications_are_listed_for_the_system_chosen(client, tmp_pa
     project_id = _project(client, folder, systems=("Fire Alarm", "Central Battery System"))
     listed = client.get(f"/projects/{project_id}/compliance").json()
     # Project Info's systems are the tabs, even with no Design Sheet or BOQ.
-    assert [s["code"] for s in listed["systems"]] == ["FAS", "CBS"]
+    assert [s["code"] for s in listed["systems"]] == ["FAS", "ELS"]
     # The page carries the knowledge base's status, never a path.
     assert listed["knowledge"]["records"]["responses"] == 0 and "root" not in listed["knowledge"]
 
@@ -214,7 +235,8 @@ def test_uploaded_specifications_are_listed_for_the_system_chosen(client, tmp_pa
     resp = client.post(f"/projects/{project_id}/compliance/specs",
                        files={"file": ("whatever.pdf", content, "application/pdf")}, data={"system_code": "CBS"})
     assert resp.status_code == 200, resp.text
-    cbs = next(s for s in resp.json()["systems"] if s["code"] == "CBS")
+    # CBS is emergency lighting: the upload is listed under ELS.
+    cbs = next(s for s in resp.json()["systems"] if s["code"] == "ELS")
     (spec,) = cbs["specs"]
     assert spec["uploaded"] is True and spec["matched_on"] == "uploaded" and spec["pages"] == 2
     # Trusted for the system chosen, but honest about what it reads like.
@@ -224,7 +246,7 @@ def test_uploaded_specifications_are_listed_for_the_system_chosen(client, tmp_pa
     # And it can be taken away again.
     assert client.delete(f"/projects/{project_id}/compliance/specs", params={"path": spec["path"]}).status_code == 204
     _clear_cache()
-    assert next(s for s in client.get(f"/projects/{project_id}/compliance").json()["systems"] if s["code"] == "CBS")["specs"] == []
+    assert next(s for s in client.get(f"/projects/{project_id}/compliance").json()["systems"] if s["code"] == "ELS")["specs"] == []
     assert client.delete(f"/projects/{project_id}/compliance/specs", params={"path": str(folder / "x.pdf")}).status_code == 404
 
 
@@ -291,6 +313,10 @@ def test_prepare_applies_the_rules_and_calls_no_model(client, tmp_path, monkeypa
                         json={"reviewed": True})
     assert empty.status_code == 400
 
+    # Nothing leaves before an engineer approves it.
+    assert client.get(f"/projects/{project_id}/compliance/statements/{statement['id']}/export").status_code == 409
+    approve_all(client, project_id, statement["id"])
+
     # And the workbook carries the change.
     export = client.get(f"/projects/{project_id}/compliance/statements/{statement['id']}/export")
     assert export.status_code == 200
@@ -298,6 +324,69 @@ def test_prepare_applies_the_rules_and_calls_no_model(client, tmp_path, monkeypa
     values = [[c for c in row] for row in sheet.iter_rows(values_only=True)]
     assert any(row[1] == "A strip printer mounted in the main FACP enclosure." and row[2] == "Not applicable" for row in values)
     assert any(str(row[0]).startswith("PROJECT NAME : BINGHATTI SKYBLADE") for row in values if row[0])
+    assert no_ai.calls == 0
+
+
+def test_export_waits_for_the_engineers_approval(client, tmp_path, monkeypatch, no_ai):
+    monkeypatch.setattr(settings, "uploads_root", str(tmp_path / "uploads"))
+    _clear_cache()
+    folder = tmp_path / "EP-30784"
+    spec_pdf(folder / "Specification" / "283111 - FIRE DETECTION.pdf")
+    login(client, settings.default_admin_email, settings.default_admin_password)
+    project_id = _project(client, folder)
+    spec = client.get(f"/projects/{project_id}/compliance").json()["systems"][0]["specs"][0]
+    statement = client.post(f"/projects/{project_id}/compliance/prepare", json={"system_code": "FAS", "path": spec["path"]}).json()
+    base = f"/projects/{project_id}/compliance/statements/{statement['id']}"
+    assert statement["approved"] is False and statement["approval_blockers"]
+
+    # Neither format is exported, and an unanswered statement cannot be approved.
+    assert client.get(f"{base}/export").status_code == 409
+    assert client.get(f"{base}/export.pdf").status_code == 409
+    refused = client.post(f"{base}/approval")
+    assert refused.status_code == 400 and "no response" in refused.json()["detail"]
+
+    answered = answer_the_rest(client, project_id, statement["id"])
+    assert answered["approval_blockers"] == []
+    approved = client.post(f"{base}/approval").json()
+    assert approved["approved"] is True and approved["approved_by_name"] and approved["approved_at"]
+    assert client.get(base).json()["approved"] is True
+
+    workbook = client.get(f"{base}/export")
+    assert workbook.status_code == 200
+    pdf = client.get(f"{base}/export.pdf")
+    assert pdf.status_code == 200 and pdf.headers["content-type"] == "application/pdf"
+    with pymupdf.open("pdf", pdf.content) as doc:
+        text = " ".join(page.get_text() for page in doc)
+    assert "COMPLIANCE STATEMENT - FIRE ALARM SYSTEM" in text
+    assert "A strip printer mounted in the main FACP enclosure." in text
+    assert f"Approved by: {approved['approved_by_name']}" in text
+    # No approval line in the page footers, only the page number.
+    assert "Compliance Statement  -  Approved by" not in text and "Page 1 of" in text
+
+    # With the company stamp in the library, every page carries it.
+    from app.compliance import pdf_writer
+    from app.services.company_library import library_root
+
+    stamp = library_root() / "submittal" / "templates" / pdf_writer.STAMP_FILE
+    stamp.parent.mkdir(parents=True, exist_ok=True)
+    stamp.write_bytes(pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 587, 529), 1).tobytes("png"))
+    try:
+        with pymupdf.open("pdf", client.get(f"{base}/export.pdf").content) as doc:
+            assert all(len(page.get_images()) == 1 for page in doc)
+    finally:
+        stamp.unlink()
+
+    # Changing an answer withdraws the approval.
+    clause = next(r["id"] for r in answered["rows"] if r["ref"] == "2.1.C")
+    edited = client.patch(base, json={"rows": [{"id": clause, "remark": "Printer by others"}]}).json()
+    assert edited["approved"] is False
+    assert client.get(f"{base}/export.pdf").status_code == 409
+
+    # Approved again, then withdrawn by hand.
+    assert client.post(f"{base}/approval").json()["approved"] is True
+    withdrawn = client.delete(f"{base}/approval")
+    assert withdrawn.status_code == 200 and withdrawn.json()["approved"] is False
+    assert client.get(f"{base}/export").status_code == 409
     assert no_ai.calls == 0
 
 

@@ -409,10 +409,11 @@ def test_manufacturer_is_prefilled_only_when_the_system_code_is_unambiguous():
         ProjectSystem(name="Emergency Light Monitoring", brand="MENVIER"),
     ]
     assert _brand_for("FAS", systems) == "EDWARDS"
-    assert _brand_for("eml", systems) == "MENVIER"
-    # ELS can be either emergency-lighting row, and here they disagree
-    assert _brand_for("ELS", systems) is None
+    # EML, CBS and ELS are one emergency lighting system, over both DRF rows:
+    # here the two rows name different brands, so no brand is guessed.
+    assert _brand_for("eml", systems) is None
     assert _brand_for("ELS", systems[:2]) == "CEAG"
+    assert _brand_for("CBS", systems[:1]) is None
     assert _brand_for("NAC", systems) is None
     assert _brand_for(None, systems) is None
 
@@ -630,7 +631,7 @@ def test_uploading_a_design_sheet_and_removing_one(client, tmp_path, monkeypatch
 
     body = _upload(client, project["id"], "design-sheets", name="EML sheet.pdf", data={"system_code": "eml"}).json()
     (sheet,) = body["design_sheets"]
-    assert sheet["system_code"] == "EML"
+    assert sheet["system_code"] == "ELS"
     assert Path(sheet["document_path"]).exists()
 
     after = client.delete(f"/projects/{project['id']}/documents/design-sheets/{sheet['id']}").json()

@@ -4,16 +4,12 @@ import { ApiError, api } from "../lib/api";
 import { PROJECT_EDITOR_ROLES, type Project } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
-/** The Design Sheet codes the platform reads, and the DRF system each
- * stands for -- so a system the DRF marks but no sheet was found for can be
- * named as missing rather than left to be noticed. */
-const SYSTEM_CODES: { code: string; rows: string[] }[] = [
-  { code: "FAS", rows: ["Fire Alarm"] },
-  { code: "VES", rows: ["Voice Evacuation"] },
-  { code: "PAVA", rows: ["PA/VA & BGM"] },
-  { code: "CBS", rows: ["Central Battery System"] },
-  { code: "EML", rows: ["Emergency Light Monitoring"] },
-];
+/** The Design Sheet codes the platform reads. Which of them this project
+ * needs comes from the backend (`project.system_codes`), which applies the
+ * company rules: an Edwards fire alarm's voice evacuation and fire telephone
+ * are on the FAS sheet, and emergency lighting (ELS, CBS, EML) is one system. */
+const SHEET_CODES = ["FAS", "VES", "PAVA", "ELS"];
+const SHEET_ALIASES: Record<string, string> = { CBS: "ELS", EML: "ELS", ELM: "ELS", EL: "ELS", VE: "VES", FT: "FAS", FA: "FAS" };
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
@@ -53,11 +49,14 @@ export function ProjectDocumentsPage() {
     }
   }
 
-  // A system the DRF marks, with no Design Sheet found for it.
-  const found = new Set(project.design_sheets.map((sheet) => (sheet.system_code ?? "").toUpperCase()));
-  const missing = SYSTEM_CODES.filter(
-    ({ code, rows }) => !found.has(code) && project.systems.some((system) => rows.includes(system.name))
-  );
+  // A system the project has, with no Design Sheet found for it.
+  const effective = (code: string | null) => {
+    const upper = (code ?? "").toUpperCase();
+    const canonical = SHEET_ALIASES[upper] ?? upper;
+    return canonical === "VES" && project.voice_evacuation_integrated ? "FAS" : canonical;
+  };
+  const found = new Set(project.design_sheets.map((sheet) => effective(sheet.system_code)));
+  const missing = project.system_codes.filter((code) => SHEET_CODES.includes(code) && !found.has(code)).map((code) => ({ code }));
 
   return (
     <div className="max-w-3xl">
@@ -123,7 +122,9 @@ export function ProjectDocumentsPage() {
         {missing.map(({ code }) => (
           <div key={code} className="mt-3 rounded-lg bg-amber-50 px-3 py-2">
             <Missing
-              what={`No Design Sheet was found for ${code}, which the DRF marks for this project.`}
+              what={`No Design Sheet was found for ${code}, which this project has${
+                code === "FAS" && project.voice_evacuation_integrated ? " (it covers Voice Evacuation and Fire Telephone too)" : ""
+              }.`}
               canEdit={canEdit}
               busy={busy === `sheet-${code}`}
               onPick={(file) => upload(`sheet-${code}`, `/projects/${project.id}/documents/design-sheets`, file, code)}

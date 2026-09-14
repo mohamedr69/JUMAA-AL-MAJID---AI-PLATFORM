@@ -65,17 +65,18 @@ export function ProjectLogsPage() {
 
   useEffect(() => { setSystem(ALL); }, [project.id]);
 
-  const edwards = project.systems.some((entry) => /edwards/i.test(entry.brand ?? "")) ||
-    (submittals?.items ?? []).some((entry) => /edwards/i.test(entry.manufacturer ?? ""));
+  // An Edwards fire alarm carries voice evacuation and fire telephone (backend system rules).
+  const integrated = project.voice_evacuation_integrated;
   const group = (value: string | null): string => {
     const code = (value ?? "").trim().toUpperCase().replace(/[_-]+/g, " ");
     if (["FAS", "FA", "FIRE ALARM"].includes(code)) return "FAS";
     if (["VE", "VES", "VOICE EVACUATION", "FT", "FIRE TELEPHONE"].includes(code)) {
-      return edwards ? "FAS" : (["FT", "FIRE TELEPHONE"].includes(code) ? "FT" : "VE");
+      if (["FT", "FIRE TELEPHONE"].includes(code)) return "FAS";
+      return integrated ? "FAS" : "VE";
     }
-    if (["EML", "ELS", "EL", "EMERGENCY LIGHTING", "EMERGENCY LIGHT MONITORING", "MONITORED SELF CONTAINED", "MONITORED SELF CONTAINED SYSTEM", "MONITORED SELF CONTAINED EMERGENCY LIGHTING", "EMERGENCY LIGHTING MONITORING"].includes(code)) return "EML";
+    // Emergency lighting is one system: ELS, CBS and EML alike.
+    if (["ELS", "EL", "EML", "ELM", "CBS", "EMERGENCY LIGHTING", "CENTRAL BATTERY SYSTEM", "EMERGENCY LIGHT MONITORING", "MONITORED SELF CONTAINED", "MONITORED SELF CONTAINED SYSTEM", "MONITORED SELF CONTAINED EMERGENCY LIGHTING", "EMERGENCY LIGHTING MONITORING"].includes(code)) return "ELS";
     if (["FRC", "FIRE RATED CABLE", "FIRE RESISTANT CABLE"].includes(code)) return "FRC";
-    if (code === "CENTRAL BATTERY SYSTEM") return "CBS";
     return value?.trim() ?? "";
   };
   const fullPackage = /full[ _-]*package/i.test(project.scope_of_work ?? "");

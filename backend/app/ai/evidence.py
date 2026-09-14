@@ -137,8 +137,8 @@ def for_sheet_system(sheet_text: str, issue: Issue, *, max_output_tokens: int) -
         TextPart("task", f"target: {issue.target}\nregion label: sheet\n"
                          f"candidate codes: {', '.join(candidates)}\n"
                          "codes: FAS = fire alarm; VES = voice evacuation; PAVA = public address / voice alarm / "
-                         "background music; EML = emergency light monitoring; ELS = emergency lighting; "
-                         "CBS = central battery"),
+                         "background music; ELS = emergency lighting (central battery or emergency light "
+                         "monitoring, one system)"),
         TextPart("drf_marked_systems", "\n".join(marked)[:MAX_TEXT_PART_CHARS]),
         TextPart("sheet", sheet_text[:MAX_TEXT_PART_CHARS]),
     ]

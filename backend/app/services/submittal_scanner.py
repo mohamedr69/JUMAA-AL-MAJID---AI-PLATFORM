@@ -50,11 +50,11 @@ _TICKED_RE = {
 
 SYSTEM_KEYWORDS = [
     ("FRC", r"fire\s*(rated|resistant)\s*cable|\bFRC\b|\bcables?\b"),
-    ("EML", r"emergency\s*light|self\s*contained"),
+    ("ELS", r"emergency\s*light|self\s*contained|central\s*battery"),
     ("FAS", r"fire\s*alarm|voice\s*evacuation|fire\s*telephone"),
 ]
 # The folder a form sits in says it plainer than its title does.
-FOLDER_SYSTEMS = [("FRC", r"\bFRC\b"), ("EML", r"\bEML\b"), ("FAS", r"\bFA\b|fire\s*alarm")]
+FOLDER_SYSTEMS = [("FRC", r"\bFRC\b"), ("ELS", r"\bEML\b|\bELS\b|\bCBS\b"), ("FAS", r"\bFA\b|fire\s*alarm")]
 APPROVAL_FOLDER_RE = re.compile(r"approval|approved", re.IGNORECASE)
 
 

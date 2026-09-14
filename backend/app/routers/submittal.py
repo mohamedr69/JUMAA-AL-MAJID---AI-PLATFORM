@@ -45,6 +45,7 @@ from app.schemas_design import (
     SubmittalScanOut,
     SubmittalSuggestionOut,
 )
+from app.services import system_rules
 from app.services.battery_calculation import part_key
 from app.services import company_library
 from app.services.datasheet_library import get_libraries, libraries_for
@@ -78,10 +79,8 @@ MAX_STORAGE_FOLDERS = 12
 # What a system's submittal is called, when the register suggests one.
 SYSTEM_TITLES = {
     "FAS": "Fire Alarm System",
-    "EML": "Emergency Light Monitoring System",
     "ELS": "Emergency Lighting System",
     "VES": "Voice Evacuation System",
-    "CBS": "Central Battery System",
     "FT": "Fire Telephone System",
     "PAVA": "Public Address & Voice Alarm System",
 }
@@ -291,7 +290,7 @@ def create_submittal(
     submittal = ProjectSubmittal(
         project_id=project.id,
         title=payload.title.strip(),
-        system_code=payload.system_code,
+        system_code=system_rules.effective_code(payload.system_code, project),
         manufacturer=payload.manufacturer,
         revision=payload.revision.strip(),
         status=SubmittalStatus(payload.status),
@@ -666,9 +665,10 @@ def build_submittal_package(
 def _system_title(project: Project, system_code: str | None) -> str:
     """What the cover calls the systems, from the DRF's own wording -- and
     only the systems this package is for."""
-    code = (system_code or "").strip().upper()
-    if code == "FAS":
-        covered = [s.name for s in project.systems if s.name in FAS_FAMILY_ROWS]
+    code = system_rules.effective_code(system_code, project) or ""
+    if code in ("FAS", "ELS"):
+        rows = system_rules.drf_rows(code, project)
+        covered = [s.name for s in project.systems if s.name in rows]
         if covered:
             return _join_systems(covered)
     return SYSTEM_TITLES.get(code, "Material Submittal")

@@ -6,6 +6,7 @@ measurement of a live model; the live evaluation is a separate, opt-in
 exercise described in docs/LLM_ASSISTANCE_PLAN.md.
 """
 
+import json
 import threading
 from pathlib import Path
 
@@ -481,6 +482,7 @@ def test_no_vendor_client_is_built_while_assistance_is_off(monkeypatch):
     monkeypatch.setattr(settings, "ai_enabled", False)
     monkeypatch.setattr(provider_module, "ClaudeProvider", lambda: built.append("claude"))
     monkeypatch.setattr(provider_module, "OpenAiProvider", lambda: built.append("openai"))
+    monkeypatch.setattr(provider_module, "ClaudeCodeProvider", lambda: built.append("claude-code"))
     provider_module.set_provider(None)
     try:
         assert isinstance(provider_module.get_provider(), NullProvider)
@@ -492,7 +494,8 @@ def test_no_vendor_client_is_built_while_assistance_is_off(monkeypatch):
 @pytest.mark.parametrize(
     ("provider_name", "expected"),
     [("openai", "OpenAiProvider"), ("gpt", "OpenAiProvider"), ("claude", "ClaudeProvider"),
-     ("anthropic", "ClaudeProvider"), ("nonsense", "NullProvider")],
+     ("anthropic", "ClaudeProvider"), ("claude-code", "ClaudeCodeProvider"), ("groq", "NullProvider"),
+     ("nonsense", "NullProvider")],
 )
 def test_the_provider_setting_picks_the_vendor(monkeypatch, provider_name, expected):
     monkeypatch.setattr(settings, "ai_enabled", True)
@@ -576,3 +579,47 @@ def test_the_diagnostics_view_reports_usage(client, db_session):
     body = client.get("/admin/ai/usage").json()
     assert body["calls"] == 1 and body["cache_hits"] == 1 and body["input_tokens"] == 500
     assert body["median_latency_ms"] == 800 and body["estimated_cost"] == pytest.approx(0.0035)
+
+
+def test_claude_code_runs_the_cli_on_the_subscription(monkeypatch, tmp_path):
+    """The subscription provider: the schema and system prompt go to the CLI,
+    an image is written beside the call for the Read tool, the API key is
+    kept out of its environment, and `structured_output` is the answer."""
+    import subprocess
+
+    from app.ai.provider import AiRequest, ClaudeCodeProvider, ImagePart, TextPart
+
+    cli = tmp_path / "claude.exe"
+    cli.write_bytes(b"")
+    monkeypatch.setattr(settings, "ai_claude_cli", str(cli))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-leak")
+    seen = {}
+
+    def fake_run(args, input, cwd, env, **kwargs):  # noqa: A002
+        seen.update(args=args, input=input, env=env, files=sorted(p.name for p in Path(cwd).iterdir()))
+        reply = {"type": "result", "subtype": "success", "is_error": False, "structured_output": {"answer": "ok"},
+                 "result": "{\"answer\":\"ok\"}", "usage": {"input_tokens": 3, "cache_creation_input_tokens": 100,
+                                                            "cache_read_input_tokens": 0, "output_tokens": 7},
+                 "modelUsage": {"claude-sonnet-5": {}}}
+        return subprocess.CompletedProcess(args, 0, stdout=json.dumps(reply), stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    provider = ClaudeCodeProvider()
+    assert provider.ready
+    response = provider.complete(AiRequest(task="t", system="Be brief.", parts=[TextPart("clause", "Hello"), ImagePart("page", b"png")],
+                                           schema={"type": "object"}, max_output_tokens=100))
+    assert response.ok and response.data == {"answer": "ok"} and response.model == "claude-sonnet-5"
+    assert response.usage.input_tokens == 103 and response.usage.output_tokens == 7
+    args = seen["args"]
+    assert args[args.index("--system-prompt") + 1] == "Be brief." and args[args.index("--json-schema") + 1] == '{"type": "object"}'
+    assert args[args.index("--tools") + 1] == "Read" and seen["files"] == ["image-1.png"]
+    assert "<clause>\nHello\n</clause>" in seen["input"] and "image-1.png" in seen["input"]
+    assert "ANTHROPIC_API_KEY" not in seen["env"]
+
+    def logged_out(args, **kwargs):
+        reply = {"type": "result", "subtype": "success", "is_error": True, "result": "Not logged in · Please run /login"}
+        return subprocess.CompletedProcess(args, 1, stdout=json.dumps(reply), stderr="")
+
+    monkeypatch.setattr(subprocess, "run", logged_out)
+    failed = provider.complete(AiRequest(task="t", system="s", parts=[TextPart("a", "b")], schema={}, max_output_tokens=10))
+    assert failed.error == "auth" and "Not logged in" in failed.error_detail

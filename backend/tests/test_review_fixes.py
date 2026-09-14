@@ -172,7 +172,7 @@ def test_fx02_note_lines_lose_the_border_fragments():
 @pytest.mark.parametrize(
     ("raw", "code"),
     [("PA", "PAVA"), ("va", "PAVA"), ("VAS", "PAVA"), ("PAVA", "PAVA"), ("VE", "VES"), ("VES", "VES"),
-     ("fas", "FAS"), ("EML", "EML"), (None, None), ("", None)],
+     ("fas", "FAS"), ("EML", "ELS"), (None, None), ("", None)],
 )
 def test_fx04_filename_codes_are_normalised(raw, code):
     assert canonical_system_code(raw) == code

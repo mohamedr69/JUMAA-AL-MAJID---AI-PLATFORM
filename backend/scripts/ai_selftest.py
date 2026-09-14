@@ -118,8 +118,11 @@ def main(argv: list[str] | None = None) -> int:
     if not args.all:
         return run(args.model)
 
-    if get_settings().ai_provider.lower() == "groq":
-        shortlist = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b", "openai/gpt-oss-120b", "openai/gpt-oss-20b"]
+    provider = get_settings().ai_provider.lower()
+    if provider in ("claude-code", "claude_code", "subscription"):
+        shortlist = ["sonnet", "opus", "haiku"]
+    elif provider in ("claude", "anthropic"):
+        shortlist = ["claude-sonnet-5", "claude-opus-5", "claude-haiku-4-5"]
     else:
         shortlist = ["gpt-5.4-mini", "gpt-5.4", "gpt-5.5", "gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini"]
     worked: list[str] = []

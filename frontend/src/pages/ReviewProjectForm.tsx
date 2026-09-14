@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { DetailsCheckPanel } from "../components/DetailsCheckPanel";
 import { ProjectDetailsFields } from "../components/ProjectDetailsFields";
 import { ApiError, api } from "../lib/api";
 import { draftFrom, draftToPayload, type DraftTextField } from "../lib/projectDetails";
@@ -236,6 +237,18 @@ export function ReviewProjectForm({
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {resolution.drf_candidates[0] && (
+        <div className="mt-4">
+          <DetailsCheckPanel
+            endpoint="/projects/details-check"
+            drfPath={resolution.drf_candidates[0].path}
+            draft={draft}
+            onApply={setDraft}
+            disabled={submitting}
+          />
         </div>
       )}
 

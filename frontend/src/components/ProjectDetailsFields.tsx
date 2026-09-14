@@ -1,5 +1,5 @@
 import type { ChangeEvent, ReactNode } from "react";
-import type { DraftTextField, ProjectDetailsDraft } from "../lib/projectDetails";
+import { voiceEvacuationIntegrated, type DraftTextField, type ProjectDetailsDraft } from "../lib/projectDetails";
 import { SCOPE_OF_WORK_OPTIONS, SYSTEM_OPTIONS, type ProjectSystemInput } from "../lib/types";
 
 /** The project information fields and the Systems table, shared by the
@@ -149,6 +149,25 @@ export function ProjectDetailsFields({
           </table>
         </div>
       </div>
+
+      {/edwards|\best\d?\b/i.test(draft.systems["Fire Alarm"]?.brand ?? "") && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50/60 px-3 py-2 text-sm">
+          <label className="flex items-center gap-2 font-medium text-navy-900">
+            <input
+              type="checkbox"
+              checked={draft.separate_ve_panel}
+              onChange={(e) => onChange({ ...draft, separate_ve_panel: e.target.checked })}
+              className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+            />
+            Separate voice evacuation panel
+          </label>
+          <p className="mt-1 text-xs text-gray-600">
+            {voiceEvacuationIntegrated(draft)
+              ? "Edwards fire alarm: Fire Alarm, Voice Evacuation and Fire Telephone are one integrated system (FAS) with one Design Sheet, BOQ, compliance statement and submittal."
+              : "Voice Evacuation is a system of its own, with its own Design Sheet."}
+          </p>
+        </div>
+      )}
 
       <Field label="Other Information">
         <textarea {...bind("other_information")} rows={3} className="input" />

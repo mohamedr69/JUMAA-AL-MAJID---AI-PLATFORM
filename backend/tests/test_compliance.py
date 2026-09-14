@@ -47,7 +47,7 @@ def test_the_specification_of_each_system_is_found(client, tmp_path, monkeypatch
     project_id = _project(client, folder)
 
     body = client.get(f"/projects/{project_id}/compliance").json()
-    assert [(s["code"], len(s["specs"])) for s in body["systems"]] == [("FAS", 1), ("EML", 0)]
+    assert [(s["code"], len(s["specs"])) for s in body["systems"]] == [("FAS", 1), ("ELS", 0)]
     spec = body["systems"][0]["specs"][0]
     assert (spec["section_no"], spec["kind"], spec["uploaded"]) == ("283111", "document", False)
 
@@ -66,7 +66,7 @@ def test_a_missing_specification_offers_a_draft_mail(client, tmp_path, monkeypat
     project_id = _project(client, folder)
 
     body = client.get(f"/projects/{project_id}/compliance").json()
-    assert [(s["code"], s["specs"]) for s in body["systems"]] == [("FAS", []), ("EML", [])]
+    assert [(s["code"], s["specs"]) for s in body["systems"]] == [("FAS", []), ("ELS", [])]
 
     mail = client.get(f"/projects/{project_id}/compliance/draft-mail", params={"system_code": "EML"}).json()
     assert mail["to"] == "qusai@example.com" and mail["to_name"] == "Eng. Qusai Ammari"

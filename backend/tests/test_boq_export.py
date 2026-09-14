@@ -37,6 +37,7 @@ def _lines() -> list[dict]:
         {"system_code": "FAS", "catalog_no": "SIGA-PS", "description": "Photo Smoke Detector",
          "quantity": "1,200", "remarks": "Includes spares"},
         {"system_code": "FAS", "description": "Commissioning", "quantity": "Lot"},
+        # Emergency lighting (ELS, CBS, EML) is one system: stored as ELS.
         {"system_code": "ELS", "catalog_no": "VG-B", "description": "VisionGuard Basisversion",
          "quantity": "1"},
         {"system_code": None, "description": "Loose item", "quantity": "3"},

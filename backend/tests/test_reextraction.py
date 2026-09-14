@@ -349,7 +349,7 @@ def test_a_design_sheet_filed_after_creation_is_found_and_read(client, monkeypat
     by_status = {s["status"]: s for s in body["sheets"]}
     assert set(by_status) == {"known", "new"}
     assert by_status["new"]["filename"] == "EP-29495 EML Design.pdf"
-    assert by_status["new"]["system_code"] == "EML"
+    assert by_status["new"]["system_code"] == "ELS"
     assert body["has_differences"] is True
 
 

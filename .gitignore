@@ -26,14 +26,18 @@ dist/
 Thumbs.db
 .DS_Store
 
-# The company library: the structure is tracked, the documents are not.
-# A trade licence, ISO certificates and test reports are the company's own
-# papers, and a datasheet library runs to hundreds of megabytes. A clone gets
-# the shape and fills it with `backend/scripts/sync_library.py`.
-backend/library/**
-!backend/library/README.md
-!backend/library/**/
-!backend/library/**/.gitkeep
+# The company library is kept in the (private) repository, so a clone on a new
+# PC has the company documents, templates, stamp and datasheets without the
+# archive. Screen recordings are not documents the platform reads, and at
+# ~97 MB each sit at GitHub's file-size limit.
+backend/library/**/*.mp4
 
 # Derived data: the datasheet index, rebuilt from the library on demand.
 backend/.cache/
+
+# Data exported from the platform for people to download: a copy of what is in `data base/`.
+exports/
+
+# The knowledge base workbooks in `data base/` are tracked (imported on a new
+# PC's first start); the SQLite clause database beside them is rebuilt by
+# `backend/scripts/build_clause_database.py` and ignored as *.db above.

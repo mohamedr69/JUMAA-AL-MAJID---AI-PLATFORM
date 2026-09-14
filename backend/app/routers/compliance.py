@@ -27,7 +27,7 @@ import pymupdf
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.compliance import assist, service, writer
+from app.compliance import assist, pdf_writer, service, writer
 from app.compliance.spec_text import read_bytes
 from app.compliance.verify import verify
 from app.core.config import get_settings
@@ -38,6 +38,8 @@ from app.knowledge import importer, review
 from app.models import ComplianceStatement, Project, User
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404, _save_upload
 from app.schemas_design import (
+    AiFillIn,
+    ClearAnswersIn,
     ComplianceOut,
     ComplianceSystemOut,
     DraftMailOut,
@@ -56,6 +58,7 @@ from app.schemas_design import (
     StatementSummaryOut,
     UseAnswerIn,
 )
+from app.services import system_rules
 from app.services.spec_finder import (
     SYSTEMS,
     UPLOAD_NAME_RE,
@@ -79,37 +82,17 @@ CACHE_FOR = timedelta(minutes=15)
 _cache: dict[int, tuple[datetime, list, list[str]]] = {}
 _cache_lock = threading.Lock()
 
-# The DRF rows that mean a system, so the page shows the systems the project
-# actually has.
-SYSTEM_DRF_ROWS = {
-    "FAS": ("Fire Alarm",),
-    "EML": ("Emergency Light Monitoring",),
-    "VES": ("Voice Evacuation",),
-    "CBS": ("Central Battery System",),
-    "PAVA": ("PA/VA & BGM",),
-}
-
-
 def _project_systems(project: Project) -> list[str]:
-    """The systems this project's compliance statements cover: what its
-    Design Sheets and BOQ deliver, and what Project Info marks -- the
-    engineer adds a system there (EP-29495's Central Battery System) and
-    expects it on every tab. A Design Sheet's ELS is emergency lighting of
-    either kind; Project Info says which.
-
-    (Voice Evacuation marked on a DRF gets a tab of its own even where the
-    fire alarm specification covers it; that tab shows the same section.)"""
-    marked = {s.name for s in project.systems}
-    codes = {code for code, rows in SYSTEM_DRF_ROWS.items() if marked & set(rows)}
-    delivered = {(sheet.system_code or "").upper() for sheet in project.design_sheets}
-    delivered |= {(item.system_code or "").upper() for item in project.boq_items}
-    if "ELS" in delivered:
-        delivered.add("CBS" if "Central Battery System" in marked and "Emergency Light Monitoring" not in marked else "EML")
-    codes |= delivered
+    """The systems this project's compliance statements cover, under their
+    effective codes (app.services.system_rules): what Project Info marks and
+    what its Design Sheets and BOQ deliver. An Edwards fire alarm's voice
+    evacuation and fire telephone are answered in the FAS statement; ELS is CBS."""
+    codes = set(system_rules.project_codes(project))
     # A specification the engineer uploaded names its system too.
     uploads = Path(get_settings().uploads_root) / f"EP-{project.ep_number}"
     if uploads.is_dir():
-        codes |= {m.group(1).upper() for p in uploads.glob("*.pdf") if (m := UPLOAD_NAME_RE.match(p.name))}
+        codes |= {system_rules.effective_code(m.group(1), project)
+                  for p in uploads.glob("*.pdf") if (m := UPLOAD_NAME_RE.match(p.name))}
     return [code for code in SYSTEMS if code in codes]
 
 
@@ -123,9 +106,10 @@ def _uploaded_specs(project: Project, wanted: set[str]) -> list[SpecMatch]:
         return found
     for path in sorted(uploads.glob("*.pdf")):
         match = UPLOAD_NAME_RE.match(path.name)
-        if not match or match.group(1).upper() not in wanted:
+        # Uploads named before the system rules ("Specification CBS ...") count under their system now.
+        code = system_rules.effective_code(match.group(1), project) if match else None
+        if not code or code not in wanted:
             continue
-        code = match.group(1).upper()
         try:
             with pymupdf.open(path) as doc:
                 pages = doc.page_count
@@ -156,7 +140,11 @@ def _specs(project: Project, refresh: bool = False) -> tuple[list, list[str]]:
     elif not folder.is_dir():
         matches, warnings = [], ["The project's archive folder is not reachable; only uploaded specifications are listed."]
     else:
-        matches, warnings = find_specs(folder, wanted)
+        # An integrated fire alarm's voice evacuation specification belongs to FAS.
+        integrated = system_rules.project_integrated(project) and "FAS" in wanted
+        matches, warnings = find_specs(folder, wanted | ({"VES"} if integrated else set()))
+        for match in matches:
+            match.system_code = system_rules.effective_code(match.system_code, project)
     # A specification kept loose and again inside the archive it arrived in
     # is one specification.
     unique: dict[tuple[str, str, str | None], object] = {}
@@ -287,9 +275,7 @@ def upload_specification(
 ) -> ComplianceOut:
     """Attach the specification the project folder does not hold."""
     project = _get_project_or_404(db, project_id)
-    code = system_code.strip().upper()
-    if code not in SYSTEMS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"Unknown system '{system_code}'")
+    code = _system_code(system_code)
     _save_upload(project, file, f"Specification {code}")
     with _cache_lock:
         _cache.pop(project.id, None)
@@ -307,9 +293,7 @@ def draft_mail(
     Only what the project records is used -- nothing about the specification
     is invented, because there is none to describe."""
     project = _get_project_or_404(db, project_id)
-    code = system_code.strip().upper()
-    if code not in SYSTEMS:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"Unknown system '{system_code}'")
+    code = _system_code(system_code)
     system = SYSTEMS[code]
 
     project_name = project.project_name or f"EP-{project.ep_number}"
@@ -348,7 +332,8 @@ def draft_mail(
 
 
 def _system_code(code: str) -> str:
-    code = code.strip().upper()
+    # Any spelling of a system: EML and CBS are emergency lighting (ELS).
+    code = system_rules.canonical(code) or ""
     if code not in SYSTEMS:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"Unknown system '{code}'")
     return code
@@ -367,10 +352,30 @@ def _statement_or_404(db: Session, project: Project, statement_id: int) -> Compl
     return statement
 
 
+def _approval_fields(statement: ComplianceStatement) -> dict:
+    approved = service.is_approved(statement)
+    return {
+        "approved": approved,
+        "approved_at": statement.approved_at if approved else None,
+        "approved_by_name": statement.approved_by_name if approved else None,
+        "approval_blockers": [] if approved or statement.kind != "prepare" else service.approval_blockers(statement),
+        # A fill the server lost reads as stopped, not as running forever.
+        "summary": {**(statement.summary or {}), "ai_job": service.ai_job_of(statement)},
+    }
+
+
+def _full(statement: ComplianceStatement) -> StatementOut:
+    return StatementOut.model_validate(statement, from_attributes=True).model_copy(update=_approval_fields(statement))
+
+
+def _summary(statement: ComplianceStatement) -> StatementSummaryOut:
+    return StatementSummaryOut.model_validate(statement, from_attributes=True).model_copy(update=_approval_fields(statement))
+
+
 def _statement_out(db: Session, project: Project, statement: ComplianceStatement) -> StatementOut:
     """A statement as the page gets it, rechecked against its inputs first."""
     statement = service.recheck(db, project, statement)
-    return StatementOut.model_validate(statement, from_attributes=True)
+    return _full(statement)
 
 
 @router.post("/{project_id}/compliance/verify", response_model=SpecVerificationOut)
@@ -411,7 +416,7 @@ def prepare_statement(
         statement = service.prepare(db, project, code, _source(body), current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return StatementOut.model_validate(statement, from_attributes=True)
+    return _full(statement)
 
 
 @router.post("/{project_id}/compliance/check", response_model=StatementOut)
@@ -442,7 +447,7 @@ def check_statement(
         statement = service.check(db, project, code, source, content, name, current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return StatementOut.model_validate(statement, from_attributes=True)
+    return _full(statement)
 
 
 @router.get("/{project_id}/compliance/statements", response_model=list[StatementSummaryOut])
@@ -456,7 +461,7 @@ def list_statements(
     query = db.query(ComplianceStatement).filter(ComplianceStatement.project_id == project.id)
     if system_code:
         query = query.filter(ComplianceStatement.system_code == system_code.strip().upper())
-    return [StatementSummaryOut.model_validate(s, from_attributes=True)
+    return [_summary(s)
             for s in query.order_by(ComplianceStatement.created_at.desc()).limit(30)]
 
 
@@ -485,7 +490,23 @@ def edit_statement(
     if statement.kind != "prepare":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Only a prepared statement can be edited")
     updated = service.update_rows(db, project, statement, [row.model_dump() for row in body.rows], current_user)
-    return StatementOut.model_validate(updated, from_attributes=True)
+    return _full(updated)
+
+
+@router.post("/{project_id}/compliance/statements/{statement_id}/clear", response_model=StatementOut)
+def clear_statement(
+    project_id: int,
+    statement_id: int,
+    body: ClearAnswersIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> StatementOut:
+    """Clear every answer, remark and review status on the statement."""
+    project = _get_project_or_404(db, project_id)
+    statement = _statement_or_404(db, project, statement_id)
+    if statement.kind != "prepare":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Only a prepared statement can be cleared")
+    return _full(service.clear_answers(db, project, statement, current_user, keep_manual_remarks=body.keep_manual_remarks))
 
 
 @router.post("/{project_id}/compliance/statements/{statement_id}/autofill", response_model=StatementOut)
@@ -502,7 +523,31 @@ def autofill_statement(
         updated = service.autofill(db, project, statement, current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return StatementOut.model_validate(updated, from_attributes=True)
+    return _full(updated)
+
+
+@router.post("/{project_id}/compliance/statements/{statement_id}/ai-autofill", response_model=StatementOut)
+def ai_autofill_statement(
+    project_id: int,
+    statement_id: int,
+    body: AiFillIn,
+    wait: bool = False,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> StatementOut:
+    """Fill rows with the model, from the project's facts, its scope of work,
+    its BOQ, the engineer-approved answers and the knowledge base's nearest
+    past answers. Separate from `/autofill`, which stays deterministic: this
+    one calls the model, batched and cached, in the background -- the page
+    polls the statement for `summary.ai_job` -- and marks every row it fills
+    as a draft for review. `wait` runs the whole fill before answering."""
+    project = _get_project_or_404(db, project_id)
+    statement = _statement_or_404(db, project, statement_id)
+    try:
+        updated = service.start_ai_autofill(db, project, statement, current_user, scope=body.scope, wait=wait)
+    except service.ComplianceError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return _full(updated)
 
 
 @router.post("/{project_id}/compliance/statements/{statement_id}/rows/{clause_id}/review", response_model=StatementRowOut)
@@ -551,7 +596,7 @@ def decide_suggestion(
                                             response=body.response, remark=body.remark)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return StatementOut.model_validate(updated, from_attributes=True)
+    return _full(updated)
 
 
 @router.post("/{project_id}/compliance/statements/{statement_id}/rows/{clause_id}/use-answer", response_model=StatementOut)
@@ -570,7 +615,7 @@ def use_past_answer(
         updated = service.use_answer(db, project, statement, clause_id, body.response_id, current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return StatementOut.model_validate(updated, from_attributes=True)
+    return _full(updated)
 
 
 @router.post("/{project_id}/compliance/statements/{statement_id}/rows/{clause_id}/reviewed", response_model=StatementOut)
@@ -589,7 +634,7 @@ def mark_row_reviewed(
         updated = service.mark_reviewed(db, project, statement, clause_id, current_user, reviewed=body.reviewed)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    return StatementOut.model_validate(updated, from_attributes=True)
+    return _full(updated)
 
 
 @router.delete("/{project_id}/compliance/specs", status_code=status.HTTP_204_NO_CONTENT)
@@ -624,6 +669,67 @@ def delete_statement(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/{project_id}/compliance/statements/{statement_id}/approval", response_model=StatementOut)
+def approve_statement(
+    project_id: int,
+    statement_id: int,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> StatementOut:
+    """The engineer approves the statement, which opens export. Refused while
+    a clause is unanswered or waiting on a review."""
+    project = _get_project_or_404(db, project_id)
+    statement = service.recheck(db, project, _statement_or_404(db, project, statement_id))
+    try:
+        updated = service.approve(db, project, statement, current_user)
+    except service.ComplianceError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return _full(updated)
+
+
+@router.delete("/{project_id}/compliance/statements/{statement_id}/approval", response_model=StatementOut)
+def withdraw_statement_approval(
+    project_id: int,
+    statement_id: int,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> StatementOut:
+    """Withdraw the approval, closing export until it is given again."""
+    project = _get_project_or_404(db, project_id)
+    statement = _statement_or_404(db, project, statement_id)
+    return _full(service.withdraw_approval(db, project, statement, current_user))
+
+
+def _approved_statement(db: Session, project: Project, statement_id: int) -> ComplianceStatement:
+    """The statement, if it may leave the platform: prepared, and approved by
+    an engineer for the answers it holds now."""
+    statement = service.recheck(db, project, _statement_or_404(db, project, statement_id))
+    if statement.kind != "prepare":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Only a prepared statement can be exported")
+    if not service.is_approved(statement):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="An engineer must approve the statement before it can be exported")
+    return statement
+
+
+@router.get("/{project_id}/compliance/statements/{statement_id}/export.pdf")
+def export_statement_pdf(
+    project_id: int,
+    statement_id: int,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """The approved statement as a PDF."""
+    project = _get_project_or_404(db, project_id)
+    statement = _approved_statement(db, project, statement_id)
+    content = pdf_writer.build_pdf(project, statement, service.project_brands(project, statement.system_code))
+    name = f"EP-{project.ep_number} {statement.system_code} Compliance Statement.pdf"
+    return Response(
+        content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(name)}"},
+    )
+
+
 @router.get("/{project_id}/compliance/statements/{statement_id}/export")
 def export_statement(
     project_id: int,
@@ -631,11 +737,9 @@ def export_statement(
     _current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
-    """The prepared statement as the company's Excel workbook."""
+    """The approved statement as the company's Excel workbook."""
     project = _get_project_or_404(db, project_id)
-    statement = _statement_or_404(db, project, statement_id)
-    if statement.kind != "prepare":
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Only a prepared statement can be exported")
+    statement = _approved_statement(db, project, statement_id)
     content = writer.build_workbook(project, statement, service.project_brands(project, statement.system_code))
     name = f"EP-{project.ep_number} {statement.system_code} Compliance Statement.xlsx"
     return Response(

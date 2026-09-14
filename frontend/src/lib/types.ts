@@ -38,7 +38,9 @@ export interface DocumentCandidate {
 
 /** The system codes a design sheet can be filed under. PAVA is what the
  * archive spells PA, VA, VAS and PAVA; VES is VE too. */
-export const DESIGN_SHEET_SYSTEM_CODES = ["FAS", "VES", "PAVA", "EML", "ELS", "CBS"] as const;
+// Emergency lighting is one system, ELS (CBS and EML are ELS); an Edwards fire
+// alarm's voice evacuation is part of FAS (app/services/system_rules.py).
+export const DESIGN_SHEET_SYSTEM_CODES = ["FAS", "VES", "PAVA", "ELS"] as const;
 
 export interface ExtractedField {
   value: string;
@@ -201,6 +203,8 @@ export interface ProjectDetailsInput {
   scope_of_work?: string | null;
   systems: ProjectSystemInput[];
   other_information?: string | null;
+  /** Edwards only: a separate voice evacuation panel, so VE is its own system. */
+  separate_ve_panel?: boolean;
 }
 
 export interface ProjectCreate extends ProjectDetailsInput {
@@ -234,6 +238,40 @@ export interface Project {
   /** Design Sheets the one-off BOQ read could not parse, by filename. */
   boq_extraction_warnings: string[] | null;
   created_at: string;
+  /** After an edit: what the change was carried into elsewhere on the project. */
+  propagated?: string[];
+  separate_ve_panel: boolean;
+  /** An Edwards fire alarm carrying the voice evacuation and fire telephone (one system, FAS). */
+  voice_evacuation_integrated: boolean;
+  /** The project's systems under their effective codes; every tab reads these. */
+  system_codes: string[];
+}
+
+/** The AI check of project details against the DRF: suggestions only. */
+export interface FieldSuggestion {
+  field: string;
+  label: string;
+  current: string;
+  suggested: string;
+  reason: string;
+}
+
+export interface SystemSuggestion {
+  name: string;
+  change: "add" | "remove" | "update";
+  current: ProjectSystemInput | null;
+  suggested: ProjectSystemInput | null;
+  reason: string;
+}
+
+export interface DetailsCheck {
+  model: string;
+  from_cache: boolean;
+  fields: FieldSuggestion[];
+  systems: SystemSuggestion[];
+  confirmed: number;
+  unreadable: string[];
+  notes: string[];
 }
 
 // The rows of the DRF's Systems table, in template order.
@@ -727,9 +765,10 @@ export const TECHNICAL_LABELS: Record<TechnicalStatus, string> = {
 
 /** A past answer the knowledge base holds for a clause. */
 export interface KnowledgeCandidate {
-  requirement_id: string;
+  requirement_id: string | null;
   requirement_text: string;
-  response_id: string;
+  /** Null for an engineer-approved answer, which is not a knowledge-base record. */
+  response_id: string | null;
   historical_response: string;
   historical_status: string | null;
   proposed_status: TechnicalStatus;
@@ -767,6 +806,8 @@ export interface KnowledgeMatch {
   equivalence?: boolean;
   /** The candidates answered the same wording (not merely similar). */
   same_wording?: boolean;
+  /** Drafted from an answer an engineer signed off on an earlier statement. */
+  learned?: boolean;
   response_id?: string;
   historical_response?: string;
   historical_status?: string | null;
@@ -806,6 +847,8 @@ export interface AiReview {
 /** One clause of a prepared or checked statement. `source` says where the
  *  answer came from: heading | lead_in | rule | database | ai | engineer |
  *  none (prepare); statement | missing (check). */
+export type AiFillClass = "filled" | "confirmed" | "needs_review" | "conflict";
+
 export interface StatementRow {
   id: string;
   ref: string;
@@ -824,6 +867,8 @@ export interface StatementRow {
   technical?: { status: TechnicalStatus | null; origin: "historical" | "engineer" | "ai" | "rule" | null; verified: boolean } | null;
   match?: KnowledgeMatch | null;
   ai_review?: AiReview | null;
+  /** How an AI fill classified the row. needs_review and conflict are highlighted. */
+  ai_class?: AiFillClass | null;
   /** The submitted statement's row (check). */
   reference?: { label: string; text: string; response: string; similarity: number } | null;
   findings?: StatementFinding[];
@@ -858,13 +903,33 @@ export interface StatementSummary {
     statement_answered?: number;
     rows_not_in_spec?: number;
     by_workflow?: Record<string, number>;
-    autofill?: { filled: number; flagged?: number; candidates: number; unmatched: number; blocked: number };
+    autofill?: { filled: number; flagged?: number; candidates: number; unmatched: number; blocked: number; learned?: number };
+    /** Auto-fill with AI, running in the background or as it last ended. */
+    ai_job?: {
+      running: boolean;
+      scope: string;
+      total: number;
+      done: number;
+      learned: number;
+      counts: { filled: number; confirmed: number; needs_review: number; conflict: number; unanswered: number };
+      started_at: string;
+      stopped: string | null;
+      interrupted?: boolean;
+      error?: string;
+    } | null;
     inputs?: { spec_sha256: string; boq_hash: string; scope_hash: string; knowledge_import_id: number | null };
   };
   statement_name: string | null;
   ai_calls: number;
   created_at: string;
   updated_at: string;
+  /** The engineer's approval. Export is refused without it, and any change
+   *  to an answer withdraws it. */
+  approved: boolean;
+  approved_at: string | null;
+  approved_by_name: string | null;
+  /** Why the statement cannot be approved yet; empty when it can. */
+  approval_blockers: string[];
 }
 
 export interface Statement extends StatementSummary {

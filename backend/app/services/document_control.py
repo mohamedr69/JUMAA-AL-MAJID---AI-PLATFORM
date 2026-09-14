@@ -71,7 +71,7 @@ DRAW_REF = re.compile(r"(?:DRAWING\s*(?:NO\.?|NUMBER)|DWG\s*NO\.?)\s*:?\s*\n?\s*
 TITLE = re.compile(r"(?:DRAWING\s*TITLE|TITLE)\s*:?\s*\n?\s*([^\n]+)", re.I)
 SYSTEMS = [
     ("FRC", r"fire[ -]*(?:rated|resistant)\s*cable"),
-    ("EML", r"emergency\s*light|monitored\s*self[ -]*contained"),
+    ("ELS", r"emergency\s*light|monitored\s*self[ -]*contained|central\s*battery"),
     ("PAVA", r"public\s*address|\bpa\s*/?\s*va\b|\bpava\b|voice\s*alarm|background\s*music|\bbgm\b"),
     ("FAS", r"fire\s*alarm|voice\s*evacuation|fire\s*telephone"),
 ]
@@ -178,7 +178,7 @@ def parse_page(text: str, path: str, modified: datetime, page: int) -> list[Cont
         for match in re.finditer(r"(?m)^\s*(FA\s*\d{3,})\s*\n\s*([^\n]+)", text, re.I):
             ref, title = match.groups()
             title = title.strip()
-            codes = ["EML"] if "EMERGENCY SCHEMATIC" in title.upper() else ["FAS"] if "FIRE ALARM SCHEMATIC" in title.upper() else ["FAS", "EML"]
+            codes = ["ELS"] if "EMERGENCY SCHEMATIC" in title.upper() else ["FAS"] if "FIRE ALARM SCHEMATIC" in title.upper() else ["FAS", "ELS"]
             for code in codes:
                 schedule.append(ControlledDocument(code, title, path, modified, re.sub(r"\s+", " ", ref.strip()), "R0", "UR", floor_name(title), page=page, source="drawing schedule", category="drawings"))
         return schedule
@@ -236,7 +236,7 @@ def parse_page(text: str, path: str, modified: datetime, page: int) -> list[Cont
     named = f"{title} {layout}" if layout else title
     code = code_hint or next((code for code, pattern in SYSTEMS if re.search(pattern, named, re.I)), None)
     if code is None:
-        code = "FAS" if re.search(r"-(?:FA|FAS|VE|FT)-", reference, re.I) else "EML" if re.search(r"-(?:LI|ELM|EML)-", reference, re.I) else "FRC" if re.search(r"-FRC-", reference, re.I) else None
+        code = "FAS" if re.search(r"-(?:FA|FAS|VE|FT)-", reference, re.I) else "ELS" if re.search(r"-(?:LI|ELM|EML|ELS|CBS)-", reference, re.I) else "FRC" if re.search(r"-FRC-", reference, re.I) else None
     if code is None and category == "drawings": return []
     if code is None: code = next((code for code, pattern in SYSTEMS if re.search(pattern, text, re.I)), None)
     decision, evidence = read_decision(text)

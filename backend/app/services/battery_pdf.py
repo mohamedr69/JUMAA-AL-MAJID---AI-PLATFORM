@@ -21,7 +21,7 @@ from datetime import date
 import pymupdf
 
 from app.models import Project
-from app.services.ep_resolver import SYSTEM_CODE_DRF_ROWS
+from app.services import system_rules
 
 # The template's own page and palette.
 PAGE = (1190.551, 841.89)          # A3 landscape
@@ -309,7 +309,7 @@ def panel_manufacturer(project: Project, panel) -> str:
     )
     if counted:
         return counted.most_common(1)[0][0]
-    rows = SYSTEM_CODE_DRF_ROWS.get((getattr(panel, "system_code", None) or "").strip().upper(), ())
+    rows = system_rules.drf_rows(getattr(panel, "system_code", None), project)
     from_drf = {s.brand.strip().upper() for s in project.systems if s.name in rows and s.brand and s.brand.strip()}
     if len(from_drf) == 1:
         return from_drf.pop()
@@ -327,7 +327,7 @@ def battery_systems_title(project: Project, panels) -> str:
     belong to, not every system the project has."""
     wanted: set[str] = set()
     for panel in panels:
-        wanted.update(SYSTEM_CODE_DRF_ROWS.get((getattr(panel, "system_code", None) or "").strip().upper(), FAS_FAMILY_ROWS))
+        wanted.update(system_rules.drf_rows(getattr(panel, "system_code", None), project) or FAS_FAMILY_ROWS)
     names = [s.name for s in project.systems if s.name in wanted]
     return ", ".join(names) or "FIRE ALARM SYSTEM"
 

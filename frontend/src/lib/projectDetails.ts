@@ -16,9 +16,10 @@ export interface ProjectDetailsDraft {
   scope_of_work: string;
   other_information: string;
   systems: Record<string, ProjectSystemInput>;
+  separate_ve_panel: boolean;
 }
 
-export type DraftTextField = Exclude<keyof ProjectDetailsDraft, "systems">;
+export type DraftTextField = Exclude<keyof ProjectDetailsDraft, "systems" | "separate_ve_panel">;
 
 const TEXT_FIELDS: DraftTextField[] = [
   "project_name",
@@ -35,7 +36,7 @@ const TEXT_FIELDS: DraftTextField[] = [
 ];
 
 export function draftFrom(
-  source: Partial<Record<DraftTextField, string | null>>,
+  source: Partial<Record<DraftTextField, string | null>> & { separate_ve_panel?: boolean },
   systems: ProjectSystemInput[]
 ): ProjectDetailsDraft {
   const text = Object.fromEntries(TEXT_FIELDS.map((field) => [field, source[field] ?? ""])) as Record<
@@ -44,6 +45,7 @@ export function draftFrom(
   >;
   return {
     ...text,
+    separate_ve_panel: Boolean(source.separate_ve_panel),
     systems: Object.fromEntries(
       systems.map((s) => [
         s.name,
@@ -64,5 +66,17 @@ export function draftToPayload(draft: ProjectDetailsDraft): ProjectDetailsInput 
     ...known.filter((name) => name in draft.systems),
     ...Object.keys(draft.systems).filter((name) => !known.includes(name)),
   ];
-  return { ...text, systems: names.map((name) => draft.systems[name]) };
+  return { ...text, separate_ve_panel: draft.separate_ve_panel, systems: names.map((name) => draft.systems[name]) };
+}
+
+/** Whether Voice Evacuation is part of the fire alarm system, as the backend
+ * decides it (app/services/system_rules.py): the fire alarm is Edwards, the
+ * voice evacuation carries no other brand, and no separate panel is ticked. */
+export function voiceEvacuationIntegrated(draft: ProjectDetailsDraft): boolean {
+  if (draft.separate_ve_panel) return false;
+  const edwards = (brand: string | null | undefined) => /edwards|\best\d?\b/i.test(brand ?? "");
+  const fireAlarm = draft.systems["Fire Alarm"];
+  if (!fireAlarm || !edwards(fireAlarm.brand)) return false;
+  const voice = draft.systems["Voice Evacuation"]?.brand;
+  return !voice || edwards(voice);
 }

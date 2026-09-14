@@ -41,8 +41,20 @@ def find_synced_folder(name: str) -> str | None:
     return None
 
 
+# backend/, found from this file, so `.env` and the default data folders do not
+# depend on the folder the server was started from.
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+REPO_DIR = BACKEND_DIR.parent
+# Where Tesseract's Windows installer puts it.
+_TESSERACT_CANDIDATES = (
+    Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Tesseract-OCR" / "tesseract.exe",
+    Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Tesseract-OCR" / "tesseract.exe",
+    Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Tesseract-OCR" / "tesseract.exe",
+)
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=str(BACKEND_DIR / ".env"), env_file_encoding="utf-8")
 
     app_name: str = "Engineering Project Platform"
     app_tagline: str = "Engineering a Safer Tomorrow"
@@ -86,8 +98,20 @@ class Settings(BaseSettings):
     # the archive, it does not write to it.
     uploads_root: str = "uploads"
 
-    # Path to tesseract.exe. Only needed if it's not already on PATH.
+    # Path to tesseract.exe. Unset: found on the PATH or where the Windows
+    # installer puts it, so a new machine needs no setting.
     tesseract_cmd: str | None = None
+
+    @model_validator(mode="after")
+    def _find_tesseract(self) -> "Settings":
+        self.tesseract_cmd = expand_path(self.tesseract_cmd)
+        if not self.tesseract_cmd:
+            import shutil
+
+            if not shutil.which("tesseract"):
+                found = next((p for p in _TESSERACT_CANDIDATES if p.is_file()), None)
+                self.tesseract_cmd = str(found) if found else None
+        return self
 
     # --- The company library ------------------------------------------
     # Everything a submittal needs that is not about a particular project:
@@ -131,21 +155,25 @@ class Settings(BaseSettings):
     # evidence for that issue alone, and its answer is a proposal an
     # engineer accepts, never a value written by itself.
     ai_enabled: bool = False
-    # Which vendor answers: "groq" (Groq Cloud, OpenAI-compatible), "openai"
-    # (GPT) or "claude" (Anthropic). Each has
-    # its own provider class in app/ai/provider.py behind one interface, so
-    # switching is this setting plus the model names and the key.
-    ai_provider: str = "openai"
-    # The key. Put it here (backend/.env is gitignored) or leave it unset and
-    # let the vendor SDK read its own environment variable -- GROQ_API_KEY,
-    # OPENAI_API_KEY or ANTHROPIC_API_KEY. It is never written into code or into the
-    # repository.
+    # Which way the model is reached: "claude-code" (Claude through the Claude
+    # Code CLI, on the Claude subscription signed in on this server -- no API
+    # key), "claude" (Anthropic API) or "openai" (OpenAI API). Each has its
+    # own provider class in app/ai/provider.py behind one interface.
+    ai_provider: str = "claude-code"
+    # The Claude Code program for "claude-code": a name on the PATH or the full
+    # path to claude.exe. Sign in once with `claude` as the user the server runs as.
+    ai_claude_cli: str = "claude"
+    # One Claude Code call, start to finish (it starts a process and may read an image).
+    ai_cli_timeout_s: float = 300.0
+    # The key, for the API providers only. Put it here (backend/.env is
+    # gitignored) or let the vendor SDK read OPENAI_API_KEY or ANTHROPIC_API_KEY.
     ai_api_key: str | None = None
     # Model IDs are configuration, verified against the account's own model
     # list rather than assumed. The small tier reads a single cell; the
     # standard tier is the one escalation for a reply the small one botched.
-    ai_model_small: str = "gpt-5.4-mini"
-    ai_model_standard: str = "gpt-5.4"
+    # For "claude-code" these are Claude Code model names: sonnet, opus, haiku.
+    ai_model_small: str = "sonnet"
+    ai_model_standard: str = "opus"
     # Reasoning depth for these short extraction tasks.
     ai_effort: str = "low"
     ai_timeout_s: float = 60.0
@@ -184,10 +212,6 @@ class Settings(BaseSettings):
     ai_compliance_max_output_tokens: int = 3000
     ai_compliance_max_calls_per_statement: int = 12
     ai_compliance_max_elapsed_s: float = 600.0
-    # The provider's output-token allowance per minute, when it has one
-    # (Groq's free tier: 1000). Compliance calls wait for room rather than
-    # being refused. 0 means no pacing.
-    ai_output_tokens_per_minute: int = 0
     # A past answer is reused without asking when its clause reads this much
     # like the new one (0-1, word-level similarity).
     compliance_reuse_similarity: float = 0.86
@@ -201,6 +225,13 @@ class Settings(BaseSettings):
     # database, which is what autofill queries. Unset means no import can
     # run on this machine; the knowledge already imported keeps working.
     compliance_knowledge_source: str | None = None
+    # Unset source: use the `data base` folder at the top of the repository
+    # when it holds the workbook, so a fresh clone has its knowledge base.
+    # Tests turn this off.
+    compliance_knowledge_autodetect: bool = True
+    # On startup, import the knowledge base in the background when nothing
+    # has been imported yet and the source is reachable.
+    compliance_knowledge_import_on_start: bool = True
 
     # --- Fallback: the library as it was filed in the archive -----------
     # Used only for what the local library does not hold, so a machine that

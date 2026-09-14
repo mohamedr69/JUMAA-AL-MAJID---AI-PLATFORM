@@ -29,6 +29,8 @@ from app.schemas_project import (
     BoqRevisionIssue,
     BoqRevisionOut,
     BoqRevisionSummaryOut,
+    DetailsCheckIn,
+    DetailsCheckOut,
     DocumentCandidateOut,
     ExtractedFieldOut,
     FieldComparisonOut,
@@ -60,6 +62,7 @@ from app.services.boq_revisions import compare_boq
 from app.services.drf_extractor import extract_drf_fields
 from app.services.ep_resolver import canonical_system_code, infer_single_system, mark_superseded, resolve_project
 from app.services.reextraction import reextract_project
+from app.services import system_rules
 from app.services.log_scan_jobs import get_log_scan
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -146,7 +149,7 @@ def resolve(
     # system's sheet, and saying so is what puts its lines under a system
     # rather than "Unassigned". A DRF marking two systems settles nothing,
     # and the sheet stays unlabelled for the engineer to place.
-    inferred = infer_single_system([s.name for s in extracted_systems])
+    inferred = infer_single_system([s.name for s in extracted_systems], systems=extracted_systems)
     if inferred:
         for candidate in result.design_sheet_candidates:
             if candidate.system_guess is None:
@@ -211,9 +214,7 @@ def _resolve_suggestions(db, result, extracted_systems, extraction_issues) -> li
     try:
         budget = open_budget(db, None)
         marked = [s.name for s in extracted_systems]
-        candidates = sorted({
-            code for code, rows in SYSTEM_CODE_DRF_ROWS.items() if any(r in rows for r in marked)
-        })
+        candidates = system_rules.codes_for_rows(extracted_systems)
         if len(candidates) > 1:
             for candidate in result.design_sheet_candidates:
                 if candidate.system_guess is not None:
@@ -315,7 +316,7 @@ def create_project(
     )
     _apply_details(project, payload)
     project.design_sheets = [
-        ProjectDesignSheet(system_code=canonical_system_code(ds.system_code), document_path=ds.document_path)
+        ProjectDesignSheet(system_code=system_rules.effective_code(ds.system_code, project), document_path=ds.document_path)
         for ds in payload.design_sheets
     ]
 
@@ -360,10 +361,114 @@ def update_project(
     The EP number and document paths are not editable: they tie the project
     to its archive folder."""
     project = _get_project_or_404(db, project_id)
+    before = _details_snapshot(project)
     _apply_details(project, payload)
+    propagated = _propagate_details(db, project, before)
     db.commit()
     db.refresh(project)
+    project.propagated = propagated
     return project
+
+
+def _details_snapshot(project: Project) -> dict:
+    return {"fields": {name: getattr(project, name) for name in _DETAIL_FIELDS},
+            "systems": [ProjectSystem(name=s.name, brand=s.brand, method_statement=s.method_statement, drawing=s.drawing)
+                        for s in project.systems]}
+
+
+def _propagate_details(db: Session, project: Project, before: dict) -> list[str]:
+    """Carry a Project Info change into what was derived from it.
+
+    Most of the platform reads the project live -- the pages, the exports, the
+    submittal package, the compliance facts -- so an edit is already there.
+    What holds a copy is brought in line here:
+
+    - A BOQ line carries the manufacturer its system's DRF brand gave it when
+      the line was read. When that brand changes, lines still carrying the old
+      brand take the new one; a line whose manufacturer an engineer typed in
+      is theirs and is left alone.
+    - The compliance page's specification search remembers which specs fit
+      the project (its name, client, systems): it is searched again.
+    - Compliance drafts depend on the scope of work and the BOQ: a statement
+      whose inputs moved flags its drafts for recheck when it is next opened
+      (app.compliance.service.recheck), which this edit now triggers.
+    """
+    notes: list[str] = []
+    old_systems = before["systems"]
+    recoded = system_rules.normalize_project(project)
+    if recoded:
+        notes.append(f"{recoded} design sheet, BOQ line or submittal code{'s' if recoded != 1 else ''} moved to "
+                     + ("FAS: the Edwards fire alarm carries voice evacuation and fire telephone"
+                        if project.voice_evacuation_integrated else "their system"))
+    if before["fields"].get("separate_ve_panel") is False and project.separate_ve_panel:
+        notes.append("voice evacuation is now a system of its own; lines already under FAS stay there until moved in the BOQ")
+    moved = 0
+    for item in project.boq_items:
+        old_brand = _brand_for(item.system_code, old_systems)
+        new_brand = _brand_for(item.system_code, project.systems)
+        if not old_brand or not new_brand or old_brand == new_brand:
+            continue
+        if (item.manufacturer or "").strip().upper() == old_brand.strip().upper():
+            item.manufacturer = new_brand
+            moved += 1
+    if moved:
+        notes.append(f"{moved} BOQ line{'s' if moved != 1 else ''} now carry the new brand")
+
+    changed = [name for name in _DETAIL_FIELDS if before["fields"].get(name) != getattr(project, name)]
+    systems_changed = sorted((s.name, s.brand or "") for s in old_systems) != sorted((s.name, s.brand or "") for s in project.systems)
+    if changed or systems_changed:
+        from app.routers import compliance as compliance_router  # imported here: it imports this module
+
+        with compliance_router._cache_lock:
+            compliance_router._cache.pop(project.id, None)
+        notes.append("the compliance specification search will run again")
+    if "scope_of_work" in changed or "other_information" in changed or moved:
+        notes.append("compliance drafts that depend on the scope or BOQ are flagged for recheck when opened")
+    return notes
+
+
+def _check_details(db: Session, drf: Path, payload: DetailsCheckIn, project_id: int | None) -> DetailsCheckOut:
+    from app.services import details_check
+
+    details = payload.details.model_dump()
+    systems = details.pop("systems")
+    try:
+        result = details_check.check(db, drf, details, systems, project_id=project_id)
+    except details_check.DetailsCheckError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return DetailsCheckOut(**vars(result))
+
+
+@router.post("/details-check", response_model=DetailsCheckOut)
+def check_new_project_details(
+    payload: DetailsCheckIn,
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> DetailsCheckOut:
+    """Check the review form's values against the DRF the resolver found,
+    before the project is created. Suggestions only."""
+    if not payload.drf_path:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="No DRF to check against")
+    drf = Path(payload.drf_path)
+    roots = [Path(r) for r in (settings.projects_root, settings.uploads_root) if r]
+    if settings.projects_root and not any(_is_within(drf, r) for r in roots):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="The DRF is outside the project archive")
+    return _check_details(db, drf, payload, None)
+
+
+@router.post("/{project_id}/details-check", response_model=DetailsCheckOut)
+def check_project_details(
+    project_id: int,
+    payload: DetailsCheckIn,
+    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> DetailsCheckOut:
+    """Check Project Info's values (as the form holds them now) against the
+    project's own DRF. Suggestions only: apply and save to keep any."""
+    project = _get_project_or_404(db, project_id)
+    if not project.drf_document_path:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="This project has no DRF to check against: attach one under Documents")
+    return _check_details(db, Path(project.drf_document_path), payload, project.id)
 
 
 @router.get("/{project_id}/boq", response_model=list[ProjectBoqItemOut])
@@ -420,7 +525,8 @@ def replace_project_boq(
     """
     project = _get_project_or_404(db, project_id)
     project.boq_items = [
-        ProjectBoqItem(position=index, **item.model_dump()) for index, item in enumerate(items)
+        ProjectBoqItem(position=index, **{**item.model_dump(), "system_code": system_rules.effective_code(item.system_code, project)})
+        for index, item in enumerate(items)
     ]
     db.commit()
     db.refresh(project)
@@ -469,7 +575,7 @@ def ensure_project_boq(
             if result.failure:
                 warnings.append(f"{Path(sheet.document_path).name}: {result.failure}")
                 continue
-            extracted.extend((sheet.system_code, line) for line in result.lines)
+            extracted.extend((system_rules.effective_code(sheet.system_code, project), line) for line in result.lines)
 
         # Test and set the stamp in one statement. Checking it up front and
         # setting it after the OCR is what let two overlapping opens both
@@ -498,7 +604,7 @@ def ensure_project_boq(
                     system_code=system_code,
                     position=position,
                     group_heading=line.group_heading,
-                    manufacturer=_brand_for(system_code, project.systems),
+                    manufacturer=_brand_for(system_code, project.systems, project.separate_ve_panel),
                     catalog_no=line.catalog_no,
                     description=line.description,
                     quantity=line.quantity,
@@ -548,23 +654,17 @@ def _stored_boq(project: Project) -> BoqEnsureResponse:
     )
 
 
-# The DRF Systems rows a Design Sheet's system code can stand for. ELS is
-# "Emergency Lighting", which the DRF splits into two rows; on EP-29495 it is
-# the central battery sheet.
-SYSTEM_CODE_DRF_ROWS: dict[str, tuple[str, ...]] = {
-    "FAS": ("Fire Alarm",),
-    "VES": ("Voice Evacuation",),
-    "PAVA": ("PA/VA & BGM",),
-    "CBS": ("Central Battery System",),
-    "EML": ("Emergency Light Monitoring",),
-    "ELS": ("Central Battery System", "Emergency Light Monitoring"),
-}
+# The DRF Systems rows a Design Sheet's system code can stand for, before the
+# project's own rules (app.services.system_rules): ELS is CBS, and an Edwards
+# FAS carries Voice Evacuation too.
+SYSTEM_CODE_DRF_ROWS: dict[str, tuple[str, ...]] = system_rules.BASE_ROWS
 
 
-def _brand_for(system_code: str | None, systems: list[ProjectSystem]) -> str | None:
+def _brand_for(system_code: str | None, systems: list[ProjectSystem], separate_ve_panel: bool = False) -> str | None:
     """The brand the DRF gives the system a Design Sheet is for. Blank rather
     than a guess when the code could be more than one row and they disagree."""
-    rows = SYSTEM_CODE_DRF_ROWS.get(canonical_system_code(system_code) or "", ())
+    integrated = system_rules.voice_evacuation_integrated(systems, separate_panel=separate_ve_panel)
+    rows = system_rules.drf_rows(system_code, integrated=integrated)
     brands = {s.brand.strip() for s in systems if s.name in rows and s.brand and s.brand.strip()}
     return brands.pop() if len(brands) == 1 else None
 
@@ -854,7 +954,7 @@ def upload_design_sheet(
     project (see the BOQ section of the README) -- so its lines are added by
     hand or the sheet is here for the record."""
     project = _get_project_or_404(db, project_id)
-    code = (system_code or "").strip().upper() or None
+    code = system_rules.effective_code(system_code, project)
     path = _save_upload(project, file, f"Design Sheet {code}" if code else "Design Sheet")
     project.design_sheets.append(ProjectDesignSheet(system_code=code, document_path=path))
     db.commit()

@@ -119,7 +119,7 @@ export function ProjectBoqPage() {
     };
   }, [project.id, canEdit]);
 
-  // One tab per system the project has a Design Sheet for -- FAS and EML on a
+  // One tab per system the project has a Design Sheet for -- FAS and ELS on a
   // project with those two sheets. Systems only present on existing BOQ lines
   // are included too: a line whose system has no tab would be invisible but
   // still saved, which is worse than an extra tab.

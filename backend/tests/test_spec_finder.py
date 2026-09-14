@@ -46,7 +46,7 @@ def _spec(path: Path, number: str, title: str, extra_pages: int = 1) -> Path:
 
 def test_a_section_is_recognised_by_its_number_and_title():
     assert [s.code for s in system_of("283111 - ADDRESSABLE FIRE DETECTION AND VOICE EVACUATION")] == ["FAS", "VES"]
-    assert [s.code for s in system_of("265200 - CENTRAL EMERGENCY LIGHTING")] == ["EML", "CBS"]
+    assert [s.code for s in system_of("265200 - CENTRAL EMERGENCY LIGHTING")] == ["ELS"]
     assert system_of("211313 - SPRINKLER SYSTEMS") == []
 
 
@@ -66,7 +66,7 @@ def test_specifications_of_their_own(tmp_path):
     matches, warnings = find_specs(tmp_path, {"FAS", "EML"})
     assert warnings == []
     assert sorted((m.system_code, m.section_no, m.kind) for m in matches) == [
-        ("EML", "265200", "document"),
+        ("ELS", "265200", "document"),
         ("FAS", "283111", "document"),
     ]
     assert matches[0].snippet.startswith("PROJECT ON PLOT")
@@ -108,7 +108,7 @@ def test_a_section_inside_a_combined_electrical_specification(tmp_path):
     _pdf(tmp_path / "Tender" / "Electrical Specification.pdf", pages)
     matches, _ = find_specs(tmp_path, {"FAS", "EML"})
     assert [(m.system_code, m.section_no, m.kind, m.first_page, m.last_page) for m in matches] == [
-        ("EML", "265200", "section", 3, 4),
+        ("ELS", "265200", "section", 3, 4),
         ("FAS", "283111", "section", 5, 6),
     ]
     assert all(m.matched_on == "heading" for m in matches)
@@ -127,6 +127,6 @@ def test_live_ep30784_specifications():
     assert warnings == []
     found = {(m.system_code, m.section_no, Path(m.filename).stem[:6]) for m in matches}
     assert ("FAS", "283111", "283111") in found
-    assert ("EML", "265200", "265200") in found
+    assert ("ELS", "265200", "265200") in found
     # The fire-suppression sections beside them are not offered.
     assert not any("SPRINKLER" in m.filename.upper() for m in matches)

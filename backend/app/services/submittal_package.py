@@ -659,11 +659,13 @@ def schedule_blocks(project: Project, system_code: str | None = None) -> list[tu
     panel read as the same block. It is left out of the parts as well, being
     the heading rather than one of them.
     """
-    wanted = (system_code or "").strip().upper() or None
+    from app.services.system_rules import effective_code
+
+    wanted = effective_code(system_code, project)
     order: list[str] = []
     grouped: dict[str, list] = {}
     for item in project.boq_items:
-        if wanted and (item.system_code or "").strip().upper() != wanted:
+        if wanted and effective_code(item.system_code, project) != wanted:
             continue
         key = (item.group_heading or "").strip() or UNGROUPED_BLOCK
         if key not in grouped:

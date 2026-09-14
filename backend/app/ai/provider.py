@@ -5,10 +5,11 @@ Every feature that wants a proposal builds an `AiRequest` and hands it to
 retries for transport failures, concurrency, in-flight de-duplication,
 usage collection and error normalisation. Nothing else imports the SDK.
 
-`ClaudeProvider` (Anthropic SDK) and `OpenAiProvider` (OpenAI SDK) each use
-their vendor's JSON-schema output format, so what comes back is either a
-document matching the task's schema or a normalised error; `AI_PROVIDER`
-picks one. `NullProvider` answers "insufficient evidence" to everything and
+`ClaudeCodeProvider` (the default) runs the Claude Code CLI on the Claude
+subscription signed in on the server -- no API key. `ClaudeProvider`
+(Anthropic SDK) and `OpenAiProvider` (OpenAI SDK) call the vendors' APIs with
+a key. Each uses JSON-schema output, so what comes back is either a document
+matching the task's schema or a normalised error; `AI_PROVIDER` picks one. `NullProvider` answers "insufficient evidence" to everything and
 is what runs when AI_ENABLED is false -- the deterministic pipeline must be
 complete with it. Tests use `RecordingProvider`.
 """
@@ -20,6 +21,7 @@ import json
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Protocol
 
 from app.core.config import get_settings
@@ -422,43 +424,131 @@ class OpenAiProvider:
         return AiResponse(data=data, usage=usage, model=model, latency_ms=latency, raw_text=text)
 
 
-class GroqProvider(OpenAiProvider):
-    """Groq Cloud through its OpenAI-compatible endpoint.
+class ClaudeCodeProvider:
+    """Claude through the Claude Code CLI, on the subscription it is signed in with.
 
-    Same SDK, same JSON-schema response format, same error mapping as
-    `OpenAiProvider`; only the base URL, the credential and two model quirks
-    differ, checked against the live API on 2026-09-13:
+    No API key: the server runs the `claude` program installed on this machine
+    (`AI_CLAUDE_CLI`, default `claude` on the PATH) headless, once per request,
+    and Claude Code bills the call to the Claude subscription that is signed in
+    there. The same contract as the other providers -- a request in, a document
+    matching the task's schema or a normalised error out:
 
-    - Only some Groq models take images. `qwen/qwen3.8-27b` read a cell image
-      under a strict schema; the `openai/gpt-oss-*` models are text-only.
-    - Text-only models reject a list of content blocks ("content must be a
-      string"), so a request with no image is sent as one string.
-    - Groq reports a reply that fails the schema as a 400 ("Failed to
-      validate JSON"), which lands as `invalid_response` like any other.
+    - The task's JSON schema goes to `--json-schema`; the reply's
+      `structured_output` is the document.
+    - The task's system prompt replaces Claude Code's own (`--system-prompt`),
+      so a call carries only what the task needs.
+    - Images are written to a private temporary folder the call runs in, and
+      Claude reads them with the Read tool -- the only tool it is given, and
+      only when there is an image. With no image it has no tools at all.
+    - The prompt goes in on stdin: Windows caps a command line at 32,767
+      characters and a batch of clauses is longer than that.
+    - `ANTHROPIC_API_KEY` is removed from the call's environment, so the CLI
+      uses the subscription even on a machine that also has a key set.
+    - Sessions are not saved (`--no-session-persistence`).
+
+    Checked against Claude Code 2.1.263 on 2026-09-14.
     """
 
-    name = "groq"
-    base_url = "https://api.groq.com/openai/v1"
+    name = "claude-code"
 
-    @staticmethod
-    def _key(settings) -> str | None:
-        import os
+    def __init__(self) -> None:
+        import shutil
 
-        return (settings.ai_api_key or "").strip() or os.environ.get("GROQ_API_KEY") or None
+        settings = get_settings()
+        configured = (settings.ai_claude_cli or "claude").strip()
+        self._cli = shutil.which(configured) or (configured if Path(configured).is_file() else None)
+        self._models = {"small": settings.ai_model_small, "standard": settings.ai_model_standard}
+        self._timeout = settings.ai_cli_timeout_s
+        self._semaphore = threading.BoundedSemaphore(max(1, settings.ai_max_concurrency))
+
+    @property
+    def ready(self) -> bool:
+        return self._cli is not None
 
     @property
     def status(self) -> str:
-        if self._credential:
-            return f"Groq, model {self._models['small']}"
-        return ("AI is enabled but no credential was found: set AI_API_KEY in backend/.env "
-                "or GROQ_API_KEY in the server's environment")
+        if self._cli:
+            return f"Claude subscription through Claude Code, model {self._models['small']}"
+        return ("AI is enabled but Claude Code was not found: install it and sign in with `claude` on this server, "
+                "or set AI_CLAUDE_CLI to the path of claude.exe")
 
-    def _messages(self, request: AiRequest) -> list[dict[str, Any]]:
-        messages = super()._messages(request)
-        blocks = messages[1]["content"]
-        if all(block["type"] == "text" for block in blocks):
-            messages[1]["content"] = "\n\n".join(block["text"] for block in blocks)
-        return messages
+    @staticmethod
+    def _prompt(request: AiRequest, images: list[tuple[str, str]]) -> str:
+        lines = []
+        for part in request.parts:
+            if isinstance(part, TextPart):
+                # Document text is data, fenced and labelled so that anything
+                # written inside a document reads as content, not instruction.
+                lines.append(f"<{part.label}>\n{part.text}\n</{part.label}>")
+        for label, filename in images:
+            lines.append(f"[{label}] is the image file {filename} in the current directory: read it with the Read tool.")
+        lines.append("Answer through the structured output only.")
+        return "\n\n".join(lines)
+
+    @staticmethod
+    def _error_kind(text: str) -> str:
+        lowered = text.lower()
+        if any(s in lowered for s in ("not logged in", "please run /login", "invalid api key", "authentication", "oauth")):
+            return "auth"
+        if any(s in lowered for s in ("usage limit", "rate limit", "rate_limit", "overloaded", "limit reached")):
+            return "rate_limit"
+        return "invalid_response"
+
+    def complete(self, request: AiRequest) -> AiResponse:
+        import os
+        import subprocess
+        import tempfile
+
+        model = self._models.get(request.tier, self._models["small"])
+        if not self._cli:
+            return AiResponse(data=None, error="auth", error_detail=self.status, model=model)
+        started = time.perf_counter()
+        with tempfile.TemporaryDirectory(prefix="ep-ai-") as folder:
+            images = []
+            for index, part in enumerate(p for p in request.parts if isinstance(p, ImagePart)):
+                filename = f"image-{index + 1}.png"
+                (Path(folder) / filename).write_bytes(part.png)
+                images.append((part.label, filename))
+            args = [self._cli, "-p", "--output-format", "json", "--model", model,
+                    "--system-prompt", request.system, "--json-schema", json.dumps(request.schema),
+                    "--no-session-persistence", "--disable-slash-commands", "--strict-mcp-config"]
+            args += ["--tools", "Read", "--allowedTools", "Read"] if images else ["--tools", ""]
+            env = {k: v for k, v in os.environ.items() if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
+            try:
+                with self._semaphore:
+                    completed = subprocess.run(
+                        args, input=self._prompt(request, images), capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", cwd=folder, env=env, timeout=request.timeout_s or self._timeout,
+                    )
+            except subprocess.TimeoutExpired:
+                return AiResponse(data=None, error="transport", model=model,
+                                  error_detail=f"Claude Code did not answer within {request.timeout_s or self._timeout:.0f} s")
+            except OSError as exc:
+                return AiResponse(data=None, error="transport", error_detail=f"Claude Code could not be started: {exc}", model=model)
+        latency = int((time.perf_counter() - started) * 1000)
+
+        try:
+            reply = json.loads(completed.stdout)
+        except ValueError:
+            detail = (completed.stderr or completed.stdout or "no output").strip()[:500]
+            return AiResponse(data=None, error=self._error_kind(detail), error_detail=detail, model=model, latency_ms=latency)
+        raw_usage = reply.get("usage") or {}
+        usage = Usage(
+            input_tokens=sum(int(raw_usage.get(k) or 0) for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")),
+            output_tokens=raw_usage.get("output_tokens"),
+            cached_input_tokens=raw_usage.get("cache_read_input_tokens"),
+            reasoning_tokens=(raw_usage.get("output_tokens_details") or {}).get("thinking_tokens"),
+        )
+        used = next((name for name in (reply.get("modelUsage") or {}) if "haiku" not in name), None) or model
+        if reply.get("is_error") or reply.get("subtype") != "success":
+            detail = str(reply.get("result") or reply.get("subtype") or "Claude Code reported an error")[:500]
+            return AiResponse(data=None, usage=usage, model=used, latency_ms=latency, error=self._error_kind(detail),
+                              error_detail=detail)
+        data = reply.get("structured_output")
+        if not isinstance(data, dict):
+            return AiResponse(data=None, usage=usage, model=used, latency_ms=latency, error="invalid_response",
+                              error_detail="the reply carried no structured output", raw_text=str(reply.get("result"))[:2000])
+        return AiResponse(data=data, usage=usage, model=used, latency_ms=latency, raw_text=str(reply.get("result"))[:2000])
 
 
 _provider: AiProvider | None = None
@@ -472,9 +562,10 @@ def get_provider() -> AiProvider:
     with _provider_lock:
         if _provider is None:
             settings = get_settings()
-            builders = {"claude": ClaudeProvider, "anthropic": ClaudeProvider,
-                        "openai": OpenAiProvider, "gpt": OpenAiProvider,
-                        "groq": GroqProvider}
+            builders = {"claude-code": ClaudeCodeProvider, "claude_code": ClaudeCodeProvider,
+                        "subscription": ClaudeCodeProvider,
+                        "claude": ClaudeProvider, "anthropic": ClaudeProvider,
+                        "openai": OpenAiProvider, "gpt": OpenAiProvider}
             build = builders.get(settings.ai_provider.lower()) if settings.ai_enabled else None
             if build is None:
                 _provider = NullProvider()

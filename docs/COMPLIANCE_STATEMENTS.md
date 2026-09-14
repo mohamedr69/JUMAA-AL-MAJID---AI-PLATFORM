@@ -85,11 +85,12 @@ A statement (uploaded, or chosen from the project folder) against the specificat
 
 ## 6. Provider limits
 
-Groq's free tier allows **1,000 output tokens per minute** on qwen3.8 and refuses
-any request whose `max_completion_tokens` alone exceeds it. `backend/.env` sets
-`AI_COMPLIANCE_MAX_OUTPUT_TOKENS=950` and `AI_OUTPUT_TOKENS_PER_MINUTE=1000`;
-batches shrink to fit and calls wait for room. A check with 4 review calls took
-~3 minutes for that reason; a paid tier or another provider removes the wait.
+The model is Claude, reached through the Claude Code CLI on the Claude
+subscription signed in on the server (`AI_PROVIDER=claude-code`, no API key).
+Each call starts `claude -p` once and takes roughly 10-30 seconds; there is no
+per-minute token pacing. Calls count against the subscription's usage limits,
+and a limit reached is reported as `rate_limit` rather than retried. The machine
+running the backend must stay signed in to Claude Code.
 
 ## Open
 

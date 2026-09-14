@@ -185,7 +185,7 @@ def test_finds_design_sheets_alongside_drf_in_numbered_scan_folder(tmp_path):
 
     ds_matches = find_design_sheet_candidates(project)
     systems = {m.system_guess for m in ds_matches}
-    assert systems == {"FAS", "EML"}
+    assert systems == {"FAS", "ELS"}
 
     drf_matches = find_drf_candidates(project)
     assert len(drf_matches) == 1

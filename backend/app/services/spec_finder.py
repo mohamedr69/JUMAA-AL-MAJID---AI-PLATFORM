@@ -60,24 +60,20 @@ SYSTEMS: dict[str, SystemSpec] = {
         # fire alarm by "fire detection".
         keywords=("fire detection", "fire alarm", "fire telephone", "fire-alarm"),
     ),
-    "EML": SystemSpec(
-        code="EML",
+    # Emergency lighting is one system (app.services.system_rules): central
+    # battery and monitored self-contained sections both answer it.
+    "ELS": SystemSpec(
+        code="ELS",
         name="Emergency Lighting",
-        sections=("265200", "265213", "265100", "264313", "165535", "16535", "16536"),
-        keywords=("emergency lighting", "emergency light", "exit lighting", "central battery", "self contained",
-                  "self-contained"),
+        sections=("265200", "265213", "265100", "264313", "263353", "165535", "16535", "16536"),
+        keywords=("emergency lighting", "emergency light", "exit lighting", "central battery", "central emergency lighting",
+                  "self contained", "self-contained"),
     ),
     "VES": SystemSpec(
         code="VES",
         name="Voice Evacuation",
         sections=("283111", "275116", "275100", "284625"),
         keywords=("voice evacuation", "voice alarm", "public address"),
-    ),
-    "CBS": SystemSpec(
-        code="CBS",
-        name="Central Battery System",
-        sections=("265200", "265213", "263353"),
-        keywords=("central battery", "central emergency lighting"),
     ),
     "PAVA": SystemSpec(
         code="PAVA",
@@ -124,9 +120,8 @@ _NOT_IN_SUBMITTAL_RE = re.compile(
 )
 _ABBREVIATIONS = {
     "FAS": ("fa", "fas", "fave", "fafd"),
-    "EML": ("em", "eml", "elm", "emlsc"),
+    "ELS": ("em", "eml", "elm", "emlsc", "els", "cbs"),
     "VES": ("ve", "ves", "fave"),
-    "CBS": ("cbs",),
     "PAVA": ("pa", "pava", "bgm"),
 }
 # The content pass: PDFs named for nothing, opened for their first page.
@@ -355,6 +350,10 @@ def find_specs(root: Path, wanted: set[str], *, look_in_submittals: bool = True,
     (EP-30353's PA/BGM submittal holds its 27 51 16); and finally the first
     page of every other PDF that is not a drawing, for a specification filed
     under a name that says nothing ("Project specs.pdf", "Scan0012.pdf")."""
+    from app.services.system_rules import canonical
+
+    # Any spelling of a system (EML, CBS: emergency lighting, ELS) asks for it.
+    wanted = {canonical(code) or code for code in wanted}
     matches: list[SpecMatch] = []
     warnings: list[str] = []
     submittals: list[tuple[str, Path]] = []

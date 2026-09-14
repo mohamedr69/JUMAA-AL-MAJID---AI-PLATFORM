@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
+import { DetailsCheckPanel } from "../components/DetailsCheckPanel";
 import { ProjectDetailsFields } from "../components/ProjectDetailsFields";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api } from "../lib/api";
@@ -31,6 +32,7 @@ function EditProjectInfo() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [propagated, setPropagated] = useState<string[]>([]);
 
   const dirty = JSON.stringify(draftToPayload(draft)) !== JSON.stringify(draftToPayload(saved));
 
@@ -43,6 +45,7 @@ function EditProjectInfo() {
       setProject(updated);
       setDraft(draftFrom(updated, updated.systems));
       setSavedAt(new Date().toLocaleTimeString());
+      setPropagated(updated.propagated ?? []);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to save the project information");
     } finally {
@@ -52,12 +55,25 @@ function EditProjectInfo() {
 
   return (
     <form onSubmit={handleSubmit} className="mt-6 space-y-4 rounded-xl border border-gray-200 bg-white p-5">
+      {project.drf_document_path ? (
+        <DetailsCheckPanel endpoint={`/projects/${project.id}/details-check`} draft={draft} onApply={setDraft} disabled={saving} />
+      ) : (
+        <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
+          Attach the DRF under Documents to check these details against it with AI.
+        </p>
+      )}
       <ProjectDetailsFields epNumber={`EP-${project.ep_number}`} draft={draft} onChange={setDraft} />
 
       {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
+      {savedAt && !dirty && propagated.length > 0 && (
+        <div className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+          Saved and carried across the project: {propagated.join("; ")}.
+        </div>
+      )}
+
       <div className="flex items-center justify-end gap-2">
-        {savedAt && !dirty && <span className="text-xs text-gray-400">Saved {savedAt}</span>}
+        {savedAt && !dirty && <span className="text-xs text-gray-400">Saved {savedAt} · every tab now shows these details</span>}
         <button
           type="button"
           onClick={() => setDraft(saved)}

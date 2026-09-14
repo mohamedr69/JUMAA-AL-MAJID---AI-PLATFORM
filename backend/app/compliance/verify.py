@@ -100,7 +100,9 @@ def project_verdict(project: Project, spec: SpecText) -> tuple[str, list[str], l
 
 
 def system_verdict(system_code: str, spec: SpecText, filename: str = "") -> tuple[str, list[str]]:
-    wanted = SYSTEMS.get(system_code)
+    from app.services.system_rules import canonical
+
+    wanted = SYSTEMS.get(canonical(system_code) or "")
     if wanted is None:
         return "unknown", [f"Unknown system {system_code}."]
     # The title, the running header, the file's name -- and, for a

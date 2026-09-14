@@ -23,6 +23,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app.services import system_rules
+
 # EP folders were observed at depth 1-3 under the projects root (root itself,
 # client\EP-####, client\subfolder\EP-####). Capped to bound worst-case
 # traversal cost when an EP number doesn't exist anywhere in the tree.
@@ -62,36 +64,22 @@ DESIGN_SHEET_EXTENSIONS = (".pdf", ".xlsx", ".xls")
 # `infer_single_system`).
 SYSTEM_CODE_RE = re.compile(r"\b(FAS|ELS|EML|PAVA|PA|VA|VAS|CBS|VES|VE|NAC)\b", re.IGNORECASE)
 
-SYSTEM_CODE_ALIASES: dict[str, str] = {
-    "PA": "PAVA",
-    "VA": "PAVA",
-    "VAS": "PAVA",
-    "VE": "VES",
-}
+SYSTEM_CODE_ALIASES: dict[str, str] = system_rules.ALIASES
 
 
 def canonical_system_code(code: str | None) -> str | None:
     """The platform's spelling of a system code: PA, VA and VAS are PAVA;
-    VE is VES; anything else is itself, upper-cased."""
-    if not code:
-        return None
-    upper = code.strip().upper()
-    return SYSTEM_CODE_ALIASES.get(upper, upper) or None
+    VE is VES; ELS is CBS; anything else is itself, upper-cased."""
+    return system_rules.canonical(code)
 
 
 # Which DRF Systems rows each design-sheet code stands for. A generic
 # "Design.pdf" can be assigned a code only when the DRF marks exactly one of
 # these systems -- then it is not ambiguous, it is the project's one system.
-SYSTEM_CODE_DRF_ROWS: dict[str, tuple[str, ...]] = {
-    "FAS": ("Fire Alarm",),
-    "VES": ("Voice Evacuation",),
-    "PAVA": ("PA/VA & BGM",),
-    "CBS": ("Central Battery System",),
-    "EML": ("Emergency Light Monitoring",),
-}
+SYSTEM_CODE_DRF_ROWS: dict[str, tuple[str, ...]] = system_rules.BASE_ROWS
 
 
-def infer_single_system(marked_rows: list[str]) -> str | None:
+def infer_single_system(marked_rows: list[str], systems=None) -> str | None:
     """The one design-sheet code a DRF's marked systems amount to, or None.
 
     Only when every marked row maps to the same code: a DRF marking Fire
@@ -100,6 +88,10 @@ def infer_single_system(marked_rows: list[str]) -> str | None:
     design-sheet code of their own (Fire Telephone rides on the FAS sheet;
     Smoke Management, CCTV, ...) do not vote.
     """
+    if systems is not None:
+        # An Edwards fire alarm with its voice evacuation is one system: FAS.
+        codes = set(system_rules.codes_for_rows(systems))
+        return codes.pop() if len(codes) == 1 else None
     codes = {
         code
         for row in marked_rows

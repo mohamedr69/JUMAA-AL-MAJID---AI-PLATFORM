@@ -38,7 +38,7 @@ def test_prepared_material_defaults_to_r0_ur():
 def test_schedule_covers_all_listed_floors_and_systems():
     rows = parse_page("DWG NO:\nDRAWING TITLE:\nFIRE ALARM SUBMISSION\nEML SUBMISSION\nFA 101\nBASEMENT-4 FLOOR PLAN\n17/04/2026\nFA 102\nTYPICAL 2ND TO 4TH FLOOR PLAN\n24/04/2026", "schedule.pdf", NOW, 1)
     assert len(rows) == 4
-    assert {row.system_code for row in rows} == {"FAS", "EML"}
+    assert {row.system_code for row in rows} == {"FAS", "ELS"}
     assert all(row.status == "UR" and row.revision == "R0" for row in rows)
     assert {row.floor for row in rows} == {"BASEMENT-4", "TYPICAL 2ND TO 4TH FLOOR"}
 

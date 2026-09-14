@@ -29,6 +29,11 @@ async def lifespan(app: FastAPI):
     # the background now rather than on the first lookup.
     for library in get_libraries().values():
         threading.Thread(target=library.warm, daemon=True).start()
+    # A new machine's first start: the knowledge base in `data base` is
+    # imported in the background, so Auto-fill works without a setting.
+    from app.knowledge import importer
+
+    importer.import_on_start()
     yield
 
 

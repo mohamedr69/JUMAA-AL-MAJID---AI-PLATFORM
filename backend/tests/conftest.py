@@ -23,6 +23,11 @@ os.environ["LIBRARY_ROOT"] = tempfile.mkdtemp(prefix="ep-test-library-")
 os.environ["CACHE_ROOT"] = tempfile.mkdtemp(prefix="ep-test-cache-")
 # A library built during a test is read back in the same test: no throttle.
 os.environ["LIBRARY_RESCAN_SECONDS"] = "0"
+# The repository's own `data base` folder is the developer's knowledge base,
+# not the tests': they build their own, and nothing imports on startup.
+os.environ["COMPLIANCE_KNOWLEDGE_SOURCE"] = ""
+os.environ["COMPLIANCE_KNOWLEDGE_AUTODETECT"] = "false"
+os.environ["COMPLIANCE_KNOWLEDGE_IMPORT_ON_START"] = "false"
 
 import pytest
 from fastapi.testclient import TestClient

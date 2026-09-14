@@ -161,8 +161,8 @@ def canonical_manufacturer(name: str | None) -> str | None:
 SYSTEM_TO_KNOWLEDGE = {
     "FAS": ("FA",),
     "VES": ("FA",),
-    "EML": ("EML",),
-    "CBS": ("CBS",),
+    # Emergency lighting is one system: both of the knowledge base's labels.
+    "ELS": ("CBS", "EML"),
     "PAVA": ("OTHER: PA / PAVA (non fire)",),
 }
 

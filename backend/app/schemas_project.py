@@ -177,6 +177,8 @@ class ProjectDetailsIn(BaseModel):
     scope_of_work: str | None = None
     systems: list[ProjectSystemIn] = []
     other_information: str | None = None
+    # Edwards only: a separate voice evacuation panel, so VE is its own system.
+    separate_ve_panel: bool = False
 
 
 class ProjectCreate(ProjectDetailsIn):
@@ -209,6 +211,13 @@ class ProjectOut(BaseModel):
     design_sheets: list[ProjectDesignSheetOut]
     boq_extraction_warnings: list[str] | None
     created_at: datetime
+    separate_ve_panel: bool = False
+    # From app.services.system_rules: whether FAS carries VE and FT, and the
+    # systems the project has under their effective codes. Every tab reads these.
+    voice_evacuation_integrated: bool = False
+    system_codes: list[str] = []
+    # After an edit: what the change was carried into elsewhere on the project.
+    propagated: list[str] = []
 
 
 # --- Re-extraction: re-reading the DRF and Design Sheets and comparing the
@@ -258,3 +267,42 @@ class ReextractionReportOut(BaseModel):
     has_differences: bool
     warnings: list[str]
     errors: list[str]
+
+
+# --- The AI check of project details against the DRF (app/services/details_check.py).
+# Suggestions only; the engineer applies what they accept and saves.
+
+
+class DetailsCheckIn(BaseModel):
+    """The values to check: the review form's draft, or Project Info's."""
+
+    details: ProjectDetailsIn
+    # At creation, the DRF the resolver found; ignored for an existing project,
+    # which is checked against its own DRF.
+    drf_path: str | None = None
+
+
+class FieldSuggestionOut(BaseModel):
+    field: str
+    label: str
+    current: str
+    suggested: str
+    reason: str
+
+
+class SystemSuggestionOut(BaseModel):
+    name: str
+    change: Literal["add", "remove", "update"]
+    current: ProjectSystemIn | None
+    suggested: ProjectSystemIn | None
+    reason: str
+
+
+class DetailsCheckOut(BaseModel):
+    model: str
+    from_cache: bool
+    fields: list[FieldSuggestionOut]
+    systems: list[SystemSuggestionOut]
+    confirmed: int
+    unreadable: list[str]
+    notes: list[str]
