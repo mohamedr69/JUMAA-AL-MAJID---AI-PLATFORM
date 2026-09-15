@@ -36,13 +36,14 @@ import pytesseract
 from PIL import Image
 
 from app.core.config import get_settings
+from app.extraction import values
 from app.extraction.issues import Coverage, Issue, IssueCode, Outcome, PageCoverage, RegionCoverage, outcome_for
 
 settings = get_settings()
 
 # Part of every cache key: a change to how a sheet is read is a change to
 # what a cached result means.
-PARSER_VERSION = "2026-09-13.2"
+PARSER_VERSION = "2026-09-15.1"
 if settings.tesseract_cmd:
     pytesseract.pytesseract.tesseract_cmd = settings.tesseract_cmd
 
@@ -72,9 +73,6 @@ RULE_ROW_DARK_FRACTION = 0.8
 RULE_EDGE_GROWTH_PX = 4
 RULE_EDGE_DARK_FRACTION = 0.25
 
-# A single letter in the quantity column is a misread digit -- these sheets
-# never spell a quantity with one character.
-QUANTITY_CONFUSIONS = {"i": "1", "l": "1", "I": "1", "o": "0", "O": "0", "S": "5", "s": "5"}
 
 
 @dataclass(frozen=True)
@@ -167,7 +165,7 @@ ROW_EDGE_INSET_PX = 6  # keeps a row's own bounding rules out of its cells
 # in the quantity column is a misread -- "7" comes back as "ae" on one scan --
 # and is dropped rather than passed on, so the engineer sees an empty cell to
 # fill instead of a plausible-looking wrong number.
-WORD_QUANTITIES = {"lot", "set", "nos", "no", "pcs", "pc", "ea", "each", "item", "sum"}
+WORD_QUANTITIES = values.WORD_QUANTITIES
 
 
 @dataclass
@@ -175,7 +173,8 @@ class ExtractedBoqLine:
     """One row as read. `raw_quantity`, `y_px` and `quantity_span` locate
     the quantity cell on the rendered page (at RENDER_DPI) so a row whose
     quantity could not be parsed can be shown -- and, if AI assistance is
-    on, read again -- as that cell's image."""
+    on, read again -- as that cell's image. `quantity_parse` is what the
+    typed parser made of the raw text and by which rule."""
 
     catalog_no: str | None
     description: str
@@ -186,6 +185,16 @@ class ExtractedBoqLine:
     raw_quantity: str | None = None
     y_px: float | None = None
     quantity_span: tuple[int, int] | None = None
+    quantity_parse: dict | None = None
+    row_bounds: tuple[int, int] | None = None   # (top, bottom) of the row at RENDER_DPI, when ruled
+
+    def region(self) -> tuple[int, int, int, int] | None:
+        """The row's box on the rendered page: from the first column rule to
+        the last, top to bottom of the row -- what provenance records."""
+        if self.quantity_span is None or self.y_px is None:
+            return None
+        top, bottom = self.row_bounds or (int(self.y_px - _CELL_HALF_HEIGHT_PX), int(self.y_px + _CELL_HALF_HEIGHT_PX))
+        return (int(self.quantity_span[0]), int(top), int(self.quantity_span[1]), int(bottom))
 
 
 class DesignSheetExtractionError(RuntimeError):
@@ -405,21 +414,16 @@ def _nearest(lines: list[tuple[float, str, float]], centre: float) -> tuple[str 
     return (best[1], best[2]) if best else (None, 0.0)
 
 
+def _parse_quantity(text: str | None) -> values.ParsedValue:
+    return values.parse_quantity(text)
+
+
 def _clean_quantity(text: str | None) -> str | None:
-    """Quantities read back with the column rule attached ("| 836"). Keep what
-    the sheet says otherwise -- "Lot" is a quantity these sheets really use."""
-    if not text:
-        return None
-    cleaned = text.strip(" |_-—:;.")
-    if not cleaned:
-        return None
-    digits = re.findall(r"\d+", cleaned)
-    if digits:
-        return digits[0]
-    word = re.sub(r"[^A-Za-z]", "", cleaned)
-    if len(word) == 1:
-        return QUANTITY_CONFUSIONS.get(word)
-    return word if word.lower() in WORD_QUANTITIES else None
+    """The quantity a cell's text means, or None when it means none for
+    certain. Quantities read back with the column rule attached ("| 836")
+    and "Lot" is a quantity these sheets really use; "1,250" is 1250, while
+    "12.5", "-3" and "2 x 10" are no count at all (app.extraction.values)."""
+    return _parse_quantity(text).text()
 
 
 def _is_column_heading(text: str) -> bool:
@@ -492,6 +496,8 @@ def _dropped_row_issue(line: ExtractedBoqLine, ordinal: int) -> Issue | None:
             "catalog_no": line.catalog_no,
             "group_heading": line.group_heading,
             "raw_quantity": line.raw_quantity,
+            # Why the quantity was refused: "decimal", "negative", "multiplier"...
+            "quantity_parse": line.quantity_parse,
         },
     )
 
@@ -642,16 +648,20 @@ def _read_ruled_rows(
 
         quantity_text, quantity_conf = cell(quantities)
         catalog_text, catalog_conf = cell(catalogs)
-        quantity = _clean_quantity(quantity_text)
+        parsed = _parse_quantity(quantity_text)
+        quantity = parsed.text()
         catalog = catalog_text.strip(" |_-—~") or None
         if catalog and _is_column_heading(catalog):
             catalog = None
 
         inline = INLINE_QUANTITY_RE.match(description)
         if inline:
-            quantity = inline.group(1)
+            parsed = _parse_quantity(inline.group(1))
+            quantity = parsed.text()
             description = description[inline.end() :].strip()
-        elif _is_heading(description, quantity, catalog):
+        elif _is_heading(description, quantity, catalog) and parsed.status == values.EMPTY:
+            # A row whose quantity cell holds something the parser refused
+            # ("12.5", "ae") is an item with a bad quantity, not a heading.
             take_heading(description)
             continue
 
@@ -666,6 +676,8 @@ def _read_ruled_rows(
                 page=page_number,
                 raw_quantity=quantity_text or None,
                 y_px=(row_top + row_bottom) / 2,
+                quantity_parse=parsed.to_dict(),
+                row_bounds=(row_top, row_bottom),
             )
         )
 
@@ -753,23 +765,27 @@ def _read_table(
 
         quantity_text, quantity_conf = _nearest(quantities, centre)
         catalog_text, catalog_conf = _nearest(catalogs, centre)
-        quantity = _clean_quantity(quantity_text)
+        parsed = _parse_quantity(quantity_text)
+        quantity = parsed.text()
         catalog = catalog_text.strip(" |_-—~") if catalog_text else None
         if catalog and _is_column_heading(catalog):
             catalog = None
 
         inline = INLINE_QUANTITY_RE.match(text)
         if inline:
-            quantity = inline.group(1)
+            parsed = _parse_quantity(inline.group(1))
+            quantity = parsed.text()
             text = text[inline.end() :].strip()
 
-        if not inline and _is_heading(text, quantity, catalog):
+        if not inline and parsed.status == values.EMPTY and _is_heading(text, quantity, catalog):
             take_heading(text)
             continue
 
         # A line with neither its own quantity nor a catalog number is the
-        # rest of the previous item's description, not a new item.
-        if not inline and quantity is None and catalog is None:
+        # rest of the previous item's description, not a new item -- unless
+        # its quantity cell held text the parser refused, which makes it an
+        # item whose quantity needs a person.
+        if not inline and parsed.status == values.EMPTY and catalog is None:
             if lines:
                 lines[-1].description = f"{lines[-1].description} {text}".strip()
             # Nothing yet to continue: this is text from above the table that
@@ -789,6 +805,7 @@ def _read_table(
                 page=page_number,
                 raw_quantity=quantity_text or None,
                 y_px=centre,
+                quantity_parse=parsed.to_dict(),
             )
         )
 

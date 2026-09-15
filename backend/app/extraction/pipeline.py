@@ -35,6 +35,7 @@ from app.ai.proposals import SCHEMA_VERSION, Validation, parse, validate
 from app.ai.provider import PROMPT_VERSION, AiProvider, AiRequest, estimate_input_tokens, get_provider
 from app.core.config import get_settings
 from app.core.timeutils import utc_now
+from app.extraction import values
 from app.extraction.issues import Issue, IssueCode, Outcome, llm_task_for, route
 from app.models import (
     AiProposal,
@@ -454,8 +455,10 @@ def accept_issue(db: Session, project: Project, row: ExtractionIssue, user: User
         value = proposal.value if proposal else ""
     if not value:
         raise AcceptRefused("no quantity to accept: type one")
-    if not (value.isdigit() or re.sub(r"[^A-Za-z]", "", value).lower() in design_sheet_extractor.WORD_QUANTITIES):
-        raise AcceptRefused(f"{value!r} is not a quantity")
+    parsed = values.parse_quantity(value)
+    if not parsed.ok:
+        raise AcceptRefused(f"{value!r} is not a quantity: {parsed.rule}")
+    value = parsed.text()
 
     from app.routers.projects import _brand_for
 
