@@ -136,6 +136,7 @@ export function ProjectBoqPage() {
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [buildingFilter, setBuildingFilter] = useState<string>("");
   const [duplicatesOnly, setDuplicatesOnly] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [source, setSource] = useState<SourceKey>("design");
@@ -248,14 +249,19 @@ export function ProjectBoqPage() {
     () => rows.map((row, index) => ({ row, index })).filter(({ row }) => inTab(row, activeTab)),
     [rows, activeTab]
   );
+  const buildings = useMemo(
+    () => Array.from(new Set([...meta.values()].map((item) => item.building).filter((b): b is string => Boolean(b)))).sort(),
+    [meta]
+  );
   const visibleRows = tabRows.filter(({ row, index }) => {
     if (!matchesFilter(row, filter)) return false;
+    if (buildingFilter && (row.id ? meta.get(row.id)?.building : null) !== buildingFilter) return false;
     if (duplicatesOnly && !duplicates.has(index)) return false;
     if (statusFilter === "attention") return needsAttention(row, index);
     if (statusFilter !== "all") return rowStatus(row, meta) === statusFilter;
     return true;
   });
-  const filtering = filter.trim() !== "" || duplicatesOnly || statusFilter !== "all";
+  const filtering = filter.trim() !== "" || duplicatesOnly || statusFilter !== "all" || buildingFilter !== "";
   // Long BOQs are paged, but an edit must never move a line out from under
   // the engineer, so the page only changes when they change it.
   const pageCount = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
@@ -634,6 +640,26 @@ export function ProjectBoqPage() {
                     <option value="legacy">No source record ({counts.legacy ?? 0})</option>
                   </select>
                 </label>
+                {buildings.length > 0 && (
+                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                    Building
+                    <select
+                      value={buildingFilter}
+                      onChange={(e) => {
+                        setBuildingFilter(e.target.value);
+                        setPage(1);
+                      }}
+                      className="input w-auto py-1.5"
+                    >
+                      <option value="">All buildings ({buildings.length})</option>
+                      {buildings.map((building) => (
+                        <option key={building} value={building}>
+                          {building}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 {tabDuplicates > 0 && (
                   <label className="flex items-center gap-2 text-sm text-amber-800">
                     <input
@@ -760,6 +786,8 @@ export function ProjectBoqPage() {
                                       placeholder={column.placeholder}
                                       aria-label={`${column.label}, line ${index + 1}`}
                                       aria-invalid={column.key === "quantity" && Boolean(problem)}
+                                      data-boq-cell={`${pagedRows.findIndex((r) => r.index === index)}:${column.key}`}
+                                      onKeyDown={moveBetweenRows}
                                       inputMode={column.align === "right" ? "decimal" : undefined}
                                       onChange={(e) =>
                                         update(index, {
@@ -877,6 +905,21 @@ export function ProjectBoqPage() {
   );
 }
 
+/** Up/Down (and Enter) move to the same column on the row above or below,
+ * as in a spreadsheet; Left/Right stay within the text being edited. */
+function moveBetweenRows(event: React.KeyboardEvent<HTMLInputElement>) {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const step = event.key === "ArrowDown" || event.key === "Enter" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+  if (!step) return;
+  const [row, column] = (event.currentTarget.dataset.boqCell ?? "").split(":");
+  const next = document.querySelector<HTMLInputElement>(`[data-boq-cell="${Number(row) + step}:${column}"]`);
+  if (next) {
+    event.preventDefault();
+    next.focus();
+    next.select();
+  }
+}
+
 function StripCell({ label, tone, children }: { label: string; tone?: "ok" | "warn"; children: React.ReactNode }) {
   return (
     <div className={`bg-white px-3 py-2 ${tone === "warn" ? "bg-amber-50/70" : ""}`}>
@@ -907,6 +950,23 @@ function Provenance({ row, meta }: { row: Row; meta: Map<number, ProjectBoqItem>
   return (
     <dl className="mt-2 max-w-64 space-y-0.5 text-[11px] text-gray-600">
       <div>{STATUS[stored.status].help}</div>
+      {stored.building && (
+        <div>
+          <dt className="inline font-semibold">Building: </dt>
+          <dd className="inline">{stored.building}</dd>
+        </div>
+      )}
+      {stored.catalog_match && (stored.catalog_match.source || stored.catalog_canonical) && (
+        <div>
+          <dt className="inline font-semibold">Part no.: </dt>
+          <dd className="inline">
+            read "{stored.catalog_match.source ?? stored.catalog_no}"
+            {stored.catalog_canonical && stored.catalog_canonical !== stored.catalog_no && ` · matches ${stored.catalog_canonical}`}
+            {(stored.catalog_match.library_reason || stored.catalog_match.reason) &&
+              ` (${stored.catalog_match.library_reason ?? stored.catalog_match.reason})`}
+          </dd>
+        </div>
+      )}
       {stored.source_page !== null && (
         <div>
           <dt className="inline font-semibold">Sheet page: </dt>

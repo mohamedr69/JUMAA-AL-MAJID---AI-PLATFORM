@@ -7,7 +7,7 @@ from openpyxl import load_workbook
 from app.models import ActivityEvent, RoleEnum
 
 from .conftest import login, make_user
-from .test_projects import _login_admin, _valid_project_payload
+from .test_projects import _login_admin, _payload_without_documents, _valid_project_payload
 
 
 def _actions(client, path="/auth/me/activity"):
@@ -17,7 +17,7 @@ def _actions(client, path="/auth/me/activity"):
 def _engineer_with_project(client, db_session):
     make_user(db_session, "eng@ep-platform.com", RoleEnum.design_engineer)
     assert login(client, "eng@ep-platform.com").status_code == 200
-    project = client.post("/projects", json=_valid_project_payload()).json()
+    project = client.post("/projects", json=_payload_without_documents()).json()
     return project["id"]
 
 

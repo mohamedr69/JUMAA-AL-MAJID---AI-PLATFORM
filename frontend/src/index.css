@@ -15,6 +15,23 @@ body {
   background: #f5f7fb;
 }
 
+/* Keyboard focus is always visible (WCAG 2.2 focus appearance). Mouse clicks
+   do not show it; :focus-visible is only for keyboard and assistive tech. */
+:where(a, button, select, summary, [role="tab"], input[type="checkbox"], input[type="radio"]):focus-visible {
+  outline: 2px solid var(--color-brand-600);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @layer components {
   .input {
     @apply w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100;

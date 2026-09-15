@@ -22,6 +22,7 @@ import {
   type TechnicalStatus,
   type WorkflowStatus,
 } from "../lib/types";
+import { useUnsavedChanges } from "../lib/useUnsavedChanges";
 import { useProject } from "./ProjectWorkspace";
 
 // --- helpers -----------------------------------------------------------------------
@@ -838,6 +839,9 @@ function ClausesCard({
   // by an effect: a save that finishes must see what is left at once, or it
   // would count the edits it just stored as unsaved and hold approval shut.
   const pendingRef = useRef(pending);
+  // What each edited row said when its edit began (see `edit`).
+  const baseRef = useRef<Record<string, { base_response: string; base_remark: string }>>({});
+  useUnsavedChanges(saveState === "dirty" || saveState === "saving" || saveState === "failed");
   function setPendingNow(next: typeof pending) {
     pendingRef.current = next;
     setPending(next);
@@ -856,22 +860,42 @@ function ClausesCard({
     setSaveState("saving");
     try {
       const updated = await api.patch<Statement>(`/projects/${projectId}/compliance/statements/${statement.id}`, {
-        rows: Object.entries(edits).map(([id, change]) => ({ id, ...change })),
+        rows: Object.entries(edits).map(([id, change]) => ({ id, ...baseRef.current[id], ...change })),
       });
       // Keep only what was typed while the save was in flight.
       const left: typeof edits = {};
       for (const [id, change] of Object.entries(pendingRef.current)) if (change !== edits[id]) left[id] = change;
+      // A saved row's next edit starts from what was just stored.
+      for (const id of Object.keys(edits)) {
+        if (left[id]) {
+          const stored = updated.rows.find((r) => r.id === id);
+          baseRef.current[id] = { base_response: stored?.response ?? "", base_remark: stored?.remark ?? "" };
+        } else {
+          delete baseRef.current[id];
+        }
+      }
       setPendingNow(left);
       onStatement(updated);
       setSaveState(Object.keys(left).length ? "dirty" : "saved");
     } catch (err) {
       setSaveState("failed");
-      onError(errorText(err, "Could not save the changes"));
+      if (err instanceof ApiError && err.isStaleWrite) {
+        onError(`${err.message} Your unsaved text is kept in the boxes until you reload.`);
+      } else {
+        onError(errorText(err, "Could not save the changes"));
+      }
     }
   }, [onError, onStatement, projectId, statement]);
 
   function edit(id: string, change: { response?: string; remark?: string }) {
     const all = pendingRef.current;
+    // The first edit to a row records what the row said then: the save sends
+    // it, and a row that changed underneath (another engineer, an auto-fill)
+    // is refused instead of silently overwritten.
+    if (!all[id]) {
+      const current = statement?.rows.find((r) => r.id === id);
+      baseRef.current[id] = { base_response: current?.response ?? "", base_remark: current?.remark ?? "" };
+    }
     setPendingNow({ ...all, [id]: { ...all[id], ...change } });
     setSaveState("dirty");
     if (saveTimer.current) window.clearTimeout(saveTimer.current);

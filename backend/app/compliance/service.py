@@ -81,6 +81,15 @@ class ComplianceError(Exception):
     pass
 
 
+class StaleRows(ComplianceError):
+    """Rows whose answer changed after the engineer's page loaded them."""
+
+    def __init__(self, refs: list[str]):
+        self.refs = refs
+        super().__init__(f"{len(refs)} clause{'s were' if len(refs) != 1 else ' was'} changed by someone else or by an "
+                         f"auto-fill while you edited ({', '.join(refs[:8])}). Reload to see the current answers.")
+
+
 # --- the specification ---------------------------------------------------------
 
 
@@ -758,6 +767,15 @@ def update_rows(db: Session, project: Project, statement: ComplianceStatement, c
     Typing is not reviewing -- the row's workflow status is left for the
     explicit action, except that an unfilled row becomes the engineer's."""
     by_id = {row["id"]: row for row in rows_of(statement)}
+    conflicts = [
+        by_id[change["id"]].get("ref") or change["id"]
+        for change in changes
+        if change.get("id") in by_id and ("base_response" in change or "base_remark" in change)
+        and ((change.get("base_response") is not None and (by_id[change["id"]].get("response") or "") != change["base_response"])
+             or (change.get("base_remark") is not None and (by_id[change["id"]].get("remark") or "") != change["base_remark"]))
+    ]
+    if conflicts:
+        raise StaleRows(conflicts)
     for change in changes:
         row = by_id.get(change.get("id"))
         if row is None or row.get("heading"):

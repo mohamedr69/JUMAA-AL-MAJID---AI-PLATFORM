@@ -148,10 +148,18 @@ export function ProjectBatteryPage() {
     setBusy("saving");
     setError(null);
     try {
-      accept(await api.put<BatteryCalculation>(`/projects/${project.id}/design/battery`, draft), false);
+      // Saved against the version the page loaded: a save someone else made
+      // in between is refused rather than overwritten.
+      accept(await api.put<BatteryCalculation>(`/projects/${project.id}/design/battery`, draft, data?.design_version), false);
       return true;
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Save failed");
+      setError(
+        err instanceof ApiError && err.isStaleWrite
+          ? `${err.message} Your unsaved panel edits are still on this page.`
+          : err instanceof ApiError
+            ? err.message
+            : "Save failed"
+      );
       return false;
     } finally {
       setBusy(null);
@@ -245,6 +253,36 @@ export function ProjectBatteryPage() {
         <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
           Unsaved changes. The figures update when you save or recalculate.
         </div>
+      )}
+      {data && !data.complete && (data.incomplete_reasons?.length ?? 0) > 0 && (
+        <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <div className="font-semibold">This calculation is not complete</div>
+          <ul className="mt-1 list-disc pl-5">
+            {data.incomplete_reasons!.map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {data && (data.needs_confirmation?.length ?? 0) > 0 && (
+        <NoLoadConfirmations
+          items={data.needs_confirmation!}
+          canEdit={canEdit}
+          onDecide={async (partNo, confirm) => {
+            setError(null);
+            try {
+              accept(
+                await api.post<BatteryCalculation>(`/projects/${project.id}/design/battery/confirm-no-load`, {
+                  part_no: partNo,
+                  confirm,
+                }),
+                true
+              );
+            } catch (err) {
+              setError(err instanceof ApiError ? err.message : "Could not record the decision");
+            }
+          }}
+        />
       )}
 
       {!data ? (
@@ -928,6 +966,70 @@ function BatteryCatalogue({ data, canEdit, onSaved }: { data: BatteryCalculation
           </div>
         ))}
     </div>
+  );
+}
+
+/** Parts the platform set to draw no current by itself (a mechanical
+ * description, a part built into a module). An engineer confirms each, or
+ * rejects it so the part needs a real figure. */
+function NoLoadConfirmations({
+  items,
+  canEdit,
+  onDecide,
+}: {
+  items: { part_no: string; description: string | null; reason: string | null }[];
+  canEdit: boolean;
+  onDecide: (partNo: string, confirm: boolean) => Promise<void>;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  return (
+    <section aria-labelledby="no-load-title" className="mt-4 rounded-xl border border-amber-200 bg-white p-4">
+      <h2 id="no-load-title" className="text-sm font-semibold text-navy-900">
+        Confirm parts set to draw no current ({items.length})
+      </h2>
+      <p className="text-xs text-gray-500">
+        These were set automatically. A wrong one hides a real load, so each needs an engineer's confirmation.
+      </p>
+      <ul className="mt-2 divide-y divide-gray-100">
+        {items.map((item) => (
+          <li key={item.part_no} className="flex flex-wrap items-center gap-3 py-2 text-sm">
+            <div className="min-w-0 flex-1">
+              <div className="font-medium text-navy-900">
+                {item.part_no}
+                {item.description ? ` — ${item.description}` : ""}
+              </div>
+              <div className="text-xs text-gray-500">{item.reason}</div>
+            </div>
+            {canEdit && (
+              <div className="flex gap-2">
+                <button
+                  disabled={busy !== null}
+                  onClick={async () => {
+                    setBusy(item.part_no);
+                    await onDecide(item.part_no, true);
+                    setBusy(null);
+                  }}
+                  className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+                >
+                  Confirm: no current
+                </button>
+                <button
+                  disabled={busy !== null}
+                  onClick={async () => {
+                    setBusy(item.part_no);
+                    await onDecide(item.part_no, false);
+                    setBusy(null);
+                  }}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-navy-900 hover:bg-gray-50 disabled:opacity-60"
+                >
+                  It draws current
+                </button>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

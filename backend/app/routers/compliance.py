@@ -496,7 +496,11 @@ def edit_statement(
     statement = _statement_or_404(db, project, statement_id)
     if statement.kind != "prepare":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Only a prepared statement can be edited")
-    updated = service.update_rows(db, project, statement, [row.model_dump() for row in body.rows], current_user)
+    try:
+        updated = service.update_rows(db, project, statement, [row.model_dump() for row in body.rows], current_user)
+    except service.StaleRows as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail={"code": "stale_write", "message": str(exc), "clauses": exc.refs,
+                                                              "current_version": statement.version}) from exc
     _statement_event(db, current_user, project, updated, "compliance.edited",
                      f"Edited {len(body.rows)} answer{'s' if len(body.rows) != 1 else ''} in the "
                      f"{updated.system_code} compliance statement", {"rows": len(body.rows)})

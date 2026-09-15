@@ -1,14 +1,44 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { api } from "../lib/api";
+import { JobProgress } from "../components/JobProgress";
+import { ReadinessPanel } from "../components/ReadinessPanel";
+import { useAuth } from "../context/AuthContext";
+import { ApiError, api } from "../lib/api";
 import { quantityTotals } from "../lib/boq";
-import type { ProjectBoqItem } from "../lib/types";
+import { useJob } from "../lib/useJob";
+import { PROJECT_EDITOR_ROLES, type ProjectBoqItem, type Readiness } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
 export function ProjectHomePage() {
   const { project } = useProject();
+  const { user } = useAuth();
+  const canEdit = user !== null && PROJECT_EDITOR_ROLES.includes(user.role);
   const { state } = useLocation();
   const justCreated = Boolean((state as { justCreated?: boolean } | null)?.justCreated);
+
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [readinessError, setReadinessError] = useState<string | null>(null);
+
+  const loadReadiness = useCallback(() => {
+    api
+      .get<Readiness>(`/projects/${project.id}/readiness`)
+      .then((r) => {
+        setReadiness(r);
+        setReadinessError(null);
+      })
+      .catch((err) => setReadinessError(err instanceof ApiError ? err.message : "Could not load readiness"));
+  }, [project.id]);
+
+  useEffect(() => {
+    loadReadiness();
+  }, [loadReadiness]);
+
+  const intake = useJob(project.id, "documents_intake", `/projects/${project.id}/jobs/documents-intake`, () => loadReadiness());
+  const checking = intake.active;
+
+  async function checkDocuments() {
+    await intake.start();
+  }
 
   // A plain read: opening Home must not trigger the Design Sheet extraction,
   // which is the BOQ tab's job.
@@ -54,7 +84,22 @@ export function ProjectHomePage() {
       </h1>
       {subtitle && <p className="mt-1 text-sm text-gray-500">{subtitle}</p>}
 
-      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="mt-6">
+        {readiness ? (
+          <>
+            <ReadinessPanel readiness={readiness} onCheckDocuments={canEdit ? checkDocuments : undefined} checking={checking} />
+            {intake.job && intake.active && <JobProgress job={intake.job} what="the document check" onCancel={intake.cancel} />}
+          </>
+        ) : readinessError ? (
+          <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+            {readinessError}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-400">Checking readiness...</div>
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card title="Project" link={{ to: "info", label: "Project Info" }}>
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
             <Fact label="Client" value={project.client} />

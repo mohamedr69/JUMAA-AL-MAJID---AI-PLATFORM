@@ -100,6 +100,12 @@ def test_resolve_ep_not_found(client, monkeypatch, tmp_path):
 # --- POST /projects ---
 
 
+def _payload_without_documents(ep_number: str = "29495") -> dict:
+    """A project whose BOQ is typed in: no DRF and no Design Sheet, so issuing
+    a revision is not held up by documents these tests do not have on disk."""
+    return {**_valid_project_payload(ep_number), "drf_document_path": None, "design_sheets": []}
+
+
 def _valid_project_payload(ep_number: str = "29495") -> dict:
     return {
         "ep_number": ep_number,

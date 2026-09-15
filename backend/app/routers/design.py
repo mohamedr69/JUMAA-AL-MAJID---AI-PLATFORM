@@ -9,7 +9,7 @@ from pathlib import Path
 import threading
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -37,7 +37,7 @@ from app.schemas_design import (
     WorkbookCandidateOut,
     WorkbookSource,
 )
-from app.services import activity
+from app.services import activity, calc_integrity, concurrency
 from app.seed import (
     BATTERY_SELECTION_CATEGORY,
     BATTERY_SELECTION_KEY,
@@ -108,6 +108,11 @@ def _rule_out(rule: DesignRule | None) -> DesignRuleOut | None:
     )
 
 
+def _design_version(project: Project) -> int:
+    """The version a design save must name; 0 before anything is saved."""
+    return project.design.version if project.design is not None else 0
+
+
 def _stored_design(project: Project) -> VoiceEvacuationDesign | None:
     if project.design is None:
         return None
@@ -127,6 +132,7 @@ def _out(db: Session, project: Project) -> VoiceEvacuationOut:
         rule=_rule_out(rule),
         updated_at=project.design.updated_at,
         updated_by=project.design.updated_by.full_name if project.design.updated_by else None,
+        design_version=_design_version(project),
     )
 
 
@@ -136,7 +142,7 @@ def _store(db: Session, project: Project, design: VoiceEvacuationDesign, user: U
     # A new dict every time: the JSON column only notices reassignment.
     payload = document.model_dump(mode="json")
     if project.design is None:
-        project.design = ProjectDesign(document=payload, updated_by_id=user.id)
+        project.design = ProjectDesign(document=payload, updated_by_id=user.id, version=1)
     else:
         project.design.document = payload
         project.design.updated_by_id = user.id
@@ -282,6 +288,7 @@ def get_battery_calculation(
         UnresolvedPartOut(part_no=line.part_no or "", description=line.description, reason=_unresolved_reason(line, libraries))
         for line in _missing_parts(result.panels)
     ]
+    result.design_version = _design_version(project)
     return result
 
 
@@ -303,8 +310,15 @@ def fill_battery_currents(
         panel_voltage = rule.data["panel_voltage"] if rule else 24
         libraries = _datasheet_libraries()
         filled: list[FilledCurrentOut] = []
+        rejected = {r.key for r in active_rules(db, PART_CURRENT_CATEGORY) if r.data.get("rejected_no_load")}
         for line in _missing_parts(result.panels):
             host = included_in_module(line.part_no)
+            if part_key(line.part_no or "") in rejected and not host:
+                # An engineer rejected setting this part to no current: only a
+                # datasheet figure or a typed one may fill it now.
+                reading, match = _read_from_datasheets(line, libraries, panel_voltage)
+                if not (reading and match):
+                    continue
             # Asked before the datasheet, not after: a part built into another
             # module has no current of its own, so a figure read off the host
             # module's sheet would be that module's current counted twice.
@@ -366,6 +380,7 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
 
     design = _stored_battery_design(project)
     panels, groups = [], []
+    currents: dict = {}
     if rule is not None:
         currents = {
             r.key: PartCurrent(
@@ -373,6 +388,8 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
                 source=r.source, datasheet=r.data.get("datasheet"),
             )
             for r in active_rules(db, PART_CURRENT_CATEGORY)
+            # A rejected automatic setting carries no figure: the part has no current.
+            if not r.data.get("rejected_no_load")
         }
         defaults = {k: rule.data[k] for k in SIZING_FIELDS}
         types, groups = calculate_boq(lines, Sizing(**defaults), currents, batteries)
@@ -402,7 +419,28 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
             if key and key not in batteries and key not in unlisted:
                 unlisted[key] = {"part_no": quoted.part_no, "capacity_ah": quoted.capacity_ah, "voltage": quoted.voltage}
 
-    return BatteryCalculationOut(
+    # Automatic "draws nothing" classifications of this project's parts that
+    # no engineer has confirmed: shown for confirmation, and the calculation
+    # is not complete until they are.
+    named = {part_key(line.catalog_no or "") for line in lines if line.catalog_no}
+    needs_confirmation = [
+        {"part_no": r.data.get("part_no") or r.key, "description": r.data.get("description"), "reason": r.source,
+         "rule_id": r.id, "rule_version": r.version}
+        for r in active_rules(db, PART_CURRENT_CATEGORY)
+        if r.key in named and r.data.get("auto") and r.data.get("no_load") and not r.data.get("confirmed_by")
+    ]
+    reasons: list[str] = []
+    if rule is None:
+        reasons.append("No battery sizing rule is configured.")
+    lower = [p.name or p.heading for p in panels if p.lower_bound]
+    if lower:
+        reasons.append(f"{len(lower)} panel{'s have' if len(lower) != 1 else ' has'} parts without a current, so the "
+                       f"load is a lower bound: {', '.join(lower[:6])}.")
+    if needs_confirmation:
+        reasons.append(f"{len(needs_confirmation)} part{'s were' if len(needs_confirmation) != 1 else ' was'} set to draw "
+                       "no current automatically and must be confirmed by an engineer.")
+
+    out = BatteryCalculationOut(
         rule=_rule_out(rule),
         panels=panels,
         groups=groups,
@@ -417,7 +455,55 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
             )
             for u in sorted(batteries.values(), key=lambda u: u.capacity_ah)
         ],
+        complete=not reasons,
+        incomplete_reasons=reasons,
+        needs_confirmation=needs_confirmation,
     )
+    out.input_hash = calc_integrity.stable_hash(
+        calc_integrity.battery_inputs(lines, design, rule, selection, currents, batteries))
+    out.result_hash = calc_integrity.stable_hash(calc_integrity.battery_result(panels))
+    return out
+
+
+@router.post("/{project_id}/design/battery/confirm-no-load", response_model=BatteryCalculationOut)
+def confirm_no_load(
+    project_id: int,
+    payload: dict,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> BatteryCalculationOut:
+    """An engineer confirms that a part the platform set to draw no current
+    really draws none. Recorded as a new catalogue version naming them, so
+    every project with the part sees it confirmed -- or, with
+    `{"part_no", "confirm": false}`, withdrawn to have no current at all,
+    which makes the load a lower bound again until a figure is entered."""
+    project = _get_project_or_404(db, project_id)
+    part_no = str(payload.get("part_no") or "").strip()
+    if not part_no:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Name the part")
+    key = part_key(part_no)
+    current = next((r for r in active_rules(db, PART_CURRENT_CATEGORY) if r.key == key), None)
+    if current is None or not current.data.get("no_load"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="That part is not set to draw no current")
+    if payload.get("confirm", True):
+        data = {**current.data, "confirmed_by": current_user.full_name, "confirmed_by_id": current_user.id,
+                "confirmed_at": utc_now().isoformat()}
+        source = f"{current.source or ''} -- confirmed by {current_user.full_name}"
+        summary = f"Confirmed {part_no} draws no current"
+    else:
+        # Rejected: a version that carries no figure, so the part is missing a
+        # current again -- and that the automatic fill will not set back.
+        data = {"part_no": current.data.get("part_no") or part_no, "description": current.data.get("description"),
+                "rejected_no_load": True, "rejected_by": current_user.full_name, "rejected_at": utc_now().isoformat()}
+        save_rule_version(db, PART_CURRENT_CATEGORY, key, data,
+                          f"No-current setting rejected by {current_user.full_name}: enter the part's current", current_user)
+        activity.record(db, current_user, "design.no_load_rejected", f"Rejected the no-current setting for {part_no}",
+                        project=project, entity_type="design_rule", entity_id=current.id)
+        return get_battery_calculation(project_id, current_user, db)
+    save_rule_version(db, PART_CURRENT_CATEGORY, key, data, source[:1000], current_user)
+    activity.record(db, current_user, "design.no_load_confirmed", summary, project=project,
+                    entity_type="design_rule", entity_id=current.id)
+    return get_battery_calculation(project_id, current_user, db)
 
 
 SIZING_FIELDS = ("standby_hours", "alarm_minutes", "spare_factor", "panel_voltage")
@@ -457,17 +543,20 @@ def _stored_battery_design(project: Project) -> BatteryDesign:
 def save_battery_design(
     project_id: int,
     payload: BatteryDesign,
+    if_match: str | None = Header(default=None, alias="If-Match"),
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> BatteryCalculationOut:
     """Save the panels' names, locations, calculation settings and added
-    components, and return the recalculation."""
+    components, and return the recalculation. Refused with 409 when
+    `If-Match` names a design version someone else's save has moved past."""
     project = _get_project_or_404(db, project_id)
+    concurrency.require_current(if_match, _design_version(project), "The design inputs")
     document = DesignDocument.model_validate(project.design.document) if project.design else DesignDocument()
     document.battery = payload
     content = document.model_dump(mode="json")
     if project.design is None:
-        project.design = ProjectDesign(document=content, updated_by_id=current_user.id)
+        project.design = ProjectDesign(document=content, updated_by_id=current_user.id, version=1)
     else:
         project.design.document = content
         project.design.updated_by_id = current_user.id
@@ -539,6 +628,7 @@ def export_battery_calculation_pdf(
 def update_voice_evacuation(
     project_id: int,
     payload: VoiceEvacuationDesign,
+    if_match: str | None = Header(default=None, alias="If-Match"),
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> VoiceEvacuationOut:
@@ -546,6 +636,7 @@ def update_voice_evacuation(
     to are the server's to keep: they are taken from the stored design, not
     from the request, so an edit cannot loosen the limit."""
     project = _get_project_or_404(db, project_id)
+    concurrency.require_current(if_match, _design_version(project), "The design inputs")
     stored = _stored_design(project)
     if stored is None:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Import an amplifier workbook first")

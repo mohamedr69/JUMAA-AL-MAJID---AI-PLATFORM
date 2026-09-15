@@ -11,7 +11,9 @@ import {
   type BoqLineRecord,
   type BoqSnapshotSummary,
 } from "../lib/types";
+import { useJob } from "../lib/useJob";
 import { useUnsavedChanges } from "../lib/useUnsavedChanges";
+import { JobProgress } from "../components/JobProgress";
 import { useProject } from "./ProjectWorkspace";
 
 type Decision = "accept" | "keep";
@@ -45,7 +47,6 @@ export function ProjectBoqRereadPage() {
   const [snapshots, setSnapshots] = useState<BoqSnapshotSummary[]>([]);
   const [decisions, setDecisions] = useState<Record<string, Decision>>({});
   const [loading, setLoading] = useState(true);
-  const [building, setBuilding] = useState(false);
   const [applying, setApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -78,20 +79,24 @@ export function ProjectBoqRereadPage() {
     void load();
   }, [load]);
 
+  // Reading scanned sheets takes minutes: it runs as a server job the page
+  // follows, can stop, and finds again after a refresh.
+  const reread = useJob(project.id, "boq_reread", `/projects/${project.id}/jobs/boq-reread`, (job) => {
+    if (job.status === "succeeded") {
+      setNotice(null);
+      void load();
+    } else if (job.status === "failed") {
+      setError(job.error ?? "The sheets could not be read");
+    } else if (job.status === "cancelled") {
+      setNotice("The re-read was stopped. Nothing was recorded and the BOQ is unchanged.");
+    }
+  });
+  const building = reread.active;
+
   async function build() {
-    setBuilding(true);
     setError(null);
     setNotice(null);
-    try {
-      const built = await api.post<BoqCandidate>(`/projects/${project.id}/boq/candidates`);
-      setCandidate(built);
-      setDecisions({});
-      setHistory((prev) => [built, ...prev.map((c) => (c.status === "pending" ? { ...c, status: "superseded" as const } : c))]);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "The sheets could not be read");
-    } finally {
-      setBuilding(false);
-    }
+    await reread.start();
   }
 
   async function apply() {
@@ -217,9 +222,13 @@ export function ProjectBoqRereadPage() {
               {building ? "Reading the sheets..." : "Read the sheets again"}
             </button>
           )}
+          {reread.job && (reread.active || reread.job.status === "failed") && (
+            <JobProgress job={reread.job} what="the re-read" onCancel={reread.cancel} />
+          )}
+          {reread.error && <p className="mt-2 text-xs text-red-700">{reread.error}</p>}
           {building && (
-            <p className="mt-2 text-xs text-gray-500" aria-live="polite">
-              Scanned sheets are read page by page; this takes a few seconds per page. Keep this page open.
+            <p className="mt-2 text-xs text-gray-500">
+              Scanned sheets are read page by page. You can leave this page; the read carries on and is here when you come back.
             </p>
           )}
         </div>

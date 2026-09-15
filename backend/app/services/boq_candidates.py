@@ -66,11 +66,11 @@ def _quantity_units(lines: list[dict]) -> int:
     return total
 
 
-def _read(path: Path):
+def _read(path: Path, on_page=None):
     # The projects router's seam, which the test suite stubs.
     from app.routers import projects as projects_router
 
-    return projects_router._read_design_sheet(path)
+    return projects_router._read_design_sheet(path, on_page=on_page)
 
 
 def _candidate_line(project: Project, sheet, line, run: ExtractionRun, index: int) -> dict:
@@ -146,9 +146,10 @@ def compare(old_lines: list[dict], new_lines: list[dict]) -> tuple[list[dict], i
     return changes, unchanged
 
 
-def build(db: Session, project: Project, user: User | None) -> BoqCandidate:
+def build(db: Session, project: Project, user: User | None, ctx=None) -> BoqCandidate:
     """Read the project's Design Sheets again and compare. Nothing in the
-    BOQ changes."""
+    BOQ changes. `ctx` (app.services.jobs.JobContext) receives progress per
+    page and stops the read between pages when a cancel was asked for."""
     if not project.design_sheets:
         raise CandidateError("The project has no Design Sheets to read.")
     for older in db.query(BoqCandidate).filter(BoqCandidate.project_id == project.id, BoqCandidate.status == "pending"):
@@ -158,8 +159,18 @@ def build(db: Session, project: Project, user: User | None) -> BoqCandidate:
     new_lines: list[dict] = []
     runs: list[ExtractionRun] = []
     sheets: list[dict] = []
-    for sheet in project.design_sheets:
-        result = _read(Path(sheet.document_path))
+    total_sheets = len(project.design_sheets)
+    for index, sheet in enumerate(project.design_sheets):
+        name = Path(sheet.document_path).name
+
+        def on_page(page: int, pages: int, index=index, name=name) -> None:
+            if ctx is not None:
+                ctx.progress(index * 100 + round(100 * (page - 1) / max(pages, 1)), total_sheets * 100,
+                             f"Reading {name}: page {page} of {pages} (sheet {index + 1} of {total_sheets})")
+
+        if ctx is not None:
+            ctx.progress(index * 100, total_sheets * 100, f"Reading {name} (sheet {index + 1} of {total_sheets})")
+        result = _read(Path(sheet.document_path), on_page=on_page)
         run = pipeline.record_design_sheet_run(db, project, sheet, result, trigger="reread")
         runs.append(run)
         coverage = run.coverage or {}
@@ -174,6 +185,9 @@ def build(db: Session, project: Project, user: User | None) -> BoqCandidate:
         for line in result.lines:
             new_lines.append(_candidate_line(project, sheet, line, run, len(new_lines)))
 
+    library = boq_provenance.part_library(db)
+    for record in new_lines:
+        boq_provenance.check_catalog(record, library)
     old_lines = [_old_line(item) for item in project.boq_items]
     changes, unchanged = compare(old_lines, new_lines)
     summary = {

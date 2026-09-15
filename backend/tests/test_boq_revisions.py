@@ -7,7 +7,7 @@ from app.schemas_project import ProjectBoqItemIn
 from app.services.boq_revisions import compare_boq
 
 from .conftest import login, make_user
-from .test_projects import _login_admin, _valid_project_payload
+from .test_projects import _login_admin, _payload_without_documents, _valid_project_payload
 
 
 def line(description, quantity="1", **fields) -> ProjectBoqItemIn:
@@ -78,7 +78,7 @@ def _boq(quantity="2") -> list[dict]:
 
 def _project_with_boq(client, ep: str) -> int:
     _login_admin(client)
-    pid = client.post("/projects", json=_valid_project_payload(ep)).json()["id"]
+    pid = client.post("/projects", json=_payload_without_documents(ep)).json()["id"]
     client.put(f"/projects/{pid}/boq", json=_boq())
     return pid
 

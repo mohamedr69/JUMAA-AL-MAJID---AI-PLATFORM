@@ -140,15 +140,41 @@ def test_eml_design_sheet_quantities():
     lines = extract_boq_lines(path)
 
     # The sheet lists 12 items: 759, 458, 458, 327, 33, 169, 17, 119, 111, 8,
-    # 7, 1. Eleven come back. The 7 is a known miss on this scan -- OCR
-    # returns letters for it -- and a row whose quantity cannot be read is
-    # dropped rather than carried with a blank, so this sheet is the case
-    # where the extracted count is one short of the printed one.
-    assert len(lines) == 11
+    # 7, 1. The column strip returns letters for the 7 on this scan ("ae");
+    # three independent passes on that cell alone agree it reads 7, which is
+    # what brings it back -- recorded as their agreement, not the strip's.
+    assert len(lines) == 12
     assert [line.quantity for line in lines] == [
-        "759", "458", "458", "327", "33", "169", "17", "119", "111", "8", "1",
+        "759", "458", "458", "327", "33", "169", "17", "119", "111", "8", "7", "1",
     ]
-    assert all(line.quantity for line in lines)
+    seven = lines[10]
+    assert seven.raw_quantity == "ae" and seven.quantity_parse["independent_agreement"] >= 2
+
+
+@requires_tesseract
+@requires_live_archive
+def test_ep30208_multi_building_sheet_reads_every_row_or_flags_it():
+    """EP-30208: nine buildings over four pages, 97 rows, 700 units by eye.
+    Every row is either read with the printed quantity or sent to review --
+    none is lost, none carries a wrong number (checked against the page
+    images): stacked "2"/"1" pairs the column strip merged, and a "1" read
+    as "4", are the rows for review."""
+    path = (Path(LIVE_ROOT) / "AELIA TEK" / "EP-30208 Kalba Phase 2 & Al Dhaid Phase 1" / "Commercial Document"
+            / "EP-30208 PA Design Sheet.pdf")
+    from app.services.design_sheet_extractor import extract_design_sheet
+
+    result = extract_design_sheet(path)
+    review = [i for i in result.issues if (i.detail.get("description") or "").strip(" _") not in ("f. Speakers",)]
+    assert len(result.lines) + len(review) == 97
+    printed_for_review = {"PA Rack": 1, "Monitor Panel": 2, "Voice Evacuation Frame 4AB": 1}
+    reviewed_units = sum(printed_for_review[(i.detail["description"]).strip(" _")] for i in review)
+    assert sum(int(line.quantity) for line in result.lines) + reviewed_units == 700
+    assert [b["display"] for b in result.buildings] == [
+        "DHAID - B1 BUILDING", "DHAID - B2 BUILDING", "DHAID - B3 BUILDING", "DHAID - B4 BUILDING", "DHAID - B5 BUILDING",
+        "KALBA - B2 BUILDING", "KALBA - B4 BUILDING", "KALBA - B5 BUILDING", "KALBA - B6 BUILDING",
+    ]
+    # "DH AID-BIBUILDING" and "DH AID - BS BUILDING" are aliases, not buildings of their own.
+    assert any("DH AID-BIBUILDING" in b["aliases"] for b in result.buildings)
 
 
 @requires_tesseract

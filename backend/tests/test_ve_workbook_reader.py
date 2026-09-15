@@ -133,6 +133,26 @@ def test_tapping_wattage_row_layout(tmp_path):
     assert result.sheet_mismatches == 0
 
 
+def test_uncalculated_formulas_are_refused_not_read_as_zero(tmp_path):
+    """A workbook saved by something that writes formulas without computing
+    them has no cached results: the counts would read as blank -- zero
+    speakers -- and the amplifiers would look under-loaded."""
+    cells = {
+        "C4": "Ceiling Speaker", "D4": "Wall Speaker", "E4": "Watts per Area", "F4": "Required Watts", "G4": "Proposed Amplifier",
+        "A6": "Tapping Wattage", "C6": 0.5, "D6": 1,
+        "A7": "Level 1", "C7": 10, "D7": 2, "E7": 7, "F7": 7, "G7": 50,
+        "A8": "Level 2", "C8": "=C7*2", "D8": 2, "E8": "=C8*C6+D8*D6",
+    }
+    with pytest.raises(WorkbookReadError, match="FORMULA_NOT_CALCULATED.*C8"):
+        read_amplifier_workbook(_workbook(tmp_path, cells))
+
+    # Only the sheet's own watts uncalculated: read, with the comparison skipped and said so.
+    cells["C8"] = 20
+    read = read_amplifier_workbook(_workbook(tmp_path, cells))
+    assert [z.counts for z in read.zones][1] == {"ceiling_speaker": 20, "wall_speaker": 2}
+    assert any("FORMULA_NOT_CALCULATED" in w for w in read.warnings)
+
+
 def test_tap_in_heading_layout_with_totals_rows(tmp_path):
     """EP-15792 / EP-17428 / EP-13705: taps written into the headings, a
     label column on the left, "2 x 50 W" amplifiers and totals underneath."""

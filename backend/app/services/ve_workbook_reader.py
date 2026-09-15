@@ -88,10 +88,18 @@ class WorkbookRead:
 
 class _Grid:
     """The sheet's values, with merged ranges resolved to their top-left cell
-    so a merged block can be read as the run it draws."""
+    so a merged block can be read as the run it draws.
 
-    def __init__(self, ws: Worksheet):
+    `formulas` is the same sheet loaded with its formulas rather than their
+    cached results. A cell whose cached result is empty but which holds a
+    formula was never calculated -- the workbook was saved by something that
+    writes formulas without computing them -- and reading it as blank would
+    count its speakers as none. Those cells are collected, never read as 0."""
+
+    def __init__(self, ws: Worksheet, formulas: Worksheet | None = None):
         self.ws = ws
+        self.formulas = formulas
+        self.uncalculated: set[tuple[int, int]] = set()
         self.max_row = ws.max_row
         self.max_col = ws.max_column
         self._anchor: dict[tuple[int, int], tuple[int, int]] = {}
@@ -107,10 +115,19 @@ class _Grid:
         """The cell's own value -- None inside a merged range except at its
         top-left, which is what makes a merged block start a run once."""
         value = self.ws.cell(row=row, column=col).value
+        if value is None and self.formulas is not None:
+            formula = self.formulas.cell(row=row, column=col).value
+            if isinstance(formula, str) and formula.startswith("="):
+                self.uncalculated.add((row, col))
+            return None
         if isinstance(value, str):
             value = value.strip()
             return value or None
         return value
+
+    def is_uncalculated(self, row: int, col: int) -> bool:
+        self.value(row, col)
+        return (row, col) in self.uncalculated
 
     def anchor(self, row: int, col: int) -> tuple[int, int]:
         return self._anchor.get((row, col), (row, col))
@@ -426,7 +443,11 @@ def _zone_rows(grid: _Grid, layout: _Layout, warnings: list[str]) -> list[_ZoneR
         sheet_watts = grid.value(r, layout.zone_watts_col) if layout.zone_watts_col else None
         sheet_watts = float(sheet_watts) if _is_number(sheet_watts) else None
 
-        if name is None or (not counts and sheet_watts is None) or TOTAL_ROW_RE.search(name.lower()):
+        # A row whose counts are uncalculated formulas is a schedule row with
+        # unknown counts, not the end of the table: it is kept so the check
+        # after this refuses it, rather than silently ending the schedule.
+        pending = any(grid.is_uncalculated(r, c) for c in layout.speaker_cols)
+        if name is None or (not counts and sheet_watts is None and not pending) or TOTAL_ROW_RE.search(name.lower()):
             break
         rows.append(_ZoneRow(row=r, name=name, counts=counts, sheet_watts=sheet_watts))
     return rows
@@ -558,6 +579,7 @@ def read_amplifier_workbook(path: Path, sheet: str | None = None) -> WorkbookRea
     """Read the named sheet, or else the first sheet that reads as a schedule."""
     try:
         workbook = openpyxl.load_workbook(path, data_only=True)
+        formulas = openpyxl.load_workbook(path, data_only=False)
     except Exception as exc:  # noqa: BLE001 -- any unreadable file is the same failure to the engineer
         raise WorkbookReadError(f"Could not open the workbook: {exc}") from exc
 
@@ -568,7 +590,7 @@ def read_amplifier_workbook(path: Path, sheet: str | None = None) -> WorkbookRea
     failures: list[str] = []
     for name in [sheet] if sheet else sheets:
         try:
-            read = _read_sheet(workbook[name])
+            read = _read_sheet(workbook[name], formulas[name])
         except WorkbookReadError as exc:
             failures.append(f"{name}: {exc}")
             continue
@@ -577,8 +599,14 @@ def read_amplifier_workbook(path: Path, sheet: str | None = None) -> WorkbookRea
     raise WorkbookReadError("No sheet reads as an amplifier calculation -- " + "; ".join(failures))
 
 
-def _read_sheet(ws: Worksheet) -> WorkbookRead:
-    grid = _Grid(ws)
+def _cell_name(row: int, col: int) -> str:
+    from openpyxl.utils import get_column_letter
+
+    return f"{get_column_letter(col)}{row}"
+
+
+def _read_sheet(ws: Worksheet, formulas: Worksheet | None = None) -> WorkbookRead:
+    grid = _Grid(ws, formulas)
     warnings: list[str] = []
     layout = _find_headed_layout(grid, warnings) or _find_headerless_layout(grid)
     if layout is None:
@@ -587,6 +615,28 @@ def _read_sheet(ws: Worksheet) -> WorkbookRead:
     zone_rows = _zone_rows(grid, layout, warnings)
     if not zone_rows:
         raise WorkbookReadError("found the columns but no floor rows under them")
+
+    # FORMULA_NOT_CALCULATED: a count or tap the calculation needs is a
+    # formula with no cached result. Refused -- a blank read as zero speakers
+    # would make an under-loaded amplifier look fine.
+    needed = [(zone.row, c) for zone in zone_rows for c in layout.speaker_cols]
+    if layout.data_start > 1:
+        needed += [(layout.data_start - 1, c) for c in layout.speaker_cols]
+    blank = sorted(cell for cell in needed if grid.is_uncalculated(*cell))
+    if blank:
+        cells = ", ".join(_cell_name(r, c) for r, c in blank[:12])
+        raise WorkbookReadError(
+            f"FORMULA_NOT_CALCULATED: {len(blank)} speaker count or tap cell{'s' if len(blank) != 1 else ''} ({cells}"
+            f"{'...' if len(blank) > 12 else ''}) hold formulas that were never calculated. Open the workbook in Excel, "
+            "let it calculate, save it, and import again."
+        )
+    compared = [(zone.row, layout.zone_watts_col) for zone in zone_rows if layout.zone_watts_col]
+    unchecked = [cell for cell in compared if grid.is_uncalculated(*cell)]
+    if unchecked:
+        warnings.append(
+            f"FORMULA_NOT_CALCULATED: the sheet's own watts in {len(unchecked)} row{'s' if len(unchecked) != 1 else ''} "
+            "were never calculated, so they could not be compared with the counts."
+        )
 
     used = {c for zone in zone_rows for c, n in zone.counts.items() if n}
     missing_tap = [c for c in layout.speaker_cols if c not in layout.taps and c in used]

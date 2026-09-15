@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, NavLink, Outlet, useOutletContext, useParams } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { ApiError, api } from "../lib/api";
 import type { Project } from "../lib/types";
 
@@ -33,6 +33,8 @@ const SECTIONS = [
 
 export function ProjectWorkspace() {
   const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,7 +84,24 @@ export function ProjectWorkspace() {
           </span>
         </div>
 
-        <nav className="mt-3 flex gap-1 lg:flex-col">
+        {/* Narrow screens: one picker instead of a strip of thirteen links. */}
+        <label className="mt-3 block text-xs font-medium text-gray-500 lg:hidden">
+          Section
+          <select
+            className="input mt-1"
+            value={currentSection(location.pathname, project.id)}
+            onChange={(e) => navigate(e.target.value === "." ? `/projects/${project.id}` : `/projects/${project.id}/${e.target.value}`)}
+          >
+            {SECTIONS.map((section) => (
+              <option key={section.label} value={section.to}>
+                {section.label}
+                {section.soon ? " (not available yet)" : ""}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <nav aria-label="Project sections" className="mt-3 hidden gap-1 lg:flex lg:flex-col">
           {SECTIONS.map((section) => (
             <NavLink
               key={section.label}
@@ -99,7 +118,7 @@ export function ProjectWorkspace() {
               <span className="flex items-center justify-between gap-2">
                 {section.label}
                 {section.soon && (
-                  <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">soon</span>
+                  <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-500">not available yet</span>
                 )}
               </span>
             </NavLink>
@@ -119,6 +138,13 @@ export function ProjectWorkspace() {
       </div>
     </div>
   );
+}
+
+/** The section a workspace path is in: "boq" for /projects/3/boq/reread. */
+function currentSection(pathname: string, projectId: number): string {
+  const rest = pathname.replace(new RegExp(`^/projects/${projectId}/?`), "");
+  const first = rest.split("/")[0];
+  return SECTIONS.some((section) => section.to === first) ? first : ".";
 }
 
 export function useProject(): ProjectContext {

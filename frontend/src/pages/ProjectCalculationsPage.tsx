@@ -40,7 +40,7 @@ export function ProjectCalculationsPage() {
                       isActive ? "bg-white/20 text-white" : "bg-amber-50 text-amber-700"
                     }`}
                   >
-                    soon
+                    not available yet
                   </span>
                 )}
               </>

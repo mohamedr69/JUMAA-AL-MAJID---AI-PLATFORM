@@ -115,6 +115,9 @@ class ProjectBoqItemOut(ProjectBoqItemIn):
     id: int
     position: int
     # Provenance (app.services.boq_provenance).
+    building: str | None = None
+    catalog_canonical: str | None = None
+    catalog_match: dict | None = None
     origin: str = "legacy"
     extraction_run_id: int | None = None
     source_document_sha256: str | None = None

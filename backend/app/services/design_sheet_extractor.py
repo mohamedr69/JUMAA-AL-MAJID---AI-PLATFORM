@@ -27,6 +27,7 @@ review and save, the same treatment DRF fields get.
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -36,14 +37,14 @@ import pytesseract
 from PIL import Image
 
 from app.core.config import get_settings
-from app.extraction import values
+from app.extraction import identity, values
 from app.extraction.issues import Coverage, Issue, IssueCode, Outcome, PageCoverage, RegionCoverage, outcome_for
 
 settings = get_settings()
 
 # Part of every cache key: a change to how a sheet is read is a change to
 # what a cached result means.
-PARSER_VERSION = "2026-09-15.1"
+PARSER_VERSION = "2026-09-15.2"
 if settings.tesseract_cmd:
     pytesseract.pytesseract.tesseract_cmd = settings.tesseract_cmd
 
@@ -100,7 +101,8 @@ LAYOUTS: dict[int, _Layout] = {
 # "(_ 1 )" -- so the digits are matched rather than the punctuation.
 INLINE_QUANTITY_RE = re.compile(r"^\(\s*[^)\d]*(\d+)[^)\d]*\)\s*")
 
-PAGE_FOOTER_RE = re.compile(r"^page\s+\d+\s+of\s+\d+$", re.IGNORECASE)
+# "Page 3 of 4" -- and the ways a scan misreads it ("Bage 4 of 2", "Paqe 1 0f 2").
+PAGE_FOOTER_RE = re.compile(r"^[pb8][ae]g[ea]\s*\d+\s*[o0][fr]\s*\d+$", re.IGNORECASE)
 
 COLUMN_HEADINGS = {"qty", "qty.", "catalog no", "catalog no.", "description", "unit price",
                    "total price", "brand", "ms", "dwg"}
@@ -160,6 +162,8 @@ def _is_banner(heading: str) -> bool:
     letters = [ch for ch in heading if ch.isalpha()]
     return len(letters) >= 3 and sum(ch.isupper() for ch in letters) >= 0.8 * len(letters)
 ROW_EDGE_INSET_PX = 6  # keeps a row's own bounding rules out of its cells
+# A table ending this close to the foot of the page runs on to the next.
+PAGE_EDGE_MARGIN_PX = 240
 
 # The only non-numeric quantities these sheets use. Anything else alphabetic
 # in the quantity column is a misread -- "7" comes back as "ae" on one scan --
@@ -188,6 +192,23 @@ class ExtractedBoqLine:
     quantity_parse: dict | None = None
     row_bounds: tuple[int, int] | None = None   # (top, bottom) of the row at RENDER_DPI, when ruled
     table_span: tuple[int, int] | None = None   # (first rule, last rule) of the table the row is in
+    # The banner (building) and sub-heading the row sits under, apart: the
+    # group heading joins them for display, identity keeps them separate.
+    section: str | None = None
+    heading: str | None = None
+    building: dict | None = None
+    # The catalog cell as OCR read it, before edge junk was removed.
+    catalog_raw: str | None = None
+    # What independent OCR passes read off the quantity cell when the column
+    # read could not settle it.
+    alternates: list[dict] | None = None
+    # Tesseract's confidence in the quantity strip's own reading, 0-100.
+    quantity_confidence: float | None = None
+    # Set when a neighbouring row's quantity turned out to be merged into
+    # this one's strip reading: its value is checked even if confident.
+    verify_quantity: bool = False
+    # {"source", "cleaned", "canonical", "reason"} (app.extraction.identity)
+    catalog_match: dict | None = None
 
     def region(self) -> tuple[int, int, int, int] | None:
         """The row's box on the rendered page: from the first column rule to
@@ -467,6 +488,8 @@ class DesignSheetExtraction:
     issues: list[Issue] = field(default_factory=list)
     coverage: Coverage = field(default_factory=Coverage)
     failure: str | None = None
+    # One entry per building the sheet names, with every spelling OCR gave it.
+    buildings: list[dict] = field(default_factory=list)
 
     @property
     def outcome(self) -> Outcome:
@@ -501,11 +524,213 @@ def _dropped_row_issue(line: ExtractedBoqLine, ordinal: int) -> Issue | None:
             "raw_quantity": line.raw_quantity,
             # Why the quantity was refused: "decimal", "negative", "multiplier"...
             "quantity_parse": line.quantity_parse,
+            # What the independent passes read, for the reviewer to weigh.
+            "alternates": line.alternates,
+            "building": line.building,
         },
     )
 
 
-def extract_design_sheet(pdf_path: Path) -> DesignSheetExtraction:
+# --- a second look at what the column read could not settle -----------------------------
+
+# Each pass reads the cell alone, preprocessed differently, so agreement
+# between them is independent evidence and not the same misread twice. Tried
+# on EP-30208's unsettled cells: the column strip read nothing, a plain
+# upscale read "Z", and the padded, binarised crop read the printed "2" in
+# every mode.
+_SECOND_PASSES = (
+    ("binarised, single line, digits", "binarised", "--psm 7 -c tessedit_char_whitelist=0123456789"),
+    ("binarised, single character", "binarised", "--psm 10"),
+    ("greyscale, single line, digits or words", "greyscale", "--psm 7 -c tessedit_char_whitelist=0123456789LotSetNos"),
+)
+_PASS_PADDING_PX = 30
+_PASS_SCALE = 3
+_UNRULED_CELL_HALF_HEIGHT_PX = 24
+# A pass's reading counts only if it is plainly a quantity: digits, grouped
+# digits or a quantity word -- not a letter taken for a digit.
+_PASS_RULES = {"digits", "comma thousands grouping", "quantity word"}
+
+
+def _otsu_threshold(pixels: np.ndarray) -> int:
+    histogram = np.bincount(pixels.ravel(), minlength=256).astype(float)
+    total = pixels.size
+    weighted_total = float(np.dot(np.arange(256), histogram))
+    background_weight = background_sum = 0.0
+    best, threshold = -1.0, 128
+    for level in range(256):
+        background_weight += histogram[level]
+        if background_weight == 0:
+            continue
+        foreground_weight = total - background_weight
+        if foreground_weight == 0:
+            break
+        background_sum += level * histogram[level]
+        mean_background = background_sum / background_weight
+        mean_foreground = (weighted_total - background_sum) / foreground_weight
+        between = background_weight * foreground_weight * (mean_background - mean_foreground) ** 2
+        if between > best:
+            best, threshold = between, level
+    return threshold
+
+
+def _cell_image(image: Image.Image, line: ExtractedBoqLine) -> Image.Image | None:
+    if line.quantity_span is None or line.y_px is None:
+        return None
+    x0, x1 = line.quantity_span
+    if line.row_bounds:
+        top, bottom = line.row_bounds[0] + ROW_EDGE_INSET_PX, line.row_bounds[1] - ROW_EDGE_INSET_PX
+    else:
+        # No rules to bound the row: tall enough for a digit (~35px), short of
+        # the next row's digit (~45px away).
+        top, bottom = int(line.y_px - _UNRULED_CELL_HALF_HEIGHT_PX), int(line.y_px + _UNRULED_CELL_HALF_HEIGHT_PX)
+    box = (x0 + CELL_INSET_PX + 2, top, x1 - CELL_INSET_PX - 2, bottom)
+    if box[2] - box[0] < 8 or box[3] - box[1] < 8:
+        return None
+    crop = _erase_horizontal_rules(image.crop(box))
+    pixels = np.array(crop)
+    # Vertical rule fragments at the cell's edges, as the horizontal ones.
+    columns = (pixels < 128).mean(axis=0) > RULE_ROW_DARK_FRACTION
+    pixels[:, columns] = 255
+    return Image.fromarray(pixels)
+
+
+# A quantity strip read below this confidence is not taken on its own word.
+LOW_QUANTITY_CONFIDENCE = 60
+# A strip read this confident, backed by any pass, stands against a pass that
+# dropped or added a digit ("4" beside a pass reading "40").
+CONFIDENT_QUANTITY = 85
+# Below this, a strip read no pass can confirm goes to review rather than
+# into the BOQ; between this and LOW_QUANTITY_CONFIDENCE it is kept, noted.
+UNCONFIRMED_REVIEW_BELOW = 50
+
+
+def _confirm_quantity(image: Image.Image, line: ExtractedBoqLine) -> None:
+    """Check a quantity the column strip read against independent passes on
+    its own cell. Passes that read nothing change nothing (a lone "1" is the
+    hardest glyph to read in isolation). Passes that agree on a different
+    value -- at least two, none backing the strip -- replace it, with both
+    recorded: a strip read of a short column merges stacked digits ("2" over
+    "1" read as "3"). A split verdict sends the row to review."""
+    strip_value, strip_raw = line.quantity, line.raw_quantity
+    readings = _independent_readings(image, line)
+    if readings is None:
+        return
+    valid = [r["value"] for r in readings if r["value"] is not None]
+    if not valid:
+        if (line.quantity_confidence or 100) < UNCONFIRMED_REVIEW_BELOW and not line.verify_quantity:
+            # Too uncertain to keep unconfirmed: EP-30208's "1" read "4" at 44%.
+            line.alternates = readings
+            line.quantity = None
+            line.quantity_parse = {**(line.quantity_parse or {}), "status": values.AMBIGUOUS,
+                                   "rule": f"the column read {strip_value!r} at {line.quantity_confidence:.0f}% confidence "
+                                           "and no independent pass could read the cell"}
+            return
+        if line.verify_quantity:
+            # Suspected of holding a neighbour's digit, and nothing independent
+            # says otherwise: not a value to keep on the strip's word.
+            line.alternates = readings
+            line.quantity = None
+            line.quantity_parse = {**(line.quantity_parse or {}), "status": values.AMBIGUOUS,
+                                   "rule": f"the column read {strip_value!r} next to a row whose digit it may have "
+                                           "absorbed, and no independent pass could read the cell"}
+        return
+    line.alternates = readings
+    agreeing = valid.count(strip_value)
+    others = {v: valid.count(v) for v in valid if v != strip_value}
+    confidence = f" ({line.quantity_confidence:.0f}%)" if line.quantity_confidence is not None else ""
+    if not others or (agreeing >= 1 and (line.quantity_confidence or 0) >= CONFIDENT_QUANTITY):
+        line.quantity_parse = {**(line.quantity_parse or {}),
+                               "rule": f"column read {strip_value!r}{confidence} confirmed by {agreeing} independent "
+                                       f"pass{'es' if agreeing != 1 else ''}"}
+        return
+    best = max(others, key=others.get)
+    if agreeing == 0 and len(others) == 1 and others[best] >= 2:
+        line.quantity = best
+        line.quantity_parse = {**values.parse_quantity(best).to_dict(), "raw": strip_raw,
+                               "rule": f"the column read {strip_value!r}{confidence}; {others[best]} independent passes on "
+                                       f"the cell read {best}",
+                               "independent_agreement": others[best], "replaced": strip_value}
+        return
+    line.quantity = None
+    line.quantity_parse = {**(line.quantity_parse or {}), "status": values.AMBIGUOUS,
+                           "rule": f"the column read {strip_value!r}{confidence} but independent passes read "
+                                   + ", ".join(sorted(set(valid)))}
+
+
+def _independent_readings(image: Image.Image, line: ExtractedBoqLine) -> list[dict] | None:
+    from PIL import ImageOps
+
+    cell = _cell_image(image, line)
+    if cell is None:
+        return None
+    padded = ImageOps.expand(cell, border=_PASS_PADDING_PX, fill=255)
+    greyscale = padded.resize((padded.width * _PASS_SCALE, padded.height * _PASS_SCALE), Image.LANCZOS)
+    array = np.array(greyscale)
+    binarised = Image.fromarray(np.where(array < _otsu_threshold(array), 0, 255).astype(np.uint8))
+    sources = {"greyscale": greyscale, "binarised": binarised}
+    readings: list[dict] = []
+    for name, source, config in _SECOND_PASSES:
+        try:
+            text = pytesseract.image_to_string(sources[source], config=config).strip()
+        except Exception:  # noqa: BLE001 -- a pass that cannot run is no evidence either way
+            continue
+        parsed = values.parse_quantity(text)
+        plain = parsed.ok and parsed.rule in _PASS_RULES
+        readings.append({"pass": name, "text": text, "value": parsed.text() if plain else None,
+                         "status": parsed.status if plain or not parsed.ok else values.AMBIGUOUS})
+    return readings
+
+
+def _read_quantity_again(image: Image.Image, line: ExtractedBoqLine) -> None:
+    """Read an unsettled quantity cell again, three independent ways. When
+    at least two passes read the same valid quantity and none reads a
+    different one, that is the quantity -- with the rule saying so. Anything
+    else leaves the row for review, with what each pass read."""
+    readings = _independent_readings(image, line)
+    if readings is None:
+        return
+    valid = [r["value"] for r in readings if r["value"] is not None]
+    line.alternates = readings
+    if len(valid) >= 2 and len(set(valid)) == 1:
+        agreed = valid[0]
+        line.quantity = agreed
+        line.quantity_parse = {
+            **values.parse_quantity(agreed).to_dict(),
+            "raw": line.raw_quantity,
+            "rule": f"the column read gave {line.raw_quantity!r}; {len(valid)} independent passes on the cell read {agreed}",
+            "independent_agreement": len(valid),
+        }
+
+
+def _straighten(image: Image.Image) -> tuple[Image.Image, str] | None:
+    """The page turned upright and deskewed, with what was done -- or None
+    when it already is, or cannot be told."""
+    turned, notes = image, []
+    try:
+        osd = pytesseract.image_to_osd(image, config="--psm 0")
+        rotate = int(re.search(r"Rotate:\s*(\d+)", osd).group(1))
+    except Exception:  # noqa: BLE001 -- too little text to tell the orientation
+        rotate = 0
+    if rotate:
+        turned = image.rotate(-rotate, expand=True, fillcolor=255)
+        notes.append(f"turned {rotate} degrees")
+    small = turned.resize((max(1, turned.width // 4), max(1, turned.height // 4)))
+    best_angle, best_score = 0.0, -1.0
+    for angle in np.arange(-3.0, 3.01, 0.25):
+        dark = np.array(small.rotate(float(angle), fillcolor=255)) < 128
+        profile = dark.mean(axis=0)
+        score = float((profile ** 2).sum())
+        if score > best_score:
+            best_angle, best_score = float(angle), score
+    if abs(best_angle) >= 0.25:
+        turned = turned.rotate(best_angle, expand=False, fillcolor=255)
+        notes.append(f"deskewed {best_angle:+.2f} degrees")
+    if not notes:
+        return None
+    return turned, "read after the page was " + " and ".join(notes)
+
+
+def extract_design_sheet(pdf_path: Path, on_page=None) -> DesignSheetExtraction:
     """Read a sheet and say what was and was not read.
 
     Never raises for what is in the document: an unreadable sheet comes
@@ -535,12 +760,25 @@ def extract_design_sheet(pdf_path: Path) -> DesignSheetExtraction:
 
     for page_index in range(document.page_count):
         page_number = page_index + 1
+        if on_page is not None:
+            # Progress, and the point at which a job asked to stop does.
+            on_page(page_number, document.page_count)
         image = _render_page(document[page_index])
         dark = np.array(image) < 128
         coverage = PageCoverage(page=page_number)
         result.coverage.pages.append(coverage)
 
         found = _find_layout(dark)
+        if found is None:
+            # A page scanned sideways or askew has no straight rules to find.
+            # Straightened, it is tried once more before being reported.
+            straightened = _straighten(image)
+            if straightened is not None:
+                image, how = straightened
+                dark = np.array(image) < 128
+                found = _find_layout(dark)
+                if found is not None:
+                    coverage.reason = how
         if found is None:
             coverage.reason = "no recognised column layout"
             result.issues.append(Issue(IssueCode.UNPROCESSED_PAGE_OR_REGION, page=page_number,
@@ -549,9 +787,54 @@ def extract_design_sheet(pdf_path: Path) -> DesignSheetExtraction:
         rules, layout = found
         readable_pages += 1
         page_lines, section, regions = _read_page(image, dark, rules, layout, page_number, section)
+        for line in page_lines:
+            if not line.quantity:
+                _read_quantity_again(image, line)
+            elif line.verify_quantity or (line.quantity_confidence is not None
+                                          and line.quantity_confidence < LOW_QUANTITY_CONFIDENCE):
+                # Confident strip reads are not second-guessed: a single-cell
+                # pass drops or adds digits on multi-digit counts more often
+                # than the strip misreads them (EP-30784 FAS: "121" read "12").
+                _confirm_quantity(image, line)
         coverage.processed = True
         coverage.regions = regions
         read.extend(page_lines)
+
+    # One building, one name: the banners' OCR variants across the pages
+    # are settled together (app.extraction.identity).
+    buildings = identity.canonical_buildings([line.section for line in read if line.section])
+    seen: dict[str, dict] = {}
+    for line in read:
+        building = buildings.get(line.section) if line.section else None
+        if building is None:
+            continue
+        line.building = building.as_dict()
+        line.section = building.display
+        line.group_heading = _group(building.display, line.heading)
+        seen.setdefault(building.key, building.as_dict())
+    result.buildings = list(seen.values())
+
+    # One part, one spelling: codes on the sheet sharing their letters and
+    # digits ("E232 301H" beside six "E-232 301H") are matched to the
+    # spelling the sheet uses most. The cleaned code stays the line's value;
+    # the canonical one is recorded beside it with the reason.
+    spellings: dict[str, Counter] = {}
+    for line in read:
+        if line.catalog_no:
+            spellings.setdefault(identity.part_key(line.catalog_no), Counter())[line.catalog_no] += 1
+    for line in read:
+        if not line.catalog_no and not line.catalog_raw:
+            continue
+        cleaned, removed = identity.clean_catalog(line.catalog_raw) if line.catalog_raw else (line.catalog_no, None)
+        canonical, reason = None, removed or "as read"
+        if line.catalog_no:
+            votes = spellings.get(identity.part_key(line.catalog_no))
+            if votes:
+                best, count = votes.most_common(1)[0]
+                canonical = best
+                if best != line.catalog_no:
+                    reason = f"{reason}; the sheet spells this part {best!r} on {count} other row{'s' if count != 1 else ''}"
+        line.catalog_match = {"source": line.catalog_raw, "cleaned": line.catalog_no, "canonical": canonical, "reason": reason}
 
     # A BOQ line is something being quoted in some amount, so a row whose
     # quantity could not be read is not one and is not stored as one. It is
@@ -653,7 +936,7 @@ def _read_ruled_rows(
         catalog_text, catalog_conf = cell(catalogs)
         parsed = _parse_quantity(quantity_text)
         quantity = parsed.text()
-        catalog = catalog_text.strip(" |_-—~") or None
+        catalog = identity.clean_catalog(catalog_text)[0]
         if catalog and _is_column_heading(catalog):
             catalog = None
 
@@ -681,6 +964,10 @@ def _read_ruled_rows(
                 y_px=(row_top + row_bottom) / 2,
                 quantity_parse=parsed.to_dict(),
                 row_bounds=(row_top, row_bottom),
+                section=section,
+                heading=heading,
+                catalog_raw=catalog_text or None,
+                quantity_confidence=quantity_conf if quantity_text else None,
             )
         )
 
@@ -756,6 +1043,9 @@ def _read_table(
 
     lines: list[ExtractedBoqLine] = []
     heading: str | None = None
+    verify_following = False
+    trailing_heading: tuple[float, str] | None = None
+    heading_before_trailing: str | None = None
 
     def take_heading(text: str) -> None:
         nonlocal heading, section
@@ -771,7 +1061,7 @@ def _read_table(
         catalog_text, catalog_conf = _nearest(catalogs, centre)
         parsed = _parse_quantity(quantity_text)
         quantity = parsed.text()
-        catalog = catalog_text.strip(" |_-—~") if catalog_text else None
+        catalog = identity.clean_catalog(catalog_text)[0] if catalog_text else None
         if catalog and _is_column_heading(catalog):
             catalog = None
 
@@ -781,15 +1071,37 @@ def _read_table(
             quantity = parsed.text()
             text = text[inline.end() :].strip()
 
+        probe_parse: dict | None = None
+        if not inline and parsed.status == values.EMPTY and catalog is None:
+            # A short line with nothing beside it reads as a heading, and a
+            # merged strip read leaves exactly that ("PA Rack" under
+            # "Batteries", their "2" and "1" read as one "3"). Its cell is read
+            # on its own first when a quantity reading sits close by.
+            nearby = [y for y, _t, _c in quantities if abs(y - centre) <= 3 * COLUMN_PAIRING_TOLERANCE_PX]
+            if (not lines or nearby) and sum(ch.isalpha() for ch in text) >= 3:
+                probe = ExtractedBoqLine(catalog_no=None, description=text, quantity=None, group_heading=None,
+                                         confidence=0.0, page=page_number, y_px=centre,
+                                         quantity_span=(rules[layout.quantity[0]], rules[layout.quantity[1]]))
+                _read_quantity_again(image, probe)
+                if probe.quantity:
+                    quantity, parsed, probe_parse = probe.quantity, values.parse_quantity(probe.quantity), probe.quantity_parse
+                    # The strip reading this row lacked went to a neighbour:
+                    # that neighbour's value is suspect now, however confident.
+                    if lines and abs((lines[-1].y_px or 0) - centre) <= 3 * COLUMN_PAIRING_TOLERANCE_PX:
+                        lines[-1].verify_quantity = True
+                    verify_following = True
+
         if not inline and parsed.status == values.EMPTY and _is_heading(text, quantity, catalog):
+            heading_before_trailing = heading
             take_heading(text)
+            trailing_heading = (centre, text) if lines else None
             continue
 
         # A line with neither its own quantity nor a catalog number is the
         # rest of the previous item's description, not a new item -- unless
         # its quantity cell held text the parser refused, which makes it an
         # item whose quantity needs a person.
-        if not inline and parsed.status == values.EMPTY and catalog is None:
+        if not inline and parsed.status == values.EMPTY and catalog is None and not quantity:
             if lines:
                 lines[-1].description = f"{lines[-1].description} {text}".strip()
             # Nothing yet to continue: this is text from above the table that
@@ -809,8 +1121,35 @@ def _read_table(
                 page=page_number,
                 raw_quantity=quantity_text or None,
                 y_px=centre,
-                quantity_parse=parsed.to_dict(),
+                quantity_parse=probe_parse or parsed.to_dict(),
+                verify_quantity=verify_following and probe_parse is None,
+                section=section,
+                heading=heading,
+                catalog_raw=catalog_text or None,
+                # A probed quantity was confirmed by independent passes already.
+                quantity_confidence=quantity_conf if quantity_text and probe_parse is None else None,
             )
         )
+        # Only the row straight after a recovered one is suspect.
+        verify_following = probe_parse is not None
+        trailing_heading = None
+
+    # A "heading" with nothing under it before the table ends heads nothing:
+    # it is a row whose quantity could not be read ("PA Rack", its "1" merged
+    # into the "2" above). Kept as a row for review rather than lost, and the
+    # row above it -- which may hold its digit -- is checked.
+    # A table the page edge cut off continues overleaf, where its heading's
+    # rows are ("Local Material" at the foot of a page).
+    cut_by_page = bottom >= image.height - PAGE_EDGE_MARGIN_PX
+    if trailing_heading and not cut_by_page and not _is_banner(trailing_heading[1]) and lines:
+        centre, text = trailing_heading
+        lines[-1].verify_quantity = True
+        lines.append(ExtractedBoqLine(
+            catalog_no=None, description=text, quantity=None, group_heading=_group(section, heading_before_trailing),
+            confidence=0.0, page=page_number, raw_quantity=None, y_px=centre, section=section,
+            heading=heading_before_trailing,
+            quantity_parse={"kind": "equipment_count", "raw": None, "value": None, "status": values.EMPTY,
+                            "rule": "read as a heading, but nothing follows it in the table: a row with no readable quantity"},
+        ))
 
     return lines

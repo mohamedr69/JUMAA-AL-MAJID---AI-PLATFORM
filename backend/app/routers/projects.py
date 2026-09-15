@@ -650,6 +650,7 @@ def ensure_project_boq(
         runs = {id(sheet): extraction_pipeline.record_design_sheet_run(db, project, sheet, result)
                 for sheet, result in reads}
         position = len(project.boq_items)
+        library = boq_provenance.part_library(db)
         for sheet, result in reads:
             if result.failure:
                 continue
@@ -659,10 +660,12 @@ def ensure_project_boq(
                 # sheets carry Unit/Total Price columns but they are blank on
                 # every sheet in the archive, so there is nothing to read and
                 # nothing to check a read against.
-                project.boq_items.append(boq_provenance.extracted_item(
+                item = boq_provenance.extracted_item(
                     system_code=system_code, line=line, run=runs[id(sheet)], position=position,
                     manufacturer=_brand_for(system_code, project.systems, project.separate_ve_panel),
-                ))
+                )
+                boq_provenance.check_catalog(item, library)
+                project.boq_items.append(item)
                 position += 1
         project.boq_version += 1
         db.commit()
@@ -679,7 +682,7 @@ def ensure_project_boq(
     return BoqEnsureResponse(items=project.boq_items, extracted=True, warnings=warnings, version=project.boq_version)
 
 
-def _read_design_sheet(path: Path) -> DesignSheetExtraction:
+def _read_design_sheet(path: Path, on_page=None) -> DesignSheetExtraction:
     """One sheet's read, with its coverage and issues.
 
     `extract_boq_lines` is the seam the test suite stubs -- a fake that
@@ -689,7 +692,7 @@ def _read_design_sheet(path: Path) -> DesignSheetExtraction:
     page and settled everything else.
     """
     if extract_boq_lines is design_sheet_extractor.extract_boq_lines:
-        return extract_design_sheet(path)
+        return extract_design_sheet(path, on_page=on_page)
     try:
         lines = extract_boq_lines(path)
     except DesignSheetExtractionError as exc:
@@ -795,6 +798,22 @@ def issue_boq_revision(
     lines = _current_lines(project)
     if not lines:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The BOQ has no lines to issue.")
+
+    # A revision is what goes out, so nothing unsettled may be in it: the
+    # documents are checked again now (a file can change after it was read)
+    # and every BOQ check must pass (app.services.readiness).
+    from app.services import document_intake, readiness
+
+    if document_intake.project_documents(project):
+        document_intake.run(db, project)
+        db.refresh(project)
+    blockers = readiness.boq_blockers(db, project)
+    if blockers:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "not_ready", "message": "The BOQ cannot be issued yet: " + " ".join(blockers),
+                    "blockers": blockers},
+        )
 
     latest = project.boq_revisions[-1] if project.boq_revisions else None
     if latest is not None and not compare_boq(_revision_lines(latest), lines):

@@ -11,7 +11,7 @@ export function UnderMaintenance({ title, note }: { title: string; note?: string
       </div>
       <h1 className="mt-4 text-xl font-bold text-navy-900">{title}</h1>
       <p className="mx-auto mt-2 max-w-md text-sm text-amber-900">
-        This part of the platform is under maintenance while it is being built.
+        Not available yet: this part of the platform is still being built, and nothing on this page is in use.
       </p>
       {note && <p className="mx-auto mt-1 max-w-md text-sm text-amber-800">{note}</p>}
     </div>

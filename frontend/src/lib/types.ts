@@ -157,6 +157,11 @@ export interface QuantityParse {
 export interface ProjectBoqItem extends ProjectBoqItemInput {
   id: number;
   position: number;
+  /** The building the sheet quotes the line for, one canonical name. */
+  building: string | null;
+  /** The part number as the library or the sheet spells it; catalog_no is what was read. */
+  catalog_canonical: string | null;
+  catalog_match: { source?: string | null; cleaned?: string | null; canonical?: string | null; reason?: string; library?: string | null; library_reason?: string } | null;
   origin: string;
   extraction_run_id: number | null;
   source_document_sha256: string | null;
@@ -184,6 +189,55 @@ export interface BoqEnsureResponse {
   warnings: string[];
   /** The version a save names in If-Match. */
   version: number;
+}
+
+export type CheckStatus = "ok" | "warning" | "blocked" | "unknown";
+
+export interface ReadinessCheck {
+  key: string;
+  label: string;
+  /** "boq" checks gate issuing a BOQ revision. */
+  scope: "boq" | "calculations" | "compliance";
+  status: CheckStatus;
+  summary: string;
+  items: string[];
+  count: number;
+  /** A path inside the project workspace, e.g. "boq" or "documents". */
+  link: string | null;
+}
+
+export interface Readiness {
+  status: CheckStatus;
+  boq_ready_for_issue: boolean;
+  boq_blockers: string[];
+  checks: ReadinessCheck[];
+}
+
+export interface IntakeFinding {
+  code: string;
+  severity: "blocked" | "warning";
+  message: string;
+  detail: Record<string, unknown>;
+}
+
+export interface DocumentIntake {
+  id: number;
+  role: "drf" | "design_sheet";
+  system_code: string | null;
+  filename: string;
+  relative_path: string | null;
+  /** Only for those who can edit the project. */
+  path: string | null;
+  sha256: string | null;
+  size: number | null;
+  mime: string | null;
+  page_count: number | null;
+  printed_pages: { numbers: number[]; declared_totals: number[]; ocr: boolean } | null;
+  intake_status: "unchecked" | "ok" | "warning" | "blocked";
+  findings: IntakeFinding[];
+  acknowledged: { code: string; reason: string; by_name: string; at: string }[];
+  checked_at: string | null;
+  intake_version: string | null;
 }
 
 /** A BOQ line as a re-read or a snapshot records it: the line's values and
@@ -618,6 +672,14 @@ export interface BoqGroup {
 }
 
 export interface BatteryCalculation {
+  /** The version a save names in If-Match. */
+  design_version?: number;
+  /** What the figures were made from and what they are (backend calc_integrity). */
+  input_hash?: string;
+  result_hash?: string;
+  complete?: boolean;
+  incomplete_reasons?: string[];
+  needs_confirmation?: { part_no: string; description: string | null; reason: string | null; rule_id: number; rule_version: number }[];
   rule: DesignRule | null;
   panels: BatteryPanel[];
   groups: BoqGroup[];

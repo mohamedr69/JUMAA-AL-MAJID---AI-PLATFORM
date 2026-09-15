@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { KnowledgeEligibilityPanel } from "../components/KnowledgeEligibilityPanel";
 import { ApiError, api } from "../lib/api";
 import type { KnowledgeImport, KnowledgeImportReport, KnowledgeStatus } from "../lib/types";
 
@@ -163,6 +164,8 @@ export function AdminKnowledgePage() {
           )}
         </section>
       )}
+
+      {status && !status.running && records && records.responses > 0 && <KnowledgeEligibilityPanel />}
 
       {last && (
         <section className="mt-4 rounded-xl border border-gray-200 bg-white p-4 text-sm">

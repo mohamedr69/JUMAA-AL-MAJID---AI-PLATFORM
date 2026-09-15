@@ -456,11 +456,18 @@ def _write(db: Session, import_id: int, tables: dict[str, list[dict]]) -> dict[s
 
     # SPECIFICATION_MAPPINGS
     mapping_quality: dict[str, tuple[str | None, str | None]] = {}
+    # An administrator's verdict on a pairing outlives the import that
+    # extracted it (app.knowledge.eligibility).
+    from app.knowledge.eligibility import reviewed_confidence
+    from app.models import KnowledgeMappingReview
+
+    verdicts = dict(db.execute(select(KnowledgeMappingReview.mapping_id, KnowledgeMappingReview.verdict)).all())
     rows = []
     for r in tables["SPECIFICATION_MAPPINGS"]:
         if not r.get("mapping_id") or r.get("requirement_id") not in requirement_ids or r.get("source_id") not in source_ids:
             continue
-        mapping_quality[r["mapping_id"]] = (r.get("pairing_confidence"), r.get("extraction_method"))
+        mapping_quality[r["mapping_id"]] = (reviewed_confidence(r.get("pairing_confidence"), verdicts.get(r["mapping_id"])),
+                                            r.get("extraction_method"))
         rows.append({
             "mapping_id": r["mapping_id"], "requirement_id": r["requirement_id"], "source_id": r["source_id"],
             "specification_family": r.get("specification_family"), "specification_title": (r.get("specification_title") or "")[:255] or None,

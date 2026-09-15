@@ -16,9 +16,11 @@ from app.routers import (
     design,
     design_rules,
     extraction,
+    jobs,
     knowledge,
     modules,
     projects,
+    readiness,
     submittal,
     users,
 )
@@ -35,6 +37,10 @@ async def lifespan(app: FastAPI):
     try:
         seed_default_admin(db)
         seed_design_rules(db)
+        # Work a previous run of the server left unfinished never finishes.
+        from app.services.jobs import fail_interrupted
+
+        fail_interrupted(db)
     finally:
         db.close()
     # Reading every datasheet takes a while over a synced drive; do it in
@@ -108,6 +114,8 @@ app.include_router(users.router)
 app.include_router(modules.router)
 app.include_router(projects.router)
 app.include_router(boq_review.router)
+app.include_router(readiness.router)
+app.include_router(jobs.router)
 app.include_router(design.router)
 app.include_router(design_rules.router)
 app.include_router(submittal.router)

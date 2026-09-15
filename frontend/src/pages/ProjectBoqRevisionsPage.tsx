@@ -38,6 +38,7 @@ export function ProjectBoqRevisionsPage() {
   const [revisions, setRevisions] = useState<BoqRevisionSummary[] | null>(null);
   const [pending, setPending] = useState<BoqCompare | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [blockers, setBlockers] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [issuing, setIssuing] = useState(false);
   const [openCompare, setOpenCompare] = useState<{ number: number; result: BoqCompare } | null>(null);
@@ -72,6 +73,7 @@ export function ProjectBoqRevisionsPage() {
     e.preventDefault();
     setIssuing(true);
     setError(null);
+    setBlockers([]);
     try {
       await api.post<BoqRevisionSummary>(`/projects/${project.id}/boq/revisions`, { note });
       setNote("");
@@ -80,6 +82,9 @@ export function ProjectBoqRevisionsPage() {
       setRevisions(list);
       setPending(since);
     } catch (err) {
+      if (err instanceof ApiError && err.code === "not_ready" && Array.isArray(err.detail?.blockers)) {
+        setBlockers(err.detail.blockers as string[]);
+      }
       setError(err instanceof ApiError ? err.message : "Failed to issue the revision");
     } finally {
       setIssuing(false);
@@ -126,7 +131,25 @@ export function ProjectBoqRevisionsPage() {
         Issuing a revision freezes the saved BOQ as it stands. Later edits never change an issued revision.
       </p>
 
-      {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {blockers.length > 0 ? (
+        <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          <div className="font-semibold">The BOQ cannot be issued yet</div>
+          <ul className="mt-1 list-disc pl-5">
+            {blockers.map((blocker) => (
+              <li key={blocker}>{blocker}</li>
+            ))}
+          </ul>
+          <Link to="../.." relative="path" className="mt-2 inline-block text-xs font-semibold underline">
+            See what is outstanding on Project Home
+          </Link>
+        </div>
+      ) : (
+        error && (
+          <div role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </div>
+        )
+      )}
 
       {revisions === null ? (
         <div className="mt-6 text-sm text-gray-400">Loading...</div>

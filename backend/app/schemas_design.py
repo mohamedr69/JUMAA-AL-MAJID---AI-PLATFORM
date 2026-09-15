@@ -200,6 +200,12 @@ class VoiceEvacuationResult(BaseModel):
     unassigned_zones: list[int]
     channels_failing: int
     sheet_mismatches: int
+    # A result is complete only when every zone is on a channel and every
+    # channel has a rating; otherwise the reasons say what is missing.
+    complete: bool = True
+    incomplete_reasons: list[str] = Field(default_factory=list)
+    input_hash: str = ""
+    result_hash: str = ""
 
 
 # --- API ---------------------------------------------------------------------
@@ -222,6 +228,7 @@ class VoiceEvacuationOut(BaseModel):
     rule: DesignRuleOut | None = None
     updated_at: datetime | None = None
     updated_by: str | None = None
+    design_version: int = 0
 
 
 class WorkbookCandidateOut(BaseModel):
@@ -371,6 +378,16 @@ class BatteryCalculationOut(BaseModel):
     # The brand batteries are selected from, and what is on file to choose.
     selection_rule: DesignRuleOut | None = None
     selectable: list[BatterySetOut] = Field(default_factory=list)
+    # The version a save names in If-Match (app.services.concurrency).
+    design_version: int = 0
+    # app.services.calc_integrity: what the figures were made from and what they are.
+    input_hash: str = ""
+    result_hash: str = ""
+    complete: bool = True
+    incomplete_reasons: list[str] = Field(default_factory=list)
+    # Parts the platform set to draw no current on its own (a mechanical
+    # description, a part built into a module) that no engineer has confirmed.
+    needs_confirmation: list[dict] = Field(default_factory=list)
 
 
 # --- datasheet library -----------------------------------------------------------
@@ -634,6 +651,12 @@ class StatementRowIn(BaseModel):
     response: str | None = Field(default=None, max_length=60)
     remark: str | None = Field(default=None, max_length=500)
     technical_status: str | None = Field(default=None, max_length=32)
+    # The row's response and remark as the page showed them when the edit
+    # began. When sent, a row someone (or an AI job) has changed since is
+    # refused rather than overwritten -- per row, since the statement as a
+    # whole changes all the time under background fills and rechecks.
+    base_response: str | None = Field(default=None, max_length=60)
+    base_remark: str | None = Field(default=None, max_length=500)
 
 
 class StatementRowsIn(BaseModel):
@@ -705,6 +728,7 @@ class StatementSummaryOut(BaseModel):
     ai_calls: int
     created_at: datetime
     updated_at: datetime
+    version: int = 0
     # The engineer's approval; export is refused without it.
     approved: bool = False
     approved_at: datetime | None = None

@@ -13,6 +13,7 @@ rating times `max_load_fraction`, which comes from a DesignRule rather than
 from this module, since it is a design decision and not arithmetic.
 """
 
+from app.services import calc_integrity
 from app.schemas_design import (
     ChannelResult,
     ChannelStatus,
@@ -124,14 +125,35 @@ def calculate(design: VoiceEvacuationDesign) -> VoiceEvacuationResult:
         for index, (zone, watts) in enumerate(zip(design.zones, zone_watts))
     ]
 
-    return VoiceEvacuationResult(
+    unassigned = [z.index for z in zones if z.channel is None]
+    unrated = [c for c in channels if c.amplifier_watts is None]
+    reasons: list[str] = []
+    if not design.channels:
+        reasons.append("No zone is assigned to an amplifier channel.")
+    elif unassigned:
+        reasons.append(f"{len(unassigned)} zone{'s are' if len(unassigned) != 1 else ' is'} on no channel: "
+                       + ", ".join(zones[i].name for i in unassigned[:6]) + ("..." if len(unassigned) > 6 else ""))
+    if unrated:
+        reasons.append(f"{len(unrated)} channel{'s have' if len(unrated) != 1 else ' has'} no amplifier rating: "
+                       + ", ".join(c.label or f"channel {c.index + 1}" for c in unrated[:6]))
+    rackless = [c.index for c in channels if c.rack is None]
+    if design.racks and rackless:
+        reasons.append(f"{len(rackless)} channel{'s are' if len(rackless) != 1 else ' is'} in no rack.")
+
+    result = VoiceEvacuationResult(
         zones=zones,
         channels=channels,
         racks=racks,
         total_required_watts=_watts(sum(zone_watts)),
         max_load_fraction=design.max_load_fraction,
-        unassigned_zones=[z.index for z in zones if z.channel is None],
+        unassigned_zones=unassigned,
         channels_failing=sum(1 for c in channels if c.status in ("over_limit", "over_rating")),
         sheet_mismatches=sum(1 for z in zones if z.sheet_mismatch)
         + sum(1 for c in channels if c.sheet_mismatch),
+        complete=not reasons,
+        incomplete_reasons=reasons,
     )
+    result.input_hash = calc_integrity.stable_hash(calc_integrity.ve_inputs(design))
+    result.result_hash = calc_integrity.stable_hash(
+        result.model_dump(mode="json", exclude={"input_hash", "result_hash"}))
+    return result

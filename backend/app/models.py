@@ -285,6 +285,16 @@ class ProjectBoqItem(Base):
 
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # The building the sheet quotes the line for, as one canonical name --
+    # not only inside the free-text group heading, where OCR's spellings of
+    # one banner made several buildings (app.extraction.identity).
+    building: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # The part number as a library or the sheet itself spells it, for
+    # matching; `catalog_no` stays what was read. {"source", "cleaned",
+    # "canonical", "reason"}.
+    catalog_canonical: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    catalog_match: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     # --- provenance: where the line came from, as read, and who changed it.
     #
     # "extracted" (read off a Design Sheet by a recorded run), "ai_accepted"
@@ -400,6 +410,29 @@ class BoqSnapshot(Base):
     items: Mapped[list] = mapped_column(JSON, nullable=False)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
+class BackgroundJob(Base):
+    """Long work the server runs and keeps: its progress, whether a stop was
+    asked for, and how it ended (app.services.jobs)."""
+
+    __tablename__ = "background_jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    # "boq_reread" | "documents_intake"
+    kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    # "queued" | "running" | "succeeded" | "failed" | "cancelled"
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued", index=True)
+    progress: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    result: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
 
 class ProjectBoqRevision(Base):
@@ -849,6 +882,24 @@ class KnowledgeMapping(Base):
     pairing_confidence: Mapped[str | None] = mapped_column(String(16), nullable=True)
     import_id: Mapped[int] = mapped_column(ForeignKey("knowledge_imports.id"), nullable=False, index=True)
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+
+
+class KnowledgeMappingReview(Base):
+    """An administrator's verdict on one source mapping: that the answer the
+    extraction paired with a clause really is that clause's answer
+    ("verified") or is not ("rejected"). Kept by mapping id, apart from the
+    imported tables, so a re-import does not erase the review
+    (app.knowledge.eligibility)."""
+
+    __tablename__ = "knowledge_mapping_reviews"
+
+    mapping_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    # "verified" | "rejected"
+    verdict: Mapped[str] = mapped_column(String(16), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    reviewed_by_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
 class KnowledgeResponse(Base):

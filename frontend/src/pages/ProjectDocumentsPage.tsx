@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { DocumentIntakePanel } from "../components/DocumentIntakePanel";
 import { ApiError, api } from "../lib/api";
+import { copyText, shortPath } from "../lib/format";
 import { PROJECT_EDITOR_ROLES, type Project } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
@@ -66,13 +68,19 @@ export function ProjectDocumentsPage() {
         uploaded here instead.
       </p>
 
-      {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {error && (
+        <div role="alert" className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-      <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
+      <DocumentIntakePanel projectId={project.id} refreshKey={project} />
+
+      <section className="mt-4 rounded-xl border border-gray-200 bg-white p-5">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Design Request Form</h2>
         {project.drf_document_path ? (
           <>
-            <p className="mt-2 break-all text-sm text-navy-900">{project.drf_document_path}</p>
+            <PathLine path={project.drf_document_path} />
             {canEdit && (
               <UploadButton
                 label="Replace"
@@ -101,13 +109,15 @@ export function ProjectDocumentsPage() {
               <li key={sheet.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-navy-900">{sheet.system_code ?? "Unlabelled system"}</div>
-                  <div className="break-all text-xs text-gray-500" title={sheet.document_path}>
-                    {fileName(sheet.document_path)}
-                  </div>
+                  <PathLine path={sheet.document_path} small />
                 </div>
                 {canEdit && (
                   <button
-                    onClick={() => removeSheet(sheet.id)}
+                    onClick={() => {
+                      if (window.confirm(`Detach ${fileName(sheet.document_path)} from the project? The file itself is not deleted.`)) {
+                        void removeSheet(sheet.id);
+                      }
+                    }}
                     disabled={busy === `sheet-${sheet.id}`}
                     className="rounded-lg border border-gray-300 px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50"
                   >
@@ -138,16 +148,16 @@ export function ProjectDocumentsPage() {
             onPick={(file, code) => upload("sheet-new", `/projects/${project.id}/documents/design-sheets`, file, code)}
           />
         )}
-        <p className="mt-3 text-xs text-gray-400">
-          A sheet added now is not read into the BOQ: the Design Sheets are read once, when the BOQ is first opened.
-          Add its lines under BOQ.
+        <p className="mt-3 text-xs text-gray-500">
+          A sheet added after the BOQ was first read is not added to it on its own: use Re-read sheets on the BOQ page to review
+          its lines before they go in.
         </p>
       </section>
 
       <section className="mt-4 rounded-xl border border-gray-200 bg-white p-5">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Source Folder</h2>
         {project.source_folder_path ? (
-          <p className="mt-2 break-all text-sm text-navy-900">{project.source_folder_path}</p>
+          <PathLine path={project.source_folder_path} keep={3} />
         ) : (
           <p className="mt-2 text-sm text-amber-700">
             No project folder was matched in the archive, so nothing can be read from it automatically.
@@ -158,6 +168,36 @@ export function ProjectDocumentsPage() {
       <p className="mt-4 text-xs text-gray-400">
         Uploaded files are kept by the platform; the project archive is only ever read, never written to.
       </p>
+    </div>
+  );
+}
+
+/** A long archive path, shortened, with a copy button and the full path a
+ * click away. */
+function PathLine({ path, small, keep = 2 }: { path: string; small?: boolean; keep?: number }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className={`mt-1 ${small ? "text-xs text-gray-500" : "text-sm text-navy-900"}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="break-all" title={path}>
+          {shortPath(path, keep)}
+        </span>
+        <button
+          type="button"
+          onClick={async () => {
+            setCopied(await copyText(path));
+            window.setTimeout(() => setCopied(false), 1500);
+          }}
+          className="rounded border border-gray-300 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50"
+          aria-label="Copy the full path"
+        >
+          {copied ? "Copied" : "Copy path"}
+        </button>
+      </div>
+      <details className="mt-0.5 text-[11px] text-gray-400">
+        <summary className="cursor-pointer select-none">Full path</summary>
+        <span className="break-all">{path}</span>
+      </details>
     </div>
   );
 }

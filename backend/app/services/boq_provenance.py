@@ -25,7 +25,7 @@ from app.models import BoqSnapshot, ExtractionRun, Project, ProjectBoqItem, User
 SHEET_FIELDS = ("system_code", "group_heading", "catalog_no", "description", "quantity")
 
 PROVENANCE_FIELDS = (
-    "origin", "extraction_run_id", "source_document_sha256", "source_page", "source_region", "raw_values",
+    "building", "catalog_canonical", "catalog_match", "origin", "extraction_run_id", "source_document_sha256", "source_page", "source_region", "raw_values",
     "ocr_confidence", "parser_version", "extracted_values", "edited_by_id", "edited_at", "created_at",
 )
 CONTENT_FIELDS = ("system_code", "group_heading", "manufacturer", "catalog_no", "description", "quantity", "unit",
@@ -63,7 +63,14 @@ def extracted_item(*, system_code: str | None, line, run: ExtractionRun | None, 
         ocr_confidence=Decimal(str(round(line.confidence, 2))) if getattr(line, "confidence", None) is not None else None,
         parser_version=run.parser_version if run is not None else None,
         created_at=utc_now(),
+        building=(getattr(line, "building", None) or {}).get("display"),
+        catalog_match=getattr(line, "catalog_match", None),
+        catalog_canonical=(getattr(line, "catalog_match", None) or {}).get("canonical"),
     )
+    if item.raw_values is not None:
+        item.raw_values = {**item.raw_values, "catalog_no": getattr(line, "catalog_raw", None) or line.catalog_no,
+                           "alternates": getattr(line, "alternates", None),
+                           "building_aliases": (getattr(line, "building", None) or {}).get("aliases")}
     item.extracted_values = {**sheet_values(item)}
     return item
 
@@ -141,6 +148,46 @@ def snapshot(db: Session, project: Project, reason: str, user: User | None) -> B
                        created_by_id=user.id if user else None)
     db.add(shot)
     return shot
+
+
+def part_library(db: Session) -> dict[str, str]:
+    """Part numbers the platform already trusts, by key: the catalogue's
+    part currents and battery units, and the models the knowledge base's
+    approved responses name. What a read code is checked against."""
+    from app.extraction.identity import part_key
+    from app.models import DesignRule, KnowledgeModel
+    from app.seed import BATTERY_UNIT_CATEGORY, PART_CURRENT_CATEGORY
+
+    library: dict[str, str] = {}
+    for rule in db.query(DesignRule).filter(DesignRule.category.in_((PART_CURRENT_CATEGORY, BATTERY_UNIT_CATEGORY)),
+                                            DesignRule.superseded_at.is_(None)):
+        spelling = (rule.data or {}).get("part_no")
+        if spelling:
+            library.setdefault(part_key(spelling), spelling)
+    for (model,) in db.query(KnowledgeModel.model).distinct():
+        if model and len(part_key(model)) >= 4:
+            library.setdefault(part_key(model), model)
+    return library
+
+
+def check_catalog(target, library: dict[str, str]) -> None:
+    """Record, beside the line's code, what the part library makes of it.
+    `target` is a ProjectBoqItem or a line record dict; the code itself is
+    never changed."""
+    from app.extraction.identity import match_catalog
+
+    get = (lambda name: target.get(name)) if isinstance(target, dict) else (lambda name: getattr(target, name))
+    code = get("catalog_no")
+    if not code:
+        return
+    match = match_catalog(code, library)
+    previous = get("catalog_match") or {}
+    record = {**previous, "cleaned": code, "library": match.canonical, "library_reason": match.reason}
+    canonical = match.canonical or previous.get("canonical")
+    if isinstance(target, dict):
+        target["catalog_match"], target["catalog_canonical"] = record, canonical
+    else:
+        target.catalog_match, target.catalog_canonical = record, canonical
 
 
 def document_name(run: ExtractionRun | None) -> str | None:
