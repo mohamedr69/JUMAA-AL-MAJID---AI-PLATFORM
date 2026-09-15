@@ -729,6 +729,8 @@ class StatementSummaryOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     version: int = 0
+    # How far a prepared statement is from an issue (app.compliance.service.readiness_of).
+    readiness: dict | None = None
     # The engineer's approval; export is refused without it.
     approved: bool = False
     approved_at: datetime | None = None

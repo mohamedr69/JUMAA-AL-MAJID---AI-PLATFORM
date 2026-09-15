@@ -317,6 +317,10 @@ def assist_project(db: Session, project: Project, *, trigger: str = "auto",
     """Ask about every open eligible issue on the project's latest runs.
     Does nothing -- and calls nothing -- when assistance is off."""
     settings = get_settings()
+    from app.ai import project_policy
+
+    if not project_policy.allowed(project):
+        return []
     if provider is None:
         if not settings.ai_enabled:
             return []

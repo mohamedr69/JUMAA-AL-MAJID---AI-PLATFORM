@@ -234,7 +234,7 @@ def get_compliance(
         ],
         warnings=warnings,
         searched=project.source_folder_path,
-        ai_available=assist.available(),
+        ai_available=assist.available() and project.ai_policy != "blocked",
         knowledge=_knowledge_status(db),
     )
 
@@ -362,6 +362,7 @@ def _approval_fields(statement: ComplianceStatement) -> dict:
         "approved_at": statement.approved_at if approved else None,
         "approved_by_name": statement.approved_by_name if approved else None,
         "approval_blockers": [] if approved or statement.kind != "prepare" else service.approval_blockers(statement),
+        "readiness": service.readiness_of(statement) if statement.kind == "prepare" else None,
         # A fill the server lost reads as stopped, not as running forever.
         "summary": {**(statement.summary or {}), "ai_job": service.ai_job_of(statement)},
     }
@@ -590,6 +591,10 @@ def review_row(
     before = next((r for r in statement.rows if r["id"] == clause_id), None)
     stored = (before or {}).get("ai_review") if before else None
     try:
+        from app.ai import project_policy
+
+        if not project_policy.allowed(project):
+            raise HTTPException(status.HTTP_409_CONFLICT, detail=project_policy.BLOCKED_MESSAGE)
         row = review.review_clause(db, project, statement, clause_id, instruction=body.instruction, request_id=body.request_id)
     except review.InFlight as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -753,12 +758,14 @@ def _approved_statement(db: Session, project: Project, statement_id: int) -> Com
 def export_statement_pdf(
     project_id: int,
     statement_id: int,
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
     """The approved statement as a PDF."""
     project = _get_project_or_404(db, project_id)
     statement = _approved_statement(db, project, statement_id)
+    _statement_event(db, current_user, project, statement, "compliance.exported",
+                     f"Exported the {statement.system_code} compliance statement (PDF)")
     content = pdf_writer.build_pdf(project, statement, service.project_brands(project, statement.system_code))
     name = f"EP-{project.ep_number} {statement.system_code} Compliance Statement.pdf"
     return Response(
@@ -772,12 +779,14 @@ def export_statement_pdf(
 def export_statement(
     project_id: int,
     statement_id: int,
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
     """The approved statement as the company's Excel workbook."""
     project = _get_project_or_404(db, project_id)
     statement = _approved_statement(db, project, statement_id)
+    _statement_event(db, current_user, project, statement, "compliance.exported",
+                     f"Exported the {statement.system_code} compliance statement (Excel)")
     content = writer.build_workbook(project, statement, service.project_brands(project, statement.system_code))
     name = f"EP-{project.ep_number} {statement.system_code} Compliance Statement.xlsx"
     return Response(

@@ -169,6 +169,41 @@ export function ProjectDetailsFields({
         </div>
       )}
 
+      <fieldset className="rounded-lg border border-gray-200 px-3 py-2 text-sm">
+        <legend className="px-1 text-xs font-semibold uppercase tracking-wide text-gray-500">AI use</legend>
+        <label className="flex items-start gap-2">
+          <input
+            type="radio"
+            name="ai_policy"
+            checked={draft.ai_policy === "allowed"}
+            onChange={() => onChange({ ...draft, ai_policy: "allowed" })}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            <span className="font-medium text-navy-900">Allowed</span>
+            <span className="block text-xs text-gray-500">
+              Crops of unreadable cells, DRF fields and specification clauses may be sent to the AI provider for a suggestion an
+              engineer then accepts or rejects.
+            </span>
+          </span>
+        </label>
+        <label className="mt-2 flex items-start gap-2">
+          <input
+            type="radio"
+            name="ai_policy"
+            checked={draft.ai_policy === "blocked"}
+            onChange={() => onChange({ ...draft, ai_policy: "blocked" })}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            <span className="font-medium text-navy-900">Not allowed</span>
+            <span className="block text-xs text-gray-500">
+              Nothing from this project is sent to an AI provider. AI features are switched off here; everything else works the same.
+            </span>
+          </span>
+        </label>
+      </fieldset>
+
       <Field label="Other Information">
         <textarea {...bind("other_information")} rows={3} className="input" />
       </Field>

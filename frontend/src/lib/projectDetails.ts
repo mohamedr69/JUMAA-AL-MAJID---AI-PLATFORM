@@ -17,9 +17,11 @@ export interface ProjectDetailsDraft {
   other_information: string;
   systems: Record<string, ProjectSystemInput>;
   separate_ve_panel: boolean;
+  /** Whether the project's documents may be sent to an AI provider. */
+  ai_policy: "allowed" | "blocked";
 }
 
-export type DraftTextField = Exclude<keyof ProjectDetailsDraft, "systems" | "separate_ve_panel">;
+export type DraftTextField = Exclude<keyof ProjectDetailsDraft, "systems" | "separate_ve_panel" | "ai_policy">;
 
 const TEXT_FIELDS: DraftTextField[] = [
   "project_name",
@@ -36,7 +38,7 @@ const TEXT_FIELDS: DraftTextField[] = [
 ];
 
 export function draftFrom(
-  source: Partial<Record<DraftTextField, string | null>> & { separate_ve_panel?: boolean },
+  source: Partial<Record<DraftTextField, string | null>> & { separate_ve_panel?: boolean; ai_policy?: string },
   systems: ProjectSystemInput[]
 ): ProjectDetailsDraft {
   const text = Object.fromEntries(TEXT_FIELDS.map((field) => [field, source[field] ?? ""])) as Record<
@@ -46,6 +48,7 @@ export function draftFrom(
   return {
     ...text,
     separate_ve_panel: Boolean(source.separate_ve_panel),
+    ai_policy: source.ai_policy === "blocked" ? "blocked" : "allowed",
     systems: Object.fromEntries(
       systems.map((s) => [
         s.name,
@@ -66,7 +69,12 @@ export function draftToPayload(draft: ProjectDetailsDraft): ProjectDetailsInput 
     ...known.filter((name) => name in draft.systems),
     ...Object.keys(draft.systems).filter((name) => !known.includes(name)),
   ];
-  return { ...text, separate_ve_panel: draft.separate_ve_panel, systems: names.map((name) => draft.systems[name]) };
+  return {
+    ...text,
+    separate_ve_panel: draft.separate_ve_panel,
+    ai_policy: draft.ai_policy,
+    systems: names.map((name) => draft.systems[name]),
+  };
 }
 
 /** Whether Voice Evacuation is part of the fire alarm system, as the backend

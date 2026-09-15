@@ -476,6 +476,8 @@ def export_submittals(
     """The register as a workbook: the submittals, then the materials of each
     system with the datasheet found for them."""
     project = _get_project_or_404(db, project_id)
+    activity.record(db, current_user, "submittal.register_exported", "Exported the submittal register", project=project,
+                    entity_type="project", entity_id=project.id, detail={"submittals": len(project.submittals)})
     materials = _materials(project)
     items = [_out(s, _by_system(materials)) for s in project.submittals]
     content = submittal_register_workbook(

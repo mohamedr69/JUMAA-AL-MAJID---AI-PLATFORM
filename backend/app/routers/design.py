@@ -582,6 +582,9 @@ def export_battery_calculation(
     panels = [p for p in result.panels if panel is None or p.key == panel]
     if not panels:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such panel")
+    activity.record(db, current_user, "design.battery_exported", "Exported the battery calculation (Excel)", project=project,
+                    entity_type="design", entity_id=project.id,
+                    detail={"panels": len(panels), "input_hash": result.input_hash, "result_hash": result.result_hash})
     content = battery_workbook(project, panels, exported_by=current_user.full_name, exported_at=utc_now())
     name = f"EP-{project.ep_number} Battery Calculation" + (f" {panels[0].name}" if panel else "") + ".xlsx"
     return Response(
@@ -595,7 +598,7 @@ def export_battery_calculation(
 def export_battery_calculation_pdf(
     project_id: int,
     panel: str | None = None,
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Response:
     """The battery calculation as the sheet the team issues.
@@ -606,6 +609,9 @@ def export_battery_calculation_pdf(
     """
     project = _get_project_or_404(db, project_id)
     result = _battery_calculation(db, project)
+    activity.record(db, current_user, "design.battery_exported", "Exported the battery calculation (PDF)", project=project,
+                    entity_type="design", entity_id=project.id,
+                    detail={"input_hash": result.input_hash, "result_hash": result.result_hash})
     panels = [p for p in result.panels if panel is None or p.key == panel]
     if not panels:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such panel")

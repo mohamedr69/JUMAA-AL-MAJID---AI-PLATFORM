@@ -91,6 +91,11 @@ class Project(Base):
     # one system (app.services.system_rules) unless this says a separate voice
     # evacuation panel is provided.
     separate_ve_panel: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
+    # Whether this project's documents may be sent to an AI provider at all:
+    # "allowed" or "blocked". Explicit and per project, because a client's
+    # drawings and forms are theirs; checked at every point a request would
+    # leave the platform (app.ai.project_policy).
+    ai_policy: Mapped[str] = mapped_column(String(16), nullable=False, default="allowed", server_default="allowed")
 
     # When the Design Sheets were read into the BOQ. Set once, on the first
     # attempt, and never cleared: extraction is a starting point the engineer

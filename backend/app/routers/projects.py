@@ -337,12 +337,33 @@ def create_project(
     return project
 
 
+def _masked(value: str | None, keep: int) -> str | None:
+    if not value:
+        return value
+    return value[:keep] + "•" * max(3, len(value) - keep)
+
+
+def _for(user: User, project: Project) -> ProjectOut:
+    """The project as this user may see it. The DRF's contact person's email
+    and phone are a named individual's details: viewers, who only read the
+    project, see them masked."""
+    out = ProjectOut.model_validate(project, from_attributes=True)
+    if user.role == RoleEnum.viewer:
+        email = out.contact_email or ""
+        at = email.find("@")
+        out = out.model_copy(update={
+            "contact_email": (email[:1] + "•••" + email[at:]) if at > 0 else _masked(out.contact_email, 1),
+            "contact_phone": _masked(out.contact_phone, 4),
+        })
+    return out
+
+
 @router.get("", response_model=list[ProjectOut])
 def list_projects(
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> list[Project]:
-    return db.query(Project).order_by(Project.created_at.desc()).all()
+) -> list[ProjectOut]:
+    return [_for(current_user, p) for p in db.query(Project).order_by(Project.created_at.desc()).all()]
 
 
 @router.get("/{project_id}", response_model=ProjectOut)
@@ -350,10 +371,10 @@ def get_project(
     project_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> Project:
+) -> ProjectOut:
     project = _get_project_or_404(db, project_id)
     activity.record_open(db, current_user, project)
-    return project
+    return _for(current_user, project)
 
 
 @router.put("/{project_id}", response_model=ProjectOut)
@@ -499,6 +520,10 @@ def check_project_details(
     """Check Project Info's values (as the form holds them now) against the
     project's own DRF. Suggestions only: apply and save to keep any."""
     project = _get_project_or_404(db, project_id)
+    from app.ai import project_policy
+
+    if not project_policy.allowed(project):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=project_policy.BLOCKED_MESSAGE)
     if not project.drf_document_path:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="This project has no DRF to check against: attach one under Documents")
     return _check_details(db, Path(project.drf_document_path), payload, project.id)
@@ -525,6 +550,8 @@ def export_project_boq(
     """The saved BOQ as an Excel workbook: a Summary sheet, then one sheet per
     system. Anyone who can see the BOQ can export it."""
     project = _get_project_or_404(db, project_id)
+    activity.record(db, current_user, "boq.exported", "Exported the BOQ", project=project, entity_type="boq",
+                    entity_id=project.id, detail={"lines": len(project.boq_items), "version": project.boq_version})
     content = boq_workbook(
         project,
         project.boq_items,
@@ -866,6 +893,8 @@ def export_boq_revision(
 ) -> Response:
     project = _get_project_or_404(db, project_id)
     revision = _get_revision_or_404(project, number)
+    activity.record(db, current_user, "boq.revision_exported", f"Exported BOQ {revision.label}", project=project,
+                    entity_type="boq_revision", entity_id=revision.id)
     content = boq_workbook(
         project,
         _revision_lines(revision),
@@ -968,7 +997,9 @@ def delete_project(
     activity.record(db, current_user, "project.deleted", f"Deleted {activity.project_label(project)}",
                     project=project, entity_type="project", entity_id=project.id,
                     detail={"boq_lines": len(project.boq_items), "submittals": len(project.submittals)}, commit=False)
-    db.delete(project)
+    from app.services.project_deletion import delete_project as delete_with_children
+
+    delete_with_children(db, project)
     db.commit()
 
 
@@ -993,6 +1024,11 @@ def _save_upload(project: Project, upload: UploadFile, label: str) -> str:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="The file is larger than 60 MB")
     if not content:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="The file is empty")
+    # The name is the uploader's; the content is what gets opened. A PDF must
+    # start as one, a workbook must be a zip -- anything else is refused.
+    if (suffix == ".pdf" and not content.startswith(b"%PDF")) or (suffix in (".xlsx", ".xlsm") and not content.startswith(b"PK")):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            detail=f"The file is named {suffix} but its content is not a {'PDF' if suffix == '.pdf' else 'workbook'}")
 
     folder = Path(settings.uploads_root) / f"EP-{project.ep_number}"
     folder.mkdir(parents=True, exist_ok=True)

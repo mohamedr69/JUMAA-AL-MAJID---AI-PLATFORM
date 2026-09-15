@@ -30,6 +30,7 @@ from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import delete, insert, select, update
+from sqlalchemy import text as sql_text
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -399,6 +400,14 @@ def _register_files(db: Session, record: KnowledgeImport, inspection: Inspection
 def _write(db: Session, import_id: int, tables: dict[str, list[dict]]) -> dict[str, int]:
     """Every table, one transaction. Rows are shaped here from the sheets;
     eligibility is decided here too, from the linked mappings and issues."""
+    if db.bind is not None and db.bind.dialect.name == "sqlite":
+        # Rows are replaced by id -- deleted, then inserted again -- while
+        # their children still point at them. Foreign keys are checked at
+        # commit instead of on each statement, when every id is back. The
+        # pragma only holds inside a transaction, and pysqlite opens one at
+        # the first write, so the import's own record is touched first.
+        db.execute(update(KnowledgeImport).where(KnowledgeImport.id == import_id).values(status="running"))
+        db.execute(sql_text("PRAGMA defer_foreign_keys=ON"))
     existing = {
         "sources": set(db.execute(select(KnowledgeSource.source_id)).scalars()),
         "requirements": set(db.execute(select(KnowledgeRequirement.requirement_id)).scalars()),

@@ -80,6 +80,22 @@ def upgrade_to_head(engine: Engine) -> None:
         if backup is not None:
             log.warning("Database backed up to %s before migrating %s -> %s", backup, current, head)
     config = Config(str(ALEMBIC_INI))
-    with engine.begin() as connection:
-        config.attributes["connection"] = connection
-        command.upgrade(config, "head")
+    sqlite = engine.url.get_backend_name() == "sqlite"
+    with engine.connect() as connection:
+        if sqlite:
+            # Batch migrations rebuild a table by copying it; with foreign
+            # keys enforced, dropping the old copy would fail on its children.
+            # SQLite ignores this pragma inside a transaction, so it is set
+            # before one begins, and set back after it ends.
+            # (pysqlite opens no real transaction for a pragma; the commit only
+            # closes the one SQLAlchemy began around it.)
+            connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+            connection.commit()
+        try:
+            with connection.begin():
+                config.attributes["connection"] = connection
+                command.upgrade(config, "head")
+        finally:
+            if sqlite:
+                connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+                connection.commit()

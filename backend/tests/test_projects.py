@@ -656,7 +656,9 @@ def test_only_formats_the_platform_reads_are_accepted(client, tmp_path, monkeypa
 
     assert _upload(client, project["id"], "drf", name="notes.docx").status_code == 400
     assert _upload(client, project["id"], "drf", content=b"").status_code == 400
-    assert _upload(client, project["id"], "design-sheets", name="sheet.xlsx").status_code == 200
+    # A workbook is a zip: its content has to start as one.
+    assert _upload(client, project["id"], "design-sheets", name="sheet.xlsx", content=b"PK\x03\x04 fake").status_code == 200
+    assert _upload(client, project["id"], "design-sheets", name="sheet.xlsx").status_code == 400
 
 
 def test_uploading_is_for_editors(client, db_session, tmp_path, monkeypatch):

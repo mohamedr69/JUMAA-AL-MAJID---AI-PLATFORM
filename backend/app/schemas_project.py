@@ -243,6 +243,8 @@ class ProjectDetailsIn(BaseModel):
     other_information: str | None = None
     # Edwards only: a separate voice evacuation panel, so VE is its own system.
     separate_ve_panel: bool = False
+    # Whether this project's documents may be sent to an AI provider.
+    ai_policy: Literal["allowed", "blocked"] = "allowed"
 
 
 class ProjectCreate(ProjectDetailsIn):
@@ -279,6 +281,7 @@ class ProjectOut(BaseModel):
     # Versions a save must name in If-Match (app.services.concurrency).
     details_version: int = 0
     boq_version: int = 0
+    ai_policy: str = "allowed"
     separate_ve_panel: bool = False
     # From app.services.system_rules: whether FAS carries VE and FT, and the
     # systems the project has under their effective codes. Every tab reads these.

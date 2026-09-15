@@ -20,6 +20,21 @@ if is_sqlite_memory:
 engine = create_engine(settings.database_url, **engine_kwargs)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+if is_sqlite:
+    from sqlalchemy import event
+
+    @event.listens_for(engine, "connect")
+    @event.listens_for(engine, "checkout")
+    def _sqlite_pragmas(dbapi_connection, *_args) -> None:
+        """SQLite leaves foreign keys unenforced unless asked, per connection:
+        a row could point at a project that no longer exists. Asked on every
+        checkout, not only on connect: migrations switch them off on the
+        connection they use (batch mode rebuilds tables by copy), and that
+        connection goes back to the pool."""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
 
 class Base(DeclarativeBase):
     pass

@@ -1178,6 +1178,16 @@ function ClausesCard({
             Awaiting engineer approval · export opens once the statement is approved at the end of the list
           </div>
         )}
+        {statement.readiness && statement.readiness.clauses > 0 && (
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600" aria-label="Statement readiness">
+            <span className="font-semibold text-navy-900">{statement.readiness.score}% settled</span>
+            <span>{statement.readiness.clauses} clauses</span>
+            {statement.readiness.unanswered > 0 && <span>{statement.readiness.unanswered} unanswered</span>}
+            {statement.readiness.candidate > 0 && <span>{statement.readiness.candidate} to review</span>}
+            {statement.readiness.recheck > 0 && <span className="text-amber-700">{statement.readiness.recheck} to recheck</span>}
+            {statement.readiness.ai_pending > 0 && <span>{statement.readiness.ai_pending} AI suggestions pending</span>}
+          </div>
+        )}
       </div>
 
       {statement.summary.notes.length > 0 && (

@@ -1,5 +1,9 @@
+import json
+import logging
+import re
 import threading
 import time
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -11,6 +15,7 @@ from app.database import SessionLocal, engine
 from app.migrations import upgrade_to_head
 from app.routers import (
     auth,
+    backups,
     boq_review,
     compliance,
     design,
@@ -69,8 +74,45 @@ app.add_middleware(
     # the page said "? pages assembled".
     # X-Resource-Version / ETag: the version a save names in If-Match
     # (app.services.concurrency).
-    expose_headers=["Content-Disposition", "X-Package-Pages", "X-Package-Warnings", "X-Resource-Version", "ETag"],
+    expose_headers=["Content-Disposition", "X-Package-Pages", "X-Package-Warnings", "X-Resource-Version", "ETag",
+                    "X-Request-ID"],
 )
+
+
+_request_log = logging.getLogger("app.request")
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
+
+
+@app.middleware("http")
+async def request_id(request: Request, call_next):
+    """Every request gets an id -- the caller's X-Request-ID when it is a
+    sensible one, else a new one -- returned on the response and written on
+    one structured log line: method, the route's template (never the filled
+    path, which can carry document paths), status, duration and user id. No
+    query strings, bodies, cookies or file paths are logged."""
+    incoming = request.headers.get("X-Request-ID", "")
+    rid = incoming if _REQUEST_ID_RE.match(incoming) else uuid.uuid4().hex[:16]
+    request.state.request_id = rid
+    started = time.perf_counter()
+    status_code = 500
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+    finally:
+        route = request.scope.get("route")
+        user_id = None
+        token = request.cookies.get(settings.cookie_name)
+        if token:
+            try:
+                user_id = decode_access_token(token).get("sub")
+            except Exception:  # noqa: BLE001 -- an invalid token is simply no user
+                user_id = None
+        _request_log.info(json.dumps({
+            "request_id": rid, "method": request.method, "route": getattr(route, "path", "unmatched"),
+            "status": status_code, "ms": round((time.perf_counter() - started) * 1000), "user": user_id,
+        }))
+    response.headers["X-Request-ID"] = rid
+    return response
 
 
 @app.middleware("http")
@@ -116,6 +158,7 @@ app.include_router(projects.router)
 app.include_router(boq_review.router)
 app.include_router(readiness.router)
 app.include_router(jobs.router)
+app.include_router(backups.router)
 app.include_router(design.router)
 app.include_router(design_rules.router)
 app.include_router(submittal.router)

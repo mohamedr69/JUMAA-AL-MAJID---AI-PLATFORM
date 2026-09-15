@@ -139,10 +139,14 @@ def get_extraction(
     _get_project_or_404(db, project_id)
     runs = [_run_out(r) for r in _latest_runs(db, project_id)]
     provider = get_provider()
+    from app.ai import project_policy
+
+    project = _get_project_or_404(db, project_id)
+    blocked = not project_policy.allowed(project)
     return ExtractionOut(
-        ai_enabled=get_settings().ai_enabled,
-        ai_ready=bool(getattr(provider, "ready", False)),
-        ai_status=str(getattr(provider, "status", "")),
+        ai_enabled=get_settings().ai_enabled and not blocked,
+        ai_ready=bool(getattr(provider, "ready", False)) and not blocked,
+        ai_status=project_policy.BLOCKED_MESSAGE if blocked else str(getattr(provider, "status", "")),
         runs=runs,
         open_issues=sum(1 for r in runs for i in r.issues if i.state in ("open", "proposed", "starved")),
     )
@@ -226,6 +230,10 @@ def assist(
     issue already proposed, resolved or starved is not asked again, and an
     identical request in flight is joined rather than repeated."""
     project = _get_project_or_404(db, project_id)
+    from app.ai import project_policy
+
+    if not project_policy.allowed(project):
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=project_policy.BLOCKED_MESSAGE)
     provider = get_provider()
     if not getattr(provider, "ready", False):
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(getattr(provider, "status", "AI assistance is unavailable")))

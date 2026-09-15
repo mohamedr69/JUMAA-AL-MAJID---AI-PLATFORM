@@ -187,7 +187,9 @@ def inputs_of(project: Project, system_code: str, spec_sha256: str) -> dict:
 def verify_spec(db: Session, project: Project, system_code: str, spec: SpecText, filename: str, *,
                 use_ai: bool = False) -> Verdict:
     verdict = verify(project, system_code, spec, filename)
-    if verdict.settled or not use_ai or not assist.available():
+    from app.ai import project_policy
+
+    if verdict.settled or not use_ai or not assist.available() or not project_policy.allowed(project):
         return verdict
     session = assist.open_session(db, project.id, spec.sha256)
     answer = assist.verify_spec(session, project_facts(project, system_code), spec.identity_text,
@@ -559,6 +561,10 @@ def start_ai_autofill(db: Session, project: Project, statement: ComplianceStatem
         raise ComplianceError("Only a prepared statement can be filled")
     if scope not in AI_FILL_SCOPES:
         raise ComplianceError(f"Unknown fill scope: {scope}")
+    from app.ai import project_policy
+
+    if not project_policy.allowed(project):
+        raise ComplianceError(project_policy.BLOCKED_MESSAGE)
     if not assist.available():
         raise ComplianceError("AI is not configured on this server: set AI_PROVIDER and its credential.")
     with _ai_jobs_lock:
@@ -989,6 +995,58 @@ def record_review(db: Session, project: Project, statement: ComplianceStatement,
 # --- inputs that moved ---------------------------------------------------------------------------------
 
 
+_INPUT_LABELS = {"boq_hash": "the BOQ", "scope_hash": "the scope of work", "knowledge_import_id": "the knowledge base",
+                 "spec_sha256": "the specification file"}
+_SPEC_SHA_CACHE: dict[tuple, str] = {}
+
+
+def current_spec_sha(project: Project, spec: dict) -> str | None:
+    """The specification's fingerprint as the file stands now, computed the way
+    it was when the statement was prepared (the bytes and the page range) --
+    None when the file cannot be found. Cached on the file's size and time, so
+    opening a statement does not re-read an unchanged PDF."""
+    import hashlib
+
+    path, member = spec.get("path"), spec.get("member")
+    if not path:
+        return None
+    for root in spec_roots(project):
+        candidate = root / path
+        try:
+            stat = candidate.stat()
+        except OSError:
+            continue
+        key = (str(candidate), stat.st_mtime_ns, stat.st_size, member, spec.get("first_page"), spec.get("last_page"))
+        if key in _SPEC_SHA_CACHE:
+            return _SPEC_SHA_CACHE[key]
+        content = open_spec(root, path, member)
+        if content is None:
+            continue
+        digest = hashlib.sha256(content)
+        digest.update(f"|{spec.get('first_page') or 1}-{spec.get('last_page')}".encode())
+        _SPEC_SHA_CACHE[key] = digest.hexdigest()
+        return _SPEC_SHA_CACHE[key]
+    return None
+
+
+def readiness_of(statement: ComplianceStatement) -> dict:
+    """How far the statement is from an issue: every answerable clause counted
+    by where it stands, and the share an engineer can sign off as it is."""
+    rows = [r for r in rows_of(statement) if _answerable(r)]
+    counts = {"clauses": len(rows), "unanswered": 0, "candidate": 0, "recheck": 0, "ai_pending": 0, "reviewed": 0,
+              "autofilled": 0}
+    for row in rows:
+        if not row.get("response"):
+            counts["unanswered"] += 1
+        workflow = row.get("workflow") or "unfilled"
+        if workflow in counts and row.get("response"):
+            counts[workflow] += 1
+    settled = counts["reviewed"] + counts["autofilled"]
+    counts["score"] = round(100 * settled / counts["clauses"]) if counts["clauses"] else 0
+    counts["to_do"] = counts["unanswered"] + counts["candidate"] + counts["recheck"] + counts["ai_pending"]
+    return counts
+
+
 def recheck(db: Session, project: Project, statement: ComplianceStatement) -> ComplianceStatement:
     """Compare the statement's drafts with the inputs they were made against.
     When the BOQ, the scope or the knowledge base has changed, every row
@@ -1009,6 +1067,13 @@ def recheck(db: Session, project: Project, statement: ComplianceStatement) -> Co
     recorded = (statement.summary or {}).get("inputs") or {}
     current = inputs_of(project, statement.system_code, statement.spec["sha256"])
     changed = [k for k in ("boq_hash", "scope_hash", "knowledge_import_id") if recorded.get(k) not in (None, current[k])]
+    # The specification file itself replaced or edited since the statement was
+    # prepared against it: the clauses may no longer say what was answered.
+    on_disk = current_spec_sha(project, statement.spec)
+    if on_disk is not None and statement.spec.get("sha256") and on_disk != statement.spec["sha256"] \
+            and recorded.get("spec_changed_to") != on_disk:
+        changed.append("spec_sha256")
+        current = {**current, "spec_changed_to": on_disk}
     if not changed:
         return statement
     rows = rows_of(statement)
@@ -1021,8 +1086,7 @@ def recheck(db: Session, project: Project, statement: ComplianceStatement) -> Co
             previous = _snapshot(row)
             row["workflow"] = "recheck"
             row["state"] = "review"
-            row["note"] = "Inputs changed since this draft: " + ", ".join(
-                {"boq_hash": "the BOQ", "scope_hash": "the scope of work", "knowledge_import_id": "the knowledge base"}[k] for k in changed)
+            row["note"] = "Inputs changed since this draft: " + ", ".join(_INPUT_LABELS[k] for k in changed)
             _audit(db, project, statement, row, action="recheck", origin="system", previous=previous, user=None,
                    detail={"changed": changed})
             flagged += 1
@@ -1036,13 +1100,11 @@ def recheck(db: Session, project: Project, statement: ComplianceStatement) -> Co
         _clear_approval(statement)
         _audit(db, project, statement, {"id": "statement"}, action="approval_withdrawn", origin="system", previous={},
                user=None, detail={"changed": changed})
-        notes.append("The approval was withdrawn: " + ", ".join(
-            {"boq_hash": "the BOQ", "scope_hash": "the scope of work", "knowledge_import_id": "the knowledge base"}[k]
-            for k in changed) + " changed after it was given.")
+        notes.append("The approval was withdrawn: " + ", ".join(_INPUT_LABELS[k] for k in changed)
+                     + " changed after it was given.")
     if flagged:
         notes.append(f"{flagged} row{'s' if flagged != 1 else ''} flagged for recheck: "
-                     + ", ".join({"boq_hash": "the BOQ", "scope_hash": "the scope of work", "knowledge_import_id": "the knowledge base"}[k] for k in changed)
-                     + " changed.")
+                     + ", ".join(_INPUT_LABELS[k] for k in changed) + " changed.")
     _resummarize(statement, notes[-5:])
     db.commit()
     db.refresh(statement)

@@ -384,6 +384,8 @@ export interface ProjectDetailsInput {
   other_information?: string | null;
   /** Edwards only: a separate voice evacuation panel, so VE is its own system. */
   separate_ve_panel?: boolean;
+  /** Whether the project's documents may be sent to an AI provider. */
+  ai_policy?: "allowed" | "blocked";
 }
 
 export interface ProjectCreate extends ProjectDetailsInput {
@@ -421,6 +423,7 @@ export interface Project {
   /** Versions a save names in If-Match: someone else's save in between is refused. */
   details_version: number;
   boq_version: number;
+  ai_policy: "allowed" | "blocked";
   /** After an edit: what the change was carried into elsewhere on the project. */
   propagated?: string[];
   separate_ve_panel: boolean;
@@ -1121,6 +1124,21 @@ export interface StatementSummary {
   approved_by_name: string | null;
   /** Why the statement cannot be approved yet; empty when it can. */
   approval_blockers: string[];
+  /** Answerable clauses counted by where they stand; score is the share settled. */
+  readiness?: StatementReadiness | null;
+  version?: number;
+}
+
+export interface StatementReadiness {
+  clauses: number;
+  unanswered: number;
+  candidate: number;
+  recheck: number;
+  ai_pending: number;
+  reviewed: number;
+  autofilled: number;
+  score: number;
+  to_do: number;
 }
 
 export interface Statement extends StatementSummary {
