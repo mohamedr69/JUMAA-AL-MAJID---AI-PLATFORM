@@ -49,7 +49,7 @@ from app.schemas_project import (
 from app.schemas_design import ProjectLogDrawingOut, ProjectLogsOut
 from app.extraction import pipeline as extraction_pipeline
 from app.extraction.issues import Coverage, Issue, IssueCode, PageCoverage
-from app.services import design_sheet_extractor
+from app.services import activity, design_sheet_extractor
 from app.services.design_sheet_extractor import (
     DesignSheetExtraction,
     extract_design_sheet,
@@ -329,6 +329,10 @@ def create_project(
         db.rollback()
         raise conflict
     db.refresh(project)
+    activity.record(db, current_user, "project.created", f"Created {activity.project_label(project)}",
+                    project=project, entity_type="project", entity_id=project.id,
+                    detail={"design_sheets": len(project.design_sheets)})
+    db.refresh(project)
     return project
 
 
@@ -343,17 +347,19 @@ def list_projects(
 @router.get("/{project_id}", response_model=ProjectOut)
 def get_project(
     project_id: int,
-    _current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Project:
-    return _get_project_or_404(db, project_id)
+    project = _get_project_or_404(db, project_id)
+    activity.record_open(db, current_user, project)
+    return project
 
 
 @router.put("/{project_id}", response_model=ProjectOut)
 def update_project(
     project_id: int,
     payload: ProjectDetailsIn,
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> Project:
     """Correct the project information after creation -- the DRF read is a
@@ -364,10 +370,28 @@ def update_project(
     before = _details_snapshot(project)
     _apply_details(project, payload)
     propagated = _propagate_details(db, project, before)
+    changed = {
+        name: f"{_short(before['fields'].get(name))} -> {_short(getattr(project, name))}"
+        for name in _DETAIL_FIELDS
+        if before["fields"].get(name) != getattr(project, name)
+    }
+    old_systems = sorted(f"{s.name} ({s.brand})" if s.brand else s.name for s in before["systems"])
+    new_systems = sorted(f"{s.name} ({s.brand})" if s.brand else s.name for s in project.systems)
+    if old_systems != new_systems:
+        changed["systems"] = f"{', '.join(old_systems) or '-'} -> {', '.join(new_systems) or '-'}"
     db.commit()
+    if changed:
+        activity.record(db, current_user, "project.updated",
+                        f"Changed project information: {', '.join(name.replace('_', ' ') for name in changed)}",
+                        project=project, entity_type="project", entity_id=project.id, detail=changed)
     db.refresh(project)
     project.propagated = propagated
     return project
+
+
+def _short(value, limit: int = 80) -> str:
+    text = "-" if value is None or value == "" else str(value)
+    return text if len(text) <= limit else text[: limit - 1] + "…"
 
 
 def _details_snapshot(project: Project) -> dict:
@@ -513,7 +537,7 @@ def _xlsx_response(content: bytes, filename: str) -> Response:
 def replace_project_boq(
     project_id: int,
     items: list[ProjectBoqItemIn],
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> list[ProjectBoqItem]:
     """Replace the whole BOQ in one call.
@@ -524,11 +548,16 @@ def replace_project_boq(
     comes from the list order rather than the client.
     """
     project = _get_project_or_404(db, project_id)
+    before = len(project.boq_items)
     project.boq_items = [
         ProjectBoqItem(position=index, **{**item.model_dump(), "system_code": system_rules.effective_code(item.system_code, project)})
         for index, item in enumerate(items)
     ]
     db.commit()
+    systems = sorted({item.system_code for item in project.boq_items if item.system_code})
+    activity.record(db, current_user, "boq.saved", f"Saved the BOQ: {len(items)} line{'s' if len(items) != 1 else ''}",
+                    project=project, entity_type="boq", entity_id=project.id,
+                    detail={"lines": len(items), "lines_before": before, "systems": ", ".join(systems)})
     db.refresh(project)
     return project.boq_items
 
@@ -768,6 +797,10 @@ def issue_boq_revision(
             detail="Another revision was issued at the same moment. Reload to see it.",
         )
     db.refresh(revision)
+    activity.record(db, current_user, "boq.revision_issued", f"Issued BOQ {revision.label}",
+                    project=project, entity_type="boq_revision", entity_id=revision.id,
+                    detail={"lines": len(lines), "note": revision.note})
+    db.refresh(revision)
     return _revision_summary(revision)
 
 
@@ -884,12 +917,15 @@ def reextract(
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project(
     project_id: int,
-    _current_user: User = Depends(require_role(*DELETER_ROLES)),
+    current_user: User = Depends(require_role(*DELETER_ROLES)),
     db: Session = Depends(get_db),
 ) -> None:
     """Remove a project and its linked rows. The archive files it was built
     from are never touched -- only this platform's record of them."""
     project = _get_project_or_404(db, project_id)
+    activity.record(db, current_user, "project.deleted", f"Deleted {activity.project_label(project)}",
+                    project=project, entity_type="project", entity_id=project.id,
+                    detail={"boq_lines": len(project.boq_items), "submittals": len(project.submittals)}, commit=False)
     db.delete(project)
     db.commit()
 
@@ -928,7 +964,7 @@ def _save_upload(project: Project, upload: UploadFile, label: str) -> str:
 def upload_drf(
     project_id: int,
     file: UploadFile = File(...),
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> Project:
     """Attach a DRF the resolver did not find. The fields it holds are not
@@ -937,6 +973,8 @@ def upload_drf(
     project = _get_project_or_404(db, project_id)
     project.drf_document_path = _save_upload(project, file, "DRF")
     db.commit()
+    activity.record(db, current_user, "document.drf_uploaded", f"Uploaded the DRF ({file.filename})",
+                    project=project, entity_type="project", entity_id=project.id)
     db.refresh(project)
     return project
 
@@ -946,7 +984,7 @@ def upload_design_sheet(
     project_id: int,
     file: UploadFile = File(...),
     system_code: str | None = Form(None),
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> Project:
     """Attach a Design Sheet the resolver did not find. A sheet added after
@@ -958,6 +996,9 @@ def upload_design_sheet(
     path = _save_upload(project, file, f"Design Sheet {code}" if code else "Design Sheet")
     project.design_sheets.append(ProjectDesignSheet(system_code=code, document_path=path))
     db.commit()
+    activity.record(db, current_user, "document.design_sheet_uploaded",
+                    f"Uploaded a Design Sheet{f' for {code}' if code else ''} ({file.filename})",
+                    project=project, entity_type="design_sheet", entity_id=project.design_sheets[-1].id)
     db.refresh(project)
     return project
 
@@ -966,7 +1007,7 @@ def upload_design_sheet(
 def remove_design_sheet(
     project_id: int,
     sheet_id: int,
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> Project:
     """Detach a Design Sheet from the project. The file itself is left where
@@ -976,8 +1017,11 @@ def remove_design_sheet(
     sheet = next((s for s in project.design_sheets if s.id == sheet_id), None)
     if sheet is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="Design Sheet not found")
+    removed = f"Removed a Design Sheet{f' for {sheet.system_code}' if sheet.system_code else ''} ({Path(sheet.document_path).name})"
     project.design_sheets.remove(sheet)
     db.commit()
+    activity.record(db, current_user, "document.design_sheet_removed", removed,
+                    project=project, entity_type="design_sheet", entity_id=sheet_id)
     db.refresh(project)
     return project
 

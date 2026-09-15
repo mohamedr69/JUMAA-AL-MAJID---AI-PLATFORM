@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, api } from "../lib/api";
 import { ROLE_LABELS, type Role, type User } from "../lib/types";
 
@@ -81,7 +82,11 @@ export function AdminUsersPage() {
             {!loading &&
               users.map((u) => (
                 <tr key={u.id}>
-                  <td className="px-4 py-3 font-medium text-navy-900">{u.full_name}</td>
+                  <td className="px-4 py-3 font-medium text-navy-900">
+                    <Link to={`/admin/users/${u.id}`} className="hover:text-brand-600 hover:underline">
+                      {u.full_name}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-gray-500">{u.email}</td>
                   <td className="px-4 py-3 text-gray-500">{ROLE_LABELS[u.role]}</td>
                   <td className="px-4 py-3">
@@ -94,6 +99,9 @@ export function AdminUsersPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
+                    <Link to={`/admin/users/${u.id}`} className="mr-4 text-xs font-medium text-brand-600 hover:underline">
+                      Record
+                    </Link>
                     <button
                       onClick={() => toggleActive(u)}
                       className="text-xs font-medium text-brand-600 hover:underline"

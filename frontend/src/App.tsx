@@ -3,6 +3,7 @@ import { AppShell } from "./components/AppShell";
 import { ProtectedRoute, RoleRoute } from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AccessDeniedPage } from "./pages/AccessDeniedPage";
+import { AccountPage } from "./pages/AccountPage";
 import { AdminKnowledgePage } from "./pages/AdminKnowledgePage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { CreateProjectPage } from "./pages/CreateProjectPage";
@@ -55,6 +56,7 @@ export default function App() {
             }
           />
           <Route path="/projects" element={<OpenProjectPage />} />
+          <Route path="/account" element={<AccountPage />} />
           <Route path="/projects/:id" element={<ProjectWorkspace />}>
             <Route index element={<ProjectHomePage />} />
             <Route path="info" element={<ProjectInfoPage />} />
@@ -94,6 +96,14 @@ export default function App() {
             element={
               <RoleRoute roles={["admin"]}>
                 <AdminUsersPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/admin/users/:userId"
+            element={
+              <RoleRoute roles={["admin"]}>
+                <AccountPage />
               </RoleRoute>
             }
           />

@@ -455,6 +455,17 @@ Not built: compiling the submittal package itself (cover, index, merged datashee
 
 The left nav lists Home, Project Info, BOQ, Panel Batteries, Material Submittal and Documents. VE Amplifiers was taken off it on the platform owner's instruction, and the Amplifier calculation tab is now marked "soon" as well; the API remains at `/projects/{id}/design/ve` and the page component is kept for when it is released.
 
+### User records: account, projects and activity
+
+Every user has a record of what they did on the platform, kept in the `activity_events` table (`app/services/activity.py`): signing in and out, opening a project (once per 30 minutes), creating, editing and deleting a project, saving the BOQ and issuing a revision, accepting or rejecting a reading-review line, uploading and removing documents, creating, changing, scanning and packaging submittals, saving calculations, and each step of a compliance statement (prepare, check, edit, auto-fill, AI fill, approve, withdraw, delete). An admin's changes to user accounts are recorded too. Each event names the project as it was called at the time, so deleting a project keeps the record of who worked on it. Details hold counts and short before/after values (`client: Samana -> Emaar`); clause-by-clause compliance changes stay in `compliance_audit`.
+
+The record is read back as one account: the user's details, the projects they created, are assigned to or opened, the submittals, BOQ revisions and compliance statements they made or changed, and their activity, filterable by project and kind.
+
+- Everyone: click your name in the header (`/account`); API `GET /auth/me/account`, `/auth/me/activity`, `/auth/me/account/export.xlsx`.
+- Admin, any user: **Users** -> the user's name (`/admin/users/{id}`); API `GET /users/{id}/account`, `/users/{id}/activity?action=boq&project_id=2&limit=100&offset=0`, `/users/{id}/account/export.xlsx`.
+
+**Export to Excel** writes the whole record as a workbook: Account, Projects, Activity, Submittals, BOQ revisions, Compliance. The record lives in each PC's own database, like projects; it starts empty when the feature is installed, and earlier work shows only where the platform already stored who did it (project creator, revision issuer, submittal history, compliance approvals and audit).
+
 ## Frontend (React + Vite + Tailwind)
 
 ```

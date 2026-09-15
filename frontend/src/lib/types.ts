@@ -1052,3 +1052,90 @@ export interface AiSuggestion {
   value: string | null;
   reason: string;
 }
+
+// --- a user's account record (backend app/services/activity.py) --------------
+
+export interface ActivityEvent {
+  id: number;
+  at: string;
+  action: string;
+  summary: string;
+  project_id: number | null;
+  project_label: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  detail: Record<string, unknown> | null;
+}
+
+export interface ActivityPage {
+  events: ActivityEvent[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+export interface AccountProject {
+  id: number | null;
+  label: string;
+  ep_number: string | null;
+  project_name: string | null;
+  status: string | null;
+  created: boolean;
+  assigned: boolean;
+  opened_count: number;
+  changes: number;
+  last_activity_at: string | null;
+  deleted: boolean;
+}
+
+export interface AccountSubmittal {
+  id: number;
+  project_id: number;
+  project_label: string;
+  title: string;
+  reference: string | null;
+  system_code: string | null;
+  manufacturer: string | null;
+  revision: string;
+  status: string;
+  reply_code: string | null;
+  created_by_user: boolean;
+  changes_by_user: number;
+  updated_at: string;
+}
+
+export interface AccountBoqRevision {
+  project_id: number;
+  project_label: string;
+  number: number;
+  label: string;
+  note: string | null;
+  lines: number;
+  issued_at: string;
+}
+
+export interface AccountStatement {
+  id: number;
+  project_id: number;
+  project_label: string;
+  kind: string;
+  system_code: string;
+  clauses: number;
+  created_by_user: boolean;
+  approved_by_user: boolean;
+  approved_at: string | null;
+  clause_changes_by_user: number;
+  updated_at: string;
+}
+
+export interface Account {
+  user: User;
+  counts: Record<string, number>;
+  projects: AccountProject[];
+  submittals: AccountSubmittal[];
+  boq_revisions: AccountBoqRevision[];
+  compliance_statements: AccountStatement[];
+  activity: ActivityEvent[];
+  activity_total: number;
+  actions: string[];
+}

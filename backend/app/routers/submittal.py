@@ -45,7 +45,7 @@ from app.schemas_design import (
     SubmittalScanOut,
     SubmittalSuggestionOut,
 )
-from app.services import system_rules
+from app.services import activity, system_rules
 from app.services.battery_calculation import part_key
 from app.services import company_library
 from app.services.datasheet_library import get_libraries, libraries_for
@@ -301,6 +301,9 @@ def create_submittal(
     _log(submittal, "created", f"Created {submittal.revision}", current_user)
     db.add(submittal)
     db.commit()
+    activity.record(db, current_user, "submittal.created", f"Created submittal \"{submittal.title}\" {submittal.revision}",
+                    project=project, entity_type="submittal", entity_id=submittal.id,
+                    detail={"system": submittal.system_code, "status": submittal.status.value})
     db.refresh(project)
     return _out(submittal, _by_system(_materials(project)))
 
@@ -323,6 +326,11 @@ def update_submittal(
     project = _get_project_or_404(db, project_id)
     submittal = _get_submittal(project, submittal_id)
     changes = payload.model_dump(exclude_unset=True)
+    changed = {
+        name: f"{getattr(submittal, name).value if name == 'status' else getattr(submittal, name)} -> {value}"
+        for name, value in changes.items()
+        if (getattr(submittal, name).value if name == "status" else getattr(submittal, name)) != value
+    }
 
     # A revision and a status can change together (a new revision approved);
     # the status is logged last, so the newest event is where it stands.
@@ -337,6 +345,10 @@ def update_submittal(
         setattr(submittal, field, value.strip() if isinstance(value, str) and field in ("title", "revision") else value)
     submittal.updated_at = utc_now()
     db.commit()
+    if changed:
+        activity.record(db, current_user, "submittal.updated",
+                        f"Changed submittal \"{submittal.title}\": {', '.join(changed)}",
+                        project=project, entity_type="submittal", entity_id=submittal.id, detail=changed)
     db.refresh(project)
     return _out(submittal, _by_system(_materials(project)))
 
@@ -345,11 +357,14 @@ def update_submittal(
 def delete_submittal(
     project_id: int,
     submittal_id: int,
-    _current_user: User = Depends(require_role(*DELETER_ROLES)),
+    current_user: User = Depends(require_role(*DELETER_ROLES)),
     db: Session = Depends(get_db),
 ) -> None:
     project = _get_project_or_404(db, project_id)
-    db.delete(_get_submittal(project, submittal_id))
+    submittal = _get_submittal(project, submittal_id)
+    activity.record(db, current_user, "submittal.deleted", f"Deleted submittal \"{submittal.title}\" {submittal.revision}",
+                    project=project, entity_type="submittal", entity_id=submittal.id, commit=False)
+    db.delete(submittal)
     db.commit()
 
 
@@ -413,6 +428,10 @@ def scan_submittals(
             else:
                 unchanged += 1
         db.commit()
+        activity.record(db, current_user, "submittal.scanned",
+                        f"Scanned the project folder: {len(forms)} submittal form{'s' if len(forms) != 1 else ''} found",
+                        project=project, entity_type="submittal",
+                        detail={"found": len(forms), "created": created, "updated": updated, "unchanged": unchanged})
         db.refresh(project)
 
     return SubmittalScanOut(
@@ -622,7 +641,7 @@ def _parse_sections(sections: str | None) -> set[int]:
 def build_submittal_package(
     project_id: int,
     payload: PackageBuildIn,
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ):
     """Assemble the package and return it as one PDF.
@@ -651,6 +670,11 @@ def build_submittal_package(
             raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
     name = f"EP-{project.ep_number} - Material Submittal - {payload.revision or 'R0'}.pdf"
+    activity.record(db, current_user, "submittal.package_built",
+                    f"Built the material submittal package {payload.revision or 'R0'} ({built.pages} pages)",
+                    project=project, entity_type="submittal",
+                    detail={"system": payload.system_code, "sections": ", ".join(str(SECTION_NAMES[n]) for n in sorted(chosen)),
+                            "pages": built.pages, "warnings": len(built.warnings)})
     return Response(
         built.pdf,
         media_type="application/pdf",

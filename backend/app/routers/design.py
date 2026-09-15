@@ -37,6 +37,7 @@ from app.schemas_design import (
     WorkbookCandidateOut,
     WorkbookSource,
 )
+from app.services import activity
 from app.seed import (
     BATTERY_SELECTION_CATEGORY,
     BATTERY_SELECTION_KEY,
@@ -129,7 +130,7 @@ def _out(db: Session, project: Project) -> VoiceEvacuationOut:
     )
 
 
-def _store(db: Session, project: Project, design: VoiceEvacuationDesign, user: User) -> None:
+def _store(db: Session, project: Project, design: VoiceEvacuationDesign, user: User, *, imported: bool = False) -> None:
     document = DesignDocument.model_validate(project.design.document) if project.design else DesignDocument()
     document.voice_evacuation = design
     # A new dict every time: the JSON column only notices reassignment.
@@ -141,6 +142,10 @@ def _store(db: Session, project: Project, design: VoiceEvacuationDesign, user: U
         project.design.updated_by_id = user.id
         project.design.updated_at = utc_now()
     db.commit()
+    activity.record(db, user, "design.ve_imported" if imported else "design.ve_saved",
+                    "Imported the amplifier workbook" if imported else "Saved the amplifier calculation",
+                    project=project, entity_type="design", entity_id=project.id,
+                    detail={"zones": len(design.zones), "channels": len(design.channels)})
     db.refresh(project)
 
 
@@ -216,7 +221,7 @@ def import_voice_evacuation(
         max_load_fraction=rule.data["fraction"],
         max_load_rule_id=rule.id,
     )
-    _store(db, project, design, current_user)
+    _store(db, project, design, current_user, imported=True)
     return _out(db, project)
 
 
@@ -468,6 +473,8 @@ def save_battery_design(
         project.design.updated_by_id = current_user.id
         project.design.updated_at = utc_now()
     db.commit()
+    activity.record(db, current_user, "design.battery_saved", "Saved the battery calculation",
+                    project=project, entity_type="design", entity_id=project.id)
     db.refresh(project)
     return get_battery_calculation(project_id, current_user, db)
 

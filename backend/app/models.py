@@ -848,3 +848,35 @@ class ComplianceAudit(Base):
     detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False, index=True)
+
+
+class ActivityEvent(Base):
+    """What one user did, and when: signed in, opened a project, saved its
+    BOQ, issued a revision, changed a submittal, approved a statement.
+
+    One table for every kind of action, read by user, so an account's
+    history is a single query (app.services.activity). The project is kept
+    as an id and a label rather than a foreign key: deleting a project must
+    not erase -- or be blocked by -- the record of who worked on it and who
+    deleted it. `detail` holds counts and short before/after values, never
+    whole documents: a BOQ save says how many lines, and the issued revision
+    is where the lines themselves are kept. Clause-level compliance edits
+    stay in compliance_audit, which already names the user.
+    """
+
+    __tablename__ = "activity_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    user = relationship("User")
+    at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False, index=True)
+    # "auth.login", "project.opened", "boq.saved", "submittal.updated", ...
+    action: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    project_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    # "EP-30784 Skyblade", as it was named when the action happened.
+    project_label: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # "project", "boq_revision", "submittal", "compliance_statement", ...
+    entity_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)

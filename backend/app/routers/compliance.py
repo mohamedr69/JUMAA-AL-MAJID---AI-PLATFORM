@@ -37,6 +37,7 @@ from app.deps import get_current_user, require_role
 from app.knowledge import importer, review
 from app.models import ComplianceStatement, Project, User
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404, _save_upload
+from app.services import activity
 from app.schemas_design import (
     AiFillIn,
     ClearAnswersIn,
@@ -277,6 +278,8 @@ def upload_specification(
     project = _get_project_or_404(db, project_id)
     code = _system_code(system_code)
     _save_upload(project, file, f"Specification {code}")
+    activity.record(db, current_user, "compliance.spec_uploaded", f"Uploaded the {code} specification ({file.filename})",
+                    project=project, entity_type="compliance_spec")
     with _cache_lock:
         _cache.pop(project.id, None)
     return get_compliance(project_id, refresh=True, _current_user=current_user, db=db)
@@ -416,6 +419,8 @@ def prepare_statement(
         statement = service.prepare(db, project, code, _source(body), current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    _statement_event(db, current_user, project, statement, "compliance.prepared",
+                     f"Prepared a {code} compliance statement ({len(statement.rows or [])} clauses)")
     return _full(statement)
 
 
@@ -447,6 +452,8 @@ def check_statement(
         statement = service.check(db, project, code, source, content, name, current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    _statement_event(db, current_user, project, statement, "compliance.checked",
+                     f"Checked the {code} compliance statement {name}")
     return _full(statement)
 
 
@@ -490,6 +497,9 @@ def edit_statement(
     if statement.kind != "prepare":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Only a prepared statement can be edited")
     updated = service.update_rows(db, project, statement, [row.model_dump() for row in body.rows], current_user)
+    _statement_event(db, current_user, project, updated, "compliance.edited",
+                     f"Edited {len(body.rows)} answer{'s' if len(body.rows) != 1 else ''} in the "
+                     f"{updated.system_code} compliance statement", {"rows": len(body.rows)})
     return _full(updated)
 
 
@@ -506,7 +516,10 @@ def clear_statement(
     statement = _statement_or_404(db, project, statement_id)
     if statement.kind != "prepare":
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Only a prepared statement can be cleared")
-    return _full(service.clear_answers(db, project, statement, current_user, keep_manual_remarks=body.keep_manual_remarks))
+    cleared = service.clear_answers(db, project, statement, current_user, keep_manual_remarks=body.keep_manual_remarks)
+    _statement_event(db, current_user, project, cleared, "compliance.cleared",
+                     f"Cleared the answers of the {cleared.system_code} compliance statement")
+    return _full(cleared)
 
 
 @router.post("/{project_id}/compliance/statements/{statement_id}/autofill", response_model=StatementOut)
@@ -523,6 +536,8 @@ def autofill_statement(
         updated = service.autofill(db, project, statement, current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    _statement_event(db, current_user, project, updated, "compliance.autofilled",
+                     f"Auto-filled the {updated.system_code} compliance statement from the knowledge base")
     return _full(updated)
 
 
@@ -547,6 +562,8 @@ def ai_autofill_statement(
         updated = service.start_ai_autofill(db, project, statement, current_user, scope=body.scope, wait=wait)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    _statement_event(db, current_user, project, updated, "compliance.ai_autofill",
+                     f"Started AI filling of the {updated.system_code} compliance statement", {"scope": str(body.scope)})
     return _full(updated)
 
 
@@ -641,7 +658,7 @@ def mark_row_reviewed(
 def delete_uploaded_specification(
     project_id: int,
     path: str,
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> Response:
     """Remove a specification the engineer uploaded (never one in the archive)."""
@@ -651,6 +668,8 @@ def delete_uploaded_specification(
     if not (target.is_relative_to(uploads) and target.is_file() and UPLOAD_NAME_RE.match(target.name)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such uploaded specification")
     target.unlink()
+    activity.record(db, current_user, "compliance.spec_removed", f"Removed the uploaded specification {target.name}",
+                    project=project, entity_type="compliance_spec")
     with _cache_lock:
         _cache.pop(project.id, None)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -660,11 +679,14 @@ def delete_uploaded_specification(
 def delete_statement(
     project_id: int,
     statement_id: int,
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> Response:
     project = _get_project_or_404(db, project_id)
-    db.delete(_statement_or_404(db, project, statement_id))
+    statement = _statement_or_404(db, project, statement_id)
+    activity.record(db, current_user, "compliance.deleted", f"Deleted the {statement.system_code} compliance statement",
+                    project=project, entity_type="compliance_statement", entity_id=statement.id, commit=False)
+    db.delete(statement)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -684,6 +706,8 @@ def approve_statement(
         updated = service.approve(db, project, statement, current_user)
     except service.ComplianceError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    _statement_event(db, current_user, project, updated, "compliance.approved",
+                     f"Approved the {updated.system_code} compliance statement")
     return _full(updated)
 
 
@@ -697,7 +721,17 @@ def withdraw_statement_approval(
     """Withdraw the approval, closing export until it is given again."""
     project = _get_project_or_404(db, project_id)
     statement = _statement_or_404(db, project, statement_id)
-    return _full(service.withdraw_approval(db, project, statement, current_user))
+    withdrawn = service.withdraw_approval(db, project, statement, current_user)
+    _statement_event(db, current_user, project, withdrawn, "compliance.approval_withdrawn",
+                     f"Withdrew approval of the {withdrawn.system_code} compliance statement")
+    return _full(withdrawn)
+
+
+def _statement_event(db: Session, user: User, project: Project, statement: ComplianceStatement, action: str,
+                     summary: str, detail: dict | None = None) -> None:
+    """A statement-level step. Clause-by-clause changes are in compliance_audit."""
+    activity.record(db, user, action, summary, project=project, entity_type="compliance_statement",
+                    entity_id=statement.id, detail=detail)
 
 
 def _approved_statement(db: Session, project: Project, statement_id: int) -> ComplianceStatement:

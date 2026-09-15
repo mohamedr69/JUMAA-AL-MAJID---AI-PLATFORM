@@ -30,7 +30,7 @@ from app.extraction.issues import IssueCode, llm_task_for, route
 from app.models import AiUsage, ExtractionIssue, ExtractionRun, RoleEnum, User
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404
 from app.schemas_project import ProjectBoqItemOut
-from app.services import design_sheet_extractor
+from app.services import activity, design_sheet_extractor
 
 router = APIRouter(prefix="/projects", tags=["extraction"])
 admin_router = APIRouter(prefix="/admin/ai", tags=["ai diagnostics"])
@@ -185,9 +185,15 @@ def accept_issue(
     project = _get_project_or_404(db, project_id)
     row = _issue_or_404(db, project_id, issue_id)
     try:
-        return pipeline.accept_issue(db, project, row, current_user, payload.value)
+        item = pipeline.accept_issue(db, project, row, current_user, payload.value)
     except pipeline.AcceptRefused as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc))
+    activity.record(db, current_user, "boq.issue_accepted",
+                    f"Accepted a reading-review line into the BOQ: {item.description[:80]} (qty {item.quantity or '-'})",
+                    project=project, entity_type="extraction_issue", entity_id=issue_id,
+                    detail={"catalog_no": item.catalog_no, "quantity": item.quantity})
+    db.refresh(item)
+    return item
 
 
 @router.post("/{project_id}/extraction/issues/{issue_id}/reject", status_code=status.HTTP_204_NO_CONTENT)
@@ -198,11 +204,15 @@ def reject_issue(
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> Response:
+    project = _get_project_or_404(db, project_id)
     row = _issue_or_404(db, project_id, issue_id)
     try:
         pipeline.reject_issue(db, row, current_user, payload.reason)
     except pipeline.AcceptRefused as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=str(exc))
+    activity.record(db, current_user, "boq.issue_rejected", "Rejected a reading-review line",
+                    project=project, entity_type="extraction_issue", entity_id=issue_id,
+                    detail={"reason": payload.reason} if payload.reason else None)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
