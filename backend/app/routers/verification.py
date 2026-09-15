@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import threading
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -27,6 +28,10 @@ router = APIRouter(tags=["ai verification"])
 
 KIND = "ai_verify"
 SCOPES = ("all", "boq", "details")
+# Checking for a running check and starting one happen under one lock: a page
+# that asks twice at the same moment (React runs a page's first effect twice
+# in development) must start one check, not two paying for the same readings.
+_start_lock = threading.Lock()
 
 
 class VerificationOut(BaseModel):
@@ -136,13 +141,15 @@ def ensure_verification(
     """Opening the BOQ or Project Info of a project the AI has never checked
     starts the check, once: a failed or undone check is not retried here."""
     project = _get_project_or_404(db, project_id)
-    eligible = (get_settings().ai_verify_auto and current_user.role in CREATOR_ROLES
-                and verification.available(project) is None
-                and jobs.active_job(db, project.id, KIND) is None
-                and db.query(AiVerification).filter(AiVerification.project_id == project.id).first() is None
-                and (project.design_sheets or project.drf_document_path))
-    if eligible:
-        _start(db, project, current_user, "all", trigger="auto")
+    with _start_lock:
+        db.expire_all()
+        eligible = (get_settings().ai_verify_auto and current_user.role in CREATOR_ROLES
+                    and (project.design_sheets or project.drf_document_path)
+                    and jobs.active_job(db, project.id, KIND) is None
+                    and db.query(AiVerification).filter(AiVerification.project_id == project.id).first() is None
+                    and verification.available(project) is None)
+        if eligible:
+            _start(db, project, current_user, "all", trigger="auto")
     return _state(db, project)
 
 
@@ -159,8 +166,11 @@ def start_verification(
     reason = verification.available(project)
     if reason:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=reason)
-    _refuse_duplicate(db, project, KIND)
-    return _out(_start(db, project, current_user, scope, trigger="manual"))
+    with _start_lock:
+        db.expire_all()
+        _refuse_duplicate(db, project, KIND)
+        job = _start(db, project, current_user, scope, trigger="manual")
+    return _out(job)
 
 
 @router.post("/projects/{project_id}/ai-verification/{verification_id}/undo", response_model=VerificationStateOut)

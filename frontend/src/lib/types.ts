@@ -212,7 +212,12 @@ export interface AiVerification {
   id: number;
   scope: "boq" | "details";
   status: "running" | "completed" | "failed" | "undone";
-  summary: { confirmed?: number; corrected?: number; added?: number; removed?: number; unresolved?: number; not_checked?: number; lines?: number; changed?: boolean };
+  summary: {
+    confirmed?: number; corrected?: number; added?: number; removed?: number; unresolved?: number; not_checked?: number;
+    lines?: number; changed?: boolean;
+    /** New AI calls this check made, and readings it took from the database instead. */
+    ai_calls?: number; readings_reused?: number;
+  };
   items: AiVerificationItem[];
   notes: string[];
   error: string | null;

@@ -244,15 +244,17 @@ def _log(session: AssistSession, *, task: str, model: str, response=None, cost: 
 
 
 def call_task(session: AssistSession, task: str, system: str, parts: list[TextPart], schema: dict, max_output: int, *,
-              prompt_version: str = PROMPT_VERSION, tier: str = "small") -> CallResult:
+              prompt_version: str = PROMPT_VERSION, tier: str = "small", ttl_days: int | None = None) -> CallResult:
     """One structured call through the cache, the budget and the usage log,
     for a task defined outside this module (the single-clause review).
-    `tier` "standard" asks the larger model (AI_MODEL_STANDARD)."""
-    return _call(session, task, system, parts, schema, max_output, prompt_version=prompt_version, tier=tier)
+    `tier` "standard" asks the larger model (AI_MODEL_STANDARD); `ttl_days`
+    overrides how long a stored answer is reused (AI_CACHE_TTL_DAYS)."""
+    return _call(session, task, system, parts, schema, max_output, prompt_version=prompt_version, tier=tier,
+                 ttl_days=ttl_days)
 
 
 def _call(session: AssistSession, task: str, system: str, parts: list[TextPart], schema: dict, max_output: int, *,
-          prompt_version: str = PROMPT_VERSION, tier: str = "small") -> CallResult:
+          prompt_version: str = PROMPT_VERSION, tier: str = "small", ttl_days: int | None = None) -> CallResult:
     settings = get_settings()
     model = settings.ai_model_standard if tier == "standard" else settings.ai_model_small
     evidence = hashlib.sha256(json.dumps([
@@ -273,7 +275,7 @@ def _call(session: AssistSession, task: str, system: str, parts: list[TextPart],
         return CallResult(None, False, model, f"the {task} task is switched off on this server", flags=flags)
     with result_cache.InFlight(key) as first:
         cached = result_cache.get(session.db, key, project_id=session.project_id,
-                                  ttl_days=settings.ai_cache_ttl_days, document_sha256=session.document_sha256)
+                                  ttl_days=ttl_days or settings.ai_cache_ttl_days, document_sha256=session.document_sha256)
         if cached is not None:
             session.cached += 1
             _log(session, task=task, model=cached.get("model", model), cache_hit=True)

@@ -131,6 +131,12 @@ export function AiVerificationPanel({
                 {s.unresolved ? `, ${s.unresolved} it could not settle` : ""}
                 {s.not_checked ? `, ${s.not_checked} not checked` : ""}.
                 {record.stale && <span className="text-amber-800"> Changed since — check again to confirm the current values.</span>}
+                <span className="mt-0.5 block text-[11px] text-gray-500">
+                  Saved in the database: opening this page uses no AI.
+                  {s.ai_calls !== undefined &&
+                    ` That check made ${s.ai_calls} AI call${s.ai_calls === 1 ? "" : "s"}` +
+                      (s.readings_reused ? ` and reused ${s.readings_reused} saved reading${s.readings_reused === 1 ? "" : "s"}.` : ".")}
+                </span>
               </>
             )}
           </div>
@@ -147,7 +153,17 @@ export function AiVerificationPanel({
               </button>
             )}
             <button
-              onClick={() => void start()}
+              onClick={() => {
+                if (
+                  record &&
+                  !window.confirm(
+                    "Check again? Readings already saved for unchanged rows and pages are reused from the database; only what changed is sent to the AI."
+                  )
+                ) {
+                  return;
+                }
+                void start();
+              }}
               disabled={active || busy}
               className="rounded-lg border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-800 hover:bg-violet-50 disabled:opacity-60"
             >

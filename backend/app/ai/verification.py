@@ -58,6 +58,10 @@ LABEL_WIDTH = 90
 PAGES_PER_FIND_CALL = 3
 PAGE_IMAGE_WIDTH = 1600
 DESCRIPTION_AGREEMENT = 0.8
+# AI readings are stored in the database for good: a stored reading is about
+# the exact image it was made from (the document's content hash, page, row
+# box, model and prompt are its key), so it stays true until that changes.
+STORED_READING_DAYS = 36_500
 
 
 class VerificationError(Exception):
@@ -285,6 +289,7 @@ class _Run:
     record: AiVerification
     models: set[str] = dataclasses.field(default_factory=set)
     calls: int = 0
+    reused: int = 0
     notes: list[str] = dataclasses.field(default_factory=list)
     exhausted: str | None = None
 
@@ -293,8 +298,9 @@ class _Run:
         session = assist.AssistSession(db=self.db, project_id=self.project.id, document_sha256=document_sha,
                                        budget=self.budget, provider=self.provider)
         result = assist.call_task(session, task, system, parts, schema, max_output, prompt_version=PROMPT_VERSION,
-                                  tier=tier)
+                                  tier=tier, ttl_days=STORED_READING_DAYS)
         self.calls += session.calls
+        self.reused += session.cached
         if result.model:
             self.models.add(result.model)
         if session.exhausted:
@@ -346,6 +352,7 @@ def _finish(run: _Run, *, summary: dict, items: list, version_after: int | None,
     record.undo = undo
     record.models = sorted(run.models)
     record.calls = run.calls
+    record.summary = {**summary, "ai_calls": run.calls, "readings_reused": run.reused}
     record.finished_at = utc_now()
     run.db.commit()
     return record
@@ -383,11 +390,50 @@ def _fields(source: dict | None) -> dict | None:
             "description": source.get("description") or ""}
 
 
+def _reading_key(row: _Row, kind: str) -> str:
+    """The stored reading of one row: its document's content, page and box,
+    the kind of reading (first / second / close-up), the model and the prompt."""
+    import hashlib
+    import json
+
+    settings = get_settings()
+    model = settings.ai_model_small if kind == "first" else settings.ai_model_standard
+    material = json.dumps({"document": row.run.document_sha256 or row.run.document_path, "page": row.page,
+                           "region": list(row.region), "kind": kind, "model": model, "prompt": PROMPT_VERSION},
+                          sort_keys=True)
+    return hashlib.sha256(material.encode()).hexdigest()
+
+
+def _stored_reading(run: _Run, row: _Row, kind: str) -> tuple[bool, dict | None]:
+    """(found, reading) from the database."""
+    from app.ai import cache as result_cache
+
+    value = result_cache.get(run.db, _reading_key(row, kind), project_id=run.project.id, ttl_days=STORED_READING_DAYS)
+    if value is None:
+        return False, None
+    return True, value.get("reading")
+
+
+def _store_reading(run: _Run, row: _Row, kind: str, reading: dict | None) -> None:
+    from app.ai import cache as result_cache
+
+    result_cache.put(run.db, _reading_key(row, kind), {"reading": reading}, project_id=run.project.id,
+                     document_sha256=row.run.document_sha256 or "", task=f"verify_boq_row_{kind}")
+
+
 def _read_rows(run: _Run, pages: _Pages, rows: list[_Row], *, tier: str, ctx, progress: tuple[int, int]) -> None:
-    """Blind readings of the rows, `ROWS_PER_CALL` to an image, into ai1 / ai2."""
+    """Blind readings of the rows, `ROWS_PER_CALL` to an image, into ai1 / ai2.
+    A row read before (same document content, page, box, model and prompt) is
+    taken from the database; only rows never read are sent."""
     slot = "ai1" if tier == "small" else "ai2"
+    kind = "first" if tier == "small" else "second"
     by_document: dict[str, list[_Row]] = {}
     for row in rows:
+        found, reading = _stored_reading(run, row, kind)
+        if found:
+            setattr(row, slot, reading)
+            run.reused += 1
+            continue
         by_document.setdefault(row.run.document_path, []).append(row)
     done, total = progress
     for path, group in by_document.items():
@@ -414,11 +460,13 @@ def _read_rows(run: _Run, pages: _Pages, rows: list[_Row], *, tier: str, ctx, pr
                     setattr(row, slot, None)
                     continue
                 readable = bool(answer.get("readable"))
-                setattr(row, slot, {
+                reading = {
                     "quantity": str(answer.get("quantity", "")).strip() if readable else None,
                     "catalog_no": str(answer.get("catalog_no", "")).strip() if readable else None,
                     "description": str(answer.get("description", "")).strip() or None,
-                })
+                }
+                setattr(row, slot, reading)
+                _store_reading(run, row, kind, reading)
             done += 1
             if run.exhausted:
                 return
@@ -430,6 +478,11 @@ def _read_close_up(run: _Run, pages: _Pages, rows: list[_Row], *, ctx) -> None:
     for index, row in enumerate(rows, start=1):
         if run.exhausted:
             return
+        found, reading = _stored_reading(run, row, "close_up")
+        if found:
+            row.ai3 = reading
+            run.reused += 1
+            continue
         if ctx is not None:
             ctx.progress(0, 0, f"AI close-up reading of an unsettled row ({index} of {len(rows)})")
         image = pages.get(row.run.document_path, row.page, row.run)
@@ -449,6 +502,7 @@ def _read_close_up(run: _Run, pages: _Pages, rows: list[_Row], *, ctx) -> None:
         row.ai3 = {"quantity": str(answer.get("quantity", "")).strip() if readable else None,
                    "catalog_no": str(answer.get("catalog_no", "")).strip() if readable else None,
                    "description": str(answer.get("description", "")).strip() or None}
+        _store_reading(run, row, "close_up", row.ai3)
 
 
 def row_sha(row: _Row) -> str:

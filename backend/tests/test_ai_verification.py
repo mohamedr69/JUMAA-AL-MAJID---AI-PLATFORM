@@ -300,3 +300,68 @@ def test_a_project_that_refuses_ai_is_not_checked(client, db_session, sheets, re
     assert state["available"] is False and state["boq"] is None
     assert recording.calls == 0
 
+
+
+# --- saved, not paid for twice -----------------------------------------------------------------------
+
+
+def test_checking_again_reuses_the_saved_readings(client, db_session, sheets, recording):
+    pid = _project(client, sheets, ep="62030")
+    sheets["lines"] = FIRST_READ
+    recording.answers = [_rows(("1", "4-CPU", "Central Processor Module"), ("120", "SIGA-PS", "Photoelectric smoke detector"),
+                               ("14", "SIGA-CT1", "Single input module"), ("30", "SIGA-HFS", "Heat detector"))]
+    assert client.post(f"/projects/{pid}/jobs/ai-verify?scope=boq").json()["status"] == "succeeded"
+    assert recording.calls == 1
+
+    # Opening the page again reads the stored result: no AI.
+    state = client.post(f"/projects/{pid}/ai-verification/ensure").json()
+    assert state["boq"]["summary"]["confirmed"] == 4 and recording.calls == 1
+
+    # Checking again with nothing changed: every row's reading comes from the database.
+    again = client.post(f"/projects/{pid}/jobs/ai-verify?scope=boq").json()
+    assert again["status"] == "succeeded" and recording.calls == 1
+    summary = client.get(f"/projects/{pid}/ai-verification").json()["boq"]["summary"]
+    assert summary["ai_calls"] == 0 and summary["readings_reused"] == 4 and summary["confirmed"] == 4
+
+    # One new row on the sheet: only that row is sent.
+    sheets["lines"] = FIRST_READ + [_line("SIGA-CC1", "Synchronised output module", "6", 700)]
+    recording.answers = [_rows(("6", "SIGA-CC1", "Synchronised output module"))]
+    assert client.post(f"/projects/{pid}/jobs/ai-verify?scope=boq").json()["status"] == "succeeded"
+    assert recording.calls == 2
+    assert "R1" in recording.requests[-1].parts[0].text and "1 rows" in recording.requests[-1].parts[0].text
+
+
+def test_two_page_opens_at_once_start_one_check(client, db_session, sheets, recording, monkeypatch):
+    import threading
+
+    from app.models import BackgroundJob
+    from app.services import jobs as jobs_service
+
+    pid = _project(client, sheets, ep="62031")
+    monkeypatch.setattr(jobs_router, "RUN_INLINE", False)
+    started = []
+    real_thread = threading.Thread
+
+    class _NotRun:
+        """The job's own thread, recorded and not run: the test is about how many start."""
+
+        def __init__(self, *args, **kwargs):
+            self.name = kwargs.get("name")
+
+        def start(self):
+            started.append(self.name)
+
+    monkeypatch.setattr(jobs_service.threading, "Thread", _NotRun)
+    results = []
+
+    def open_page():
+        results.append(client.post(f"/projects/{pid}/ai-verification/ensure").status_code)
+
+    threads = [real_thread(target=open_page) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert results == [200, 200]
+    assert db_session.query(BackgroundJob).filter(BackgroundJob.project_id == pid, BackgroundJob.kind == "ai_verify").count() == 1
+    assert len(started) == 1
