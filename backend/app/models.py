@@ -640,6 +640,17 @@ class AiProposal(Base):
     state_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
     value: Mapped[str | None] = mapped_column(Text, nullable=True)
     from_cache: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # Instruction-like wording found in the document text the call carried;
+    # such a proposal is never shown as validated.
+    injection_flags: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # What the engineer did with the issue, recorded against every proposal on
+    # it so the model's answers can be measured against reviewed truth:
+    # "accepted" (the value taken as proposed) | "corrected" (another value
+    # taken) | "rejected" (the issue closed with no value) | "abstained" (the
+    # model gave no value; the engineer decided) | "superseded".
+    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    outcome_value: Mapped[str | None] = mapped_column(Text, nullable=True)
+    outcome_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 

@@ -31,6 +31,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.ai import cache as result_cache
+from app.ai import guard
 from app.ai.budget import BudgetExceeded, JobBudget, Limits, calls_today
 from app.ai.provider import AiProvider, AiRequest, TextPart, estimate_input_tokens, get_provider
 from app.core.config import get_settings
@@ -40,7 +41,7 @@ from .spec_text import PARSER_VERSION
 from .statements import RESPONSES
 
 SCOPE = "compliance"
-PROMPT_VERSION = "compliance-2026-09-14.4"
+PROMPT_VERSION = "compliance-2026-09-15.1"
 SCHEMA_VERSION = "1"
 MAX_CLAUSE_CHARS = 700
 
@@ -189,6 +190,8 @@ class CallResult:
     from_cache: bool
     model: str
     error: str | None = None
+    # Instruction-like wording in the text sent (app/ai/guard.py).
+    flags: list[str] = dataclasses.field(default_factory=list)
 
 
 @dataclass
@@ -204,6 +207,8 @@ class AssistSession:
     cached: int = 0
     errors: list[str] = dataclasses.field(default_factory=list)
     exhausted: str | None = None
+    # "label:pattern" flags seen across the session's calls.
+    injection_flags: set[str] = dataclasses.field(default_factory=set)
 
 
 def open_session(db: Session, project_id: int, document_sha256: str, provider: AiProvider | None = None) -> AssistSession:
@@ -259,20 +264,26 @@ def _call(session: AssistSession, task: str, system: str, parts: list[TextPart],
     )
     request = AiRequest(task=task, system=system, parts=parts, schema=schema, max_output_tokens=max_output,
                         idempotency_key=key)
+    flags = guard.scan_parts(parts)
+    session.injection_flags.update(flags)
+    from app.ai import evaluation
+
+    if evaluation.switched_off(task):
+        return CallResult(None, False, model, f"the {task} task is switched off on this server", flags=flags)
     with result_cache.InFlight(key) as first:
         cached = result_cache.get(session.db, key, project_id=session.project_id,
                                   ttl_days=settings.ai_cache_ttl_days, document_sha256=session.document_sha256)
         if cached is not None:
             session.cached += 1
             _log(session, task=task, model=cached.get("model", model), cache_hit=True)
-            return CallResult(cached.get("data"), True, cached.get("model", model))
+            return CallResult(cached.get("data"), True, cached.get("model", model), flags=flags)
         if not first:
-            return CallResult(None, False, model, "an identical request just failed")
+            return CallResult(None, False, model, "an identical request just failed", flags=flags)
         try:
             reservation = session.budget.reserve(estimate_input_tokens(request), request.max_output_tokens)
         except BudgetExceeded as exc:
             session.exhausted = exc.limit
-            return CallResult(None, False, model, f"budget: {exc.limit}")
+            return CallResult(None, False, model, f"budget: {exc.limit}", flags=flags)
         response = session.provider.complete(request)
         cost = session.budget.reconcile(reservation, response.usage.input_tokens, response.usage.output_tokens,
                                         response.usage.cached_input_tokens)
@@ -282,10 +293,10 @@ def _call(session: AssistSession, task: str, system: str, parts: list[TextPart],
         if not response.ok:
             detail = f"{response.error}: {response.error_detail}" if response.error_detail else (response.error or "no reply")
             session.errors.append(detail[:300])
-            return CallResult(None, False, response.model or model, detail)
+            return CallResult(None, False, response.model or model, detail, flags=flags)
         result_cache.put(session.db, key, {"data": response.data, "model": response.model or model},
                          project_id=session.project_id, document_sha256=session.document_sha256, task=task)
-        return CallResult(response.data, False, response.model or model)
+        return CallResult(response.data, False, response.model or model, flags=flags)
 
 
 def output_ceiling(items: int, per_item: int) -> int:
@@ -343,8 +354,14 @@ def answer_clauses(session: AssistSession, project_facts: str, boq: str, batch: 
     answers: dict[str, dict] = {}
     for answer in (result.data or {}).get("answers", []) if isinstance(result.data, dict) else []:
         if answer.get("id") in sent and answer.get("response") in RESPONSES and answer["id"] not in answers:
-            answers[answer["id"]] = {"response": answer["response"], "remark": str(answer.get("remark", ""))[:240],
-                                     "model": result.model, "from_cache": result.from_cache}
+            remark = str(answer.get("remark", ""))[:240]
+            if guard.suspicious_value(remark):
+                # A remark carrying a link, markup or instructions is dropped;
+                # the response itself is one of the allowed words.
+                remark = ""
+            answers[answer["id"]] = {"response": answer["response"], "remark": remark,
+                                     "model": result.model, "from_cache": result.from_cache,
+                                     "injection_flags": result.flags}
     return answers
 
 
@@ -356,7 +373,9 @@ def ask_clause(session: AssistSession, project_facts: str, boq: str, clause: str
     parts.append(TextPart("question", _clip(question, 600)))
     result = _call(session, "ask_clause", SYSTEM_ASK, parts, ASK_SCHEMA, output_ceiling(1, per_item=300))
     answer = (result.data or {}).get("answer") if isinstance(result.data, dict) else None
-    return str(answer).strip()[:1200] if answer else None
+    if not answer or guard.suspicious_value(str(answer)):
+        return None
+    return str(answer).strip()[:1200]
 
 
 def review_clauses(session: AssistSession, project_facts: str, boq: str, batch: list[dict]) -> dict[str, dict]:
@@ -375,5 +394,6 @@ def review_clauses(session: AssistSession, project_facts: str, boq: str, batch: 
     findings: dict[str, dict] = {}
     for finding in (result.data or {}).get("findings", []) if isinstance(result.data, dict) else []:
         if finding.get("id") in sent and finding.get("verdict") in ("ok", "conflict", "unclear"):
-            findings[finding["id"]] = {"verdict": finding["verdict"], "note": str(finding.get("note", ""))[:240]}
+            note = str(finding.get("note", ""))[:240]
+            findings[finding["id"]] = {"verdict": finding["verdict"], "note": "" if guard.suspicious_value(note) else note}
     return findings

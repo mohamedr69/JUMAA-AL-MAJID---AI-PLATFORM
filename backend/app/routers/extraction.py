@@ -44,6 +44,8 @@ class ProposalOut(BaseModel):
     state_reason: str
     value: str | None
     from_cache: bool
+    injection_flags: list[str] | None = None
+    outcome: str | None = None
     created_at: datetime
 
 
@@ -110,7 +112,8 @@ def _run_out(run: ExtractionRun) -> RunOut:
                 has_evidence_image=bool(i.region and i.page),
                 proposals=[
                     ProposalOut(id=p.id, task=p.task, model=p.model, state=p.state, state_reason=p.state_reason,
-                                value=p.value, from_cache=p.from_cache, created_at=p.created_at)
+                                value=p.value, from_cache=p.from_cache, injection_flags=p.injection_flags,
+                                outcome=p.outcome, created_at=p.created_at)
                     for p in i.proposals
                 ],
             )
@@ -306,3 +309,59 @@ def ai_usage(
             for r in rows[:50]
         ],
     )
+
+
+@router.get("/{project_id}/ai/budget")
+def project_ai_budget(
+    project_id: int,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """What the project may still ask the model today, and whether it may at all."""
+    from app.ai import metrics, project_policy
+
+    project = _get_project_or_404(db, project_id)
+    provider = get_provider()
+    return {
+        **metrics.budget_status(db, project_id),
+        "ai_enabled": get_settings().ai_enabled,
+        "ai_ready": bool(getattr(provider, "ready", False)),
+        "policy": project.ai_policy,
+        "allowed": project_policy.allowed(project),
+    }
+
+
+@admin_router.get("/metrics")
+def ai_metrics(
+    days: int = 30,
+    project_id: int | None = None,
+    _current_user: User = Depends(require_role(RoleEnum.admin)),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Proposal quality against engineers' decisions, usage, budget, the
+    latest evaluation reports and the task gates."""
+    from app.ai import metrics
+
+    return metrics.summary(db, days=max(1, days), project_id=project_id)
+
+
+@admin_router.post("/evaluations/cases")
+def build_evaluation_cases(
+    task: str = "read_cell",
+    current_user: User = Depends(require_role(RoleEnum.admin)),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Add every reviewed issue for the task to the evaluation set. Calls no
+    model; a run is started from `scripts/ai_eval.py`, where its cost is
+    chosen deliberately."""
+    from app.ai import evaluation
+
+    if task not in evaluation.RUNNABLE_TASKS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=f"No evaluation harness for {task!r} yet")
+    cases = evaluation.cases_from_reviews(db, task=task)
+    path = evaluation.cases_path(task)
+    evaluation.write_cases(cases, path)
+    total = len(evaluation.load_cases(path)) if path.exists() else 0
+    activity.record(db, current_user, "ai.evaluation_cases_built", f"Built {len(cases)} {task} evaluation cases",
+                    detail={"task": task, "added_or_updated": len(cases), "total": total})
+    return {"task": task, "added_or_updated": len(cases), "total": total}

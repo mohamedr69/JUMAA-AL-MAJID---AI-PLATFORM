@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AccessDeniedPage } from "./pages/AccessDeniedPage";
 import { AccountPage } from "./pages/AccountPage";
 import { AdminKnowledgePage } from "./pages/AdminKnowledgePage";
+import { AdminSystemPage } from "./pages/AdminSystemPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { CreateProjectPage } from "./pages/CreateProjectPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -114,6 +115,14 @@ export default function App() {
             element={
               <RoleRoute roles={["admin"]}>
                 <AdminKnowledgePage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/admin/system"
+            element={
+              <RoleRoute roles={["admin"]}>
+                <AdminSystemPage />
               </RoleRoute>
             }
           />

@@ -24,11 +24,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
+from app.ai import guard
 from app.core.config import get_settings
 
 # Bumped when the wording of a system prompt changes in a way that could
 # change answers; part of every cache key.
-PROMPT_VERSION = "2026-09-13.1"
+PROMPT_VERSION = "2026-09-15.1"
 
 
 @dataclass(frozen=True)
@@ -211,7 +212,7 @@ class ClaudeProvider:
                 # Document text is data. It is fenced and labelled so that
                 # anything written inside a document reads as content, not
                 # as an instruction.
-                blocks.append({"type": "text", "text": f"<{part.label}>\n{part.text}\n</{part.label}>"})
+                blocks.append({"type": "text", "text": guard.fence(part.label, part.text)})
         return blocks
 
     def complete(self, request: AiRequest) -> AiResponse:
@@ -341,7 +342,7 @@ class OpenAiProvider:
             else:
                 # Document text is data, fenced and labelled so that anything
                 # written inside a document reads as content, not instruction.
-                content.append({"type": "text", "text": f"<{part.label}>\n{part.text}\n</{part.label}>"})
+                content.append({"type": "text", "text": guard.fence(part.label, part.text)})
         return [{"role": "system", "content": request.system}, {"role": "user", "content": content}]
 
     def _create(self, model: str, request: AiRequest):
@@ -479,7 +480,7 @@ class ClaudeCodeProvider:
             if isinstance(part, TextPart):
                 # Document text is data, fenced and labelled so that anything
                 # written inside a document reads as content, not instruction.
-                lines.append(f"<{part.label}>\n{part.text}\n</{part.label}>")
+                lines.append(guard.fence(part.label, part.text))
         for label, filename in images:
             lines.append(f"[{label}] is the image file {filename} in the current directory: read it with the Read tool.")
         lines.append("Answer through the structured output only.")

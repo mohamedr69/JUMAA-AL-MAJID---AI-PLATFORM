@@ -111,8 +111,8 @@ ROUTING: dict[IssueCode, Routing] = {
 }
 
 # Tasks the model may actually be called for today. `table_layout` is
-# routed as eligible but stays off until the evaluation set described in
-# docs/LLM_ASSISTANCE_PLAN.md exists; the issue is recorded for review.
+# routed as eligible but stays off until an evaluation report for it passes
+# its gate (app/ai/evaluation.py); until then the issue is recorded for review.
 ENABLED_TASKS: frozenset[str] = frozenset({"read_cell", "classify_system"})
 
 
@@ -123,7 +123,13 @@ def route(code: IssueCode) -> Routing:
 def llm_task_for(code: IssueCode) -> str | None:
     """The ai task an issue of this code may be sent to, or None."""
     routing = ROUTING[code]
-    if not routing.llm_eligible or routing.task is None or routing.task not in ENABLED_TASKS:
+    if not routing.llm_eligible or routing.task is None:
+        return None
+    from app.ai import evaluation
+
+    if evaluation.switched_off(routing.task):
+        return None
+    if routing.task not in ENABLED_TASKS and not evaluation.gate_open(routing.task):
         return None
     return routing.task
 

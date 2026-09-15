@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, api, apiUrl } from "../lib/api";
-import type { ExtractionIssue, ExtractionRun, ExtractionState } from "../lib/types";
+import type { AiBudget, ExtractionIssue, ExtractionRun, ExtractionState } from "../lib/types";
 
 /** What a Design Sheet read could not settle, for the engineer to decide.
  *
@@ -20,12 +20,15 @@ export function ExtractionReview({
   const [state, setState] = useState<ExtractionState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | "assist" | null>(null);
+  const [budget, setBudget] = useState<AiBudget | null>(null);
 
   const load = useCallback(() => {
     api
       .get<ExtractionState>(`/projects/${projectId}/extraction`)
       .then(setState)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Could not read the extraction status"));
+    // The budget line is a courtesy: the page works without it.
+    api.get<AiBudget>(`/projects/${projectId}/ai/budget`).then(setBudget).catch(() => setBudget(null));
   }, [projectId]);
 
   useEffect(() => {
@@ -98,13 +101,23 @@ export function ExtractionReview({
           </div>
         </div>
         {canEdit && canAssist && (
-          <button
-            onClick={assist}
-            disabled={busy !== null}
-            className="rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-60"
-          >
-            {busy === "assist" ? "Asking..." : "Ask AI to read the cells"}
-          </button>
+          <div className="flex flex-col items-end gap-0.5">
+            <button
+              onClick={assist}
+              disabled={busy !== null || budget?.calls_remaining === 0}
+              className="rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 disabled:opacity-60"
+            >
+              {busy === "assist" ? "Asking..." : "Ask AI to read the cells"}
+            </button>
+            {budget && (
+              <span className={`text-[11px] ${budget.calls_remaining === 0 ? "text-red-700" : "text-gray-500"}`}>
+                {budget.calls_remaining === 0
+                  ? "Today's AI allowance for this project is used up"
+                  : `${budget.calls_remaining} of ${budget.calls_per_day_limit} AI calls left in the last 24 h`}
+                {budget.priced && budget.cost_last_24h > 0 ? ` · spent ${budget.cost_last_24h.toFixed(2)}` : ""}
+              </span>
+            )}
+          </div>
         )}
         {canEdit && aiProblem && (
           <div className="max-w-xs rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs text-amber-800">
@@ -180,6 +193,12 @@ function IssueRow({
                 ? " — an independent OCR pass agrees."
                 : " — unconfirmed; check the cell image before accepting."}
               {proposal.from_cache && " (from an earlier identical read)"}
+              {proposal.injection_flags && proposal.injection_flags.length > 0 && (
+                <div className="mt-0.5 text-red-700">
+                  The sheet's text around this row contains wording aimed at instructing a model, so this reading was not
+                  confirmed automatically. Check the cell image yourself.
+                </div>
+              )}
             </div>
           )}
           {!proposal && issue.state === "starved" && <div className="mt-1 text-amber-800">{issue.state_reason}</div>}

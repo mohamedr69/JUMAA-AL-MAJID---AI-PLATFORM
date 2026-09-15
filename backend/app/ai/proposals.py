@@ -12,7 +12,7 @@ is `rejected` with the reason. Schema validity is not evidence.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
@@ -92,6 +92,8 @@ class Validation:
     reason: str
     value: str | None = None      # the value as it would be applied, when not rejected
     independent_check: str | None = None
+    # Instruction-like wording in the text the call carried (app/ai/guard.py).
+    flags: list[str] = field(default_factory=list)
 
 
 _DIGITS_RE = re.compile(r"^\d{1,6}$")
@@ -115,13 +117,40 @@ def validate(
     allowed_values: set[str] | None = None,
     independent_readings: set[str] | None = None,
     word_quantities: set[str] | None = None,
+    injection_flags: list[str] | None = None,
 ) -> Validation:
     """Judge one proposal for one issue.
 
     `sent_regions` are the labels of the evidence parts that were actually
     sent; `independent_readings` are what a separate OCR pass read off the
     same crop (for cell tasks); `allowed_values` bounds a classification.
+    `injection_flags` name instruction-like wording found in the document
+    text sent: a proposal made from such text is never `validated`.
     """
+    verdict = _judge(proposal, task=task, allowed_target=allowed_target, sent_regions=sent_regions,
+                     allowed_values=allowed_values, independent_readings=independent_readings,
+                     word_quantities=word_quantities)
+    flags = list(injection_flags or [])
+    verdict.flags = flags
+    if flags and verdict.state == "validated":
+        verdict.state = "needs_human_review"
+        verdict.reason = ("the document text contains instruction-like wording (" + ", ".join(flags)
+                          + "), so the reading is not taken on its own; " + verdict.reason)
+    return verdict
+
+
+def _judge(
+    proposal: Proposal,
+    *,
+    task: str,
+    allowed_target: str,
+    sent_regions: set[str],
+    allowed_values: set[str] | None,
+    independent_readings: set[str] | None,
+    word_quantities: set[str] | None,
+) -> Validation:
+    from app.ai import guard
+
     if proposal.status == "insufficient_evidence":
         return Validation("insufficient_evidence", "; ".join(proposal.unresolved_issues) or "the model found the evidence insufficient")
     if not proposal.proposed_changes:
@@ -138,6 +167,9 @@ def validate(
     value = change.value.strip()
     if not value:
         return Validation("rejected", "empty value")
+    suspicious = guard.suspicious_value(value)
+    if suspicious:
+        return Validation("rejected", suspicious)
 
     if task == "read_cell":
         word = re.sub(r"[^A-Za-z]", "", value).lower()

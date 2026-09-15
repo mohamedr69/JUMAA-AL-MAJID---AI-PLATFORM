@@ -160,6 +160,10 @@ class Settings(BaseSettings):
     # key), "claude" (Anthropic API) or "openai" (OpenAI API). Each has its
     # own provider class in app/ai/provider.py behind one interface.
     ai_provider: str = "claude-code"
+    # Tasks switched off on this server whatever else allows them, comma
+    # separated (e.g. "answer_clauses,read_field"): the deployment control
+    # for rolling a task back without a code change. See app/ai/evaluation.py.
+    ai_disabled_tasks: str = ""
     # The Claude Code program for "claude-code": a name on the PATH or the full
     # path to claude.exe. Sign in once with `claude` as the user the server runs as.
     ai_claude_cli: str = "claude"

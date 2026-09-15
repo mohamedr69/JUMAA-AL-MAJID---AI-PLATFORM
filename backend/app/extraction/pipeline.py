@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.ai import cache as result_cache
 from app.ai import evidence as evidence_builder
+from app.ai import guard
 from app.ai.budget import BudgetExceeded, JobBudget, open_budget
 from app.ai.proposals import SCHEMA_VERSION, Validation, parse, validate
 from app.ai.provider import PROMPT_VERSION, AiProvider, AiRequest, estimate_input_tokens, get_provider
@@ -198,15 +199,22 @@ def ask(
         prompt_version=PROMPT_VERSION, schema_version=SCHEMA_VERSION, model=model,
     )
     request.idempotency_key = key
+    flags = guard.scan_parts(request.parts)
+    from app.ai import evaluation
+
+    if evaluation.switched_off(request.task):
+        return Validation("insufficient_evidence", f"the {request.task} task is switched off on this server",
+                          flags=flags), None, False, model, key
 
     def judge(data: dict | None) -> Validation:
         parsed = parse(data)
         if isinstance(parsed, Validation):
+            parsed.flags = flags
             return parsed
         return validate(
             parsed, task=request.task, allowed_target=allowed_target, sent_regions=evidence.sent_regions,
             allowed_values=allowed_values, independent_readings=independent,
-            word_quantities=design_sheet_extractor.WORD_QUANTITIES,
+            word_quantities=design_sheet_extractor.WORD_QUANTITIES, injection_flags=flags,
         )
 
     with result_cache.InFlight(key) as first:
@@ -301,7 +309,7 @@ def assist_run(db: Session, project: Project, run: ExtractionRun, *, budget: Job
         proposal = AiProposal(
             issue=row, task=task, cache_key=key, model=model, prompt_version=PROMPT_VERSION,
             schema_version=SCHEMA_VERSION, proposal=data or {}, state=verdict.state, state_reason=verdict.reason,
-            value=verdict.value, from_cache=from_cache,
+            value=verdict.value, from_cache=from_cache, injection_flags=verdict.flags or None,
         )
         db.add(proposal)
         row.state = "proposed" if verdict.state in ("validated", "needs_human_review") else "open"
@@ -436,6 +444,33 @@ class AcceptRefused(Exception):
     pass
 
 
+def record_outcomes(row: ExtractionIssue, decision: str, value: str | None) -> None:
+    """Mark every proposal on the issue with what the engineer decided, so
+    the model's answers are measured against reviewed truth
+    (app/ai/metrics.py). `decision` is "resolved", "rejected" or "superseded".
+    A proposal already marked keeps its first outcome."""
+    now = utc_now()
+    for proposal in row.proposals:
+        if proposal.outcome is not None:
+            continue
+        if decision == "superseded":
+            outcome = "superseded"
+        elif not proposal.value:
+            outcome = "abstained"
+        elif decision == "rejected":
+            outcome = "rejected"
+        else:
+            outcome = "accepted" if _same_value(proposal.value, value) else "corrected"
+        proposal.outcome = outcome
+        proposal.outcome_value = value
+        proposal.outcome_at = now
+
+
+def _same_value(a: str | None, b: str | None) -> bool:
+    norm = lambda s: re.sub(r"\s+", "", (s or "")).lower()  # noqa: E731
+    return norm(a) == norm(b)
+
+
 def _line_key(system_code: str | None, group: str | None, catalog: str | None, description: str) -> tuple:
     norm = lambda s: re.sub(r"[^a-z0-9]", "", (s or "").lower())  # noqa: E731
     return (norm(system_code), norm(group), norm(catalog), norm(description))
@@ -476,6 +511,7 @@ def accept_issue(db: Session, project: Project, row: ExtractionIssue, user: User
             row.state_reason = "superseded by review: the BOQ already holds this line"
             row.resolved_by_id = user.id
             row.resolved_at = utc_now()
+            record_outcomes(row, "superseded", None)
             db.commit()
             raise AcceptRefused("the BOQ already holds this line; nothing was added")
 
@@ -513,6 +549,7 @@ def accept_issue(db: Session, project: Project, row: ExtractionIssue, user: User
     row.resolved_by_id = user.id
     row.resolved_at = utc_now()
     row.resolved_value = value
+    record_outcomes(row, "resolved", value)
     db.commit()
     db.refresh(line)
     return line
@@ -525,4 +562,5 @@ def reject_issue(db: Session, row: ExtractionIssue, user: User, reason: str | No
     row.state_reason = reason or "rejected by the engineer"
     row.resolved_by_id = user.id
     row.resolved_at = utc_now()
+    record_outcomes(row, "rejected", None)
     db.commit()

@@ -687,7 +687,9 @@ def _run_ai_autofill(db: Session, project_id: int, statement_id: int, user_id: i
                 counts[klass if klass in counts else "filled"] += 1
                 _audit(db, project, statement, row, action="ai_autofill", origin="ai", previous=previous, user=user,
                        ai_model=answer.get("model"), ai_prompt_version=assist.PROMPT_VERSION,
-                       ai_usage={"from_cache": answer.get("from_cache")}, detail={"class": klass, "scope": scope})
+                       ai_usage={"from_cache": answer.get("from_cache")},
+                       detail={"class": klass, "scope": scope, **({"injection_flags": answer["injection_flags"]}
+                                                                   if answer.get("injection_flags") else {})})
             statement.rows = rows
             job = dict(statement.summary.get("ai_job") or {})
             job.update(done=done, counts=dict(counts))

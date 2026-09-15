@@ -1209,7 +1209,111 @@ export interface AiProposalOut {
   state_reason: string;
   value: string | null;
   from_cache: boolean;
+  /** Instruction-like wording found in the document text the call carried. */
+  injection_flags?: string[] | null;
+  /** What the engineer did with the issue, once decided. */
+  outcome?: "accepted" | "corrected" | "rejected" | "abstained" | "superseded" | null;
   created_at: string;
+}
+
+/** `GET /projects/{id}/ai/budget`. */
+export interface AiBudget {
+  calls_last_24h: number;
+  calls_per_day_limit: number;
+  calls_remaining: number;
+  cost_last_24h: number;
+  priced: boolean;
+  cost_per_job_limit: number | null;
+  calls_per_document_limit: number;
+  elapsed_s_per_job_limit: number;
+  ai_enabled: boolean;
+  ai_ready: boolean;
+  policy: "allowed" | "blocked";
+  allowed: boolean;
+}
+
+export interface AiProposalMetrics {
+  task: string;
+  prompt_version: string;
+  model: string;
+  proposals: number;
+  from_cache: number;
+  validated: number;
+  needs_human_review: number;
+  rejected_by_validator: number;
+  insufficient_evidence: number;
+  flagged_injection: number;
+  decided: number;
+  accepted: number;
+  corrected: number;
+  rejected: number;
+  abstained: number;
+  precision: number | null;
+  validated_precision: number | null;
+  recall: number | null;
+  abstention_rate: number | null;
+  correction_rate: number | null;
+  false_validations: { proposal_id: number; issue_id: number; proposed: string | null; decided: string | null; outcome: string }[];
+}
+
+export interface AiUsageMetrics {
+  task: string;
+  model: string;
+  calls: number;
+  cache_hits: number;
+  input_tokens: number;
+  output_tokens: number;
+  estimated_cost: number;
+  average_latency_ms: number;
+  errors: Record<string, number>;
+}
+
+export interface AiEvaluationReport {
+  task: string;
+  file: string;
+  at: string;
+  prompt_version: string;
+  model: string;
+  provider: string;
+  score: {
+    cases: number;
+    scored: number;
+    errors: number;
+    proposed: number;
+    correct: number;
+    precision: number | null;
+    recall: number | null;
+    abstention_rate: number | null;
+    false_validations: number;
+    estimated_cost: number | null;
+  };
+  gate: { gated: boolean; passed: boolean | null; reasons: string[] };
+}
+
+export interface AiMetrics {
+  since: string | null;
+  proposals: AiProposalMetrics[];
+  usage: AiUsageMetrics[];
+  budget: Omit<AiBudget, "ai_enabled" | "ai_ready" | "policy" | "allowed">;
+  evaluations: AiEvaluationReport[];
+  gates: { task: string; open: boolean; runnable: boolean; min_cases: number; min_precision: number; max_false_validations: number }[];
+  /** Tasks switched off on the server (AI_DISABLED_TASKS). */
+  disabled_tasks: string[];
+}
+
+export interface BackupRow {
+  name: string;
+  size: number;
+  created_at: string;
+}
+
+export interface BackupVerification {
+  name: string;
+  restores: boolean;
+  integrity: string;
+  counts: Record<string, number>;
+  schema_version: string | null;
+  latest_revision: { ep_number: string; number: number } | null;
 }
 
 export interface ExtractionIssue {
