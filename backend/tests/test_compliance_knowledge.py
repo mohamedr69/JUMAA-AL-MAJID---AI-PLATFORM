@@ -620,3 +620,47 @@ def test_cross_project_requests_and_changed_inputs(client, db_session, tmp_path,
     status = client.get("/admin/knowledge").json()
     assert status["source_configured"] is True and str(tmp_path) not in json.dumps(status)
     assert status["last_successful"]["records_added"] > 0
+
+
+@pytest.mark.parametrize("change", ["boq", "scope", "knowledge"])
+def test_an_input_change_withdraws_approval_and_rechecks_reviewed_rows(client, db_session, tmp_path, monkeypatch,
+                                                                       knowledge, no_ai, change):
+    """Each input on its own: every knowledge-base or AI row goes to recheck
+    -- reviewed ones included, since they were reviewed against the old
+    inputs -- the approval is withdrawn, and export is refused."""
+    monkeypatch.setattr(settings, "uploads_root", str(tmp_path / "uploads"))
+    _clear_cache()
+    login(client, settings.default_admin_email, settings.default_admin_password)
+    folder = tmp_path / "EP-30784"
+    project_id = _project_with_boq(client, db_session, folder)
+    statement = _prepared(client, project_id, folder)
+    sid = statement["id"]
+    base = f"/projects/{project_id}/compliance/statements/{sid}"
+    client.post(f"{base}/autofill")
+    approved = approve_all(client, project_id, sid)
+    assert approved["approved"] is True
+    input_rows = [r for r in approved["rows"] if r.get("origin") in ("database", "ai")]
+    # The case the review reproduced: a row already reviewed when the input moves.
+    assert any(r["workflow"] == "reviewed" for r in input_rows)
+    assert client.get(f"{base}/export").status_code == 200
+
+    if change == "boq":
+        db_session.add(ProjectBoqItem(project_id=project_id, position=9, description="Heat detector", manufacturer="Edwards",
+                                      catalog_no="SIGA-HFS", quantity="10", unit="no", system_code="FAS"))
+    elif change == "scope":
+        db_session.get(Project, project_id).scope_of_work = "Supply only"
+    else:
+        from app.models import KnowledgeImport
+
+        db_session.add(KnowledgeImport(status="succeeded", source_label="later import"))
+    db_session.commit()
+
+    reopened = client.get(base).json()
+    rows = {r["id"]: r for r in reopened["rows"]}
+    assert all(rows[r["id"]]["workflow"] == "recheck" for r in input_rows)
+    assert all(rows[r["id"]]["response"] == r["response"] for r in input_rows)   # text kept
+    assert reopened["approved"] is False
+    assert any("withdrawn" in note for note in reopened["summary"]["notes"])
+    assert client.get(f"{base}/export").status_code == 409
+    assert client.get(f"{base}/export.pdf").status_code == 409
+    assert no_ai.calls == 0

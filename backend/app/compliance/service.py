@@ -996,7 +996,10 @@ def recheck(db: Session, project: Project, statement: ComplianceStatement) -> Co
     rows = rows_of(statement)
     flagged = 0
     for row in rows:
-        if row.get("origin") in ("database", "ai") and row.get("workflow") not in ("recheck", "reviewed"):
+        # A reviewed row is flagged too: the engineer reviewed it against the
+        # inputs as they stood, and those are what just changed. Skipping it
+        # left a sign-off standing on a BOQ nobody had looked at.
+        if row.get("origin") in ("database", "ai") and row.get("workflow") != "recheck":
             previous = _snapshot(row)
             row["workflow"] = "recheck"
             row["state"] = "review"
@@ -1008,6 +1011,16 @@ def recheck(db: Session, project: Project, statement: ComplianceStatement) -> Co
     statement.rows = rows
     statement.summary = {**statement.summary, "inputs": current}
     notes = list(statement.summary.get("notes") or [])
+    if statement.approved_at is not None:
+        # The approval was given against the old inputs. The fingerprint would
+        # stop matching anyway once a row moves to recheck, but an input change
+        # that flags no row (every answer typed by hand) must withdraw it too.
+        _clear_approval(statement)
+        _audit(db, project, statement, {"id": "statement"}, action="approval_withdrawn", origin="system", previous={},
+               user=None, detail={"changed": changed})
+        notes.append("The approval was withdrawn: " + ", ".join(
+            {"boq_hash": "the BOQ", "scope_hash": "the scope of work", "knowledge_import_id": "the knowledge base"}[k]
+            for k in changed) + " changed after it was given.")
     if flagged:
         notes.append(f"{flagged} row{'s' if flagged != 1 else ''} flagged for recheck: "
                      + ", ".join({"boq_hash": "the BOQ", "scope_hash": "the scope of work", "knowledge_import_id": "the knowledge base"}[k] for k in changed)
