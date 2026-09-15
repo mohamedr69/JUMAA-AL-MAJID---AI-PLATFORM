@@ -129,6 +129,7 @@ class ProjectBoqItemOut(ProjectBoqItemIn):
     extracted_values: dict | None = None
     edited_at: datetime | None = None
     created_at: datetime | None = None
+    ai_check: dict | None = None
     status: BoqLineStatus = "legacy"
 
     @model_validator(mode="after")

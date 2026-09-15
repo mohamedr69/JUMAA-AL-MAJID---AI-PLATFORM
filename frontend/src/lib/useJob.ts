@@ -89,5 +89,8 @@ export function useJob(projectId: number, kind: string, startPath: string, onFin
     }
   }, [job]);
 
-  return { job, active, error, start, cancel };
+  /** Follow a job started some other way (the page's automatic check). */
+  const follow = useCallback((started: Job) => setJob(started), []);
+
+  return { job, active, error, start, cancel, follow };
 }

@@ -178,7 +178,59 @@ export interface ProjectBoqItem extends ProjectBoqItemInput {
   extracted_values: Partial<Record<"system_code" | "group_heading" | "catalog_no" | "description" | "quantity", string | null>> | null;
   edited_at: string | null;
   created_at: string | null;
+  /** The AI verification's verdict on this line against its Design Sheet. */
+  ai_check?: AiCheck | null;
   status: BoqLineStatus;
+}
+
+export interface AiCheck {
+  status: "confirmed" | "corrected" | "added" | "unresolved";
+  verification_id: number;
+  at: string;
+  reason: string;
+}
+
+/** One thing an AI verification looked at, with what each source said. */
+export interface AiVerificationItem {
+  id: string;
+  kind: string;
+  label?: string;
+  system_code?: string | null;
+  document?: string | null;
+  page?: number | null;
+  held?: unknown;
+  ocr?: unknown;
+  ai?: unknown;
+  ai2?: unknown;
+  ai3?: unknown;
+  final?: unknown;
+  outcome: "confirmed" | "corrected" | "added" | "removed" | "unresolved" | "not_checked" | "not_an_item";
+  reason: string;
+}
+
+export interface AiVerification {
+  id: number;
+  scope: "boq" | "details";
+  status: "running" | "completed" | "failed" | "undone";
+  summary: { confirmed?: number; corrected?: number; added?: number; removed?: number; unresolved?: number; not_checked?: number; lines?: number; changed?: boolean };
+  items: AiVerificationItem[];
+  notes: string[];
+  error: string | null;
+  stale: boolean;
+  can_undo: boolean;
+  models: string[];
+  calls: number;
+  started_at: string;
+  finished_at: string | null;
+}
+
+export interface AiVerificationState {
+  available: boolean;
+  reason: string | null;
+  auto: boolean;
+  job: import("./useJob").Job | null;
+  boq: AiVerification | null;
+  details: AiVerification | null;
 }
 
 /** Reply from the BOQ open call. `extracted` is true only on the call that
@@ -197,7 +249,7 @@ export interface ReadinessCheck {
   key: string;
   label: string;
   /** "boq" checks gate issuing a BOQ revision. */
-  scope: "boq" | "calculations" | "compliance";
+  scope: "boq" | "calculations" | "compliance" | "details";
   status: CheckStatus;
   summary: string;
   items: string[];

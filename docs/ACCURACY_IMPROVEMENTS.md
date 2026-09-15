@@ -148,6 +148,67 @@ flagging ordinary specification wording), no validation from flagged text,
 link/markup rejection, compliance remark dropping, outcome recording, metrics,
 endpoints, harness scoring, case merging, gates and the server switch.
 
+## AI verification — the AI checks and settles the BOQ and Project Info
+
+Added on request: the engineer should not have to review rows one by one. The
+Design Sheets are the source of the BOQ; the DRF is the source of Project Info.
+`app/ai/verification.py` checks both and applies what it confirms.
+
+**How a value is settled.** Each value is read by independent sources:
+
+- the value held
+- a fresh OCR read with the current parser
+- the AI reading the scan itself, blind (it sees the image, not the values)
+
+| Situation | Result |
+|---|---|
+| AI agrees with the held value | confirmed |
+| AI agrees with the OCR | corrected to that value |
+| Otherwise | a second reading by the larger model (`AI_MODEL_STANDARD`) |
+| Still unsettled | a close-up reading of that single row |
+| No two readings agree | unresolved: the held value stays and the item is listed |
+
+- **Removing needs full agreement.** A BOQ line the sheet no longer yields is
+  looked for on the pages, and removed only when neither AI reading finds it.
+  A Project Info value is cleared, or a system removed, only when every reading
+  agrees.
+- **Unreadable is not the same as blank.** An empty or unreadable reading counts
+  as no reading at all. Whatever the DRF image does not show (a half-page scan)
+  is "not checked" and left alone.
+- **Headings are not added.** A row the OCR dropped whose AI readings agree it
+  has no quantity is recognised as a heading.
+- **Lines typed in by hand are left alone.**
+
+**Applying and undoing.**
+- The BOQ changes through the re-read machinery, after a snapshot.
+- Project Info changes through the same path as an edit, including carrying a
+  brand change into BOQ lines.
+- Each run is stored in `ai_verifications` with what every source said.
+  **Undo these changes** reverts a run in one step, as long as nothing was saved
+  since.
+- Each BOQ line shows the verdict as a badge (AI ✓ / AI fixed / AI added /
+  AI unsure). The verdict clears when someone edits a value the sheet carries.
+
+**When it runs.**
+- Automatically, the first time a project's BOQ or Project Info page is opened
+  by someone who can edit it (`AI_VERIFY_AUTO`).
+- On **Check again**.
+- Limits: `AI_VERIFY_MAX_CALLS` per run, `AI_VERIFY_MAX_CALLS_PER_DAY` per
+  project, `AI_VERIFY_MAX_ELAPSED_S`.
+- Projects set to "AI use: Not allowed" are never checked.
+- Readiness shows whether each check is current.
+
+**Measured on real data** (a copy of the database, Claude subscription through
+Claude Code):
+
+| Project | Result | Cost |
+|---|---|---|
+| EP-30208 BOQ | 50 stored lines became 97: 24 confirmed, 26 corrected (quantities and OCR-damaged part numbers such as `£232 301H` → `E-232 301H`), 47 added, 1 heading recognised, 0 unresolved. 97 is the count previously verified by hand against the page images. | 8 AI calls, ~2 minutes |
+| EP-30784 Project Info | 14 confirmed; missing Other Information filled from the DRF (OCR and AI agreed) | 1 call, 39 s |
+| EP-30208 Project Info (half-page JPG DRF) | 10 confirmed; Systems table and Other Information not on the image, left unchanged and marked not checked | 2 calls |
+
+Tests: `tests/test_ai_verification.py` (10).
+
 ## Acceptance gates: where each stands
 
 | Gate (plan §6) | Status |

@@ -164,6 +164,14 @@ class Settings(BaseSettings):
     # separated (e.g. "answer_clauses,read_field"): the deployment control
     # for rolling a task back without a code change. See app/ai/evaluation.py.
     ai_disabled_tasks: str = ""
+    # The AI verification of a project against its sources (app.ai.verification):
+    # calls one run may make, calls a project may make in a day across runs, the
+    # time a run may take, and whether a project that has never been verified is
+    # verified when its BOQ or Project Info page is first opened.
+    ai_verify_max_calls: int = 80
+    ai_verify_max_calls_per_day: int = 240
+    ai_verify_max_elapsed_s: float = 3600.0
+    ai_verify_auto: bool = True
     # The Claude Code program for "claude-code": a name on the PATH or the full
     # path to claude.exe. Sign in once with `claude` as the user the server runs as.
     ai_claude_cli: str = "claude"

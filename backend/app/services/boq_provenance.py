@@ -26,7 +26,7 @@ SHEET_FIELDS = ("system_code", "group_heading", "catalog_no", "description", "qu
 
 PROVENANCE_FIELDS = (
     "building", "catalog_canonical", "catalog_match", "origin", "extraction_run_id", "source_document_sha256", "source_page", "source_region", "raw_values",
-    "ocr_confidence", "parser_version", "extracted_values", "edited_by_id", "edited_at", "created_at",
+    "ocr_confidence", "parser_version", "extracted_values", "edited_by_id", "edited_at", "created_at", "ai_check",
 )
 CONTENT_FIELDS = ("system_code", "group_heading", "manufacturer", "catalog_no", "description", "quantity", "unit",
                   "unit_price", "total_price", "remarks")
@@ -116,6 +116,9 @@ def rebuild_items(project: Project, incoming: list[dict], user: User | None) -> 
                     item.extracted_values = sheet_values(previous)
                 item.edited_by_id = user.id if user else None
                 item.edited_at = now
+            if any(not _same(getattr(previous, name), content.get(name)) for name in SHEET_FIELDS):
+                # The AI's verdict was about the values it checked, not these.
+                item.ai_check = None
         rows.append(item)
     return rows
 

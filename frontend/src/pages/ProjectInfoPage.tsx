@@ -1,4 +1,5 @@
 import { useMemo, useState, type FormEvent } from "react";
+import { AiVerificationPanel } from "../components/AiVerificationPanel";
 import { DetailsCheckPanel } from "../components/DetailsCheckPanel";
 import { ProjectDetailsFields } from "../components/ProjectDetailsFields";
 import { StaleWriteNotice } from "../components/StaleWriteNotice";
@@ -11,7 +12,6 @@ import { PROJECT_EDITOR_ROLES, type Project } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
 export function ProjectInfoPage() {
-  const { project } = useProject();
   const { user } = useAuth();
   const canEdit = user !== null && PROJECT_EDITOR_ROLES.includes(user.role);
 
@@ -23,7 +23,7 @@ export function ProjectInfoPage() {
           ? "Read from the DRF when the project was created. Correct anything that was read wrongly or has changed since."
           : "Read from the DRF when the project was created."}
       </p>
-      {canEdit ? <EditProjectInfo /> : <ProjectInfoReadOnly project={project} />}
+      {canEdit ? <EditProjectInfo /> : <ReadOnlyWithCheck />}
     </div>
   );
 }
@@ -74,6 +74,20 @@ function EditProjectInfo() {
   }
 
   return (
+    <>
+    {project.drf_document_path && (
+      <AiVerificationPanel
+        projectId={project.id}
+        scope="details"
+        canEdit
+        onApplied={() => {
+          if (dirty && !window.confirm("The AI check changed the saved project information. Reloading discards your unsaved edits. Reload now?")) {
+            return;
+          }
+          void reloadCurrent();
+        }}
+      />
+    )}
     <form onSubmit={handleSubmit} className="mt-6 space-y-4 rounded-xl border border-gray-200 bg-white p-5">
       {project.drf_document_path ? (
         <DetailsCheckPanel endpoint={`/projects/${project.id}/details-check`} draft={draft} onApply={setDraft} disabled={saving} />
@@ -122,6 +136,24 @@ function EditProjectInfo() {
         </button>
       </div>
     </form>
+    </>
+  );
+}
+
+function ReadOnlyWithCheck() {
+  const { project, setProject } = useProject();
+  return (
+    <>
+      {project.drf_document_path && (
+        <AiVerificationPanel
+          projectId={project.id}
+          scope="details"
+          canEdit={false}
+          onApplied={() => void api.get<Project>(`/projects/${project.id}`).then(setProject).catch(() => undefined)}
+        />
+      )}
+      <ProjectInfoReadOnly project={project} />
+    </>
   );
 }
 

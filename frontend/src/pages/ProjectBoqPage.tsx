@@ -18,6 +18,7 @@ import {
 import { useUnsavedChanges } from "../lib/useUnsavedChanges";
 import { UnderMaintenance } from "../components/UnderMaintenance";
 import { ExtractionReview } from "../components/ExtractionReview";
+import { AiCheckBadge, AiVerificationPanel } from "../components/AiVerificationPanel";
 import { StaleWriteNotice } from "../components/StaleWriteNotice";
 import { useProject } from "./ProjectWorkspace";
 
@@ -534,6 +535,19 @@ export function ProjectBoqPage() {
             </div>
           )}
           {!loading && (
+            <AiVerificationPanel
+              projectId={project.id}
+              scope="boq"
+              canEdit={canEdit}
+              onApplied={() => {
+                if (dirty && !window.confirm("The AI check changed the saved BOQ. Reloading discards your unsaved edits. Reload now?")) {
+                  return;
+                }
+                setReloadEpoch((n) => n + 1);
+              }}
+            />
+          )}
+          {!loading && (
             <ExtractionReview
               key={reloadEpoch}
               projectId={project.id}
@@ -689,7 +703,10 @@ export function ProjectBoqPage() {
                     {pagedRows.map(({ row, index }) => (
                       <li key={row.key} className="rounded-xl border border-gray-200 bg-white p-3">
                         <div className="flex items-start justify-between gap-2">
-                          <StatusBadge status={rowStatus(row, meta)} />
+                          <span>
+                            <StatusBadge status={rowStatus(row, meta)} />
+                            <AiCheckBadge check={row.id ? meta.get(row.id)?.ai_check : null} />
+                          </span>
                           {canEdit && (
                             <button
                               onClick={() => removeRow(index)}
@@ -769,6 +786,7 @@ export function ProjectBoqPage() {
                                 >
                                   <StatusBadge status={status} />
                                 </button>
+                                <AiCheckBadge check={stored?.ai_check} />
                                 {openDetail === row.key && <Provenance row={row} meta={meta} />}
                               </td>
                               {COLUMNS.map((column) => {

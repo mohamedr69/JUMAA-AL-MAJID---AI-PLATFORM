@@ -28,6 +28,7 @@ from app.routers import (
     readiness,
     submittal,
     users,
+    verification,
 )
 from app.seed import seed_default_admin, seed_design_rules
 from app.services.datasheet_library import get_libraries
@@ -166,6 +167,7 @@ app.include_router(compliance.router)
 app.include_router(knowledge.router)
 app.include_router(extraction.router)
 app.include_router(extraction.admin_router)
+app.include_router(verification.router)
 
 
 @app.get("/health")

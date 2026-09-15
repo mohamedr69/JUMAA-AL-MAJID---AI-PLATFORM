@@ -239,11 +239,46 @@ def _compliance(db: Session, project: Project) -> Check:
                  "compliance")
 
 
+def _ai_verification(db: Session, project: Project, scope: str) -> Check:
+    """Whether the AI has checked the BOQ against the Design Sheets / Project
+    Info against the DRF, for the values as they stand. Warnings only: the
+    verification applies what it confirms itself, and what it leaves
+    unresolved is listed."""
+    from app.ai import verification
+
+    key, label, link = (("ai_verification_boq", "AI check of the BOQ against the Design Sheets", "boq") if scope == "boq"
+                        else ("ai_verification_details", "AI check of Project Info against the DRF", "info"))
+    record = verification.latest(db, project.id, scope)
+    current = project.boq_version if scope == "boq" else project.details_version
+    if record is None:
+        return Check(key, label, scope if scope == "boq" else "details", WARNING, "Not checked by the AI yet.", link=link)
+    check_scope = scope if scope == "boq" else "details"
+    if record.status == "running":
+        return Check(key, label, check_scope, WARNING, "The AI check is running.", link=link)
+    if record.status in ("failed", "undone"):
+        return Check(key, label, check_scope, WARNING,
+                     "The last AI check " + ("did not finish: " + (record.error or "")[:160] if record.status == "failed" else "was undone") + ".",
+                     link=link)
+    s = record.summary or {}
+    unresolved = [f"{i.get('label') or (i.get('held') or i.get('final') or {}).get('description') or i.get('id')}: {i.get('reason')}"[:200]
+                  for i in record.items or [] if i.get("outcome") == "unresolved"]
+    if record.version_after != current:
+        return Check(key, label, check_scope, WARNING, "Changed since the AI last checked it: check again.", link=link)
+    if unresolved:
+        return Check(key, label, check_scope, WARNING,
+                     f"{len(unresolved)} item{'s' if len(unresolved) != 1 else ''} the AI could not settle; the rest confirmed.",
+                     unresolved[:100], len(unresolved), link)
+    return Check(key, label, check_scope, OK,
+                 f"Confirmed by the AI: {s.get('confirmed', 0)} as held, {s.get('corrected', 0)} corrected, "
+                 f"{s.get('added', 0)} added, {s.get('removed', 0)} removed.", link=link)
+
+
 def evaluate(db: Session, project: Project, *, include_calculations: bool = True) -> dict:
     latest = _latest_design_runs(db, project)
     unresolved, ai = _issues(latest)
     checks = [_documents(db, project), _revisions(project), _coverage(db, project, latest), unresolved, ai,
-              _boq_lines(project), _candidates(db, project)]
+              _boq_lines(project), _candidates(db, project), _ai_verification(db, project, "boq"),
+              _ai_verification(db, project, "details")]
     if include_calculations:
         checks.append(_calculations(db, project))
     checks.append(_compliance(db, project))

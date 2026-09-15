@@ -322,6 +322,11 @@ class ProjectBoqItem(Base):
     edited_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
     created_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True, default=utc_now)
+    # The AI verification's verdict on this line against its Design Sheet
+    # (app.ai.verification): {"status": "confirmed" | "corrected" | "added" |
+    # "unresolved", "verification_id", "at", "sources", "reason"}. Cleared when
+    # anyone changes a value the sheet carries.
+    ai_check: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class ProjectDocument(Base):
@@ -415,6 +420,40 @@ class BoqSnapshot(Base):
     items: Mapped[list] = mapped_column(JSON, nullable=False)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
+class AiVerification(Base):
+    """One run of the AI check of a project against its source documents:
+    the BOQ against the Design Sheets, or Project Info against the DRF.
+
+    Every item it looked at is kept with what each source said -- the value
+    held, the fresh OCR read, the AI's reading and, where they disagreed, a
+    second independent AI reading -- and what was decided. Changes are applied
+    by the run itself; `undo` holds what is needed to put them back (the BOQ
+    snapshot taken before, or the previous Project Info values)."""
+
+    __tablename__ = "ai_verifications"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    # "boq" | "details"
+    scope: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    # "running" | "completed" | "failed" | "undone"
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="running")
+    # {"confirmed", "corrected", "added", "removed", "unresolved", "not_checked"}
+    summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    items: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    notes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The version of the BOQ / details the run left behind: a later save makes it stale.
+    version_after: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    undo: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    models: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    prompt_version: Mapped[str] = mapped_column(String(40), nullable=False, default="")
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
 
 class BackgroundJob(Base):

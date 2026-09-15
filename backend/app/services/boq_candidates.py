@@ -230,8 +230,13 @@ def _item_from(record: dict, position: int) -> ProjectBoqItem:
     return item
 
 
-def apply(db: Session, project: Project, candidate: BoqCandidate, decisions: dict[str, str], user: User) -> dict:
-    """Write the taken changes. Returns counts of what was applied."""
+def apply(db: Session, project: Project, candidate: BoqCandidate, decisions: dict[str, str], user: User,
+          *, extra: dict[str, dict] | None = None, reason: str | None = None) -> dict:
+    """Write the taken changes. Returns counts of what was applied.
+
+    `extra` maps a change id to columns set on the line that change leaves
+    behind, whatever was decided (the AI verification's verdict)."""
+    extra = extra or {}
     if candidate.status != "pending":
         raise CandidateError(f"This re-read is {candidate.status}; build a new one.")
     if candidate.base_boq_version != project.boq_version:
@@ -243,7 +248,7 @@ def apply(db: Session, project: Project, candidate: BoqCandidate, decisions: dic
         raise CandidateError(f"{len(missing)} change{'s' if len(missing) != 1 else ''} still need a decision "
                              "(take the sheet's value or keep the BOQ's).")
 
-    boq_provenance.snapshot(db, project, f"before re-read #{candidate.id}", user)
+    boq_provenance.snapshot(db, project, reason or f"before re-read #{candidate.id}", user)
     now = utc_now()
     by_old: dict[int, dict] = {c["old_id"]: c for c in candidate.changes if c.get("old_id") is not None}
     counts = {"changed": 0, "added": 0, "removed": 0, "kept": 0, "sources_updated": 0}
@@ -256,6 +261,7 @@ def apply(db: Session, project: Project, candidate: BoqCandidate, decisions: dic
             rebuilt.append(_item_from(record, len(rebuilt)))
             continue
         decision = decisions.get(change["id"], "accept" if change["kind"] == "unchanged" else "keep")
+        record.update(extra.get(change["id"], {}))
         if change["kind"] == "removed":
             if decision == "accept":
                 counts["removed"] += 1
@@ -282,6 +288,7 @@ def apply(db: Session, project: Project, candidate: BoqCandidate, decisions: dic
                 counts["sources_updated"] += 1
         else:
             counts["kept"] += 1
+        record.update(extra.get(change["id"], {}))
         rebuilt.append(_item_from(record, len(rebuilt)))
 
     for change in candidate.changes:
@@ -291,6 +298,7 @@ def apply(db: Session, project: Project, candidate: BoqCandidate, decisions: dic
             counts["kept"] += 1
             continue
         record = dict(change["after"])
+        record.update(extra.get(change["id"], {}))
         record["manufacturer"] = _brand(project, record.get("system_code"))
         record["edited_by_id"], record["edited_at"] = user.id, now
         # After the last line of its system, so it lands in its tab's order.
