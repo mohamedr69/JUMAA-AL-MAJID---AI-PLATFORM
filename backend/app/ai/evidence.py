@@ -74,9 +74,11 @@ def _fingerprint(parts: list[TextPart | ImagePart]) -> str:
     return digest.hexdigest()
 
 
-def render_region(pdf_path: Path, page: int, region: tuple[int, int, int, int], render_dpi: int) -> bytes:
+def render_region(pdf_path: Path, page: int, region: tuple[int, int, int, int], render_dpi: int,
+                  *, max_width: int = MAX_CROP_WIDTH_PX) -> bytes:
     """The region (pixel bbox at `render_dpi`) of a page as PNG bytes,
-    with a margin, downscaled to a small width."""
+    with a margin, downscaled to `max_width` at most (a cell for the model
+    is small; a whole row for a reviewer is wider)."""
     with pymupdf.open(str(pdf_path)) as doc:
         pix = doc[page - 1].get_pixmap(dpi=render_dpi, colorspace=pymupdf.csGRAY)
         image = Image.frombytes("L", (pix.width, pix.height), pix.samples)
@@ -84,9 +86,9 @@ def render_region(pdf_path: Path, page: int, region: tuple[int, int, int, int], 
     box = (max(0, x0 - CELL_MARGIN_PX), max(0, y0 - CELL_MARGIN_PX),
            min(image.width, x1 + CELL_MARGIN_PX), min(image.height, y1 + CELL_MARGIN_PX))
     crop = image.crop(box)
-    if crop.width > MAX_CROP_WIDTH_PX:
-        ratio = MAX_CROP_WIDTH_PX / crop.width
-        crop = crop.resize((MAX_CROP_WIDTH_PX, max(1, int(crop.height * ratio))))
+    if crop.width > max_width:
+        ratio = max_width / crop.width
+        crop = crop.resize((max_width, max(1, int(crop.height * ratio))))
     out = io.BytesIO()
     crop.save(out, format="PNG", optimize=True)
     return out.getvalue()

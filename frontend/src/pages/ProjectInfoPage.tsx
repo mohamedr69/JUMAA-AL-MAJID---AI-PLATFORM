@@ -1,9 +1,12 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { DetailsCheckPanel } from "../components/DetailsCheckPanel";
 import { ProjectDetailsFields } from "../components/ProjectDetailsFields";
+import { StaleWriteNotice } from "../components/StaleWriteNotice";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api } from "../lib/api";
+import { formatApiDate } from "../lib/format";
 import { draftFrom, draftToPayload } from "../lib/projectDetails";
+import { useUnsavedChanges } from "../lib/useUnsavedChanges";
 import { PROJECT_EDITOR_ROLES, type Project } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
@@ -33,23 +36,40 @@ function EditProjectInfo() {
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [propagated, setPropagated] = useState<string[]>([]);
+  const [staleError, setStaleError] = useState<ApiError | null>(null);
 
   const dirty = JSON.stringify(draftToPayload(draft)) !== JSON.stringify(draftToPayload(saved));
+  useUnsavedChanges(dirty);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError(null);
+    setStaleError(null);
     try {
-      const updated = await api.put<Project>(`/projects/${project.id}`, draftToPayload(draft));
+      // Saved against the version this form was loaded from: a save someone
+      // else made in between is refused rather than overwritten.
+      const updated = await api.put<Project>(`/projects/${project.id}`, draftToPayload(draft), project.details_version);
       setProject(updated);
       setDraft(draftFrom(updated, updated.systems));
-      setSavedAt(new Date().toLocaleTimeString());
+      setSavedAt(formatApiDate(new Date().toISOString(), "short"));
       setPropagated(updated.propagated ?? []);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to save the project information");
+      if (err instanceof ApiError && err.isStaleWrite) setStaleError(err);
+      else setError(err instanceof ApiError ? err.message : "Failed to save the project information");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function reloadCurrent() {
+    try {
+      const current = await api.get<Project>(`/projects/${project.id}`);
+      setProject(current);
+      setDraft(draftFrom(current, current.systems));
+      setStaleError(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Failed to reload the project");
     }
   }
 
@@ -64,7 +84,14 @@ function EditProjectInfo() {
       )}
       <ProjectDetailsFields epNumber={`EP-${project.ep_number}`} draft={draft} onChange={setDraft} />
 
-      {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {staleError && (
+        <StaleWriteNotice error={staleError} what="the project information" onReload={reloadCurrent} onDismiss={() => setStaleError(null)} />
+      )}
+      {error && (
+        <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {savedAt && !dirty && propagated.length > 0 && (
         <div className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
@@ -73,7 +100,11 @@ function EditProjectInfo() {
       )}
 
       <div className="flex items-center justify-end gap-2">
-        {savedAt && !dirty && <span className="text-xs text-gray-400">Saved {savedAt} · every tab now shows these details</span>}
+        {savedAt && !dirty && (
+          <span className="text-xs text-gray-500">
+            Saved {savedAt} · version {project.details_version} · every tab now shows these details
+          </span>
+        )}
         <button
           type="button"
           onClick={() => setDraft(saved)}

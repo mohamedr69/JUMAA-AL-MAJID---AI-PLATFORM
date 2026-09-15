@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel, ConfigDict, model_validator
 
 from app.models import ProjectStatus
 
@@ -74,11 +74,70 @@ class ProjectBoqItemIn(BaseModel):
     remarks: str | None = None
 
 
+class ProjectBoqItemSave(ProjectBoqItemIn):
+    """A line as the BOQ page saves it: the id it was loaded with, so the
+    server can keep that line's provenance. New lines have none.
+
+    The quantity is checked here, at the boundary, by the same typed parser
+    the extractor uses: "1,250" is stored as 1250 and "10 Nos" as 10 with
+    the unit Nos, while "12.5", "-3" or "2 x 10" are refused with the reason
+    rather than stored as text a calculation would later misread."""
+
+    id: int | None = None
+
+    @model_validator(mode="after")
+    def _typed_quantity(self):
+        from app.extraction import values
+
+        parsed = values.parse_quantity(self.quantity)
+        if parsed.status == values.EMPTY:
+            self.quantity = None
+        elif parsed.ok:
+            self.quantity = parsed.text()
+            if parsed.unit and not (self.unit or "").strip():
+                self.unit = parsed.unit
+        else:
+            label = self.catalog_no or self.description[:40] or "a line"
+            raise ValueError(f"Quantity {self.quantity!r} on {label} is not a quantity: {parsed.rule}")
+        for name in ("unit_price", "total_price"):
+            price = getattr(self, name)
+            if price is not None and price < 0:
+                raise ValueError(f"{name.replace('_', ' ').capitalize()} on {self.catalog_no or 'a line'} cannot be negative")
+        return self
+
+
+BoqLineStatus = Literal["extracted", "corrected", "ai_accepted", "review_accepted", "manual", "legacy"]
+
+
 class ProjectBoqItemOut(ProjectBoqItemIn):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     position: int
+    # Provenance (app.services.boq_provenance).
+    origin: str = "legacy"
+    extraction_run_id: int | None = None
+    source_document_sha256: str | None = None
+    source_page: int | None = None
+    source_region: list[int] | None = None
+    raw_values: dict | None = None
+    ocr_confidence: Decimal | None = None
+    parser_version: str | None = None
+    extracted_values: dict | None = None
+    edited_at: datetime | None = None
+    created_at: datetime | None = None
+    status: BoqLineStatus = "legacy"
+
+    @model_validator(mode="after")
+    def _status(self):
+        if self.origin == "extracted" and self.extracted_values and any(
+            (self.extracted_values.get(name) or None) != (getattr(self, name) or None)
+            for name in ("system_code", "group_heading", "catalog_no", "description", "quantity")
+        ):
+            self.status = "corrected"
+        elif self.origin in ("extracted", "ai_accepted", "review_accepted", "manual", "legacy"):
+            self.status = self.origin  # type: ignore[assignment]
+        return self
 
 
 class BoqEnsureResponse(BaseModel):
@@ -89,6 +148,8 @@ class BoqEnsureResponse(BaseModel):
     items: list[ProjectBoqItemOut]
     extracted: bool
     warnings: list[str] = []
+    # The version a save must name in If-Match (app.services.concurrency).
+    version: int = 0
 
 
 class BoqRevisionIssue(BaseModel):
@@ -211,6 +272,10 @@ class ProjectOut(BaseModel):
     design_sheets: list[ProjectDesignSheetOut]
     boq_extraction_warnings: list[str] | None
     created_at: datetime
+    updated_at: datetime | None = None
+    # Versions a save must name in If-Match (app.services.concurrency).
+    details_version: int = 0
+    boq_version: int = 0
     separate_ve_panel: bool = False
     # From app.services.system_rules: whether FAS carries VE and FT, and the
     # systems the project has under their effective codes. Every tab reads these.

@@ -105,6 +105,13 @@ class Project(Base):
     # silently missing.
     boq_extraction_warnings: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
+    # Bumped on every write to the BOQ lines / the project information. A
+    # save names the version it was edited from; a different number means
+    # someone else saved in between, and the save is refused rather than
+    # silently replacing their work (app.services.concurrency).
+    boq_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    details_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
     design_engineer_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     design_engineer = relationship("User", foreign_keys=[design_engineer_id])
 
@@ -176,6 +183,7 @@ class ProjectDesign(Base):
     project: Mapped["Project"] = relationship(back_populates="design")
 
     document: Mapped[dict] = mapped_column(JSON, nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     updated_by = relationship("User")
@@ -276,6 +284,122 @@ class ProjectBoqItem(Base):
     total_price: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
 
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # --- provenance: where the line came from, as read, and who changed it.
+    #
+    # "extracted" (read off a Design Sheet by a recorded run), "ai_accepted"
+    # (a dropped row an engineer accepted, with or without a model's reading),
+    # "manual" (typed in), "legacy" (stored before provenance was kept).
+    origin: Mapped[str] = mapped_column(String(16), nullable=False, default="manual", server_default="legacy")
+    extraction_run_id: Mapped[int | None] = mapped_column(ForeignKey("extraction_runs.id"), nullable=True, index=True)
+    source_document_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # [x0, y0, x1, y1] at the extractor's render DPI.
+    source_region: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # The OCR text as read and what the typed parser made of it:
+    # {catalog_no, description, quantity, quantity_parse}.
+    raw_values: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    ocr_confidence: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    parser_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # The line's sheet-carried values as the machine first stored them, kept
+    # when an engineer edits it, so "extracted" and "corrected" stay apart.
+    extracted_values: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    edited_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    edited_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    created_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True, default=utc_now)
+
+
+class ProjectDocument(Base):
+    """A document the project draws on, identified by its content, not its
+    filename: the DRF, each Design Sheet, an upload.
+
+    The intake gate (app.services.document_intake) fills this in: that the
+    file is there and readable, how many pages it has against how many it
+    says it has, whether the EP number in its name and folder is this
+    project's, whether it lies inside the project's folder, and whether the
+    same content is attached twice. `findings` holds what it found; a
+    `blocked` document's values are not to be trusted until someone settles
+    the finding. `path` is the absolute location and is not sent to viewers
+    as-is; `relative_path` is what the pages show.
+    """
+
+    __tablename__ = "project_documents"
+    __table_args__ = (UniqueConstraint("project_id", "role", "path", name="uq_project_document_path"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    # "drf" | "design_sheet"
+    role: Mapped[str] = mapped_column(String(24), nullable=False)
+    system_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    path: Mapped[str] = mapped_column(Text, nullable=False)
+    relative_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mime: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # {"declared_total": 2, "numbers": [1], "pages_read": 1}
+    printed_pages: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # "unchecked" | "ok" | "warning" | "blocked"
+    intake_status: Mapped[str] = mapped_column(String(16), nullable=False, default="unchecked", index=True)
+    # [{"code", "severity", "message", "detail"}]
+    findings: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    intake_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    # A finding the engineer has looked at and accepted ("the file is named
+    # EP-30088 but it is this project's sheet"), with who and why.
+    acknowledged: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
+
+class BoqCandidate(Base):
+    """A re-read of the Design Sheets waiting on an engineer.
+
+    Re-extraction never replaces the BOQ. It records its runs, builds the
+    lines it read as a candidate, and lays them against the BOQ as it stood
+    (`base_boq_version`): row by row, added / removed / changed. The engineer
+    decides each change -- take the new, keep the old -- and only the taken
+    ones are written, after the BOQ as it was is kept as a snapshot.
+    """
+
+    __tablename__ = "boq_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    # "pending" | "applied" | "discarded" | "superseded"
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
+    base_boq_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    parser_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    run_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # The lines read, each with its provenance.
+    lines: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # [{"id", "kind", "match", "before", "after", "fields", "confidence", "reason"}]
+    changes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    summary: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    decided_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    # {change_id: "accept" | "keep" | "edit"} and any edited values.
+    decisions: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class BoqSnapshot(Base):
+    """The BOQ exactly as it stood before something replaced part of it --
+    an applied candidate, a bulk repair. Never updated or deleted: it is how
+    an engineer's lines survive a re-read they later regret."""
+
+    __tablename__ = "boq_snapshots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    boq_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Every line with its provenance columns.
+    items: Mapped[list] = mapped_column(JSON, nullable=False)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
 class ProjectBoqRevision(Base):
@@ -557,6 +681,7 @@ class ComplianceStatement(Base):
     # The answers as approved: the fingerprint of every row's response,
     # remark, technical status and workflow at the moment of approval.
     approved_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)

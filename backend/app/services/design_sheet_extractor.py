@@ -187,14 +187,17 @@ class ExtractedBoqLine:
     quantity_span: tuple[int, int] | None = None
     quantity_parse: dict | None = None
     row_bounds: tuple[int, int] | None = None   # (top, bottom) of the row at RENDER_DPI, when ruled
+    table_span: tuple[int, int] | None = None   # (first rule, last rule) of the table the row is in
 
     def region(self) -> tuple[int, int, int, int] | None:
         """The row's box on the rendered page: from the first column rule to
-        the last, top to bottom of the row -- what provenance records."""
-        if self.quantity_span is None or self.y_px is None:
+        the last, top to bottom of the row -- what provenance records and
+        what a reviewer is shown."""
+        span = self.table_span or self.quantity_span
+        if span is None or self.y_px is None:
             return None
         top, bottom = self.row_bounds or (int(self.y_px - _CELL_HALF_HEIGHT_PX), int(self.y_px + _CELL_HALF_HEIGHT_PX))
-        return (int(self.quantity_span[0]), int(top), int(self.quantity_span[1]), int(bottom))
+        return (int(span[0]), int(top), int(span[1]), int(bottom))
 
 
 class DesignSheetExtractionError(RuntimeError):
@@ -706,6 +709,7 @@ def _read_page(
         table_lines = _read_table(image, dark, rules, layout, page_number, top, bottom, section)
         for line in table_lines:
             line.quantity_span = span
+            line.table_span = (rules[0], rules[-1])
         lines.extend(table_lines)
         accepted = sum(1 for line in table_lines if line.quantity)
         regions.append(RegionCoverage("table", top, bottom, "processed", rows_accepted=accepted,

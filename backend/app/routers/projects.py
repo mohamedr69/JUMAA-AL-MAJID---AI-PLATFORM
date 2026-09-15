@@ -2,7 +2,7 @@ import threading
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
@@ -36,6 +36,7 @@ from app.schemas_project import (
     FieldComparisonOut,
     ProjectBoqItemIn,
     ProjectBoqItemOut,
+    ProjectBoqItemSave,
     ProjectCreate,
     ProjectDetailsIn,
     ProjectOut,
@@ -49,7 +50,7 @@ from app.schemas_project import (
 from app.schemas_design import ProjectLogDrawingOut, ProjectLogsOut
 from app.extraction import pipeline as extraction_pipeline
 from app.extraction.issues import Coverage, Issue, IssueCode, PageCoverage
-from app.services import activity, design_sheet_extractor
+from app.services import activity, boq_provenance, concurrency, design_sheet_extractor
 from app.services.design_sheet_extractor import (
     DesignSheetExtraction,
     extract_design_sheet,
@@ -359,14 +360,18 @@ def get_project(
 def update_project(
     project_id: int,
     payload: ProjectDetailsIn,
+    if_match: str | None = Header(default=None, alias="If-Match"),
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> Project:
     """Correct the project information after creation -- the DRF read is a
     suggestion, and a wrong value found later needs somewhere to be fixed.
     The EP number and document paths are not editable: they tie the project
-    to its archive folder."""
+    to its archive folder. Refused with 409 when `If-Match` names a
+    `details_version` someone else's save has since moved on from."""
     project = _get_project_or_404(db, project_id)
+    concurrency.require_current(if_match, project.details_version, "The project information")
+    project.details_version += 1
     before = _details_snapshot(project)
     _apply_details(project, payload)
     propagated = _propagate_details(db, project, before)
@@ -379,6 +384,10 @@ def update_project(
     new_systems = sorted(f"{s.name} ({s.brand})" if s.brand else s.name for s in project.systems)
     if old_systems != new_systems:
         changed["systems"] = f"{', '.join(old_systems) or '-'} -> {', '.join(new_systems) or '-'}"
+    if any(db.is_modified(item) for item in project.boq_items):
+        # A brand or system change carried into the BOQ lines is a BOQ write:
+        # a table open elsewhere must not save over it.
+        project.boq_version += 1
     db.commit()
     if changed:
         activity.record(db, current_user, "project.updated",
@@ -498,10 +507,13 @@ def check_project_details(
 @router.get("/{project_id}/boq", response_model=list[ProjectBoqItemOut])
 def get_project_boq(
     project_id: int,
+    response: Response,
     _current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[ProjectBoqItem]:
-    return _get_project_or_404(db, project_id).boq_items
+    project = _get_project_or_404(db, project_id)
+    concurrency.set_version_header(response, project.boq_version)
+    return project.boq_items
 
 
 @router.get("/{project_id}/boq/export.xlsx")
@@ -536,24 +548,34 @@ def _xlsx_response(content: bytes, filename: str) -> Response:
 @router.put("/{project_id}/boq", response_model=list[ProjectBoqItemOut])
 def replace_project_boq(
     project_id: int,
-    items: list[ProjectBoqItemIn],
+    items: list[ProjectBoqItemSave],
+    response: Response,
+    if_match: str | None = Header(default=None, alias="If-Match"),
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> list[ProjectBoqItem]:
     """Replace the whole BOQ in one call.
 
     The client edits the table as a whole -- rows get reordered, inserted and
-    removed together -- so sending the finished list avoids having to invent
-    and reconcile per-row ids for lines the user has not saved yet. `position`
-    comes from the list order rather than the client.
+    removed together -- so it sends the finished list. `position` comes from
+    the list order rather than the client. Each line carries the id it was
+    loaded with, which is how its provenance (the sheet, page and raw read it
+    came from) survives the save; a changed sheet value is recorded as an
+    engineer's correction with the machine's value kept beside it.
+
+    Refused with 409 when `If-Match` names a version that is no longer
+    current: someone else saved the BOQ after this table was loaded.
     """
     project = _get_project_or_404(db, project_id)
+    concurrency.require_current(if_match, project.boq_version, "The BOQ")
     before = len(project.boq_items)
-    project.boq_items = [
-        ProjectBoqItem(position=index, **{**item.model_dump(), "system_code": system_rules.effective_code(item.system_code, project)})
-        for index, item in enumerate(items)
+    incoming = [
+        {**item.model_dump(), "system_code": system_rules.effective_code(item.system_code, project)} for item in items
     ]
+    project.boq_items = boq_provenance.rebuild_items(project, incoming, current_user)
+    project.boq_version += 1
     db.commit()
+    concurrency.set_version_header(response, project.boq_version)
     systems = sorted({item.system_code for item in project.boq_items if item.system_code})
     activity.record(db, current_user, "boq.saved", f"Saved the BOQ: {len(items)} line{'s' if len(items) != 1 else ''}",
                     project=project, entity_type="boq", entity_id=project.id,
@@ -622,28 +644,28 @@ def ensure_project_boq(
             db.rollback()
             return _stored_boq(project)
 
-        position = len(project.boq_items)
-        for system_code, line in extracted:
-            # Prices, unit and remarks are left for the engineer. The sheets
-            # carry Unit/Total Price columns but they are blank on every sheet
-            # in the archive, so there is nothing to read and nothing to check
-            # a read against.
-            project.boq_items.append(
-                ProjectBoqItem(
-                    system_code=system_code,
-                    position=position,
-                    group_heading=line.group_heading,
-                    manufacturer=_brand_for(system_code, project.systems, project.separate_ve_panel),
-                    catalog_no=line.catalog_no,
-                    description=line.description,
-                    quantity=line.quantity,
-                )
-            )
-            position += 1
-
         db.commit()
+        # The runs are recorded first, so every line can name the run -- and
+        # through it the document, its hash and the parser -- it was read by.
+        runs = {id(sheet): extraction_pipeline.record_design_sheet_run(db, project, sheet, result)
+                for sheet, result in reads}
+        position = len(project.boq_items)
         for sheet, result in reads:
-            extraction_pipeline.record_design_sheet_run(db, project, sheet, result)
+            if result.failure:
+                continue
+            system_code = system_rules.effective_code(sheet.system_code, project)
+            for line in result.lines:
+                # Prices, unit and remarks are left for the engineer. The
+                # sheets carry Unit/Total Price columns but they are blank on
+                # every sheet in the archive, so there is nothing to read and
+                # nothing to check a read against.
+                project.boq_items.append(boq_provenance.extracted_item(
+                    system_code=system_code, line=line, run=runs[id(sheet)], position=position,
+                    manufacturer=_brand_for(system_code, project.systems, project.separate_ve_panel),
+                ))
+                position += 1
+        project.boq_version += 1
+        db.commit()
 
     # The assistance stage runs after the lock is released: it may call a
     # model, and it must never make the read itself fail. With AI_ENABLED
@@ -654,7 +676,7 @@ def ensure_project_boq(
         except Exception as exc:  # noqa: BLE001 -- assistance is optional; the BOQ is not
             warnings.append(f"AI assistance did not complete: {exc}")
     db.refresh(project)
-    return BoqEnsureResponse(items=project.boq_items, extracted=True, warnings=warnings)
+    return BoqEnsureResponse(items=project.boq_items, extracted=True, warnings=warnings, version=project.boq_version)
 
 
 def _read_design_sheet(path: Path) -> DesignSheetExtraction:
@@ -680,6 +702,7 @@ def _stored_boq(project: Project) -> BoqEnsureResponse:
         items=project.boq_items,
         extracted=False,
         warnings=project.boq_extraction_warnings or [],
+        version=project.boq_version,
     )
 
 

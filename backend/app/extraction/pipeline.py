@@ -450,8 +450,9 @@ def accept_issue(db: Session, project: Project, row: ExtractionIssue, user: User
     if not row.target.startswith("boq_line:"):
         raise AcceptRefused("only a dropped BOQ row can be accepted into the BOQ")
     value = (value or "").strip()
+    proposal = next((p for p in reversed(row.proposals) if p.value), None)
+    typed = bool(value)
     if not value:
-        proposal = next((p for p in reversed(row.proposals) if p.value), None)
         value = proposal.value if proposal else ""
     if not value:
         raise AcceptRefused("no quantity to accept: type one")
@@ -474,6 +475,9 @@ def accept_issue(db: Session, project: Project, row: ExtractionIssue, user: User
             db.commit()
             raise AcceptRefused("the BOQ already holds this line; nothing was added")
 
+    # The model's reading, taken as it stood, is "ai_accepted"; a quantity
+    # the engineer typed (or one no model was asked about) is theirs.
+    from_model = proposal is not None and (not typed or value == proposal.value)
     line = ProjectBoqItem(
         system_code=run.system_code,
         position=len(project.boq_items),
@@ -482,8 +486,24 @@ def accept_issue(db: Session, project: Project, row: ExtractionIssue, user: User
         catalog_no=detail.get("catalog_no"),
         description=detail.get("description", ""),
         quantity=value,
+        origin="ai_accepted" if from_model else "review_accepted",
+        extraction_run_id=run.id,
+        source_document_sha256=run.document_sha256,
+        source_page=row.page,
+        source_region=list(row.region) if row.region else None,
+        raw_values={"catalog_no": detail.get("catalog_no"), "description": detail.get("description"),
+                    "quantity": detail.get("raw_quantity"), "quantity_parse": detail.get("quantity_parse"),
+                    "accepted_value": value, "proposal_id": proposal.id if from_model else None},
+        parser_version=run.parser_version,
+        extracted_values={"system_code": run.system_code, "group_heading": detail.get("group_heading"),
+                          "catalog_no": detail.get("catalog_no"), "description": detail.get("description", ""),
+                          "quantity": value},
+        edited_by_id=user.id,
+        edited_at=utc_now(),
+        created_at=utc_now(),
     )
     project.boq_items.append(line)
+    project.boq_version += 1
     row.state = "resolved"
     row.state_reason = "accepted by the engineer"
     row.resolved_by_id = user.id

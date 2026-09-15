@@ -15,6 +15,7 @@ import { ProjectBoqPage } from "./pages/ProjectBoqPage";
 import { ProjectCalculationsPage } from "./pages/ProjectCalculationsPage";
 import { ProjectCompliancePage } from "./pages/ProjectCompliancePage";
 import { ProjectBoqRevisionsPage } from "./pages/ProjectBoqRevisionsPage";
+import { ProjectBoqRereadPage } from "./pages/ProjectBoqRereadPage";
 import { ProjectDocumentsPage } from "./pages/ProjectDocumentsPage";
 import { ProjectHomePage } from "./pages/ProjectHomePage";
 import { ProjectInfoPage } from "./pages/ProjectInfoPage";
@@ -62,6 +63,7 @@ export default function App() {
             <Route path="info" element={<ProjectInfoPage />} />
             <Route path="boq" element={<ProjectBoqPage />} />
             <Route path="boq/revisions" element={<ProjectBoqRevisionsPage />} />
+            <Route path="boq/reread" element={<ProjectBoqRereadPage />} />
             <Route path="calculations" element={<ProjectCalculationsPage />}>
               <Route index element={<Navigate to="battery" replace />} />
               <Route path="battery" element={<ProjectBatteryPage />} />

@@ -9,7 +9,19 @@ from app.core.config import get_settings
 from app.core.security import create_access_token, decode_access_token
 from app.database import SessionLocal, engine
 from app.migrations import upgrade_to_head
-from app.routers import auth, compliance, design, design_rules, extraction, knowledge, modules, projects, submittal, users
+from app.routers import (
+    auth,
+    boq_review,
+    compliance,
+    design,
+    design_rules,
+    extraction,
+    knowledge,
+    modules,
+    projects,
+    submittal,
+    users,
+)
 from app.seed import seed_default_admin, seed_design_rules
 from app.services.datasheet_library import get_libraries
 
@@ -49,7 +61,9 @@ app.add_middleware(
     # headers it isn't told it may read: the export's filename, and what the
     # package builder reports about the file it built -- without these two
     # the page said "? pages assembled".
-    expose_headers=["Content-Disposition", "X-Package-Pages", "X-Package-Warnings"],
+    # X-Resource-Version / ETag: the version a save names in If-Match
+    # (app.services.concurrency).
+    expose_headers=["Content-Disposition", "X-Package-Pages", "X-Package-Warnings", "X-Resource-Version", "ETag"],
 )
 
 
@@ -93,6 +107,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(modules.router)
 app.include_router(projects.router)
+app.include_router(boq_review.router)
 app.include_router(design.router)
 app.include_router(design_rules.router)
 app.include_router(submittal.router)

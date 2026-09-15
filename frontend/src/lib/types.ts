@@ -123,6 +123,9 @@ export interface ProjectLogs {
  * use "Lot" as readily as a number. Prices are sent as strings so decimals
  * survive the round trip without float rounding. */
 export interface ProjectBoqItemInput {
+  /** The stored line's id, sent back on save so the server keeps its
+   * provenance. New lines have none. */
+  id?: number | null;
   system_code?: string | null;
   /** Heading the line sits under on the Design Sheet, e.g. a panel whose
    * sub-components are listed beneath it. */
@@ -137,9 +140,40 @@ export interface ProjectBoqItemInput {
   remarks?: string | null;
 }
 
+/** Where a line came from: read off a sheet, read and then corrected by an
+ * engineer, a reviewed row accepted (with or without a model's reading),
+ * typed in, or stored before provenance was kept. */
+export type BoqLineStatus = "extracted" | "corrected" | "ai_accepted" | "review_accepted" | "manual" | "legacy";
+
+export interface QuantityParse {
+  kind: string;
+  raw: string | null;
+  value: string | null;
+  status: "ok" | "empty" | "ambiguous" | "rejected";
+  rule: string;
+  unit: string | null;
+}
+
 export interface ProjectBoqItem extends ProjectBoqItemInput {
   id: number;
   position: number;
+  origin: string;
+  extraction_run_id: number | null;
+  source_document_sha256: string | null;
+  source_page: number | null;
+  source_region: number[] | null;
+  raw_values: {
+    catalog_no?: string | null;
+    description?: string | null;
+    quantity?: string | null;
+    quantity_parse?: QuantityParse | null;
+  } | null;
+  ocr_confidence: string | null;
+  parser_version: string | null;
+  extracted_values: Partial<Record<"system_code" | "group_heading" | "catalog_no" | "description" | "quantity", string | null>> | null;
+  edited_at: string | null;
+  created_at: string | null;
+  status: BoqLineStatus;
 }
 
 /** Reply from the BOQ open call. `extracted` is true only on the call that
@@ -148,6 +182,97 @@ export interface BoqEnsureResponse {
   items: ProjectBoqItem[];
   extracted: boolean;
   warnings: string[];
+  /** The version a save names in If-Match. */
+  version: number;
+}
+
+/** A BOQ line as a re-read or a snapshot records it: the line's values and
+ * its source record, as plain JSON. */
+export interface BoqLineRecord {
+  id?: number;
+  cid?: string;
+  position?: number;
+  system_code: string | null;
+  group_heading: string | null;
+  manufacturer: string | null;
+  catalog_no: string | null;
+  description: string;
+  quantity: string | null;
+  unit: string | null;
+  unit_price: string | null;
+  total_price: string | null;
+  remarks: string | null;
+  origin: string;
+  status?: string;
+  extraction_run_id: number | null;
+  source_page: number | null;
+  source_region: number[] | null;
+  raw_values: ProjectBoqItem["raw_values"];
+  ocr_confidence: string | null;
+  parser_version: string | null;
+  document_name?: string;
+}
+
+export interface BoqCandidateChange {
+  id: string;
+  kind: "unchanged" | "changed" | "added" | "removed";
+  /** How the old and new line were paired: "probable" pairs need a person. */
+  match: "exact" | "probable" | null;
+  old_id: number | null;
+  before: BoqLineRecord | null;
+  after: BoqLineRecord | null;
+  fields: string[];
+  reason: string;
+}
+
+export interface BoqCandidateSheet {
+  run_id: number;
+  document_name: string;
+  system_code: string | null;
+  outcome: string;
+  lines: number;
+  failure: string | null;
+  open_issues: number;
+  unprocessed_pages: number[];
+}
+
+export interface BoqCandidateSummary {
+  id: number;
+  status: "pending" | "applied" | "discarded" | "superseded";
+  base_boq_version: number;
+  parser_version: string;
+  summary: {
+    old_lines: number;
+    new_lines: number;
+    old_quantity: number;
+    new_quantity: number;
+    unchanged: number;
+    changed: number;
+    probable: number;
+    added: number;
+    removed: number;
+    sheets: BoqCandidateSheet[];
+    failed_sheets: string[];
+  };
+  created_at: string;
+  decided_at: string | null;
+  decisions_needed: number;
+}
+
+export interface BoqCandidate extends BoqCandidateSummary {
+  changes: BoqCandidateChange[];
+  boq_version: number;
+  /** The BOQ was saved after this re-read was built: it cannot be applied. */
+  stale: boolean;
+}
+
+export interface BoqSnapshotSummary {
+  id: number;
+  boq_version: number;
+  reason: string;
+  lines: number;
+  created_at: string;
+  created_by_name: string | null;
 }
 
 /** An issued BOQ revision (Rev 00, Rev 01, ...), frozen when issued. */
@@ -238,6 +363,10 @@ export interface Project {
   /** Design Sheets the one-off BOQ read could not parse, by filename. */
   boq_extraction_warnings: string[] | null;
   created_at: string;
+  updated_at?: string | null;
+  /** Versions a save names in If-Match: someone else's save in between is refused. */
+  details_version: number;
+  boq_version: number;
   /** After an edit: what the change was carried into elsewhere on the project. */
   propagated?: string[];
   separate_ve_panel: boolean;

@@ -15,6 +15,9 @@ __pycache__/
 # Documents uploaded through the platform: project files, not source.
 backend/uploads/
 
+# Database backups taken before migrations and on request: data, not source.
+backend/backups/
+
 # Node / frontend
 node_modules/
 dist/
