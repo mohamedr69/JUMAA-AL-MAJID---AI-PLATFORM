@@ -40,9 +40,17 @@ from app.schemas_design import (
 
 # A group is a panel when its heading says so ...
 PANEL_HEADING_RE = re.compile(r"panel|facp|\bfacu\b|control\s*unit|\bcie\b", re.IGNORECASE)
-# ... unless it is an amplifier or booster power supply cabinet, which the
-# platform does not size (they carry their own batteries, sized separately).
-APS_BPS_HEADING_RE = re.compile(r"amplifier|booster|\baps\b|\bbps\b|power\s*supply", re.IGNORECASE)
+# ... a repeater panel is not sized: it is powered by the panel it repeats
+# (platform owner, 16 September 2026) ...
+REPEATER_HEADING_RE = re.compile(r"repeater", re.IGNORECASE)
+# ... and a booster power supply or an amplifier (auxiliary power supply)
+# cabinet carries its own battery, calculated the company's way (the
+# EST4 BC template's BPS and APS sheets): one calculation per cabinet type,
+# however many the BOQ quotes, since every one of them carries the same load.
+BPS_HEADING_RE = re.compile(r"booster|\bbps\b", re.IGNORECASE)
+APS_HEADING_RE = re.compile(r"amplifier|\baps\b|power\s*supply", re.IGNORECASE)
+# The cabinet kinds that get a battery calculation, and what each is called.
+SIZED_KINDS = {"panel": "FACP", "aps": "APS", "bps": "BPS"}
 
 # A battery line, when its part is not in the catalogue: the BOQ's own words,
 # "Battery, 12 V @ 65 AH", "10Ah Sealed Lead Acid Battery - 12 Vdc".
@@ -147,8 +155,12 @@ class BoqLine:
 def classify_group(heading: str | None) -> str:
     if not heading:
         return "ungrouped"
-    if APS_BPS_HEADING_RE.search(heading):
-        return "skipped_aps_bps"
+    if REPEATER_HEADING_RE.search(heading):
+        return "repeater"
+    if BPS_HEADING_RE.search(heading):
+        return "bps"
+    if APS_HEADING_RE.search(heading):
+        return "aps"
     if PANEL_HEADING_RE.search(heading):
         return "panel"
     return "not_a_panel"
@@ -228,8 +240,10 @@ def calculate_panel(
     currents: dict[str, PartCurrent],
     batteries: dict[str, BatteryUnit],
     extras: list | None = None,
+    kind: str = "panel",
 ) -> BatteryPanelOut:
-    """`extras`: loads the engineer added to this panel (ExtraComponent)."""
+    """`extras`: loads the engineer added to this panel (ExtraComponent).
+    `kind`: "panel", "aps" or "bps" -- what the group is a cabinet of."""
     notes: list[str] = []
     count = 1
     out_lines: list[BatteryLineOut] = []
@@ -331,6 +345,11 @@ def calculate_panel(
             "Nothing in this group draws any current, so its modules are probably not itemized in the BOQ; "
             "the panel cannot be sized from it."
         )
+    if kind != "panel" and count > 1:
+        notes.append(
+            f"The BOQ quotes {count} of these cabinets; each carries its own battery with the same load, "
+            "so it is calculated here once."
+        )
 
     quoted_ah = sum(q.strings * q.capacity_ah for q in quoted) if quoted else None
     # The BOQ's battery is checked against the requirement; a partial load
@@ -351,6 +370,7 @@ def calculate_panel(
     return BatteryPanelOut(
         heading=heading,
         system_code=system_code,
+        kind=kind,
         count=count,
         lines=out_lines,
         standby_ma=round(standby, 4),
@@ -382,6 +402,6 @@ def calculate_boq(
     for system, heading, members in group_lines(lines):
         treatment = classify_group(heading)
         groups.append(BoqGroupOut(heading=heading, system_code=system, lines=len(members), treatment=treatment))
-        if treatment == "panel":
-            panels.append(calculate_panel(heading, system, members, sizing, currents, batteries))  # type: ignore[arg-type]
+        if treatment in SIZED_KINDS:
+            panels.append(calculate_panel(heading, system, members, sizing, currents, batteries, kind=treatment))  # type: ignore[arg-type]
     return panels, groups

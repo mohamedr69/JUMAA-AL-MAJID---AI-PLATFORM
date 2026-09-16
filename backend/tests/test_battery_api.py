@@ -45,10 +45,11 @@ def test_nothing_is_claimed_until_every_part_has_a_current(client):
     assert body["rule"]["data"] == {"standby_hours": 24, "alarm_minutes": 30, "spare_factor": 1.2, "panel_voltage": 24}
     assert [(g["heading"], g["treatment"]) for g in body["groups"]] == [
         (PANEL, "panel"),
-        ("Booster Power Supply", "skipped_aps_bps"),
+        ("Booster Power Supply", "bps"),
         (None, "ungrouped"),
     ]
-    (panel,) = body["panels"]
+    panel, bps = body["panels"]
+    assert (bps["kind"], bps["name"]) == ("bps", "BPS")
     assert panel["missing_parts"] == ["4-CPU", "3-SDDC2", "4-FIL"]
     assert panel["status"] == "incomplete" and panel["selected"] is None
     assert panel["quoted_ah"] == 26
@@ -325,7 +326,7 @@ def test_a_part_built_into_another_module_draws_no_current(client, tmp_path, mon
 
     client.post(f"/projects/{project_id}/design/battery/fill-currents")
     body = client.get(f"/projects/{project_id}/design/battery").json()
-    (panel,) = body["panels"]
+    panel = body["panels"][0]
 
     comrel = next(line for line in panel["lines"] if line.get("part_no") == "4-COMREL")
     assert (comrel["standby_ma"], comrel["alarm_ma"]) == (0, 0)
@@ -346,7 +347,7 @@ def test_a_built_in_part_is_not_given_its_host_s_current(client, tmp_path, monke
     project_id = _fill_project(client)
 
     client.post(f"/projects/{project_id}/design/battery/fill-currents")
-    panel, = client.get(f"/projects/{project_id}/design/battery").json()["panels"]
+    panel = client.get(f"/projects/{project_id}/design/battery").json()["panels"][0]
 
     cpu = next(line for line in panel["lines"] if line.get("part_no") == "4-CPU")
     comrel = next(line for line in panel["lines"] if line.get("part_no") == "4-COMREL")

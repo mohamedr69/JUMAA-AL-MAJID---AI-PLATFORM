@@ -166,8 +166,10 @@ def test_battery_lines_are_read_from_the_boq_text_when_not_catalogued():
         ("EST4 Main Fire Alarm Control Panel", "panel"),
         ("EST4 Fire Alarm Panel", "panel"),
         ("Sub FACP", "panel"),
-        ("Amplifier (50 Watt)", "skipped_aps_bps"),
-        ("Booster Power Supply", "skipped_aps_bps"),
+        ("Amplifier (50 Watt)", "aps"),
+        ("Booster Power Supply", "bps"),
+        ("Booster Power Supply Panel", "bps"),
+        ("EST4 Repeater Panel", "repeater"),
         ("Detectors", "not_a_panel"),
         (None, "ungrouped"),
     ],
@@ -193,11 +195,15 @@ def test_ep30784_boq_groups():
         (None, "ungrouped"),  # EML
         ("EST4 Main Fire Alarm Control Panel", "panel"),
         ("EST4 Fire Alarm Panel", "panel"),
-        ("Amplifier (50 Watt)", "skipped_aps_bps"),
-        ("Booster Power Supply", "skipped_aps_bps"),
+        ("Amplifier (50 Watt)", "aps"),
+        ("Booster Power Supply", "bps"),
         (None, "ungrouped"),  # FAS field devices
     ]
-    main, sub = panels
+    main, sub, aps, bps = panels
+    # The amplifier and booster cabinets are sized too -- once each, though
+    # the BOQ quotes 18 closets and 8 booster cabinets.
+    assert (aps.kind, aps.count, bps.kind, bps.count) == ("aps", 18, "bps", 8)
+    assert aps.quoted_ah == bps.quoted_ah == 10 and any("calculated here once" in n for n in aps.notes)
     # The sub-panel group quotes two panels; its lines are per panel.
     assert (main.count, sub.count) == (1, 2)
     # 2 x 12 V 65 Ah per panel: one 24 V string, 65 Ah.

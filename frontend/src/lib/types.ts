@@ -663,7 +663,7 @@ export interface WorkbookCandidate {
 // --- Panel battery calculation (app/services/battery_calculation.py) ---
 
 export type BatteryPanelStatus = "ok" | "incomplete" | "no_selection";
-export type BoqGroupTreatment = "panel" | "skipped_aps_bps" | "ungrouped" | "not_a_panel";
+export type BoqGroupTreatment = "panel" | "aps" | "bps" | "repeater" | "ungrouped" | "not_a_panel";
 
 export interface BatteryLine {
   part_no: string | null;
@@ -700,6 +700,9 @@ export interface BatterySet {
 export interface BatteryPanel {
   heading: string;
   system_code: string | null;
+  /** "panel": one card per panel quoted; "aps" / "bps": one card for the
+   * cabinet type, every cabinet carrying the same load. */
+  kind: "panel" | "aps" | "bps";
   count: number;
   /** One card per physical panel. */
   key: string;

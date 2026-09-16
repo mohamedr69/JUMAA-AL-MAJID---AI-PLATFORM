@@ -249,7 +249,7 @@ class VoiceEvacuationImportIn(BaseModel):
 # is not (a current missing, a quantity unreadable, nothing itemized);
 # "no_selection": no battery of the selection brand is on file to choose.
 BatteryPanelStatus = Literal["ok", "incomplete", "no_selection"]
-BoqGroupTreatment = Literal["panel", "skipped_aps_bps", "ungrouped", "not_a_panel"]
+BoqGroupTreatment = Literal["panel", "aps", "bps", "repeater", "ungrouped", "not_a_panel"]
 
 
 class PartCurrentIn(BaseModel):
@@ -355,6 +355,10 @@ class BatterySetOut(BaseModel):
 class BatteryPanelOut(BaseModel):
     heading: str
     system_code: str | None
+    # "panel" (a control panel: one card per panel quoted), "aps" or "bps"
+    # (an amplifier or booster power supply cabinet: one card for the type,
+    # every cabinet carrying the same load).
+    kind: str = "panel"
     # Identical panels this group quotes (the heading line's quantity); every
     # figure below is per panel.
     count: int

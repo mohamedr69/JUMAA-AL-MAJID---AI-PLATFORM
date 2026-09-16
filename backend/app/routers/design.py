@@ -50,6 +50,7 @@ from app.seed import (
 )
 from app.services.battery_calculation import (
     MECHANICAL_RE,
+    SIZED_KINDS,
     BatteryUnit,
     BoqLine,
     PartCurrent,
@@ -417,19 +418,28 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
         types, groups = calculate_boq(lines, Sizing(**defaults), currents, batteries)
         members = {(system, heading): group for system, heading, group in group_lines(lines)}
         # One card per physical panel, numbered in BOQ order: a group quoting
-        # two identical panels gives FACP-02 and FACP-03.
+        # two identical panels gives FACP-02 and FACP-03. An APS or BPS
+        # cabinet type is one card however many the BOQ quotes: every one of
+        # them carries the same load, so it is calculated once.
+        of_kind = {kind: sum(1 for t in types if t.kind == kind) for kind in SIZED_KINDS}
+        numbered = {kind: 0 for kind in SIZED_KINDS}
         for panel_type in types:
-            for instance in range(1, panel_type.count + 1):
+            instances = range(1, panel_type.count + 1) if panel_type.kind == "panel" else [1]
+            for instance in instances:
                 key = f"{panel_type.system_code or ''}|{panel_type.heading}|{instance}"
                 settings = design.panels.get(key) or PanelSettings()
                 overridden = [f for f in SIZING_FIELDS if getattr(settings, f) is not None]
                 sizing = {f: getattr(settings, f) if f in overridden else defaults[f] for f in SIZING_FIELDS}
                 panel = calculate_panel(
                     panel_type.heading, panel_type.system_code, members[(panel_type.system_code, panel_type.heading)],
-                    Sizing(**sizing), currents, batteries, extras=settings.extra_components,
+                    Sizing(**sizing), currents, batteries, extras=settings.extra_components, kind=panel_type.kind,
                 )
                 panel.key, panel.instance = key, instance
-                panel.name = settings.name or f"FACP-{len(panels) + 1:02d}"
+                numbered[panel_type.kind] += 1
+                label = SIZED_KINDS[panel_type.kind]
+                default_name = (f"{label}-{numbered[panel_type.kind]:02d}"
+                                if panel_type.kind == "panel" or of_kind[panel_type.kind] > 1 else label)
+                panel.name = settings.name or default_name
                 panel.location = settings.location
                 panel.settings, panel.overridden = sizing, overridden
                 panels.append(panel)

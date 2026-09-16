@@ -202,7 +202,10 @@ def _calculations(db: Session, project: Project) -> Check:
     short = [f"{p.name or p.heading}: the quoted battery is smaller than required" for p in result.panels if p.quoted_short]
     unconfirmed = [f"{c['part_no']}: set to draw no current automatically, not yet confirmed" for c in result.needs_confirmation]
     if short:
-        return Check("battery", "Battery calculation", "calculations", BLOCKED, "A quoted battery is too small.",
+        # Something to check against the design, not a stop: the selection
+        # on the page is the one that goes out (platform owner, 16 September 2026).
+        return Check("battery", "Battery calculation", "calculations", WARNING,
+                     "A quoted battery is smaller than required: check the selection.",
                      short + incomplete + unconfirmed, len(short), "calculations/battery")
     if unconfirmed:
         return Check("battery", "Battery calculation", "calculations", WARNING,

@@ -262,8 +262,10 @@ found, and what changed:
   the panel's own manufacturer -- from its BOQ lines, else the DRF's brand
   for its system -- and says "not established" rather than taking the first
   brand on the DRF; "EST4" appears only for Edwards. The screen's warnings
-  (a lower-bound load, no selection, charger compatibility unchecked) are
-  printed beside the selection.
+  that matter to the issued sheet (a lower-bound load, no selection) are
+  printed beside the selection; whether the BOQ's own battery is short and
+  the charger's compatibility are the page's business and stay off the
+  sheet (platform owner, 16 September 2026).
 - **The submittal builder says what it did.** The browser could not read
   the page-count header (`"? pages assembled"`); it is exposed now. The
   cover names only the fire alarm family for an FAS package and never
@@ -458,7 +460,7 @@ Project -> Panel Batteries sizes each fire alarm panel's standby battery from th
 
 **The method is the engineers'**, and three of their workbooks agree on it (EP-20779, EP-30784, and EP-29076's sheet copied into EP-30784): required Ah = (standby mA x 24 h + alarm mA x 30 min) / 1000 x 1.2. The durations, the 1.2 and the 24 V panel voltage are a seeded `design_rules` row (`battery.sizing` / `fas_panel`) with its source; the platform owner confirmed them. EP-20779's three EST3 panels are the test oracle: with the currents the engineer used they come out at the engineer's 60.33 / 32.35 / 26.64 Ah and 65 / 42 / 42 Ah batteries.
 
-**Panels come from BOQ groups.** A group whose heading names a panel ("Fire Alarm Control Panel", "FACP", ...) is one panel type; its heading line (the line with no part number, "... Includes:") gives how many identical panels it quotes, and the lines under it are **per panel** -- the sub-panel groups quote one chassis and one backbox for two panels, which only reads one way. Amplifier / booster power supply groups (APS, BPS) are not sized: they are left out on purpose and listed as such. Every BOQ group is shown on the page with what was done with it, so a panel whose heading does not match is visible as "not calculated" rather than missing.
+**Panels come from BOQ groups.** A group whose heading names a panel ("Fire Alarm Control Panel", "FACP", ...) is one panel type; its heading line (the line with no part number, "... Includes:") gives how many identical panels it quotes, and the lines under it are **per panel** -- the sub-panel groups quote one chassis and one backbox for two panels, which only reads one way. Amplifier / booster power supply groups (APS, BPS) are sized too, the way the company's EST4 BC template's APS and BPS sheets do it, but **once per cabinet type** however many the BOQ quotes (18 amplifier closets are one APS calculation: every cabinet carries the same load), named APS and BPS rather than FACP-nn; the template's figures for BPS10A, SIGA-AA50, APS6A/230 (its auxiliary output) and SIGA-CT2 are in the equipment current table. A repeater panel is not sized: it is powered by the panel it repeats. Every BOQ group is shown on the page with what was done with it, so a panel whose heading does not match is visible as "not calculated" rather than missing. On the readiness dashboard a quoted battery smaller than required is a warning to check, not a block.
 
 **Currents come only from datasheets.** A part's standby and alarm mA is a `design_rules` entry (`part.current`, keyed by part number) that an engineer enters from the datasheet, with the datasheet named as its source -- nothing is seeded, and a value without a source is refused. Mechanical parts (chassis, filler plates, cabinets, doors) are recorded once as "no electrical load". Batteries are recognised from the battery catalogue (`battery.unit`) or, failing that, from the BOQ's own description ("Battery, 12 V @ 65 AH"), and are not loads.
 

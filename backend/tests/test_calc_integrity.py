@@ -49,6 +49,7 @@ def test_battery_hashes_follow_the_catalogue_version_and_automatic_no_load_needs
     project_id = _project_with_boq(client)
     _current(client, "4-CPU", 211, 211)
     _current(client, "3-SDDC2", 264, 336)
+    _current(client, "BPS10A/230", 70, 10270, source="Company BC template, BPS sheet")
     first = client.get(f"/projects/{project_id}/design/battery").json()
     assert first["complete"] is False and any("lower bound" in r for r in first["incomplete_reasons"])
 
@@ -65,8 +66,10 @@ def test_battery_hashes_follow_the_catalogue_version_and_automatic_no_load_needs
     assert [c["part_no"] for c in auto["needs_confirmation"]] == ["4-FIL"]
     assert auto["complete"] is False and auto["input_hash"] != first["input_hash"]
     readiness = {c["key"]: c for c in client.get(f"/projects/{project_id}/readiness").json()["checks"]}
-    # Blocked here anyway (this BOQ quotes a 26 Ah battery for a 45 Ah load); the unconfirmed part is listed.
-    assert readiness["battery"]["status"] == "blocked"
+    # A warning, not a block: this BOQ quotes a 26 Ah battery for a 45 Ah load,
+    # which is checked, not stopped on (platform owner, 16 September 2026); the
+    # unconfirmed part is listed with it.
+    assert readiness["battery"]["status"] == "warning"
     assert any("4-FIL" in item and "not yet confirmed" in item for item in readiness["battery"]["items"])
 
     confirmed = client.post(f"/projects/{project_id}/design/battery/confirm-no-load", json={"part_no": "4-FIL"}).json()
@@ -82,6 +85,7 @@ def test_rejecting_an_automatic_no_load_makes_the_part_missing_and_keeps_it_so(c
     project_id = _project_with_boq(client)
     _current(client, "4-CPU", 211, 211)
     _current(client, "3-SDDC2", 264, 336)
+    _current(client, "BPS10A/230", 70, 10270, source="Company BC template, BPS sheet")
     db_session.add(DesignRule(category=PART_CURRENT_CATEGORY, key="4-FIL", version=1, source="auto",
                               data={"part_no": "4-FIL", "standby_ma": 0, "alarm_ma": 0, "auto": True, "no_load": True}))
     db_session.commit()

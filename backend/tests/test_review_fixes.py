@@ -407,7 +407,9 @@ def test_fx06_a_long_equipment_table_continues_on_further_sheets(db_session, cli
 
     assert doc.page_count == 3
     assert all(f"PART-{i:02d}" in text for i in range(60)), "every part is on a page"
-    assert "Calculation notes" in text and "Charger compatibility: not checked" in text
+    assert "Calculation notes" in text
+    # Neither the charger remark nor "below the requirement" goes out on the sheet.
+    assert "Charger compatibility" not in text and "below the requirement" not in text
     assert "(continued, sheet 2 of 3)" in text
     # Nothing is drawn past the page: the last row of each page sits above its footer.
     for page in doc:

@@ -153,8 +153,10 @@ def _equipment_table(page, lines, table_top: float, card_right: float, continued
 
 def _status_lines(panel) -> list[str]:
     """What the sheet must say beside the selection so the download tells
-    the same story as the screen: an incomplete load, a missing selection,
-    and that the charger has not been checked."""
+    the same story as the screen: an incomplete load, a missing selection.
+    (Whether the BOQ's battery is short, and the charger's compatibility,
+    are the page's business, not the issued sheet's -- platform owner,
+    16 September 2026.)"""
     notes: list[str] = []
     if panel.lower_bound:
         missing = len(getattr(panel, "missing_parts", None) or [])
@@ -165,8 +167,6 @@ def _status_lines(panel) -> list[str]:
     status = str(getattr(panel, "status", "") or "")
     if status == "no_selection":
         notes.append("No battery of the catalogued brand covers this requirement; selection pending.")
-    if panel.selected:
-        notes.append("Charger compatibility: not checked -- confirm against the power supply datasheet before issue.")
     return notes
 
 
@@ -243,13 +243,7 @@ def _panel_page(doc, project: Project, panel, systems: str, manufacturer: str) -
     page.insert_text((837, y + 8), "SELECTED BATTERY", fontname="hebo", fontsize=8, color=LABEL)
     page.insert_text((837, y + 24), _fit(units, "hebo", 11, 290), fontname="hebo", fontsize=11, color=INK)
 
-    # A quoted battery that is short is the thing to act on, so it is said
-    # here rather than left for someone to work out from two numbers.
     y += 52
-    if panel.quoted_short:
-        page.insert_text((827, y), f"The BOQ quotes {_number(panel.quoted_ah, 1)} Ah -- below the requirement.",
-                         fontname="hebo", fontsize=8, color=(0.65, 0.15, 0.15))
-        y += 12
     # The screen's warnings travel with the sheet: what is pending on the
     # page is pending on the download.
     for note in _status_lines(panel):

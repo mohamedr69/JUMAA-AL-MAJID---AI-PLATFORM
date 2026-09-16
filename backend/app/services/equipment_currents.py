@@ -63,10 +63,30 @@ NO_LOAD_PARTS: list[tuple[str, str]] = [
 BUILT_IN_PARTS: list[tuple[str, str, str]] = [
     ("4-COMREL", "Common Relay Module", "4-CPU"),
 ]
+# (part number, description, standby mA, alarm mA, source, other spellings)
+# -- devices whose figures come from the company's own EST4 battery
+# calculation template (Systems/01- FAVE/01- Edwards - UL&EN/01- EST4/
+# Templates/BC.xlsx, the BPS and APS sheets), read on 2026-09-16.
+BC_TEMPLATE = "Company EST4 battery calculation template (EST4/Templates/BC.xlsx)"
+DEVICES: list[tuple[str, str, float, float, str, list[str]]] = [
+    ("BPS10A", "10 A Booster Power Supply", 70.0, 10270.0,
+     f"{BC_TEMPLATE}, BPS sheet: 70 mA standby, 10 270 mA alarm at the full 10 A load",
+     ["BPS10A/230", "SIGA-BPS10A/230", "SIGA-BPS10A"]),
+    ("SIGA-AA50", "Intelligent Audio Amplifier - 50 W", 2.0, 2800.0,
+     f"{BC_TEMPLATE}, APS sheet: 2 mA standby, 2 800 mA alarm at the full 50 W load",
+     ["3-AA50", "SIGA-AAS0"]),
+    ("APS6A/230", "Auxiliary Power Supply, 6.5 A, 230 V", 200.0, 200.0,
+     f"{BC_TEMPLATE}, APS sheet: the APS's auxiliary output, 200 mA standby and alarm; its amplifiers carry the rest",
+     ["SIGA-APS6A/230", "SIGA-APS6A", "APS6A"]),
+    ("SIGA-CT2", "Dual Input Module", 0.396, 0.68,
+     "Edwards SIGA-CT2 datasheet: 396 uA standby, 680 uA alarm (the BC template writes 0.00396 / 0.0068, in A)",
+     []),
+]
 # Spellings the scanned sheets have produced for these parts.
 ALIASES: dict[str, str] = {
     "3-CABSB": "3-CAB5B",
     "4-CABI6D": "4-CAB16D",
+    "4-PPS": "4-PPS/M",
 }
 
 
@@ -182,6 +202,18 @@ def seed(db: Session) -> int:
                                     confirmed_by="platform owner"))
             existing.add(_key(part_no))
             added += 1
+    for part_no, description, standby, alarm, source, aliases in DEVICES:
+        if _key(part_no) not in existing:
+            db.add(EquipmentCurrent(manufacturer=MANUFACTURER, key=_key(part_no), part_no=part_no, description=description,
+                                    no_load=False, kind=DEVICE, standby_ma=standby, alarm_ma=alarm, source=source,
+                                    confirmed_by="platform owner", aliases=list(aliases)))
+            existing.add(_key(part_no))
+            added += 1
+    # A spelling learned later for a part already in the table.
+    for alias, target in ALIASES.items():
+        row = db.query(EquipmentCurrent).filter(EquipmentCurrent.key == _key(target)).one_or_none()
+        if row is not None and _key(alias) not in {_key(a) for a in row.aliases or []}:
+            row.aliases = [*(row.aliases or []), alias]
     # What the catalogue already learned from datasheets and engineers.
     rules = (db.query(DesignRule)
              .filter(DesignRule.category == PART_CURRENT_CATEGORY, DesignRule.superseded_at.is_(None)).all())

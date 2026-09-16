@@ -345,11 +345,15 @@ export function ProjectBatteryPage() {
                   {g.system_code ?? "—"} · {g.heading ?? "no heading"} ({g.lines} lines):{" "}
                   {g.treatment === "panel"
                     ? "calculated"
-                    : g.treatment === "skipped_aps_bps"
-                      ? "not calculated (APS / BPS)"
-                      : g.treatment === "ungrouped"
-                        ? "not calculated (field devices)"
-                        : "not calculated (not a panel heading)"}
+                    : g.treatment === "aps"
+                      ? "calculated once (APS cabinet)"
+                      : g.treatment === "bps"
+                        ? "calculated once (BPS cabinet)"
+                        : g.treatment === "repeater"
+                          ? "not calculated (repeater panel: powered by the panel it repeats)"
+                          : g.treatment === "ungrouped"
+                            ? "not calculated (field devices)"
+                            : "not calculated (not a panel heading)"}
                 </div>
               ))}
             </div>
@@ -426,7 +430,11 @@ function PanelDetail({
         <span className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${t.chip}`}>
           {t.label === "Calculated" && <IconCheckSmall />} {t.label}
         </span>
-        {panel.count > 1 && <span className="text-xs text-gray-400">one of {panel.count} identical panels</span>}
+        {panel.count > 1 && (
+          <span className="text-xs text-gray-400">
+            {panel.kind === "panel" ? `one of ${panel.count} identical panels` : `applies to each of the ${panel.count} cabinets quoted`}
+          </span>
+        )}
       </div>
       <div className="mt-1 flex items-center gap-1.5 text-sm text-gray-600">
         <IconPin />
