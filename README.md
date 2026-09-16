@@ -419,12 +419,23 @@ request.
 The consultant's reply on a material submittal form is a stamp or a
 hand-written comment, and the OCR read of it was not reliable; the form is
 now read by the model (`app/ai/submittal_reader.py`): the first two pages
-of every PDF in the project folder that looks like a submittal (a MAS
-reference on its first page, or a scan filed under a submittal / approval
-folder), as images, once -- each reading is stored by the file's content
-(`document_readings`) and never read again. "AI check of the project
-folder" on the Material Submittals page runs it as a job and draws the
-**map**: per system, a row per submittal reference and a column per
+of every PDF in the project folder that looks like a submittal form, as
+images, once -- each reading is stored by the file's content
+(`document_readings`) and never read again. A form is a first page with
+a MAS reference; or a "Submittal No. / Ref." under a MATERIAL SUBMITTAL
+heading, in whatever form a contractor uses (EP-29495's transmittal
+serves its shop drawings, method statements and prequalifications too,
+told apart by that heading); or JAM's own package cover ("MATERIAL
+SUBMITTAL FOR ...") or a scan, filed under a submittal / approval folder.
+A file whose path passes 260 characters is read through the long-path
+API, as the logs read it, instead of being skipped. The model names the
+**system** the submittal is for (`system_code`), reasoning from the
+title, the materials and the manufacturer, with emergency lighting under
+every name it goes by -- emergency / exit light, self-contained or
+self-monitored emergency light, EML, central battery system (CBS) -- all
+one system, ELS; the folder and the wording settle it when the model
+does not. The sync draws the **map**: per system, a row per submittal
+reference and a column per
 revision (R0, R1, ...), each cell UR (submitted, no consultant reply),
 A, ANN (approved as noted), RR (revise and resubmit) or REJ, a reply
 counting only when the model saw it was the consultant's; the same
@@ -493,6 +504,20 @@ that sheet. The roles are now the other way round (`app/ai/sheet_reader.py`):
   as before. `AI_READ_*` bound the calls and the time; `AI_DISABLED_TASKS=read_sheet_page`
   switches the whole-sheet read off (the OCR read stands alone, as before)
   without touching the cell-level assistance or the AI check.
+
+### A scanned part number is settled against the catalogue
+
+The model reads a catalog number as printed, so its reading stands as
+evidence -- and a scan prints SIGA-AA50 as "SIGA-AASO" (S for 5, O for
+0). The part library (`boq_provenance.part_library`: the equipment
+current table with its aliases, the catalogue's part currents and battery
+units, the models the knowledge base names) settles the code: an exact
+match, or a match with one scan confusion, gives the BOQ line the
+catalogue's number, with the reading kept beside it (`catalog_match.read_as`,
+`catalog_raw`). The AI check compares the two readings the same way, so
+"SIGA-AASO" read off the sheet agrees with the BOQ's SIGA-AA50 and is not
+flagged, and a check settled on the model's spelling still writes the
+catalogue's. A code the library does not know is left as read.
 
 ### Re-reading the documents
 

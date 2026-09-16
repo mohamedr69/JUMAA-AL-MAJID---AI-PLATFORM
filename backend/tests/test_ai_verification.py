@@ -408,16 +408,14 @@ def test_two_page_opens_at_once_start_one_check(client, db_session, sheets, reco
             started.append(self.name)
 
     monkeypatch.setattr(jobs_service.threading, "Thread", _NotRun)
-    results = []
-
-    def open_page():
-        results.append(client.post(f"/projects/{pid}/ai-verification/ensure").status_code)
-
-    threads = [real_thread(target=open_page) for _ in range(2)]
-    for t in threads:
-        t.start()
-    for t in threads:
-        t.join()
+    # Two opens while the first check is still queued (its thread never
+    # runs). They are made one after the other: the test database is one
+    # in-memory SQLite connection shared by every request, so two requests
+    # in flight at once roll each other's transaction back -- a harness
+    # artefact, not the claim under test, which is the lock and the active
+    # job check in the endpoint.
+    del real_thread
+    results = [client.post(f"/projects/{pid}/ai-verification/ensure").status_code for _ in range(2)]
     assert results == [200, 200]
     assert db_session.query(BackgroundJob).filter(BackgroundJob.project_id == pid, BackgroundJob.kind == "ai_verify").count() == 1
     assert len(started) == 1

@@ -97,3 +97,23 @@ def test_a_stale_project_information_save_is_refused(client, db_session):
     stale = client.put(f"/projects/{created['id']}", json={"project_name": "Second"}, headers={"If-Match": str(version)})
     assert stale.status_code == 409 and stale.json()["detail"]["code"] == "stale_write"
     assert client.get(f"/projects/{created['id']}").json()["project_name"] == "First"
+
+
+def test_a_scanned_code_is_settled_against_the_equipment_table(db_session):
+    """A Design Sheet scan's "SIGA-AASO" is SIGA-AA50 -- S for 5, O for 0 --
+    and the BOQ carries the catalogue's number with the reading kept."""
+    from app.extraction import identity
+    from app.services import boq_provenance, equipment_currents
+
+    equipment_currents.seed(db_session)
+    library = boq_provenance.part_library(db_session)
+    assert library[identity.part_key("SIGA-AA50")] == "SIGA-AA50"
+    assert library[identity.part_key("SIGA-AAS0")] == "SIGA-AA50"          # the alias the table holds
+
+    code, record = boq_provenance.catalogued("SIGA-AASO", library)
+    assert code == "SIGA-AA50" and record["read_as"] == "SIGA-AASO" and "confusion" in record["reason"]
+    code, record = boq_provenance.catalogued("SIGA-AA50", library)
+    assert code == "SIGA-AA50" and record["reason"].endswith("exactly")
+    code, record = boq_provenance.catalogued("XYZ-9999", library)
+    assert code == "XYZ-9999" and record is None
+    assert boq_provenance.catalogued(None, library) == (None, None)

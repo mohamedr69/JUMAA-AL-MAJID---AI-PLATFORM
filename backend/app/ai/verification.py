@@ -192,8 +192,22 @@ def agree_quantity(a: str | None, b: str | None) -> bool:
     return _quantity_key(a) == _quantity_key(b) and not _quantity_key(a).startswith("?")
 
 
+# The part library the check settles catalog numbers against, filled by
+# the check that is running (it is the same table for every project).
+_library: dict[str, str] = {}
+
+
+def _catalogued(code: str | None) -> str | None:
+    """The catalogue's spelling of a read code, when the library settles it."""
+    from app.services.boq_provenance import catalogued
+
+    return catalogued(code, _library)[0] if _library else code
+
+
 def agree_catalog(a: str | None, b: str | None) -> bool:
-    return _alnum(a) == _alnum(b)
+    """The same part: as spelt, or once each reading is settled against the
+    part library ("SIGA-AASO" read off the scan is the BOQ's SIGA-AA50)."""
+    return _alnum(a) == _alnum(b) or _alnum(_catalogued(a)) == _alnum(_catalogued(b))
 
 
 def agree_text(a: str | None, b: str | None, ratio: float = DESCRIPTION_AGREEMENT) -> bool:
@@ -571,6 +585,13 @@ def _decide_row(row: _Row) -> tuple[dict, list[str], dict]:
             args.append(row.ai2.get(name))
             args.append(row.ai3.get(name) if row.ai3 else None)
         decision, value, reason = settle(*args, spell_as_ai=name == "catalog_no")
+        if name == "catalog_no" and value:
+            # Settled on the model's spelling, which is the scan's: the BOQ
+            # carries the catalogue's number, the reading stays in the reasons.
+            catalogued = _catalogued(value)
+            if catalogued != value:
+                reason = f"{reason}; read as {value}, the catalogue's {catalogued}"
+                value = catalogued
         decisions[name] = decision
         final[name] = value
         reasons.append(f"{name.replace('_', ' ')}: {reason}")
@@ -640,6 +661,10 @@ def _check(outcome: str, record: AiVerification, reason: str) -> dict:
 
 
 def verify_boq(db: Session, project: Project, user: User, *, ctx=None, provider: AiProvider | None = None) -> AiVerification:
+    from app.services import boq_provenance
+
+    _library.clear()
+    _library.update(boq_provenance.part_library(db))
     """Check every BOQ line against the Design Sheets and apply the result."""
     provider = provider or get_provider()
     why_not = available(project, provider)

@@ -102,12 +102,9 @@ def classify(path: Path, relative: str) -> str:
             text = doc[0].get_text() if doc.page_count else ""
     except Exception:  # noqa: BLE001 -- unreadable: still a document, read as such
         return ROLE_DOCUMENT
-    reference = submittal_scanner._REFERENCE_RE.search(text)
-    if reference and "-MAS-" in reference.group(1).upper():
-        return ROLE_SUBMITTAL
-    from app.ai.submittal_reader import _SUBMITTAL_PATH_RE
+    from app.ai.submittal_reader import looks_like_a_form
 
-    if len(text.strip()) < 40 and _SUBMITTAL_PATH_RE.search(relative):
+    if looks_like_a_form(text, relative):
         return ROLE_SUBMITTAL
     if spec_finder.looks_like_a_spec(relative, path.name):
         return ROLE_SPEC

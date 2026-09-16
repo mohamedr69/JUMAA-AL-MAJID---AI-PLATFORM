@@ -52,9 +52,9 @@ from app.core.config import get_settings
 from app.core.timeutils import utc_now
 from app.extraction import pipeline
 from app.models import DocumentReading, Project, ProjectSubmittal, ProjectSubmittalEvent, SubmittalStatus, User
-from app.services import submittal_scanner
+from app.services import document_control, submittal_scanner, system_rules
 
-PROMPT_VERSION = "submittal-2026-09-16.1"
+PROMPT_VERSION = "submittal-2026-09-17.1"
 KIND = "submittal_form"
 MAP_KIND = "submittal_map"
 JOB_KIND = "submittal_check"
@@ -65,7 +65,21 @@ PAGE_IMAGE_WIDTH = 1600
 STORED_READING_DAYS = 36_500
 # A file whose first page has no text layer is a scan; it is read by the
 # model only when its name or folder says it could be a submittal.
-_SUBMITTAL_PATH_RE = re.compile(r"submittal|material|\bMAS\b|approv", re.IGNORECASE)
+_SUBMITTAL_PATH_RE = re.compile(r"submittal|material|\bMAS\b|\bMS\b|approv", re.IGNORECASE)
+# Not every contractor's form carries a "MAS Reference No.": EP-29495's
+# transmittal says "MATERIAL SUBMITTAL ... Submittal No. ICC-DLRC-SIG2-MAR-
+# MEP-0060", and the same transmittal serves its shop drawings, method
+# statements and prequalifications, told apart only by the heading above
+# the number. JAM's own package opens "MATERIAL SUBMITTAL FOR ..." with no
+# number at all.
+_SUBMITTAL_NO_RE = re.compile(r"submittal\s+(?:no|ref|reference)\.?\s*(?:no\.?)?\s*:?\s*\n?\s*([A-Z0-9][A-Z0-9\-/]{6,})",
+                              re.IGNORECASE)
+_MATERIAL_HEADING_RE = re.compile(r"\bMATERIAL\s+SUBMITTAL\b", re.IGNORECASE)
+_OTHER_HEADING_RE = re.compile(r"SHOP\s+DRAWING|DRAWING\s+SUBMITTAL|METHOD\s+STATEMENT|RISK\s+ASSESSMENT|PRE\s*-?\s*QUALIFICATION",
+                               re.IGNORECASE)
+_COVER_RE = re.compile(r"\bMATERIAL\s+SUBMITTAL\s+FOR\b", re.IGNORECASE)
+# The platform's system codes the model may name, and the wordings each covers.
+SYSTEM_CODES = ("FAS", "VES", "PAVA", "ELS", "FRC", "OTHER")
 _REFERENCE_RE = submittal_scanner._REFERENCE_RE
 
 # What the map shows for each status the model reports.
@@ -83,8 +97,17 @@ SYSTEM_READ = (
     "alarm, emergency lighting / central battery, fire-rated cables, voice evacuation, and the like) and what it "
     "says. Report the submittal's reference number exactly as printed (it usually contains 'MAS'), its revision "
     "number as an integer (Rev. 00 / R0 is 0, Rev. 01 / R1 is 1; null when none is printed), its title (what "
-    "materials it covers), the system it is for, the supplier and the manufacturer named on it (M/s. ...), and "
-    "the date it was submitted. Then look for the consultant's reply: a stamp, a signature, a tick or a written "
+    "materials it covers), the system it is for as the form words it, the supplier and the manufacturer named on "
+    "it (M/s. ...), and the date it was submitted. Then think about which building system the submittal belongs "
+    "to, from its title, the materials it lists and the manufacturer, and give system_code: FAS for fire alarm / "
+    "fire detection, and for voice evacuation or fire telephone submitted with the fire alarm; VES for a voice "
+    "evacuation system submitted on its own; PAVA for public address / voice alarm / background music; ELS for "
+    "emergency lighting under any of its names -- emergency light, exit light, emergency & exit light, "
+    "self-contained or self-monitored or monitored emergency light, emergency light monitoring (EML), central "
+    "battery system (CBS), central battery unit -- these are all the one system; FRC for fire-rated or "
+    "fire-resistant cables; OTHER for anything else (a pump, a generator, a lift). The reference number may take "
+    "any form the contractor uses ('MAS Reference No.', 'Submittal No.', 'Ref.'): the current submittal's, not "
+    "a previous submittal's it refers to. Then look for the consultant's reply: a stamp, a signature, a tick or a written "
     "comment in the consultant's own section of the form ('Engineering Consultant Comments and Approval Status' "
     "or similar) or on a consultant's comment sheet. The form's own printed checkboxes ('Approved (A) / Approved "
     "as Noted (B) / Re-Submit (C)') left empty are NOT a reply. Set reply.present only when a reply is actually on "
@@ -104,6 +127,7 @@ FORM_SCHEMA = {
         "revision": {"type": ["integer", "null"]},
         "title": {"type": "string"},
         "system": {"type": "string"},
+        "system_code": {"type": "string", "enum": list(SYSTEM_CODES)},
         "supplier": {"type": "string"},
         "manufacturer": {"type": "string"},
         "submitted": {"type": "string"},
@@ -122,7 +146,8 @@ FORM_SCHEMA = {
             "additionalProperties": False,
         },
     },
-    "required": ["is_submittal", "reference", "revision", "title", "system", "supplier", "manufacturer", "submitted", "reply"],
+    "required": ["is_submittal", "reference", "revision", "title", "system", "system_code", "supplier", "manufacturer",
+                 "submitted", "reply"],
     "additionalProperties": False,
 }
 
@@ -215,11 +240,30 @@ def changes(db: Session, project: Project) -> dict:
             "reason": "files added, replaced or removed since the last check" if changed else "unchanged since the last check"}
 
 
+def looks_like_a_form(text: str, relative: str) -> bool:
+    """Whether a first page could be a material submittal form: it names a
+    MAS reference, it is headed as a material submittal in any wording, or
+    it is a scan (no text) filed under a folder or name for submittals.
+    The model then says whether it is one. Everything else -- drawings,
+    datasheets, specifications -- is left alone."""
+    reference = _REFERENCE_RE.search(text)
+    if reference and "-MAS-" in reference.group(1).upper():
+        return True
+    number = _SUBMITTAL_NO_RE.search(text)
+    if number:
+        heading = text[:number.start()]
+        if _MATERIAL_HEADING_RE.search(heading) and not _OTHER_HEADING_RE.search(heading):
+            return True
+    in_submittal_folder = bool(_SUBMITTAL_PATH_RE.search(relative))
+    if in_submittal_folder and _COVER_RE.search(text[:300]):
+        return True
+    return in_submittal_folder and len(text.strip()) < 40
+
+
 def candidates(root: Path) -> tuple[list[Path], list[str]]:
-    """The PDFs in the folder that could be material submittal forms: a
-    first page naming a MAS reference, or a scanned first page in a folder
-    or file named for submittals. Everything else -- drawings, datasheets,
-    specifications -- is left alone."""
+    """The PDFs in the folder that could be material submittal forms
+    (`looks_like_a_form`), read through the long-path API where Windows
+    would otherwise not open them."""
     warnings: list[str] = []
     found: list[Path] = []
     for n, path in enumerate(sorted(root.rglob("*.pdf"))):
@@ -227,16 +271,13 @@ def candidates(root: Path) -> tuple[list[Path], list[str]]:
             warnings.append(f"Stopped after {MAX_PDFS} PDFs; the folder holds more.")
             break
         try:
-            with pymupdf.open(path) as doc:
+            with document_control._open_pdf(path) as doc:
                 if not doc.page_count:
                     continue
                 text = doc[0].get_text()
         except Exception:  # noqa: BLE001 -- unreadable or online-only: not a form we can read
             continue
-        reference = _REFERENCE_RE.search(text)
-        if reference and "-MAS-" in reference.group(1).upper():
-            found.append(path)
-        elif len(text.strip()) < 40 and _SUBMITTAL_PATH_RE.search(str(path.relative_to(root))):
+        if looks_like_a_form(text, str(path.relative_to(root))):
             found.append(path)
     return found, warnings
 
@@ -245,7 +286,7 @@ def form_images(path: Path) -> list[ImagePart]:
     """The first pages as the model sees them, each in two overlapping
     halves at a readable width."""
     parts: list[ImagePart] = []
-    with pymupdf.open(str(path)) as doc:
+    with document_control._open_pdf(path) as doc:
         for index in range(min(PAGES_TO_READ, doc.page_count)):
             pix = doc[index].get_pixmap(dpi=200, colorspace=pymupdf.csGRAY)
             image = Image.frombytes("L", (pix.width, pix.height), pix.samples)
@@ -287,6 +328,7 @@ def _normalise(data: dict) -> dict:
         "revision": revision,
         "title": _clean(data.get("title")),
         "system": _clean(data.get("system")),
+        "system_code": _clean(data.get("system_code")).upper() if _clean(data.get("system_code")).upper() in SYSTEM_CODES else "",
         "supplier": _clean(data.get("supplier")),
         "manufacturer": _clean(data.get("manufacturer")),
         "submitted": _clean(data.get("submitted")),
@@ -360,7 +402,13 @@ def _better(candidate: dict, current: dict) -> bool:
 
 
 def _system_code(reading: dict, relative: str) -> str | None:
-    return submittal_scanner._system_code(relative, f"{reading.get('title', '')} {reading.get('system', '')}")
+    """The system a form is for: what the model concluded from the form
+    itself first, then the folder it is filed under, then its wording."""
+    named = system_rules.canonical(reading.get("system_code"))
+    if named and named != "OTHER":
+        return named
+    from_folder = submittal_scanner._system_code(relative, f"{reading.get('title', '')} {reading.get('system', '')}")
+    return from_folder if from_folder or named != "OTHER" else None
 
 
 def build_map(readings: list[dict], *, systems_on_project: list[str] | None = None) -> dict:

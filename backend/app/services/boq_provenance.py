@@ -162,7 +162,20 @@ def part_library(db: Session) -> dict[str, str]:
     from app.models import DesignRule, KnowledgeModel
     from app.seed import BATTERY_UNIT_CATEGORY, PART_CURRENT_CATEGORY
 
+    from app.services import equipment_currents
+
     library: dict[str, str] = {}
+    # The equipment current table first: it is the catalogue the platform
+    # keeps, and its aliases are the misreadings already met on scanned
+    # sheets ("SIGA-AAS0" for SIGA-AA50), each mapped to the real number.
+    for row in equipment_currents.all_rows(db):
+        library.setdefault(row.key or part_key(row.part_no), row.part_no)
+        for alias in row.aliases or ():
+            if alias:
+                library.setdefault(part_key(alias), row.part_no)
+    for alias, spelling in equipment_currents.ALIASES.items():
+        library.setdefault(part_key(spelling), spelling)
+        library.setdefault(part_key(alias), spelling)
     for rule in db.query(DesignRule).filter(DesignRule.category.in_((PART_CURRENT_CATEGORY, BATTERY_UNIT_CATEGORY)),
                                             DesignRule.superseded_at.is_(None)):
         spelling = (rule.data or {}).get("part_no")
@@ -172,6 +185,21 @@ def part_library(db: Session) -> dict[str, str]:
         if model and len(part_key(model)) >= 4:
             library.setdefault(part_key(model), model)
     return library
+
+
+def catalogued(code: str | None, library: dict[str, str]) -> tuple[str | None, dict | None]:
+    """The catalogue's spelling of a code read off a scanned sheet, when the
+    library settles it -- "SIGA-AASO" is SIGA-AA50: a scan's S for 5 and O
+    for 0 -- with the match record; (the code as given, None) otherwise.
+    The reading is never lost: the record keeps it as `read_as`."""
+    from app.extraction.identity import match_catalog, part_key
+
+    if not code:
+        return code, None
+    match = match_catalog(code, library)
+    if match.canonical and part_key(match.canonical) != part_key(code):
+        return match.canonical, {**match.as_dict(), "read_as": code}
+    return code, match.as_dict() if match.canonical else None
 
 
 def check_catalog(target, library: dict[str, str]) -> None:

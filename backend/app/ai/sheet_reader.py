@@ -60,6 +60,7 @@ from app.ai.provider import AiProvider, ImagePart, TextPart, get_provider
 from app.compliance import assist
 from app.core.config import get_settings
 from app.extraction import identity, pipeline
+from app.services import boq_provenance
 from app.extraction.issues import Issue, IssueCode, PageCoverage, RegionCoverage
 from app.models import DocumentReading, Project, ProjectDesignSheet
 from app.services import design_sheet_extractor as ocr
@@ -536,7 +537,7 @@ def combine(run: _Run, *, document_sha: str, witness: DesignSheetExtraction, rea
     section: str | None = None
     heading: str | None = None
     any_items = False
-    settled = {"witnessed": 0, "second": 0, "close_up": 0, "added_from_ocr": 0}
+    settled = {"witnessed": 0, "second": 0, "close_up": 0, "added_from_ocr": 0, "catalogued": 0}
 
     for page in reading.reading.get("pages") or []:
         number = int(page["page"])
@@ -672,8 +673,19 @@ def combine(run: _Run, *, document_sha: str, witness: DesignSheetExtraction, rea
             lines.append(line)
 
     lines.sort(key=lambda l: (l.page, l.y_px or 0))
+    # The model reads a catalog number as printed, so its reading stands as
+    # evidence; the part library then says which catalogue number a scan's
+    # S-for-5 or O-for-0 hides, and the line carries that number.
+    library = boq_provenance.part_library(run.db)
     for line in lines:
         line.quantity_parse = ocr._parse_quantity(line.raw_quantity).to_dict() if line.raw_quantity else None
+        code, record = boq_provenance.catalogued(line.catalog_no, library)
+        if record is not None:
+            line.catalog_match = record
+        if code != line.catalog_no:
+            line.catalog_raw = line.catalog_raw or line.catalog_no
+            line.catalog_no = code
+            settled["catalogued"] += 1
     result.lines = lines
     result.buildings = ocr.settle_identity(lines + [line for line, _r, _v in review])
     for ordinal, (line, reason, readings) in enumerate(review, start=1):

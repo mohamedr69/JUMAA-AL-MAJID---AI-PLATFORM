@@ -48,13 +48,20 @@ _TICKED_RE = {
     "C": re.compile(r"☒\s*Re-?\s*Submit\s*\(C\)", re.IGNORECASE),
 }
 
+# Emergency lighting goes by many names on a form -- emergency light, exit
+# light, self-contained / self-monitored / monitored emergency light,
+# emergency light monitoring (EML), central battery system (CBS) -- and
+# every one of them is the ELS system.
 SYSTEM_KEYWORDS = [
     ("FRC", r"fire\s*(rated|resistant)\s*cable|\bFRC\b|\bcables?\b"),
-    ("ELS", r"emergency\s*light|self\s*contained|central\s*battery"),
-    ("FAS", r"fire\s*alarm|voice\s*evacuation|fire\s*telephone"),
+    ("ELS", r"emergency\s*(&|and)?\s*(exit\s*)?light|exit\s*light|self[\s-]*(contained|monitor)|central\s*batter"
+            r"|\bCBS\b|\bCBU\b|\bEML\b|\bELS\b"),
+    ("FAS", r"fire\s*alarm|fire\s*detection|voice\s*evacuation|fire\s*telephone"),
 ]
 # The folder a form sits in says it plainer than its title does.
-FOLDER_SYSTEMS = [("FRC", r"\bFRC\b"), ("ELS", r"\bEML\b|\bELS\b|\bCBS\b"), ("FAS", r"\bFA\b|fire\s*alarm")]
+FOLDER_SYSTEMS = [("FRC", r"\bFRC\b"),
+                  ("ELS", r"\bEML\b|\bELS\b|\bCBS\b|\bCBU\b|\bELM\b|\bEL\b|emergency|central\s*batter"),
+                  ("FAS", r"\bFA\b|\bFAS\b|fire\s*alarm")]
 APPROVAL_FOLDER_RE = re.compile(r"approval|approved", re.IGNORECASE)
 
 

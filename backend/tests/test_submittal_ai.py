@@ -91,6 +91,57 @@ def test_only_forms_and_scanned_documents_named_for_submittals_are_read(tmp_path
     doc.save(sheet)
     doc.close()
 
+    # A contractor's own form: no "MAS Reference No.", headed MATERIAL
+    # SUBMITTAL with a "Submittal No." (EP-29495's central battery submittal).
+    own = root / "approved" / "MS" / "ICC-DLRC-SIG2-MAR-MEP-0060-02 - CENTRAL BATTERY SYSTEM.pdf"
+    own.parent.mkdir(parents=True)
+    doc = pymupdf.open()
+    doc.new_page().insert_text((40, 50), "Consultant\nM/s. Al Hilal Engineering Consultants\nMATERIAL SUBMITTAL\n"
+                                         "Submittal No. ICC-DLRC-SIG2-MAR-MEP-0060\nRev. 02\nDate: 26-08-2026", fontsize=9)
+    doc.save(own)
+    doc.close()
+    # The same contractor's transmittal for a shop drawing: not a form,
+    # though its checklist mentions material submittals.
+    drawing_form = root / "approved" / "SD" / "ICC-DLRC-SIG2-SD-MEP-0081-00 - EMERGENCY LIGHTING LAYOUT.pdf"
+    drawing_form.parent.mkdir(parents=True)
+    doc = pymupdf.open()
+    doc.new_page().insert_text((40, 50), "Consultant\nM/s. Al Hilal Engineering Consultants\nSHOP DRAWING SUBMITTAL\n"
+                                         "Submittal No. ICC-DLRC-SIG2-SD-MEP-0081\nRev. 00\nType: Material Submittal / Drawing",
+                               fontsize=9)
+    doc.save(drawing_form)
+    doc.close()
+    # JAM's own package cover, in a submittal folder: a form to read.
+    cover = root / "06. MS" / "CBS" / "CBS MS R00.pdf"
+    cover.parent.mkdir(parents=True)
+    doc = pymupdf.open()
+    doc.new_page().insert_text((40, 50), "Project: MATERIAL SUBMITTAL FOR CENTRAL BATTERY SYSTEM.\nCLIENT\nCONSULTANT\nRevision 0",
+                               fontsize=9)
+    doc.save(cover)
+    doc.close()
+
     found, warnings = submittal_reader.candidates(root)
-    assert [str(p.relative_to(root)) for p in found] == [str(Path("03- MS/01- FA/form.pdf")), str(Path("08- approval/MS/scan.pdf"))]
+    assert [str(p.relative_to(root)) for p in found] == [
+        str(Path("03- MS/01- FA/form.pdf")), str(Path("06. MS/CBS/CBS MS R00.pdf")), str(Path("08- approval/MS/scan.pdf")),
+        str(Path("approved/MS/ICC-DLRC-SIG2-MAR-MEP-0060-02 - CENTRAL BATTERY SYSTEM.pdf")),
+    ]
     assert warnings == []
+
+
+def test_the_model_names_the_system_and_emergency_lighting_goes_by_every_name():
+    # The model's conclusion first: a central battery submittal filed under
+    # the fire alarm folder is ELS.
+    reading = {"title": "Material Submittal for Central Battery System", "system": "CBS", "system_code": "ELS"}
+    assert submittal_reader._system_code(reading, "MS/FA/Revised/form.pdf") == "ELS"
+    assert submittal_reader._normalise({**reading, "reply": {}})["system_code"] == "ELS"
+    assert submittal_reader._normalise({**reading, "system_code": "els", "reply": {}})["system_code"] == "ELS"
+    assert submittal_reader._normalise({**reading, "system_code": "Lighting", "reply": {}})["system_code"] == ""
+    # Without the model's code, the wording: every name emergency lighting goes by.
+    for title in ("Self Contained Monitoring Emergency & Exit Light System", "Self-Monitored Emergency Light",
+                  "Central Battery Unit", "CBS for Emergency Lighting", "Exit Light Fittings"):
+        assert submittal_reader._system_code({"title": title, "system": ""}, "06. MS/Revised/form.pdf") == "ELS", title
+    assert submittal_reader._system_code({"title": "Fire Detection & Alarm System", "system": ""}, "MS/form.pdf") == "FAS"
+    # The folder, in its spellings.
+    for folder in ("06. MS/EML", "MS/EL", "MS/Emergency Lighting", "MS/CBS"):
+        assert submittal_reader._system_code({"title": "Material Submittal", "system": ""}, f"{folder}/form.pdf") == "ELS", folder
+    # OTHER: not a system the platform tracks, unless the folder says otherwise.
+    assert submittal_reader._system_code({"title": "Fire Pump", "system": "", "system_code": "OTHER"}, "MS/Pumps/form.pdf") is None
