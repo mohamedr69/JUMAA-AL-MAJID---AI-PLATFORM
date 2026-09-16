@@ -37,10 +37,19 @@ export function ExtractionReview({
 
   if (!state) return error ? <div className="mt-4 text-xs text-red-700">{error}</div> : null;
 
+  // Only a row can be added or rejected. A page or a sheet the read could
+  // not handle is an issue too, but it is said above ("page 1 had no
+  // recognisable table") and on the sheet banner; shown here it became a
+  // blank row asking for a quantity.
   const pending = state.runs.flatMap((run) =>
-    run.issues.filter((i) => i.state === "open" || i.state === "proposed" || i.state === "starved").map((i) => ({ run, issue: i }))
+    run.issues
+      .filter((i) => i.target.startsWith("boq_line:"))
+      .filter((i) => i.state === "open" || i.state === "proposed" || i.state === "starved")
+      .map((i) => ({ run, issue: i }))
   );
-  const partial = state.runs.filter((r) => r.unprocessed_pages.length > 0);
+  // A sheet that could not be read at all is said on the BOQ page banner;
+  // listing its page here too said the same thing twice.
+  const partial = state.runs.filter((r) => r.unprocessed_pages.length > 0 && !r.failure);
   const starved = state.runs.filter((r) => r.budget_exhausted);
   const eligible = pending.some((p) => p.issue.state === "open" && p.issue.llm_eligible);
   const canAssist = state.ai_ready && eligible;

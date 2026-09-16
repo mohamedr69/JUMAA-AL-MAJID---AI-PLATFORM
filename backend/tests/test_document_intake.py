@@ -147,6 +147,38 @@ def test_missing_unreadable_and_duplicate_documents(client, db_session, archive,
     assert client.post(f"/projects/{pid}/documents/intake").status_code == 403
 
 
+def test_a_page_the_read_could_not_handle_is_not_a_row_to_review(client, db_session):
+    """EP-30088's ELS sheet has a layout the extractor does not recognise. The
+    read records that as page- and document-level issues; the BOQ page then
+    listed them under "rows need review" as blank rows asking for a quantity,
+    and readiness counted them as rows to add or reject -- twice over, since
+    the coverage check already reports the unread page."""
+    _login_admin(client)
+    pid = client.post("/projects", json={"ep_number": "40005", "project_name": "P", "systems": [], "design_sheets": []}).json()["id"]
+    run = ExtractionRun(project_id=pid, kind="design_sheet", document_path="EP-30088 Design Sheet ELS.pdf", parser_version="t",
+                        outcome="NEEDS_HUMAN_DECISION", failure="Could not find a line-item table in this Design Sheet",
+                        coverage={"pages": [{"page": 1, "detected": True, "processed": False, "reason": "no recognised column layout"}]})
+    run.issues = [ExtractionIssue(code="UNPROCESSED_PAGE_OR_REGION", severity="high", page=1, target="page:1",
+                                  detail={"reason": "no recognised column layout"}, state="open"),
+                  ExtractionIssue(code="UNRECOGNIZED_TABLE_LAYOUT", severity="high", page=None, target="",
+                                  detail={"pages": 1}, state="open"),
+                  ExtractionIssue(code="QUANTITY_OR_UNIT_PARSE_FAILURE", severity="medium", page=1, target="boq_line:1:4",
+                                  detail={"description": "Emergency light"}, state="open")]
+    db_session.add(run)
+    db_session.commit()
+
+    checks = {c["key"]: c for c in client.get(f"/projects/{pid}/readiness").json()["checks"]}
+    # The one real row, once; the unread page is the coverage check's finding.
+    assert checks["unresolved_rows"]["count"] == 1 and checks["unresolved_rows"]["items"] == ["EP-30088 Design Sheet ELS.pdf p.1: Emergency light"]
+
+    body = client.get(f"/projects/{pid}/extraction").json()
+    assert body["open_issues"] == 1
+    # The page-level issues are still on the run for the sheet banner to explain.
+    assert sorted(i["code"] for i in body["runs"][0]["issues"]) == [
+        "QUANTITY_OR_UNIT_PARSE_FAILURE", "UNPROCESSED_PAGE_OR_REGION", "UNRECOGNIZED_TABLE_LAYOUT"]
+    assert body["runs"][0]["unprocessed_pages"] == [1]
+
+
 def test_readiness_blocks_on_unresolved_rows_ai_suggestions_and_unassigned_lines(client, db_session):
     _login_admin(client)
     pid = client.post("/projects", json={"ep_number": "40004", "project_name": "P", "systems": [], "design_sheets": []}).json()["id"]

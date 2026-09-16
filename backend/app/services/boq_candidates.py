@@ -33,6 +33,7 @@ from sqlalchemy.orm import Session
 from app.core.timeutils import utc_now
 from app.extraction import pipeline, values
 from app.models import BoqCandidate, ExtractionRun, Project, ProjectBoqItem, User
+from app.extraction.issues import is_row_issue
 from app.services import boq_provenance, design_sheet_extractor, system_rules
 
 PROBABLE_DESCRIPTION_RATIO = 0.82
@@ -177,7 +178,7 @@ def build(db: Session, project: Project, user: User | None, ctx=None) -> BoqCand
         sheets.append({
             "run_id": run.id, "document_name": Path(sheet.document_path).name, "system_code": sheet.system_code,
             "outcome": run.outcome, "lines": len(result.lines), "failure": result.failure,
-            "open_issues": sum(1 for i in run.issues if i.state == "open"),
+            "open_issues": sum(1 for i in run.issues if is_row_issue(i) and i.state == "open"),
             "unprocessed_pages": [p["page"] for p in coverage.get("pages", []) if p.get("detected") and not p.get("processed")],
         })
         if result.failure:

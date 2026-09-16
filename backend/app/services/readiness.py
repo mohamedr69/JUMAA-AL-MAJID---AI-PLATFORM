@@ -18,6 +18,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from app.extraction.issues import is_row_issue
+
 from sqlalchemy.orm import Session
 
 from app.extraction import values
@@ -109,6 +111,10 @@ def _issues(latest: dict[str, ExtractionRun]) -> tuple[Check, Check]:
     open_rows, proposed = [], []
     for run in latest.values():
         for issue in run.issues:
+            # A page or a document the read could not handle is the coverage
+            # check's finding, above; it is not a row to add or reject.
+            if not is_row_issue(issue):
+                continue
             label = f"{Path(run.document_path).name} p.{issue.page or '?'}: " + (
                 (issue.detail or {}).get("description") or issue.code.replace("_", " ").lower())[:90]
             if issue.state == "proposed":

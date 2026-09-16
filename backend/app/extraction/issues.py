@@ -116,6 +116,17 @@ ROUTING: dict[IssueCode, Routing] = {
 ENABLED_TASKS: frozenset[str] = frozenset({"read_cell", "classify_system"})
 
 
+def is_row_issue(issue) -> bool:
+    """Whether an issue is about one BOQ row -- a line the read kept but could
+    not settle -- as opposed to a page or a whole document (an unread page, a
+    layout nothing recognised). Only a row can be added to the BOQ or
+    rejected as not an item; a page-level issue is reported by the coverage
+    check and the sheet banner, and offering it as a row to review asked
+    engineers to type a quantity for a page. The verification takes the same
+    test to pick the dropped rows it shows the model."""
+    return str(getattr(issue, "target", "") or "").startswith("boq_line:")
+
+
 def route(code: IssueCode) -> Routing:
     return ROUTING[code]
 

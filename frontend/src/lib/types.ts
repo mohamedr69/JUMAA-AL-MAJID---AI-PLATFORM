@@ -1395,6 +1395,7 @@ export interface ExtractionRun {
   system_code: string | null;
   outcome: string;
   lines_accepted: number;
+  failure: string | null;
   unprocessed_pages: number[];
   ai_calls: number;
   ai_cost: number;

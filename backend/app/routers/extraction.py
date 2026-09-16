@@ -26,7 +26,7 @@ from app.core.timeutils import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_role
 from app.extraction import pipeline
-from app.extraction.issues import IssueCode, llm_task_for, route
+from app.extraction.issues import IssueCode, llm_task_for, route, is_row_issue
 from app.models import AiUsage, ExtractionIssue, ExtractionRun, RoleEnum, User
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404
 from app.schemas_project import ProjectBoqItemOut
@@ -71,6 +71,9 @@ class RunOut(BaseModel):
     system_code: str | None
     outcome: str
     lines_accepted: int
+    # Why the whole sheet could not be read, when it could not; the BOQ page
+    # banner says so, and the review panel then does not say it again.
+    failure: str | None = None
     unprocessed_pages: list[int]
     ai_calls: int
     ai_cost: float
@@ -100,7 +103,7 @@ def _run_out(run: ExtractionRun) -> RunOut:
     unprocessed = [p["page"] for p in coverage.get("pages", []) if p.get("detected") and not p.get("processed")]
     return RunOut(
         id=run.id, kind=run.kind, document_name=Path(run.document_path).name, system_code=run.system_code,
-        outcome=run.outcome, lines_accepted=run.lines_accepted, unprocessed_pages=unprocessed,
+        outcome=run.outcome, lines_accepted=run.lines_accepted, failure=run.failure, unprocessed_pages=unprocessed,
         ai_calls=run.ai_calls, ai_cost=float(run.ai_cost or 0), budget_exhausted=run.budget_exhausted,
         trigger=run.trigger, started_at=run.started_at,
         issues=[
@@ -151,7 +154,8 @@ def get_extraction(
         ai_ready=bool(getattr(provider, "ready", False)) and not blocked,
         ai_status=project_policy.BLOCKED_MESSAGE if blocked else str(getattr(provider, "status", "")),
         runs=runs,
-        open_issues=sum(1 for r in runs for i in r.issues if i.state in ("open", "proposed", "starved")),
+        open_issues=sum(1 for r in runs for i in r.issues
+                        if is_row_issue(i) and i.state in ("open", "proposed", "starved")),
     )
 
 
