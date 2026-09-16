@@ -127,6 +127,16 @@ def test_only_forms_and_scanned_documents_named_for_submittals_are_read(tmp_path
     assert warnings == []
 
 
+def test_a_reference_is_a_reference_or_nothing():
+    """A package cover names no reference; what the model answers for it
+    (the revision, the label it saw) keys no row of the map."""
+    for junk in ("0", "SUBMITTAL NO.: 0", "Submittal No.", "MAS Reference No.: -", "", None, "REV 02"):
+        assert submittal_reader._normalise({"reference": junk, "reply": {}})["reference"] == "", junk
+    assert submittal_reader._normalise({"reference": "Submittal No. ICC-DLRC-SIG2-MAR-MEP-0060", "reply": {}})["reference"] == "ICC-DLRC-SIG2-MAR-MEP-0060"
+    assert submittal_reader._normalise({"reference": "bby006-gme-mas-el-fa-0002-", "reply": {}})["reference"] == "BBY006-GME-MAS-EL-FA-0002"
+    assert submittal_reader._normalise({"reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-ZZZ-1004", "reply": {}})["reference"] == "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-ZZZ-1004"
+
+
 def test_the_model_names_the_system_and_emergency_lighting_goes_by_every_name():
     # The model's conclusion first: a central battery submittal filed under
     # the fire alarm folder is ELS.

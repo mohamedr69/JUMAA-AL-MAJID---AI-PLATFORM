@@ -316,6 +316,20 @@ def _clean(text) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip()
 
 
+# A label the model may echo in front of the number, and what a reference
+# must be once it is stripped: letters and digits together, six or more.
+_REFERENCE_LABEL_RE = re.compile(r"^(?:MAS\s+)?(?:REFERENCE|REF|SUBMITTAL)\.?\s*(?:NO|NUMBER)?\.?\s*:?\s*", re.IGNORECASE)
+_REFERENCE_SHAPE_RE = re.compile(r"^(?!REV(?:ISION)?\.?\s*\d+$)(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9\-/ ]{5,}$")
+
+
+def _reference(text) -> str:
+    """The reference as the map keys it, or '' when what the model gave is
+    not one: a package cover names none, and the model then answers the
+    revision ("0") or the label it saw ("SUBMITTAL NO.: 0")."""
+    cleaned = _REFERENCE_LABEL_RE.sub("", _clean(text)).upper().strip().rstrip("-:")
+    return cleaned if _REFERENCE_SHAPE_RE.match(cleaned) else ""
+
+
 def _normalise(data: dict) -> dict:
     reply = data.get("reply") if isinstance(data.get("reply"), dict) else {}
     revision = data.get("revision")
@@ -325,7 +339,7 @@ def _normalise(data: dict) -> dict:
         revision = None
     return {
         "is_submittal": bool(data.get("is_submittal")),
-        "reference": _clean(data.get("reference")).upper().rstrip("-"),
+        "reference": _reference(data.get("reference")),
         "revision": revision,
         "title": _clean(data.get("title")),
         "system": _clean(data.get("system")),
