@@ -241,6 +241,10 @@ def sync(db: Session, project: Project, *, user: User | None = None, ctx=None, p
         if ctx is not None:
             ctx.progress(0, max(len(files), 1), "Checking the DRF and the Design Sheets")
         document_intake.run(db, project)
+        # Committed before any progress is reported: the job's progress is
+        # written through a second session, and a SQLite file lets one
+        # writer in at a time -- a flush here would lock it out.
+        db.commit()
     rows = {row.path: row for row in db.query(ProjectDocument).filter(ProjectDocument.project_id == project.id)}
     intake_paths = {str(Path(p)) for _role, _system, p in _intake_documents(project)}
     counts = {"files": len(files), "new": 0, "changed": 0, "unchanged": 0, "removed": 0, "failed": 0, "read_by_ai": 0,
@@ -289,7 +293,7 @@ def sync(db: Session, project: Project, *, user: User | None = None, ctx=None, p
             row.relative_path = relative
         row.sha256, row.size, row.mtime, row.last_seen_at = sha, size, mtime, now
         row.state = PROCESSING
-        db.flush()
+        db.commit()   # the row says "processing" on disk, and the write lock is released for the progress report
         if ctx is not None:
             ctx.progress(index, len(files), f"Reading {path.name} ({'new' if counts['new'] else 'changed'})")
         try:
