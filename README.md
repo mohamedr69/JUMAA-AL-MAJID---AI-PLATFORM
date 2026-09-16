@@ -339,6 +339,36 @@ says whether images, the schema and the validation all work on the
 configured model (`--all` tries a shortlist). Tests use a scripted
 provider; nothing in the suite calls a live model.
 
+### The folder is searched once; the database remembers
+
+Three things used to walk the project's OneDrive folder on every open, and
+now do not:
+
+- **Specifications.** The compliance page's search of the folder is run
+  once and what it found is kept on the project (`projects.spec_locations`,
+  `spec_warnings`, `specs_found_at`); every later open reads the locations
+  from the database and goes straight to the files. The folder is searched
+  again on "Search project folder again", or by itself when a file it found
+  is no longer where it was. The submittal package's specification section
+  reads the same record.
+- **Material submittals.** The map and the register come from the database.
+  Opening the tab compares a cheap listing of the folder (every PDF's path,
+  size and time, nothing opened) with the listing the last check was drawn
+  from, and starts the AI check by itself only when something was filed,
+  replaced or removed -- a submittal received, a new one filed; otherwise it
+  says "up to date". The check itself reads only files it has not read before.
+- **A user's data on every PC.** The database is a file under `backend/` by
+  default, which is why a project made on one PC is not on another. Set
+  `DATA_ROOT` in `backend/.env` to a folder OneDrive syncs
+  (`%USERPROFILE%\Juma Al Majid\EP Platform`, say) on each PC and the
+  database, the uploads, the backups and the caches live there together; the
+  first start with it set copies a database already under `backend/` into
+  it, and the same sign-in then finds the same projects everywhere. One PC at
+  a time: close the platform before opening it on the other, so OneDrive
+  finishes syncing (the database is kept as one file, no write-ahead log,
+  for that reason). A shared database server (Postgres via `DATABASE_URL`)
+  is the answer for several people working at once.
+
 ### The AI reads the material submittals
 
 The consultant's reply on a material submittal form is a stamp or a

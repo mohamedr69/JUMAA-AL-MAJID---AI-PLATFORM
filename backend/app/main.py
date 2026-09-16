@@ -38,6 +38,11 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.database import adopt_local_database
+
+    adopted = adopt_local_database()
+    if adopted:
+        print(adopted)
     upgrade_to_head(engine)
     db = SessionLocal()
     try:

@@ -182,6 +182,39 @@ def available(project: Project, provider: AiProvider | None = None) -> str | Non
 # --- the files -------------------------------------------------------------------------
 
 
+def listing_fingerprint(root: Path) -> tuple[str, int]:
+    """(a hash of every PDF's path, size and time under the folder, how many)
+    -- without opening one, so a page can ask cheaply whether anything was
+    filed or replaced since the last check."""
+    digest = hashlib.sha256()
+    count = 0
+    for n, path in enumerate(sorted(root.rglob("*.pdf"))):
+        if n >= MAX_PDFS:
+            break
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        digest.update(f"{path.relative_to(root)}|{stat.st_size}|{int(stat.st_mtime)}".encode("utf-8", "replace"))
+        count += 1
+    return digest.hexdigest(), count
+
+
+def changes(db: Session, project: Project) -> dict:
+    """Whether the project folder has changed since the last check: the
+    listing now against the listing the stored map was drawn from."""
+    latest = latest_map(db, project)
+    root = Path(project.source_folder_path or "")
+    if not project.source_folder_path or not root.is_dir():
+        return {"changed": False, "listing_files": 0, "reason": "folder not reachable"}
+    fingerprint, count = listing_fingerprint(root)
+    if latest is None:
+        return {"changed": True, "listing_files": count, "reason": "never checked"}
+    changed = fingerprint != latest.get("listing_sha256")
+    return {"changed": changed, "listing_files": count,
+            "reason": "files added, replaced or removed since the last check" if changed else "unchanged since the last check"}
+
+
 def candidates(root: Path) -> tuple[list[Path], list[str]]:
     """The PDFs in the folder that could be material submittal forms: a
     first page naming a MAS reference, or a scanned first page in a folder
@@ -421,6 +454,7 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
     run = _Run(db=db, project=project, provider=provider, budget=_budget(db, project.id))
     if ctx is not None:
         ctx.progress(0, 1, "Looking for material submittal forms in the project folder")
+    listing_sha, listing_files = listing_fingerprint(root)
     files, warnings = candidates(root)
     readings: list[dict] = []
     fingerprint = hashlib.sha256()
@@ -444,6 +478,10 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
     submittal_map["calls"] = run.calls
     submittal_map["reused"] = run.reused
     submittal_map["files"] = len(files)
+    # The folder as it was when this map was drawn: a later open compares
+    # the listing to it and checks again only when something changed.
+    submittal_map["listing_sha256"] = listing_sha
+    submittal_map["listing_files"] = listing_files
 
     if ctx is not None:
         ctx.progress(len(files), max(len(files), 1), "Bringing the register up to the map")

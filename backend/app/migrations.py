@@ -10,8 +10,10 @@ from sqlalchemy.engine import Engine
 
 from app.core.timeutils import utc_now
 
+from app.core.config import get_settings
+
 ALEMBIC_INI = Path(__file__).resolve().parent.parent / "alembic.ini"
-BACKUPS_ROOT = Path(__file__).resolve().parent.parent / "backups"
+BACKUPS_ROOT = Path(get_settings().backups_root or (Path(__file__).resolve().parent.parent / "backups"))
 
 log = logging.getLogger(__name__)
 

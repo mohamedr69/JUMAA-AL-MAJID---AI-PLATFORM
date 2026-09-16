@@ -61,6 +61,14 @@ class Settings(BaseSettings):
     company_name: str = "Al Arabia for Safety & Security LLC"
 
     database_url: str = "sqlite:///./ep_platform.db"
+    # One folder for everything the platform writes -- the database, the
+    # uploads, the backups, the caches. Point it at a folder OneDrive syncs
+    # and the same user finds their projects on every PC they sign in on;
+    # left unset, everything stays under backend/ on this machine. ~ and
+    # %VAR% are expanded. A DATABASE_URL, UPLOADS_ROOT or CACHE_ROOT set
+    # explicitly is kept as set.
+    data_root: str | None = None
+    backups_root: str | None = None
 
     secret_key: str = "dev-secret-key-change-me-in-production"
     access_token_expire_minutes: int = 30
@@ -101,6 +109,23 @@ class Settings(BaseSettings):
     # Path to tesseract.exe. Unset: found on the PATH or where the Windows
     # installer puts it, so a new machine needs no setting.
     tesseract_cmd: str | None = None
+
+    @model_validator(mode="after")
+    def _apply_data_root(self) -> "Settings":
+        root = expand_path(self.data_root)
+        self.data_root = root
+        if not root:
+            self.backups_root = self.backups_root or str(BACKEND_DIR / "backups")
+            return self
+        folder = Path(root)
+        if self.database_url == "sqlite:///./ep_platform.db":
+            self.database_url = "sqlite:///" + (folder / "ep_platform.db").as_posix()
+        if self.uploads_root == "uploads":
+            self.uploads_root = str(folder / "uploads")
+        if not self.cache_root:
+            self.cache_root = str(folder / ".cache")
+        self.backups_root = self.backups_root or str(folder / "backups")
+        return self
 
     @model_validator(mode="after")
     def _find_tesseract(self) -> "Settings":

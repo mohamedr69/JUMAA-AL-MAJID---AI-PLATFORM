@@ -97,6 +97,14 @@ class Project(Base):
     # leave the platform (app.ai.project_policy).
     ai_policy: Mapped[str] = mapped_column(String(16), nullable=False, default="allowed", server_default="allowed")
 
+    # Where the project's specifications were found (app.routers.compliance):
+    # the matches as found, with the warnings and when. The folder is searched
+    # once; every later open reads these and goes straight to the files, and
+    # searches again only on request or when a file is no longer where it was.
+    spec_locations: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    spec_warnings: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    specs_found_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+
     # When the Design Sheets were read into the BOQ. Set once, on the first
     # attempt, and never cleared: extraction is a starting point the engineer
     # then edits, so re-running it later would either duplicate their lines or

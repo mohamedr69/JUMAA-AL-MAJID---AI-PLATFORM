@@ -922,6 +922,11 @@ export interface SubmittalMap {
   reused: number;
   warnings: string[];
   register_counts: Record<string, number>;
+  /** Whether the project folder changed since the map was drawn (or was
+   * never checked): only then is the folder read again. */
+  changed: boolean;
+  listing_files: number;
+  change_reason: string;
 }
 
 // --- Compliance statements (app/routers/compliance.py) ---
@@ -1010,6 +1015,11 @@ export interface Compliance {
   systems: ComplianceSystem[];
   warnings: string[];
   searched: string | null;
+  /** When the folder was searched, and whether this came from the database
+   * (the folder is searched once; after that the files are read from where
+   * they were found). */
+  found_at: string | null;
+  from_database: boolean;
   ai_available: boolean;
   knowledge: KnowledgeStatus | null;
 }

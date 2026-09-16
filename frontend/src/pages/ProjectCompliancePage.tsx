@@ -252,10 +252,18 @@ export function ProjectCompliancePage() {
           <h1 className="text-2xl font-bold text-navy-900">Compliance Statement</h1>
           <p className="mt-1 text-sm text-gray-500">Review and respond to every specification clause.</p>
         </div>
-        <button onClick={() => load(true)} disabled={busy} className={btnSecondary}>
-          <Icon path={ICONS.search} />
-          {busy ? "Searching…" : "Search project folder again"}
-        </button>
+        <div className="text-right">
+          <button onClick={() => load(true)} disabled={busy} className={btnSecondary}>
+            <Icon path={ICONS.search} />
+            {busy ? "Searching…" : "Search project folder again"}
+          </button>
+          {data?.found_at && (
+            <div className="mt-1 text-[11px] text-gray-500">
+              {data.from_database ? "Locations from the database · folder searched " : "Folder searched "}
+              {formatWhen(data.found_at)}
+            </div>
+          )}
+        </div>
       </div>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}

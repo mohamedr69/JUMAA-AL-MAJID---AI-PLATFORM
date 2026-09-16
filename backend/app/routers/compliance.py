@@ -128,12 +128,53 @@ def _uploaded_specs(project: Project, wanted: set[str]) -> list[SpecMatch]:
     return found
 
 
-def _specs(project: Project, refresh: bool = False) -> tuple[list, list[str]]:
+_STORED_FIELDS = ("system_code", "path", "filename", "member", "kind", "section_no", "heading", "first_page",
+                  "last_page", "snippet", "matched_on", "uploaded", "verification")
+
+
+def _stored_specs(project: Project) -> list[SpecMatch] | None:
+    """The specifications as the last search found them, from the database
+    -- or None when there is no search on record, or a file it found is no
+    longer where it was (then the folder is searched again)."""
+    if project.specs_found_at is None or project.spec_locations is None:
+        return None   # never searched (an empty search is a search: nothing found is remembered too)
+    matches = []
+    for entry in project.spec_locations:
+        try:
+            match = SpecMatch(**{name: entry.get(name) for name in _STORED_FIELDS if name in entry})
+        except TypeError:
+            return None
+        if match.uploaded:
+            continue   # re-listed from the uploads folder each time: cheap, and it may have changed
+        if not any(root.is_dir() and (root / match.path).exists() for root in service.spec_roots(project)):
+            return None
+        matches.append(match)
+    return matches
+
+
+def _store_specs(db: Session, project: Project, matches: list, warnings: list[str]) -> None:
+    project.spec_locations = [
+        {name: getattr(match, name) for name in _STORED_FIELDS} for match in matches if not match.uploaded
+    ]
+    project.spec_warnings = list(warnings)
+    project.specs_found_at = utc_now()
+    db.commit()
+
+
+def _specs(project: Project, refresh: bool = False, db: Session | None = None) -> tuple[list, list[str], bool]:
+    """(matches, warnings, from_database). The folder is searched once and
+    what it found is kept on the project; after that the files are read
+    from where they were found, and the folder is searched again only on
+    `refresh` or when one of them has moved."""
     wanted = set(_project_systems(project))
+    if not refresh:
+        stored = _stored_specs(project)
+        if stored is not None:
+            return _uploaded_specs(project, wanted) + stored, list(project.spec_warnings or []), True
     with _cache_lock:
         cached = _cache.get(project.id)
         if cached and not refresh and utc_now() - cached[0] < CACHE_FOR:
-            return cached[1], cached[2]
+            return cached[1], cached[2], False
 
     folder = Path(project.source_folder_path) if project.source_folder_path else None
     if folder is None:
@@ -160,7 +201,9 @@ def _specs(project: Project, refresh: bool = False) -> tuple[list, list[str]]:
     _verify_matches(project, found)
     with _cache_lock:
         _cache[project.id] = (utc_now(), found, warnings)
-    return found, warnings
+    if db is not None and folder is not None and folder.is_dir():
+        _store_specs(db, project, found, warnings)
+    return found, warnings, False
 
 
 def _verify_matches(project: Project, matches: list) -> None:
@@ -222,7 +265,7 @@ def get_compliance(
 ) -> ComplianceOut:
     """The specification found for each of the project's systems."""
     project = _get_project_or_404(db, project_id)
-    matches, warnings = _specs(project, refresh=refresh)
+    matches, warnings, from_database = _specs(project, refresh=refresh, db=db)
     return ComplianceOut(
         systems=[
             ComplianceSystemOut(
@@ -234,6 +277,8 @@ def get_compliance(
         ],
         warnings=warnings,
         searched=project.source_folder_path,
+        found_at=project.specs_found_at,
+        from_database=from_database,
         ai_available=assist.available() and project.ai_policy != "blocked",
         knowledge=_knowledge_status(db),
     )

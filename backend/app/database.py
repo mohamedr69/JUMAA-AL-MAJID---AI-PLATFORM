@@ -33,7 +33,30 @@ if is_sqlite:
         connection goes back to the pool."""
         cursor = dbapi_connection.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
+        if settings.data_root and not is_sqlite_memory:
+            # A database in a synced folder (DATA_ROOT on OneDrive) must be
+            # one file: a write-ahead log beside it is what a sync client
+            # copies half of. The rollback journal is transient.
+            cursor.execute("PRAGMA journal_mode=DELETE")
         cursor.close()
+
+
+def adopt_local_database() -> str | None:
+    """The first start with DATA_ROOT set on a machine that already has a
+    database under backend/: that database is copied into the data folder,
+    so nothing the user made here is left behind. Returns what was done."""
+    if not settings.data_root or not is_sqlite or is_sqlite_memory:
+        return None
+    from pathlib import Path
+    import shutil
+
+    target = Path(settings.database_url.removeprefix("sqlite:///"))
+    local = Path(__file__).resolve().parents[1] / "ep_platform.db"
+    if target.exists() or not local.is_file():
+        return None
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(local, target)
+    return f"Copied the local database ({local}) into the data folder ({target})"
 
 
 class Base(DeclarativeBase):

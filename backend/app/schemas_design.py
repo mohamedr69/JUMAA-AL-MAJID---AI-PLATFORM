@@ -659,6 +659,12 @@ class SubmittalMapOut(BaseModel):
     reused: int = 0
     warnings: list[str] = []
     register_counts: dict = {}
+    # Whether the project folder changed since the map was drawn (or was
+    # never checked), so the page knows to check again -- and nothing else
+    # touches the folder on an open.
+    changed: bool = False
+    listing_files: int = 0
+    change_reason: str = ""
 
 
 # --- compliance statements -------------------------------------------------------
@@ -707,6 +713,10 @@ class ComplianceOut(BaseModel):
     warnings: list[str]
     # The folder that was searched.
     searched: str | None
+    # When the folder was searched, and whether this reply came from what the
+    # database holds of that search rather than a search now.
+    found_at: datetime | None = None
+    from_database: bool = False
     ai_available: bool = False
     knowledge: "KnowledgeStatusOut | None" = None
 

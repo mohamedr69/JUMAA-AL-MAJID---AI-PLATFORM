@@ -426,8 +426,11 @@ def submittal_map(
     project = _get_project_or_404(db, project_id)
     reason = submittal_reader.available(project)
     latest = submittal_reader.latest_map(db, project) or {}
-    return SubmittalMapOut(available=reason is None, reason=reason,
-                           **{k: v for k, v in latest.items() if k in SubmittalMapOut.model_fields and k not in ("available", "reason")})
+    delta = submittal_reader.changes(db, project)
+    return SubmittalMapOut(available=reason is None, reason=reason, changed=delta["changed"],
+                           listing_files=delta["listing_files"], change_reason=delta["reason"],
+                           **{k: v for k, v in latest.items()
+                              if k in SubmittalMapOut.model_fields and k not in ("available", "reason", "changed", "listing_files", "change_reason")})
 
 
 @router.get("/{project_id}/submittals/export.xlsx")
@@ -490,10 +493,19 @@ def _specs_for(project: Project, system_code: str | None) -> list[tuple[str, str
     folder = Path(project.source_folder_path)
     if not folder.is_dir():
         return []
-    try:
-        matches, _errors = find_specs(folder, {(system_code or "").upper()} if system_code else set())
-    except Exception:  # noqa: BLE001
-        return []
+    # What the compliance page's search found, kept on the project, before
+    # the folder is searched again (app.routers.compliance).
+    from app.routers.compliance import _stored_specs
+
+    stored = _stored_specs(project)
+    if stored is not None:
+        wanted = (system_code or "").upper()
+        matches = [m for m in stored if not wanted or m.system_code == wanted]
+    else:
+        try:
+            matches, _errors = find_specs(folder, {(system_code or "").upper()} if system_code else set())
+        except Exception:  # noqa: BLE001
+            return []
     # Only a specification served straight from a file can be merged; one
     # inside a zip is read for the compliance statement, not for the package.
     # The same spec filed loose and again inside its archive is one document.
