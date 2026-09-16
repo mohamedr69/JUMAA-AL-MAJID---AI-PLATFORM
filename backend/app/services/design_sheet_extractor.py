@@ -92,6 +92,10 @@ class _Layout:
 LAYOUTS: dict[int, _Layout] = {
     # Qty | Catalog No. | Description | Unit Price | Total Price
     6: _Layout(quantity=(0, 1), catalog=(1, 2), description=(2, 3)),
+    # Qty | Catalog No. | Description | Unit Price -- the quotation layout with
+    # its Total Price column off the edge of the scan (EP-30088's ELS sheet),
+    # so the sixth rule is never on the page.
+    5: _Layout(quantity=(0, 1), catalog=(1, 2), description=(2, 3)),
     # Catalog | Description | Qty  (spreadsheet export; quantity on the right)
     4: _Layout(quantity=(2, 3), catalog=(0, 1), description=(1, 2)),
 }
@@ -982,6 +986,75 @@ def _read_ruled_rows(
     return lines
 
 
+def _is_count(text: str | None) -> bool:
+    parsed = _parse_quantity(text)
+    return bool(parsed.ok) and str(parsed.value).isdigit()
+
+
+def _orphan_quantities(quantities: list[tuple[float, str, float]], lines: list[ExtractedBoqLine]) -> list[float]:
+    """Centres of the numeric quantity readings no emitted line took."""
+    taken = [line.y_px for line in lines if line.y_px is not None and line.raw_quantity]
+    return [centre for centre, text, _ in quantities
+            if _is_count(text) and not any(abs(centre - y) <= COLUMN_PAIRING_TOLERANCE_PX for y in taken)]
+
+
+def _read_quantity_banded_rows(
+    descriptions: list[tuple[float, str, float]],
+    quantities: list[tuple[float, str, float]],
+    catalogs: list[tuple[float, str, float]],
+    paired: list[ExtractedBoqLine],
+    top: int,
+    bottom: int,
+    page_number: int,
+    section: str | None,
+) -> list[ExtractedBoqLine] | None:
+    """A second reading of an unruled table whose rows the pairing missed,
+    or None when the pairing accounted for every quantity.
+
+    Pairing text by vertical position fails on a wrapped row: its quantity
+    sits level with neither line of the description, so it pairs with
+    nothing, and the second line of a two-line catalog number ("+SL23I")
+    reads as an item of its own. EP-30088's ELS sheet -- no row rules, and
+    every other row wrapped -- lost the 48 row outright and read the 56 row
+    as 7 that way. A quantity nothing claimed is the sign.
+
+    The row bounds a ruled sheet draws are then supplied another way: every
+    quantity is the centre of a row, and a row ends halfway to the next
+    quantity. A line with neither a quantity nor a part number near it is a
+    row of its own too (a group heading, a note), so it is not pulled into a
+    neighbour. The rows are then read as a ruled table would be, which joins
+    the wrapped cells. Taken only when it accounts for every quantity and
+    keeps every line the pairing had; otherwise the pairing stands.
+    """
+    if not _orphan_quantities(quantities, paired):
+        return None
+    # Every quantity cell with something in it is the centre of a row --
+    # whether the OCR read a number or not. EP-30088's "73" read as "B": as
+    # a row of its own it goes for review with its cell image; left out, its
+    # row folds into the one above and both are wrong.
+    cells = sorted(centre for centre, text, _ in quantities
+                   if text and any(ch.isalnum() for ch in text) and not _is_column_heading(text))
+    if len(cells) < 2:
+        return None
+    pitch = sorted(b - a for a, b in zip(cells, cells[1:]))[len(cells) // 2]
+    standalone = [
+        centre for centre, text, _ in descriptions
+        if text and not _is_column_heading(text) and not PAGE_FOOTER_RE.match(text)
+        and not any(abs(centre - q) <= 0.75 * pitch for q in cells)
+        and not any(abs(centre - c) <= COLUMN_PAIRING_TOLERANCE_PX and identity.clean_catalog(t)[0] for c, t, _ in catalogs)
+    ]
+    anchors = sorted(set(cells) | set(standalone))
+    edges = [max(top, int(anchors[0] - pitch / 2))]
+    edges += [int((a + b) / 2) for a, b in zip(anchors, anchors[1:])]
+    edges.append(min(bottom, int(anchors[-1] + pitch / 2)))
+    banded = _read_ruled_rows(descriptions, quantities, catalogs, edges, page_number, section)
+    if _orphan_quantities(quantities, banded):
+        return None
+    if sum(1 for line in banded if line.quantity) < sum(1 for line in paired if line.quantity):
+        return None
+    return banded
+
+
 def _read_page(
     image: Image.Image,
     dark: np.ndarray,
@@ -1054,6 +1127,7 @@ def _read_table(
     verify_following = False
     trailing_heading: tuple[float, str] | None = None
     heading_before_trailing: str | None = None
+    entry_section = section
 
     def take_heading(text: str) -> None:
         nonlocal heading, section
@@ -1160,4 +1234,6 @@ def _read_table(
                             "rule": "read as a heading, but nothing follows it in the table: a row with no readable quantity"},
         ))
 
-    return lines
+    banded = _read_quantity_banded_rows(descriptions[start:], quantities, catalogs, lines, top, bottom, page_number,
+                                        entry_section)
+    return banded if banded is not None else lines

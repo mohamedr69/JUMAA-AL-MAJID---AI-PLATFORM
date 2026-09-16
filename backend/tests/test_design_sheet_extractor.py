@@ -301,6 +301,62 @@ def test_unreadable_layout_reports_rather_than_inventing_lines():
         extract_boq_lines(path)
 
 
+def _unruled_sheet(path: Path) -> Path:
+    """EP-30088's ELS layout, drawn: five column rules (the Total Price column
+    is off the scan), no row rules, and every other row wrapped -- a two-line
+    catalog number, a two-line description -- with the quantity centred on
+    the row, level with neither line."""
+    import pymupdf
+
+    doc = pymupdf.open()
+    page = doc.new_page(width=595, height=842)
+    columns = [40, 100, 230, 480, 560]
+    for x in columns:
+        page.draw_line((x, 40), (x, 800), width=1)
+    for x, label in zip(columns, ["Qty.", "Catalog No.", "Description", "Unit Price"]):
+        page.insert_text((x + 6, 60), label, fontsize=9)
+    rows = [
+        ("168", ["SL2-42D3D-CGL-M"], ["Surface Mounted Emergency Light"]),
+        ("73", ["SL2-65D3D-CGL-M"], ["Surface Mounted Emergency Light"]),
+        ("86", ["RT2RHEO200CGL3HIP", "M"], ["RTECH MR HEO CGL 200 MNM 3H IP65"]),
+        ("48", ["SL2-42D3D-CGL-M", "+SL23I"], ["Wall Mounted Exit, 20 metre viewing distance,", "IP42"]),
+        ("56", ["SL2-42D3D-CGL-M", "+SL2PPLR+SL2RB"], ["Exit Directional, Corridor Recessed, 20", "metre viewing distance"]),
+        ("1", ["CTR400CGL2KS-M"], ["Menvier Brand CGLine Web Compact Controller"]),
+    ]
+    y = 100.0
+    for quantity, catalog, description in rows:
+        height = 14 * max(len(catalog), len(description))
+        page.insert_text((columns[0] + 12, y + height / 2 + 3), quantity, fontsize=9)
+        for index, text in enumerate(catalog):
+            page.insert_text((columns[1] + 6, y + 10 + 14 * index), text, fontsize=9)
+        for index, text in enumerate(description):
+            page.insert_text((columns[2] + 6, y + 10 + 14 * index), text, fontsize=9)
+        y += height + 12
+    doc.save(path)
+    doc.close()
+    return path
+
+
+@requires_tesseract
+def test_an_unruled_sheet_keeps_wrapped_rows_together(tmp_path):
+    """No row rules to hold a wrapped row together: the quantity is level
+    with neither line, so pairing by position orphaned it and the second
+    catalog line became an item. Rows are then bounded by the quantities."""
+    lines = extract_boq_lines(_unruled_sheet(tmp_path / "els.pdf"))
+
+    assert [line.quantity for line in lines] == ["168", "73", "86", "48", "56", "1"]
+    by_quantity = {line.quantity: line for line in lines}
+    # Part numbers by prefix: at this size OCR does not tell I from 1.
+    assert by_quantity["48"].catalog_no.replace(" ", "").startswith("SL2-42D3D-CGL-M+SL23")
+    assert by_quantity["48"].description.startswith("Wall Mounted Exit")
+    assert by_quantity["48"].description.endswith("IP42")
+    assert by_quantity["56"].catalog_no.replace(" ", "") == "SL2-42D3D-CGL-M+SL2PPLR+SL2RB"
+    assert by_quantity["56"].description.endswith("metre viewing distance")
+    assert by_quantity["86"].catalog_no.replace(" ", "") == "RT2RHEO200CGL3HIPM"
+    # Two adjacent single-line rows stay two rows.
+    assert by_quantity["168"].catalog_no == "SL2-42D3D-CGL-M" and by_quantity["73"].catalog_no == "SL2-65D3D-CGL-M"
+
+
 def _row(description: str, raw_quantity: str | None, catalog_no: str | None = None) -> ExtractedBoqLine:
     """A row the read kept without a usable quantity."""
     return ExtractedBoqLine(
