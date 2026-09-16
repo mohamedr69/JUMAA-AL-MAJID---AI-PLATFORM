@@ -374,7 +374,9 @@ def read_form(db: Session, run: _Run, path: Path, *, document_sha: str, user_id:
     existing = stored(db, document_sha)
     if existing is not None:
         run.reused += 1
-        return dict(existing.reading)
+        # Normalised again on the way out: the rules that make a reference a
+        # reference, or a code a code, can tighten after a reading was stored.
+        return _normalise(dict(existing.reading))
     try:
         images = form_images(path)
     except Exception as exc:  # noqa: BLE001 -- an unreadable file is not a form
