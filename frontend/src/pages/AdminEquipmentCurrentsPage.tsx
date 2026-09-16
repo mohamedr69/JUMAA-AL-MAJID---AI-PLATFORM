@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ApiError, api } from "../lib/api";
+import { ApiError, api, apiUrl } from "../lib/api";
 import { formatApiDate } from "../lib/format";
-import type { EquipmentCurrent } from "../lib/types";
+import type { EquipmentAudit, EquipmentCurrent } from "../lib/types";
 
 const KIND: Record<EquipmentCurrent["kind"], { label: string; className: string }> = {
   mechanical: { label: "No load", className: "bg-gray-100 text-gray-700 ring-gray-300" },
@@ -46,6 +46,8 @@ export function AdminEquipmentCurrentsPage() {
   const [filter, setFilter] = useState("");
   const [editing, setEditing] = useState<{ id: number | null; draft: Draft } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [audit, setAudit] = useState<EquipmentAudit | null>(null);
+  const [auditing, setAuditing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -123,6 +125,19 @@ export function AdminEquipmentCurrentsPage() {
     }
   }
 
+  async function runAudit() {
+    setAuditing(true);
+    setError(null);
+    try {
+      setAudit(await api.post<EquipmentAudit>("/design-rules/equipment-currents/audit"));
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "The audit could not run");
+    } finally {
+      setAuditing(false);
+    }
+  }
+
   const draft = editing?.draft;
   const ready =
     !!draft &&
@@ -142,13 +157,44 @@ export function AdminEquipmentCurrentsPage() {
             A part missing here is set automatically and asked about once; the engineer&apos;s answer is written here.
           </p>
         </div>
-        <button
-          onClick={() => setEditing({ id: null, draft: EMPTY })}
-          className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
-        >
-          Add a part
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={runAudit}
+            disabled={auditing}
+            className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-navy-900 hover:bg-gray-50 disabled:opacity-60"
+            title="Link every part to its datasheet in the library and re-read each figure off it"
+          >
+            {auditing ? "Reading the datasheets..." : "Audit datasheets"}
+          </button>
+          <button
+            onClick={() => setEditing({ id: null, draft: EMPTY })}
+            className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
+          >
+            Add a part
+          </button>
+        </div>
       </div>
+
+      {audit && (
+        <section aria-label="Datasheet audit" className={`mt-4 rounded-xl border p-4 ${audit.findings.length ? "border-amber-200 bg-amber-50/60" : "border-emerald-200 bg-emerald-50/60"}`}>
+          <div className="text-sm font-semibold text-navy-900">
+            Datasheet audit: {audit.rows} parts checked against the library
+            {audit.linked > 0 ? ` · ${audit.linked} newly linked to their sheet` : ""}
+            {audit.findings.length === 0 ? " · every part has its datasheet and the figures still read the same" : ` · ${audit.findings.length} to look at`}
+          </div>
+          {audit.findings.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs">
+              {audit.findings.map((f) => (
+                <li key={f.id} className="flex flex-wrap gap-x-2">
+                  <span className="font-mono font-semibold text-navy-900">{f.part_no}</span>
+                  <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-medium text-amber-800 ring-1 ring-amber-200">{f.status.replace(/_/g, " ")}</span>
+                  <span className="text-gray-700">{f.detail}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <div className="rounded-xl border border-gray-200 bg-white p-3">
@@ -289,6 +335,7 @@ export function AdminEquipmentCurrentsPage() {
               <th className="px-3 py-2 text-right">Standby mA</th>
               <th className="px-3 py-2 text-right">Alarm mA</th>
               <th className="px-3 py-2">Source</th>
+              <th className="px-3 py-2">Datasheet</th>
               <th className="px-3 py-2">Settled by</th>
               <th className="px-3 py-2" />
             </tr>
@@ -308,6 +355,29 @@ export function AdminEquipmentCurrentsPage() {
                 <td className="px-3 py-2 text-right align-top tabular-nums">{row.no_load ? "0" : row.standby_ma ?? "—"}</td>
                 <td className="px-3 py-2 text-right align-top tabular-nums">{row.no_load ? "0" : row.alarm_ma ?? "—"}</td>
                 <td className="max-w-md px-3 py-2 align-top text-xs text-gray-600">{row.source}</td>
+                <td className="px-3 py-2 align-top text-xs">
+                  {row.datasheet_path ? (
+                    <a
+                      href={apiUrl(
+                        `/design-rules/datasheets/file?${new URLSearchParams({ library: row.datasheet_library ?? "", path: row.datasheet_path })}#page=${row.datasheet_pages[0] ?? 1}`
+                      )}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-brand-600 hover:underline"
+                      title={`${row.datasheet_path}${row.datasheet_pages.length ? ` p.${row.datasheet_pages.join(", ")}` : ""} · matched by ${row.datasheet_match ?? "?"}`}
+                    >
+                      {row.datasheet_path.split("/").pop()}
+                      {row.datasheet_pages.length > 0 && <span className="text-gray-500"> p.{row.datasheet_pages[0]}</span>}
+                    </a>
+                  ) : (
+                    <span className="text-gray-400">none</span>
+                  )}
+                  {row.datasheet_match === "text" && !row.no_load && (
+                    <div className="text-amber-700" title="The sheet only mentions the part in its text: confirm the figure against the part's own sheet">
+                      mention only
+                    </div>
+                  )}
+                </td>
                 <td className="px-3 py-2 align-top text-xs text-gray-600">
                   {row.confirmed_by ?? "not confirmed"}
                   <div className="text-gray-400">{formatApiDate(row.updated_at ?? row.created_at, "short")}</div>
@@ -326,7 +396,7 @@ export function AdminEquipmentCurrentsPage() {
             ))}
             {rows && shown.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-3 py-6 text-center text-sm text-gray-500">
+                <td colSpan={9} className="px-3 py-6 text-center text-sm text-gray-500">
                   No part matches.
                 </td>
               </tr>

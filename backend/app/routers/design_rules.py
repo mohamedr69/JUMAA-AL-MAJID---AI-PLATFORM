@@ -23,6 +23,7 @@ from app.schemas_design import (
     DatasheetMatchOut,
     DatasheetRowOut,
     DesignRuleOut,
+    EquipmentAuditOut,
     EquipmentCurrentIn,
     EquipmentCurrentOut,
     PartCurrentIn,
@@ -159,6 +160,23 @@ def save_equipment_current(
         data, source = equipment_currents.rule_data(row, row.part_no, row.description)
         save_rule_version(db, PART_CURRENT_CATEGORY, row.key, data, source, current_user)
     return EquipmentCurrentOut(**equipment_currents.as_dict(row))
+
+
+@router.post("/equipment-currents/audit", response_model=EquipmentAuditOut)
+def audit_equipment_currents(
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> EquipmentAuditOut:
+    """Walk the table against the datasheet library: link every row whose
+    part has a sheet and no link yet, then report the rows with no sheet at
+    all, links that no longer resolve, figures from a sheet that is not the
+    part's own, sheets that changed since, and figures the sheet no longer
+    gives. Reads the sheets; changes nothing but the links."""
+    from app.services import equipment_currents
+
+    linked = equipment_currents.link_datasheets(db)
+    findings = equipment_currents.audit(db)
+    return EquipmentAuditOut(rows=len(equipment_currents.all_rows(db)), findings=findings, linked=linked)
 
 
 @router.delete("/equipment-currents/{row_id}", status_code=status.HTTP_204_NO_CONTENT)

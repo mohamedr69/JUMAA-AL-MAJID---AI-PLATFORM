@@ -1463,8 +1463,29 @@ export interface EquipmentCurrent {
   aliases: string[];
   /** Whether the row answers the question (no load, or a figure). */
   settled: boolean;
+  /** The datasheet in the library the row refers to, and how it was matched
+   * to the part: "filename" / "family" (its own sheet) or "text" (a mention). */
+  datasheet_library: string | null;
+  datasheet_path: string | null;
+  datasheet_pages: number[];
+  datasheet_match: "filename" | "family" | "text" | null;
   created_at: string;
   updated_at: string | null;
+}
+
+export interface EquipmentAuditFinding {
+  id: number;
+  part_no: string;
+  kind: string;
+  status: "no_datasheet" | "unlinked" | "link_broken" | "text_match_only" | "figure_not_found" | "figure_differs" | "sheet_changed" | "no_library";
+  detail: string;
+  datasheet_path: string | null;
+}
+
+export interface EquipmentAudit {
+  rows: number;
+  findings: EquipmentAuditFinding[];
+  linked: number;
 }
 
 /** A stored AI reading of one of the project's documents: made once, kept

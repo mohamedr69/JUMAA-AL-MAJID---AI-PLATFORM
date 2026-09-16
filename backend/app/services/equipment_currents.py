@@ -169,10 +169,31 @@ def rule_data(row: EquipmentCurrent, part_no: str, description: str | None) -> t
 # --- writing it ------------------------------------------------------------------------
 
 
+def sheet_sha256(library, relative: str | None) -> str | None:
+    """The content hash of a library datasheet, or None when it is not there."""
+    if library is None or not relative:
+        return None
+    file = library.resolve(relative)
+    if file is None:
+        return None
+    from app.extraction import pipeline
+
+    return pipeline.sha256_of(file)
+
+
+def link_of(library, match, pages: list[int] | None = None) -> dict:
+    """The datasheet fields for a row, from a library match."""
+    return {
+        "datasheet_library": library.name, "datasheet_path": match.path, "datasheet_pages": list(pages or match.pages or []),
+        "datasheet_match": match.matched_on, "datasheet_sha256": sheet_sha256(library, match.path),
+    }
+
+
 def upsert(db: Session, *, part_no: str, description: str | None = None, no_load: bool = False,
            standby_ma: float | None = None, alarm_ma: float | None = None, included_in: str | None = None,
            kind: str | None = None, source: str, confirmed_by: str | None = None, user: User | None = None,
-           aliases: list[str] | None = None, manufacturer: str = MANUFACTURER) -> EquipmentCurrent:
+           aliases: list[str] | None = None, manufacturer: str = MANUFACTURER,
+           datasheet: dict | None = None) -> EquipmentCurrent:
     key = _key(part_no)
     if not key:
         raise ValueError("The part number has no letters or digits")
@@ -192,6 +213,9 @@ def upsert(db: Session, *, part_no: str, description: str | None = None, no_load
     row.confirmed_by = confirmed_by
     if aliases is not None:
         row.aliases = [a.strip() for a in aliases if a and a.strip()]
+    if datasheet is not None:
+        for name in ("datasheet_library", "datasheet_path", "datasheet_pages", "datasheet_match", "datasheet_sha256"):
+            setattr(row, name, datasheet.get(name))
     row.updated_at = utc_now()
     db.commit()
     db.refresh(row)
@@ -231,6 +255,7 @@ def seed(db: Session) -> int:
         if row is not None and _key(alias) not in {_key(a) for a in row.aliases or []}:
             row.aliases = [*(row.aliases or []), alias]
     added += seed_from_datasheets(db, existing)
+    link_datasheets(db)
     # What the catalogue already learned from datasheets and engineers.
     rules = (db.query(DesignRule)
              .filter(DesignRule.category == PART_CURRENT_CATEGORY, DesignRule.superseded_at.is_(None)).all())
@@ -278,7 +303,7 @@ def seed_from_datasheets(db: Session, existing: set[str]) -> int:
         for match in library.find(part_no):
             reading = read_part_current(library.folder / match.path, part_no,
                                         doc_named_for_part=match.matched_on in ("filename", "family"))
-            if reading is None:
+            if reading is None or not trusted(match, reading):
                 continue
             pages = ", ".join(str(p) for p in reading.pages)
             source = f"{match.source.rsplit(', p.', 1)[0]}, p.{pages}: read automatically"
@@ -286,11 +311,122 @@ def seed_from_datasheets(db: Session, existing: set[str]) -> int:
                 source += " (" + "; ".join(reading.notes) + ")"
             db.add(EquipmentCurrent(manufacturer=MANUFACTURER, key=_key(part_no), part_no=part_no, description=description,
                                     no_load=False, kind=DEVICE, standby_ma=reading.standby_ma, alarm_ma=reading.alarm_ma,
-                                    source=source[:1000], confirmed_by=None))
+                                    source=source[:1000], confirmed_by=None, **link_of(library, match, reading.pages)))
             existing.add(_key(part_no))
             added += 1
             break
     return added
+
+
+def trusted(match, reading) -> bool:
+    """Whether a figure read off this sheet may stand as the part's. A sheet
+    named for the part (or its family) is its datasheet; a sheet found only
+    by a mention of the part in its text is trusted only when the reader
+    placed the figures under the part's own name -- else it is a candidate
+    for an engineer to confirm, not a source."""
+    return match.matched_on in ("filename", "family") or bool(getattr(reading, "owned", False))
+
+
+def link_datasheets(db: Session) -> int:
+    """Give every row without a datasheet link the library sheet its part is
+    on -- for a no-load part, the sheet that lists it (a cabinet on the
+    cabinets and chassis sheet), which is the evidence for the decision.
+    Returns how many rows were linked."""
+    from app.services.datasheet_library import get_libraries
+
+    try:
+        library = get_libraries().get(MANUFACTURER)
+    except Exception:  # noqa: BLE001
+        return 0
+    if library is None:
+        return 0
+    from app.services.datasheet_currents import read_part_current
+
+    linked = 0
+    for row in all_rows(db):
+        if row.datasheet_path:
+            continue
+        matches = library.find(canonical(row.part_no) or row.part_no)
+        if not matches:
+            continue
+        chosen, pages = matches[0], None
+        if not row.no_load and row.standby_ma is not None:
+            # A figure's sheet is the one that gives that figure -- not the
+            # first sheet that mentions the part (a flasher's sheet names
+            # the booster it works with).
+            for match in matches:
+                reading = read_part_current(library.folder / match.path, canonical(row.part_no) or row.part_no,
+                                            doc_named_for_part=match.matched_on in ("filename", "family"))
+                if reading and trusted(match, reading) and abs(reading.standby_ma - float(row.standby_ma)) < 1e-6                         and abs(reading.alarm_ma - float(row.alarm_ma)) < 1e-6:
+                    chosen, pages = match, reading.pages
+                    break
+            else:
+                continue   # no sheet gives the row's figure: left unlinked for the audit to report
+        for name, value in link_of(library, chosen, pages).items():
+            setattr(row, name, value)
+        linked += 1
+    if linked:
+        db.commit()
+    return linked
+
+
+def audit(db: Session) -> list[dict]:
+    """Every row against the library: whether its part has a datasheet at
+    all, whether its link still resolves, whether the sheet has changed
+    since, whether a figure came from a sheet that is not the part's own,
+    and whether the sheet still gives the same figure. One finding per row
+    that has something to say; an empty list is a clean table."""
+    from app.services.datasheet_currents import read_part_current
+    from app.services.datasheet_library import get_libraries
+
+    try:
+        library = get_libraries().get(MANUFACTURER)
+    except Exception:  # noqa: BLE001
+        library = None
+    findings: list[dict] = []
+
+    def finding(row, status: str, detail: str) -> None:
+        findings.append({"id": row.id, "part_no": row.part_no, "kind": row.kind, "status": status, "detail": detail,
+                         "datasheet_path": row.datasheet_path})
+
+    for row in all_rows(db):
+        if library is None:
+            finding(row, "no_library", "No datasheet library is available on this server")
+            continue
+        if not row.datasheet_path:
+            matches = library.find(canonical(row.part_no) or row.part_no)
+            if matches:
+                finding(row, "unlinked", f"{matches[0].filename} names this part; the row is not linked to it yet")
+            else:
+                finding(row, "no_datasheet", "No datasheet in the library names this part")
+            continue
+        file = library.resolve(row.datasheet_path)
+        if file is None:
+            finding(row, "link_broken", f"{row.datasheet_path} is no longer in the library (renamed or moved)")
+            continue
+        current_sha = sheet_sha256(library, row.datasheet_path)
+        changed = bool(row.datasheet_sha256) and current_sha != row.datasheet_sha256
+        if not row.no_load and row.standby_ma is not None:
+            reading = read_part_current(file, row.part_no, doc_named_for_part=row.datasheet_match in ("filename", "family"))
+            if reading is None:
+                finding(row, "figure_not_found", f"{file.name} gives no current for this part now"
+                        + (" (the sheet has changed since it was read)" if changed else ""))
+                continue
+            if row.datasheet_match == "text" and not reading.owned:
+                # The sheet only mentions the part, and its figures are not
+                # placed under the part's name: a candidate, not a source.
+                finding(row, "text_match_only", f"{file.name} only mentions the part in its text and its figures are not "
+                        "placed under the part's name; confirm the figure against the part's own sheet")
+                continue
+            if abs(reading.standby_ma - float(row.standby_ma)) > 1e-6 or abs(reading.alarm_ma - float(row.alarm_ma)) > 1e-6:
+                finding(row, "figure_differs",
+                        f"{file.name} now reads {reading.standby_ma:g} / {reading.alarm_ma:g} mA; the table holds "
+                        f"{float(row.standby_ma):g} / {float(row.alarm_ma):g} mA"
+                        + (" (the sheet has changed since it was read)" if changed else ""))
+                continue
+        if changed:
+            finding(row, "sheet_changed", f"{file.name} has changed since the row was read; the figure still reads the same")
+    return findings
 
 
 def as_dict(row: EquipmentCurrent) -> dict:
@@ -301,6 +437,8 @@ def as_dict(row: EquipmentCurrent) -> dict:
         "alarm_ma": None if row.alarm_ma is None else float(row.alarm_ma),
         "included_in": row.included_in, "source": row.source, "confirmed_by": row.confirmed_by,
         "aliases": list(row.aliases or []), "settled": settled(row),
+        "datasheet_library": row.datasheet_library, "datasheet_path": row.datasheet_path,
+        "datasheet_pages": list(row.datasheet_pages or []), "datasheet_match": row.datasheet_match,
         "created_at": row.created_at, "updated_at": row.updated_at,
     }
 

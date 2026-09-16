@@ -295,8 +295,31 @@ class EquipmentCurrentOut(BaseModel):
     aliases: list[str]
     # Whether the row answers the question (no load, or a figure).
     settled: bool
+    # The datasheet in the library the row refers to, and how it was matched
+    # to the part ("filename" / "family": its own sheet; "text": a mention).
+    datasheet_library: str | None = None
+    datasheet_path: str | None = None
+    datasheet_pages: list[int] = []
+    datasheet_match: str | None = None
     created_at: datetime
     updated_at: datetime | None
+
+
+class EquipmentAuditFindingOut(BaseModel):
+    id: int
+    part_no: str
+    kind: str
+    # "no_datasheet" | "unlinked" | "link_broken" | "text_match_only" |
+    # "figure_not_found" | "figure_differs" | "sheet_changed" | "no_library"
+    status: str
+    detail: str
+    datasheet_path: str | None
+
+
+class EquipmentAuditOut(BaseModel):
+    rows: int
+    findings: list[EquipmentAuditFindingOut]
+    linked: int
 
 
 class BatteryUnitIn(BaseModel):

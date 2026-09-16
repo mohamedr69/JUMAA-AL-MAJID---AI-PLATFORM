@@ -133,6 +133,57 @@ def test_a_device_entered_in_the_table_is_used_by_every_project(client, db_sessi
     assert any(r["part_no"] == "SIGA-PS" for r in rows)
 
 
+def test_a_datasheet_read_stores_its_link_and_the_audit_reads_it_back(client, db_session, tmp_path, monkeypatch):
+    """A figure read off a datasheet on the battery page carries the sheet
+    into the table as a link -- library, file, pages, how it was matched --
+    and the audit re-reads that sheet and finds nothing to say."""
+    import app.routers.design as design_router
+    from .test_battery_api import _fill_project, _library
+
+    library = _library(tmp_path)
+    monkeypatch.setattr(design_router, "_datasheet_libraries", lambda: {"EDWARDS": library})
+    monkeypatch.setattr(equipment_currents, "get_libraries", lambda: {"EDWARDS": library}, raising=False)
+    import app.services.datasheet_library as datasheet_library
+
+    monkeypatch.setattr(datasheet_library, "get_libraries", lambda *a, **k: {"EDWARDS": library})
+    _login_admin(client)
+    project_id = _fill_project(client)
+    client.post(f"/projects/{project_id}/design/battery/fill-currents")
+
+    cpu = db_session.query(EquipmentCurrent).filter(EquipmentCurrent.key == "4-CPU").one()
+    assert cpu.datasheet_library == "EDWARDS" and cpu.datasheet_path.endswith("4-CPU.pdf")
+    assert cpu.datasheet_pages == [1] and cpu.datasheet_match == "filename" and cpu.datasheet_sha256
+    listed = next(r for r in client.get("/design-rules/equipment-currents").json() if r["part_no"] == "4-CPU")
+    assert listed["datasheet_path"] == cpu.datasheet_path and listed["datasheet_pages"] == [1]
+
+    body = client.post("/design-rules/equipment-currents/audit").json()
+    assert body["rows"] >= 1
+    by_part = {f["part_no"]: f for f in body["findings"]}
+    assert "4-CPU" not in by_part, by_part.get("4-CPU")
+    # A seeded no-load part with no sheet in this small library is reported as such.
+    assert by_part["3-CAB28B"]["status"] == "no_datasheet"
+
+
+def test_a_sheet_that_only_mentions_the_part_is_not_a_source(tmp_path):
+    """The figures on a sheet are the part's only when placed under its
+    name; a sheet found by a mention of the part in its text with unowned
+    figures is a candidate to confirm, not a source."""
+    from tests.test_power_supply_currents import _pdf
+    from app.services.datasheet_currents import read_part_current
+
+    class _Match:
+        matched_on = "text"
+
+    own = _pdf(tmp_path / "own.pdf", [(250, 100, "SIGA-CT2", 10), (40, 140, "Standby", 8), (250, 140, "396 uA", 8),
+                                     (40, 160, "Activated", 8), (250, 160, "680 uA", 8)])
+    reading = read_part_current(own, "SIGA-CT2", doc_named_for_part=False)
+    assert reading is not None and reading.owned and equipment_currents.trusted(_Match(), reading)
+    other = _pdf(tmp_path / "other.pdf", [(40, 100, "Flasher, compatible with SIGA-CT2", 8), (40, 140, "Standby", 8),
+                                         (250, 140, "175 mA", 8), (40, 160, "Alarm", 8), (250, 160, "175 mA", 8)])
+    reading = read_part_current(other, "SIGA-CT2", doc_named_for_part=True)
+    assert reading is not None and not reading.owned and not equipment_currents.trusted(_Match(), reading)
+
+
 def test_the_table_is_written_by_editors_and_deleted_by_admins_only(client, db_session):
     make_user(db_session, "viewer@x.com", RoleEnum.viewer)
     login(client, "viewer@x.com")

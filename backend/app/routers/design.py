@@ -265,7 +265,7 @@ def _read_from_datasheets(line: BatteryLineOut, libraries: dict, panel_voltage: 
                 doc_named_for_part=match.matched_on in ("filename", "family"),
                 panel_voltage=panel_voltage,
             )
-            if reading:
+            if reading and equipment_currents.trusted(match, reading):
                 return reading, match
     return None, best
 
@@ -279,6 +279,9 @@ def _unresolved_reason(line: BatteryLineOut, libraries: dict) -> str:
     matches = [m for lib in libraries_for(line.manufacturer, libraries) for m in lib.find(part_no)]
     if not matches:
         return "No datasheet in the library mentions this part"
+    if matches[0].matched_on == "text":
+        return (f"{matches[0].filename} mentions it in its text but is not its datasheet: a candidate to confirm, "
+                "not a source -- enter the figure from the part's own sheet")
     return f"{matches[0].filename} mentions it, but gives no current for this model"
 
 
@@ -384,9 +387,11 @@ def fill_battery_currents(
             if reading and match:
                 # A figure read off a datasheet joins the table as a device,
                 # with the datasheet as its source; not confirmed by anyone.
+                library = next((lib for lib in libraries_for(line.manufacturer, libraries) if lib.name == match.library), None)
                 equipment_currents.upsert(db, part_no=line.part_no or "", description=line.description,
                                           standby_ma=reading.standby_ma, alarm_ma=reading.alarm_ma,
-                                          kind=equipment_currents.DEVICE, source=source[:1000], confirmed_by=None)
+                                          kind=equipment_currents.DEVICE, source=source[:1000], confirmed_by=None,
+                                          datasheet=equipment_currents.link_of(library, match, reading.pages) if library else None)
             filled.append(FilledCurrentOut(part_no=line.part_no or "", standby_ma=data["standby_ma"], alarm_ma=data["alarm_ma"], source=source))
     return BatteryFillOut(filled=filled)
 

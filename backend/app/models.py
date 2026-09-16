@@ -256,6 +256,16 @@ class EquipmentCurrent(Base):
     source: Mapped[str] = mapped_column(Text, nullable=False)
     confirmed_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
     aliases: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # The datasheet in the library the row refers to: where a figure was
+    # read (with the pages), or where a no-load part is listed. `datasheet_match`
+    # says how the sheet was matched to the part -- "filename" / "family"
+    # (the sheet is the part's own) or "text" (it only mentions the part).
+    # The sheet's content hash is kept so a newer revision of it is noticed.
+    datasheet_library: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    datasheet_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    datasheet_pages: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    datasheet_match: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    datasheet_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)

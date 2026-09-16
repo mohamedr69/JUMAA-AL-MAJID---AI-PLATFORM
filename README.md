@@ -372,6 +372,8 @@ each came from. It is seeded with the parts the platform owner settled on
 a figure typed in on a battery page, a datasheet read, and an engineer's
 "confirm: no current" or "it draws current" are all written here as well.
 
+Every row refers to its datasheet in the library as a link (`datasheet_library`, `datasheet_path`, `datasheet_pages`, how it was matched -- "filename" / "family" for the part's own sheet, "text" for one that only mentions it -- and the sheet's content hash), filled wherever a figure is read and, for a no-load part, from the sheet that lists it; the Equipment currents page opens the sheet at the page. A figure is trusted from a text-only match only when the reader placed it under the part's own name; otherwise the sheet is a candidate to confirm, not a source. "Audit datasheets" on that page links what is unlinked and reports the rest: parts with no sheet in the library, links that no longer resolve, sheets that changed since (the hash), and figures the sheet no longer gives or gives differently.
+
 The battery calculation asks the table first. A part in it is recorded in
 the catalogue as confirmed and the page asks nobody -- the old
 "Confirm parts set to draw no current" list is only for parts the table

@@ -131,6 +131,11 @@ class CurrentReading:
     alarm_ma: float
     pages: list[int]
     notes: list[str]
+    # Whether the figures are the part's own -- placed under its name or its
+    # family's on the sheet -- rather than unowned figures in a sheet that
+    # merely carries the part's name. A sheet found only by a mention of
+    # the part in its text is trusted for a figure only when this is True.
+    owned: bool = True
 
 
 def _label_kind(text: str, previous: str | None) -> str | None:
@@ -217,6 +222,11 @@ class _Page:
                             continue
                         unit_text, per, rest = unit.group(1), unit.group(2), rest[1:]
                     trailing = " ".join(w.text for w in rest).split(";")[0]
+                    if unit_text.replace(" ", "").lower() == "a" and not re.search(r"\d\s*v|load", trailing, re.IGNORECASE):
+                        # A bare ampere figure is a rating ("Output Current 7A 14A
+                        # 21A 28A", "Input Current 3.0 A"), not a draw, unless it
+                        # is given at a voltage or a load ("2.8 A at 24 V full load").
+                        continue
                     value = _Value(ma=_to_ma(float(match.group(1)), unit_text), word=word, trailing=trailing, page=self.number)
                     per_word = _PER_UNIT_RE.match(trailing)
                     if per:
@@ -340,6 +350,7 @@ def read_power_supply_current(pdf_path, part_no: str) -> CurrentReading | None:
                 pages.append(number)
     if supervisory is None or alarm is None:
         return None
+    named = key.split("/")[0].upper() in (doc_text := "".join(p.get_text() for p in pymupdf.open(pdf_path)).upper())
     # The model's own rating, where the datasheet lists several ("6.5A max
     # total", "10A max total"); the part number's figure otherwise.
     output = next((o for o in outputs if abs(o - rating) < 0.6), rating) * 1000
@@ -358,7 +369,8 @@ def read_power_supply_current(pdf_path, part_no: str) -> CurrentReading | None:
             standby += aux
             total_alarm += aux
             notes.append(f"plus the dedicated {aux:g} mA auxiliary output, standby and alarm")
-    return CurrentReading(standby_ma=round(standby, 3), alarm_ma=round(total_alarm, 3), pages=sorted(set(pages)), notes=notes)
+    return CurrentReading(standby_ma=round(standby, 3), alarm_ma=round(total_alarm, 3), pages=sorted(set(pages)), notes=notes,
+                          owned=named)
 
 
 def read_part_current(pdf_path, part_no: str, doc_named_for_part: bool, panel_voltage: float = 24) -> CurrentReading | None:
@@ -432,4 +444,5 @@ def read_part_current(pdf_path, part_no: str, doc_named_for_part: bool, panel_vo
         notes.append(f"alarm: the datasheet says \"{pointer}\"; the module's own draw is its standby figure")
     if standby is None or alarm is None:
         return None
-    return CurrentReading(standby_ma=standby, alarm_ma=alarm, pages=sorted({v.page for v in chosen}), notes=notes)
+    return CurrentReading(standby_ma=standby, alarm_ma=alarm, pages=sorted({v.page for v in chosen}), notes=notes,
+                          owned=bool(exact or family))
