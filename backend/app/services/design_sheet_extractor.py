@@ -213,6 +213,10 @@ class ExtractedBoqLine:
     verify_quantity: bool = False
     # {"source", "cleaned", "canonical", "reason"} (app.extraction.identity)
     catalog_match: dict | None = None
+    # When the model read the row (app.ai.sheet_reader): what it read, as
+    # {"quantity", "catalog_no", "description"}, so a later check can take
+    # the AI's reading from here instead of asking again.
+    ai_reading: dict | None = None
 
     def region(self) -> tuple[int, int, int, int] | None:
         """The row's box on the rendered page: from the first column rule to
@@ -494,6 +498,12 @@ class DesignSheetExtraction:
     failure: str | None = None
     # One entry per building the sheet names, with every spelling OCR gave it.
     buildings: list[dict] = field(default_factory=list)
+    # "ocr" (this module alone) or "ai" (the model read the pages and this
+    # module's read was the witness -- app.ai.sheet_reader), and the stored
+    # reading the lines came from.
+    reader: str = "ocr"
+    reading_id: int | None = None
+    notes: list[str] = field(default_factory=list)
 
     @property
     def outcome(self) -> Outcome:
@@ -812,41 +822,7 @@ def extract_design_sheet(pdf_path: Path, on_page=None) -> DesignSheetExtraction:
         coverage.regions = regions
         read.extend(page_lines)
 
-    # One building, one name: the banners' OCR variants across the pages
-    # are settled together (app.extraction.identity).
-    buildings = identity.canonical_buildings([line.section for line in read if line.section])
-    seen: dict[str, dict] = {}
-    for line in read:
-        building = buildings.get(line.section) if line.section else None
-        if building is None:
-            continue
-        line.building = building.as_dict()
-        line.section = building.display
-        line.group_heading = _group(building.display, line.heading)
-        seen.setdefault(building.key, building.as_dict())
-    result.buildings = list(seen.values())
-
-    # One part, one spelling: codes on the sheet sharing their letters and
-    # digits ("E232 301H" beside six "E-232 301H") are matched to the
-    # spelling the sheet uses most. The cleaned code stays the line's value;
-    # the canonical one is recorded beside it with the reason.
-    spellings: dict[str, Counter] = {}
-    for line in read:
-        if line.catalog_no:
-            spellings.setdefault(identity.part_key(line.catalog_no), Counter())[line.catalog_no] += 1
-    for line in read:
-        if not line.catalog_no and not line.catalog_raw:
-            continue
-        cleaned, removed = identity.clean_catalog(line.catalog_raw) if line.catalog_raw else (line.catalog_no, None)
-        canonical, reason = None, removed or "as read"
-        if line.catalog_no:
-            votes = spellings.get(identity.part_key(line.catalog_no))
-            if votes:
-                best, count = votes.most_common(1)[0]
-                canonical = best
-                if best != line.catalog_no:
-                    reason = f"{reason}; the sheet spells this part {best!r} on {count} other row{'s' if count != 1 else ''}"
-        line.catalog_match = {"source": line.catalog_raw, "cleaned": line.catalog_no, "canonical": canonical, "reason": reason}
+    result.buildings = settle_identity(read)
 
     # A BOQ line is something being quoted in some amount, so a row whose
     # quantity could not be read is not one and is not stored as one. It is
@@ -869,6 +845,47 @@ def extract_design_sheet(pdf_path: Path, on_page=None) -> DesignSheetExtraction:
         result.issues.append(Issue(IssueCode.UNRECOGNIZED_TABLE_LAYOUT, detail={"pages": document.page_count}))
         result.lines = []
     return result
+
+
+def settle_identity(read: list[ExtractedBoqLine]) -> list[dict]:
+    """One building, one name; one part, one spelling -- across every row of
+    one sheet, whoever read them. Returns the buildings the sheet names.
+
+    The banners' variants across the pages are settled together
+    (app.extraction.identity). Codes sharing their letters and digits
+    ("E232 301H" beside six "E-232 301H") are matched to the spelling the
+    sheet uses most: the cleaned code stays the line's value, the canonical
+    one is recorded beside it with the reason.
+    """
+    buildings = identity.canonical_buildings([line.section for line in read if line.section])
+    seen: dict[str, dict] = {}
+    for line in read:
+        building = buildings.get(line.section) if line.section else None
+        if building is None:
+            continue
+        line.building = building.as_dict()
+        line.section = building.display
+        line.group_heading = _group(building.display, line.heading)
+        seen.setdefault(building.key, building.as_dict())
+
+    spellings: dict[str, Counter] = {}
+    for line in read:
+        if line.catalog_no:
+            spellings.setdefault(identity.part_key(line.catalog_no), Counter())[line.catalog_no] += 1
+    for line in read:
+        if not line.catalog_no and not line.catalog_raw:
+            continue
+        cleaned, removed = identity.clean_catalog(line.catalog_raw) if line.catalog_raw else (line.catalog_no, None)
+        canonical, reason = None, removed or "as read"
+        if line.catalog_no:
+            votes = spellings.get(identity.part_key(line.catalog_no))
+            if votes:
+                best, count = votes.most_common(1)[0]
+                canonical = best
+                if best != line.catalog_no:
+                    reason = f"{reason}; the sheet spells this part {best!r} on {count} other row{'s' if count != 1 else ''}"
+        line.catalog_match = {"source": line.catalog_raw, "cleaned": line.catalog_no, "canonical": canonical, "reason": reason}
+    return list(seen.values())
 
 
 def extract_boq_lines(pdf_path: Path) -> list[ExtractedBoqLine]:

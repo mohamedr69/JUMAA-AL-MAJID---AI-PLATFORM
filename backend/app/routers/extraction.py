@@ -79,8 +79,28 @@ class RunOut(BaseModel):
     ai_cost: float
     budget_exhausted: str | None
     trigger: str
+    # "ocr" or "ai": who read the lines (app.ai.sheet_reader), and what the
+    # reader noted about the read.
+    reader: str = "ocr"
+    notes: list[str] = []
     started_at: datetime
     issues: list[IssueOut]
+
+
+class ReadingOut(BaseModel):
+    """A stored AI reading of one of the project's documents: made once,
+    kept for good, reused by every later open of a document with the same
+    content (app.models.DocumentReading)."""
+
+    id: int
+    kind: str
+    document_name: str
+    model: str
+    pages: int
+    status: str
+    error: str | None
+    calls: int
+    created_at: datetime
 
 
 class ExtractionOut(BaseModel):
@@ -91,6 +111,7 @@ class ExtractionOut(BaseModel):
     ai_status: str = ""
     runs: list[RunOut]
     open_issues: int
+    readings: list[ReadingOut] = []
 
 
 class DecisionIn(BaseModel):
@@ -105,7 +126,8 @@ def _run_out(run: ExtractionRun) -> RunOut:
         id=run.id, kind=run.kind, document_name=Path(run.document_path).name, system_code=run.system_code,
         outcome=run.outcome, lines_accepted=run.lines_accepted, failure=run.failure, unprocessed_pages=unprocessed,
         ai_calls=run.ai_calls, ai_cost=float(run.ai_cost or 0), budget_exhausted=run.budget_exhausted,
-        trigger=run.trigger, started_at=run.started_at,
+        trigger=run.trigger, reader=run.reader or "ocr", notes=[str(n) for n in (coverage.get("notes") or [])],
+        started_at=run.started_at,
         issues=[
             IssueOut(
                 id=i.id, code=i.code, severity=i.severity, page=i.page, target=i.target, detail=i.detail or {},
@@ -142,12 +164,11 @@ def get_extraction(
     _current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ExtractionOut:
-    _get_project_or_404(db, project_id)
+    project = _get_project_or_404(db, project_id)
     runs = [_run_out(r) for r in _latest_runs(db, project_id)]
     provider = get_provider()
-    from app.ai import project_policy
+    from app.ai import project_policy, sheet_reader
 
-    project = _get_project_or_404(db, project_id)
     blocked = not project_policy.allowed(project)
     return ExtractionOut(
         ai_enabled=get_settings().ai_enabled and not blocked,
@@ -156,6 +177,11 @@ def get_extraction(
         runs=runs,
         open_issues=sum(1 for r in runs for i in r.issues
                         if is_row_issue(i) and i.state in ("open", "proposed", "starved")),
+        readings=[
+            ReadingOut(id=r.id, kind=r.kind, document_name=Path(r.document_path).name, model=r.model, pages=r.pages,
+                       status=r.status, error=r.error, calls=r.calls, created_at=r.created_at)
+            for r in sheet_reader.readings_for(db, project)
+        ],
     )
 
 

@@ -118,7 +118,7 @@ def _boq(db: Session, project: Project, report: RepairReport, *, write: bool, us
         new_lines: list[dict] = []
         sheets = []
         for sheet in project.design_sheets:
-            result = boq_candidates._read(Path(sheet.document_path))
+            result = boq_candidates._read(db, project, sheet)
             sheets.append({"document_name": Path(sheet.document_path).name, "system_code": sheet.system_code,
                            "outcome": result.outcome.value, "lines": len(result.lines), "failure": result.failure,
                            "issues": len(result.issues), "buildings": [b["display"] for b in result.buildings]})

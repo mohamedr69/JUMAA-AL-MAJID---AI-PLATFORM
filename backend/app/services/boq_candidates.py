@@ -67,11 +67,11 @@ def _quantity_units(lines: list[dict]) -> int:
     return total
 
 
-def _read(path: Path, on_page=None):
+def _read(db: Session, project: Project, sheet, on_page=None, ctx=None):
     # The projects router's seam, which the test suite stubs.
     from app.routers import projects as projects_router
 
-    return projects_router._read_design_sheet(path, on_page=on_page)
+    return projects_router._read_design_sheet(db, project, sheet, on_page=on_page, ctx=ctx)
 
 
 def _candidate_line(project: Project, sheet, line, run: ExtractionRun, index: int) -> dict:
@@ -80,6 +80,9 @@ def _candidate_line(project: Project, sheet, line, run: ExtractionRun, index: in
     record = boq_provenance.item_record(item)
     record["cid"] = f"n{index}"
     record["document_name"] = Path(run.document_path).name
+    # The model's own reading of the row, when the model read the sheet: the
+    # AI check takes it from here instead of asking again.
+    record["ai_reading"] = getattr(line, "ai_reading", None)
     return record
 
 
@@ -171,13 +174,13 @@ def build(db: Session, project: Project, user: User | None, ctx=None) -> BoqCand
 
         if ctx is not None:
             ctx.progress(index * 100, total_sheets * 100, f"Reading {name} (sheet {index + 1} of {total_sheets})")
-        result = _read(Path(sheet.document_path), on_page=on_page)
+        result = _read(db, project, sheet, on_page=on_page, ctx=ctx)
         run = pipeline.record_design_sheet_run(db, project, sheet, result, trigger="reread")
         runs.append(run)
         coverage = run.coverage or {}
         sheets.append({
             "run_id": run.id, "document_name": Path(sheet.document_path).name, "system_code": sheet.system_code,
-            "outcome": run.outcome, "lines": len(result.lines), "failure": result.failure,
+            "outcome": run.outcome, "lines": len(result.lines), "failure": result.failure, "reader": run.reader,
             "open_issues": sum(1 for i in run.issues if is_row_issue(i) and i.state == "open"),
             "unprocessed_pages": [p["page"] for p in coverage.get("pages", []) if p.get("detected") and not p.get("processed")],
         })

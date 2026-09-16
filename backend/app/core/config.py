@@ -172,6 +172,17 @@ class Settings(BaseSettings):
     ai_verify_max_calls_per_day: int = 240
     ai_verify_max_elapsed_s: float = 3600.0
     ai_verify_auto: bool = True
+    # The AI read of a project's Design Sheets on its first open
+    # (app.ai.sheet_reader): the model reads every page, the OCR read is the
+    # witness, and the reading is stored for good -- a document with the same
+    # content is never read again. Calls one document may take (a page is one
+    # call per band, plus close-ups of disputed rows), calls a project may
+    # make in a day across reads, the time a read may take, and the
+    # reasoning depth for a whole page (the API provider only).
+    ai_read_max_calls_per_document: int = 60
+    ai_read_max_calls_per_project_per_day: int = 600
+    ai_read_max_elapsed_s: float = 1800.0
+    ai_read_effort: str = "high"
     # The Claude Code program for "claude-code": a name on the PATH or the full
     # path to claude.exe. Sign in once with `claude` as the user the server runs as.
     ai_claude_cli: str = "claude"
@@ -181,11 +192,15 @@ class Settings(BaseSettings):
     # gitignored) or let the vendor SDK read OPENAI_API_KEY or ANTHROPIC_API_KEY.
     ai_api_key: str | None = None
     # Model IDs are configuration, verified against the account's own model
-    # list rather than assumed. The small tier reads a single cell; the
-    # standard tier is the one escalation for a reply the small one botched.
-    # For "claude-code" these are Claude Code model names: sonnet, opus, haiku.
-    ai_model_small: str = "sonnet"
-    ai_model_standard: str = "opus"
+    # list rather than assumed. The small tier makes the first reading; the
+    # standard tier makes the second, independent one and the escalation for
+    # a reply the first botched. Both are Claude Fable 5.1 (claude-fable-5-1):
+    # the readings are of scanned engineering documents and accuracy is the
+    # point; a second reading is independent by being of a different image
+    # (a full-resolution close-up), not a different model. For "claude-code"
+    # a Claude Code alias (fable, opus, sonnet) or the full id both work.
+    ai_model_small: str = "claude-fable-5-1"
+    ai_model_standard: str = "claude-fable-5-1"
     # Reasoning depth for these short extraction tasks.
     ai_effort: str = "low"
     ai_timeout_s: float = 60.0

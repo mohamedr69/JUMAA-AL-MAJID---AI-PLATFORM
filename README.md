@@ -337,6 +337,44 @@ says whether images, the schema and the validation all work on the
 configured model (`--all` tries a shortlist). Tests use a scripted
 provider; nothing in the suite calls a live model.
 
+### The AI reads the documents; the OCR read is the witness
+
+Selective assistance only ever showed the model rows the OCR had located,
+so a Design Sheet whose layout the extractor did not know came back with
+no lines and nothing for the AI to check -- and every new sheet layout was
+that sheet. The roles are now the other way round (`app/ai/sheet_reader.py`):
+
+- **The model reads every page** of every Design Sheet on the project's
+  first BOQ open, in overlapping bands, reporting each row -- item, section
+  banner, heading or other -- with its values and its box on the page. Both
+  tiers are **Claude Fable 5.1** (`AI_MODEL_SMALL` / `AI_MODEL_STANDARD`).
+- **The OCR read is the witness.** It is never shown to the model. A row the
+  OCR read with the same quantity is a line. A row the OCR could not read
+  (or a sheet it could not read at all) gets a second, independent AI
+  reading of the row strips; two AI readings that agree make the line. A
+  disagreement gets one close-up at full scan resolution, which settles for
+  whichever reading it agrees with; if nothing agrees, or the model could
+  not read the quantity, the row is a **row to review** with every reading
+  beside it. A row only the OCR found is a line only when the model reads a
+  quoted item in its close-up.
+- **The reading is stored for good** in `document_readings`, keyed by the
+  document's content hash. A document with the same content -- the same
+  project reopened, another project filed with the same sheet -- is read
+  out of the database and calls no model. The DRF is read the same way by
+  the AI check of Project Info (`app/ai/verification.py`), and its reading
+  is stored beside the sheets'. The AI check reuses the sheet reading for
+  every row it settled, so a check after an AI read costs nothing for those
+  rows; the second AI readings it does make are of different images (fewer
+  rows, nearer the scan's resolution, another cut of the DRF), so they are
+  independent looks even by the same model.
+- **The first read runs as a job.** A scanned multi-page sheet takes the
+  model minutes, so `POST /projects/{id}/boq/ensure` starts a `boq_read` job
+  and answers with it; the BOQ page follows the job and loads the lines when
+  it ends. A project whose sheets were all read before is read out inline,
+  as before. `AI_READ_*` bound the calls and the time; `AI_DISABLED_TASKS=read_sheet_page`
+  switches the whole-sheet read off (the OCR read stands alone, as before)
+  without touching the cell-level assistance or the AI check.
+
 ### Re-reading the documents
 
 Both reads above happen once. The DRF is read to fill the review form at creation and never looked at again; the Design Sheets are read into the BOQ on first open and the `boq_extracted_at` stamp stops that repeating. So the archive moves on and the project does not -- a re-scanned DRF, a Design Sheet filed a week later, a field mistyped at review: nothing surfaces any of them.

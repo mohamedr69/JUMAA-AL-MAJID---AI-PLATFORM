@@ -54,6 +54,9 @@ class AiRequest:
     tier: str = "small"          # "small" | "standard"
     timeout_s: float | None = None
     idempotency_key: str = ""
+    # Reasoning depth for this request (the API provider only): None means
+    # the server's AI_EFFORT. Whole-page readings ask for more than a cell.
+    effort: str | None = None
 
 
 @dataclass
@@ -163,13 +166,23 @@ class ClaudeProvider:
     """Claude through the official SDK, JSON-schema constrained.
 
     - Model per tier from settings; no date suffixes are appended.
-    - Thinking is left at the model's default (adaptive); depth is
-      `AI_EFFORT`, low for these short reading tasks.
+    - Thinking is left at the model's default (adaptive; always on for
+      Claude Fable); depth is `AI_EFFORT`, or the request's own `effort`.
+    - Claude Fable runs safety classifiers that can decline a benign scan
+      (`stop_reason` "refusal"). Those requests opt into the API's server-side
+      fallbacks, so a decline is answered by an Opus model on the same
+      request; a refusal that survives that is reported as `refused`.
+    - Requests with room for a long answer are streamed, so a whole-page
+      reading does not hit the HTTP timeout.
     - Transport and rate-limit errors are retried by the SDK itself
       (`max_retries`); `refusal` stop reasons and unparsable output are
       reported, not retried here -- the caller decides.
     - Usage fields are copied as the SDK reports them; absent ones stay None.
     """
+
+    # Above this the SDK wants streaming to keep the connection alive.
+    STREAM_FROM_TOKENS = 8_000
+    FALLBACK_BETA = "server-side-fallback-2026-07-01"
 
     name = "claude"
 
@@ -224,16 +237,25 @@ class ClaudeProvider:
         client = self._client
         if request.timeout_s:
             client = client.with_options(timeout=request.timeout_s)
+        params: dict[str, Any] = dict(
+            model=model,
+            max_tokens=request.max_output_tokens,
+            system=request.system,
+            messages=[{"role": "user", "content": self._content(request)}],
+            output_config={"format": {"type": "json_schema", "schema": request.schema},
+                           "effort": request.effort or self._effort},
+        )
+        fable = model.startswith("claude-fable")
+        if fable:
+            params.update(betas=[self.FALLBACK_BETA], fallbacks="default")
         try:
             with self._semaphore:
-                message = client.messages.create(
-                    model=model,
-                    max_tokens=request.max_output_tokens,
-                    system=request.system,
-                    messages=[{"role": "user", "content": self._content(request)}],
-                    output_config={"format": {"type": "json_schema", "schema": request.schema},
-                                   "effort": self._effort},
-                )
+                messages = client.beta.messages if fable else client.messages
+                if request.max_output_tokens >= self.STREAM_FROM_TOKENS:
+                    with messages.stream(**params) as stream:
+                        message = stream.get_final_message()
+                else:
+                    message = messages.create(**params)
         except anthropic.AuthenticationError as exc:
             return AiResponse(data=None, error="auth", error_detail=str(exc), model=model)
         except anthropic.RateLimitError as exc:

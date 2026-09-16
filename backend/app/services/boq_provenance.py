@@ -70,6 +70,7 @@ def extracted_item(*, system_code: str | None, line, run: ExtractionRun | None, 
     if item.raw_values is not None:
         item.raw_values = {**item.raw_values, "catalog_no": getattr(line, "catalog_raw", None) or line.catalog_no,
                            "alternates": getattr(line, "alternates", None),
+                           "ai_reading": getattr(line, "ai_reading", None),
                            "building_aliases": (getattr(line, "building", None) or {}).get("aliases")}
     item.extracted_values = {**sheet_values(item)}
     return item

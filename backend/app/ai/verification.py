@@ -54,6 +54,13 @@ from app.services import boq_candidates, boq_provenance, design_sheet_extractor,
 PROMPT_VERSION = "verify-2026-09-15.3"
 ROWS_PER_CALL = 16
 ROW_IMAGE_WIDTH = 1500
+# The second reading is of a different image -- fewer rows to a call, at
+# nearer the scan's own resolution and with a wider margin -- so it is an
+# independent look even when both tiers are the same model (a reading of
+# the same image by the same model is the same reading, and the stored
+# result would rightly be returned for it).
+ROWS_PER_CALL_SECOND = 8
+ROW_IMAGE_WIDTH_SECOND = 1900
 LABEL_WIDTH = 90
 PAGES_PER_FIND_CALL = 3
 PAGE_IMAGE_WIDTH = 1600
@@ -270,21 +277,21 @@ def _png(image: Image.Image) -> bytes:
     return out.getvalue()
 
 
-def compose_rows(crops: list[tuple[str, Image.Image]]) -> bytes:
+def compose_rows(crops: list[tuple[str, Image.Image]], *, image_width: int = ROW_IMAGE_WIDTH) -> bytes:
     """One image of row strips, each labelled on its left."""
     font = _font(34)
     strips = []
     for label, crop in crops:
-        width = ROW_IMAGE_WIDTH - LABEL_WIDTH
+        width = image_width - LABEL_WIDTH
         if crop.width > width:
             crop = crop.resize((width, max(1, int(crop.height * width / crop.width))))
-        strip = Image.new("L", (ROW_IMAGE_WIDTH, crop.height + 14), 255)
+        strip = Image.new("L", (image_width, crop.height + 14), 255)
         strip.paste(crop, (LABEL_WIDTH, 7))
         draw = ImageDraw.Draw(strip)
         draw.text((8, max(0, strip.height // 2 - 18)), label, fill=0, font=font)
-        draw.line((0, strip.height - 1, ROW_IMAGE_WIDTH, strip.height - 1), fill=0, width=3)
+        draw.line((0, strip.height - 1, image_width, strip.height - 1), fill=0, width=3)
         strips.append(strip)
-    sheet = Image.new("L", (ROW_IMAGE_WIDTH, sum(s.height for s in strips)), 255)
+    sheet = Image.new("L", (image_width, sum(s.height for s in strips)), 255)
     y = 0
     for strip in strips:
         sheet.paste(strip, (0, y))
@@ -292,11 +299,15 @@ def compose_rows(crops: list[tuple[str, Image.Image]]) -> bytes:
     return _png(sheet)
 
 
-def page_parts(pages: _Pages, path: str, page: int, run: ExtractionRun | None) -> list[ImagePart]:
+def page_parts(pages: _Pages, path: str, page: int, run: ExtractionRun | None, *, second: bool = False) -> list[ImagePart]:
+    """A page as two overlapping parts. The second reading gets another
+    rendering -- wider, cut elsewhere -- so it is an independent look even by
+    the same model (see ROWS_PER_CALL_SECOND)."""
     image = pages.get(path, page, run)
-    if image.width > PAGE_IMAGE_WIDTH:
-        image = image.resize((PAGE_IMAGE_WIDTH, int(image.height * PAGE_IMAGE_WIDTH / image.width)))
-    cut = int(image.height * 0.55)
+    width = PAGE_IMAGE_WIDTH + 200 if second else PAGE_IMAGE_WIDTH
+    if image.width > width:
+        image = image.resize((width, int(image.height * width / image.width)))
+    cut = int(image.height * (0.5 if second else 0.55))
     top = image.crop((0, 0, image.width, cut))
     bottom = image.crop((0, image.height - cut, image.width, image.height))
     return [ImagePart(f"page_{page}_upper", _png(top)), ImagePart(f"page_{page}_lower", _png(bottom))]
@@ -459,6 +470,11 @@ def _read_rows(run: _Run, pages: _Pages, rows: list[_Row], *, tier: str, ctx, pr
     kind = "first" if tier == "small" else "second"
     by_document: dict[str, list[_Row]] = {}
     for row in rows:
+        if slot == "ai1" and row.ai1 is not None:
+            # The model read this row when it read the sheet (app.ai.sheet_reader);
+            # its reading came with the line.
+            run.reused += 1
+            continue
         found, reading = _stored_reading(run, row, kind)
         if found:
             setattr(row, slot, reading)
@@ -466,22 +482,26 @@ def _read_rows(run: _Run, pages: _Pages, rows: list[_Row], *, tier: str, ctx, pr
             continue
         by_document.setdefault(row.run.document_path, []).append(row)
     done, total = progress
+    second = tier != "small"
+    per_call = ROWS_PER_CALL_SECOND if second else ROWS_PER_CALL
+    margin_x, margin_y = (20, 12) if second else (12, 8)
     for path, group in by_document.items():
         group.sort(key=lambda r: (r.page, r.region[1]))
-        for start in range(0, len(group), ROWS_PER_CALL):
-            batch = group[start:start + ROWS_PER_CALL]
+        for start in range(0, len(group), per_call):
+            batch = group[start:start + per_call]
             if ctx is not None:
-                ctx.progress(done, total, f"AI {'second reading' if tier != 'small' else 'reading'} of {Path(path).name}: "
+                ctx.progress(done, total, f"AI {'second reading' if second else 'reading'} of {Path(path).name}: "
                                           f"rows {start + 1}-{start + len(batch)} of {len(group)}")
             crops = []
             for index, row in enumerate(batch, start=1):
                 image = pages.get(path, row.page, row.run)
                 x0, y0, x1, y1 = row.region
-                crops.append((f"R{index}", image.crop((max(0, x0 - 12), max(0, y0 - 8), min(image.width, x1 + 12),
-                                                       min(image.height, y1 + 8)))))
+                crops.append((f"R{index}", image.crop((max(0, x0 - margin_x), max(0, y0 - margin_y),
+                                                       min(image.width, x1 + margin_x), min(image.height, y1 + margin_y)))))
             data = run.call(document_sha=row_sha(batch[0]), task="verify_boq_rows", system=SYSTEM_ROWS,
                             parts=[TextPart("task", f"{len(batch)} rows labelled R1 to R{len(batch)}"),
-                                   ImagePart("rows", compose_rows(crops))],
+                                   ImagePart("rows", compose_rows(crops, image_width=ROW_IMAGE_WIDTH_SECOND if second
+                                                                  else ROW_IMAGE_WIDTH))],
                             schema=ROWS_SCHEMA, max_output=min(8000, 200 + 90 * len(batch)), tier=tier)
             answers = {str(a.get("label", "")).strip().upper(): a for a in (data or {}).get("rows", []) if isinstance(a, dict)}
             for index, row in enumerate(batch, start=1):
@@ -594,7 +614,7 @@ def _find_lines(run: _Run, pages: _Pages, lines: list[dict], sheet_runs: list[Ex
         for start in range(1, count + 1, PAGES_PER_FIND_CALL):
             parts: list = [TextPart("lines", listing)]
             for page in range(start, min(count, start + PAGES_PER_FIND_CALL - 1) + 1):
-                parts.extend(page_parts(pages, path, page, sheet_run))
+                parts.extend(page_parts(pages, path, page, sheet_run, second=tier != "small"))
             data = run.call(document_sha=sheet_run.document_sha256 or "", task="verify_boq_find", system=SYSTEM_FIND,
                             parts=parts, schema=FIND_SCHEMA, max_output=min(8000, 200 + 60 * len(lines)), tier=tier)
             for answer in (data or {}).get("lines", []):
@@ -690,8 +710,14 @@ def _verify_boq(db: Session, project: Project, user: User, record: AiVerificatio
             else:
                 not_checked.append({"change": change, "reason": "the sheet read gave this row no position to show the AI"})
             continue
-        rows.append(_Row(key=change["id"], kind=change["kind"], run=sheet_run, page=int(after["source_page"]),
-                         region=tuple(int(v) for v in region), held=before, ocr=_fields(after)))
+        row = _Row(key=change["id"], kind=change["kind"], run=sheet_run, page=int(after["source_page"]),
+                   region=tuple(int(v) for v in region), held=before, ocr=_fields(after))
+        if sheet_run.reader == "ai" and isinstance(after.get("ai_reading"), dict):
+            # The sheet was read by the model, witnessed by the OCR read: the
+            # fresh read *is* the model's reading, stored for good. It is the
+            # first AI reading here, so a row already settled costs no call.
+            row.ai1 = _fields(split_inline_quantity(dict(after["ai_reading"])))
+        rows.append(row)
 
     # Rows the read saw but could not settle a quantity for.
     for sheet_run in runs.values():
@@ -971,17 +997,21 @@ def _read_drf_schema():
     }
 
 
-def _drf_images(path: Path) -> list[ImagePart]:
+def _drf_images(path: Path, *, second: bool = False) -> list[ImagePart]:
+    """The form as the model sees it. The second reading is of a different
+    rendering -- another resolution, another cut -- so it is an independent
+    look even by the same model (see ROWS_PER_CALL_SECOND)."""
     with pymupdf.open(str(path)) as doc:
         if doc.page_count == 0:
             raise VerificationError("The DRF has no pages")
-        pix = doc[0].get_pixmap(dpi=200, colorspace=pymupdf.csGRAY)
+        pix = doc[0].get_pixmap(dpi=240 if second else 200, colorspace=pymupdf.csGRAY)
         image = Image.frombytes("L", (pix.width, pix.height), pix.samples)
-    if image.width > PAGE_IMAGE_WIDTH:
-        image = image.resize((PAGE_IMAGE_WIDTH, int(image.height * PAGE_IMAGE_WIDTH / image.width)))
+    width = PAGE_IMAGE_WIDTH + 200 if second else PAGE_IMAGE_WIDTH
+    if image.width > width:
+        image = image.resize((width, int(image.height * width / image.width)))
     if image.height <= image.width * 1.1:
         return [ImagePart("drf", _png(image))]
-    cut = int(image.height * 0.55)
+    cut = int(image.height * (0.5 if second else 0.55))
     return [ImagePart("drf_upper", _png(image.crop((0, 0, image.width, cut)))),
             ImagePart("drf_lower", _png(image.crop((0, image.height - cut, image.width, image.height))))]
 
@@ -1054,7 +1084,8 @@ def _verify_details(db: Session, project: Project, user: User, record: AiVerific
     names = TextPart("allowed_system_names", "\n".join(details_check.SYSTEMS))
 
     def read(tier: str) -> tuple[dict, dict | None]:
-        data = run.call(document_sha=sha, task="verify_drf", system=SYSTEM_READ_DRF, parts=[names, *images],
+        parts = [names, *(images if tier == "small" else _drf_images(drf, second=True))]
+        data = run.call(document_sha=sha, task="verify_drf", system=SYSTEM_READ_DRF, parts=parts,
                         schema=schema, max_output=3000, tier=tier) or {}
         fields = {}
         for answer in data.get("fields") or []:
@@ -1078,7 +1109,32 @@ def _verify_details(db: Session, project: Project, user: User, record: AiVerific
 
     if ctx is not None:
         ctx.progress(1, 4, "AI reading the DRF")
-    ai1_fields, ai1_systems = read("small")
+    from app.ai import sheet_reader
+    from app.models import DocumentReading
+
+    stored_drf = sheet_reader.stored(db, sha, kind="drf", prompt_version=PROMPT_VERSION)
+    if stored_drf is not None:
+        # Read before (this project reopened, or another with the same form):
+        # the stored reading is the first AI reading, and costs nothing.
+        ai1_fields = dict(stored_drf.reading.get("fields") or {})
+        ai1_systems = stored_drf.reading.get("systems")
+        run.reused += 1
+    else:
+        ai1_fields, ai1_systems = read("small")
+        readable = bool(ai1_fields) or ai1_systems is not None
+        earlier = sheet_reader.stored(db, sha, kind="drf", prompt_version=PROMPT_VERSION, any_status=True)
+        values = dict(project_id=project.id, kind="drf", document_path=str(drf), document_sha256=sha,
+                      model=", ".join(sorted(run.models)) or get_settings().ai_model_small, prompt_version=PROMPT_VERSION,
+                      pages=1, reading={"fields": ai1_fields, "systems": ai1_systems},
+                      status="completed" if readable else "failed",
+                      error=None if readable else (run.notes[-1] if run.notes else "the model gave no reading of the DRF"),
+                      calls=run.calls, created_by_id=user.id if user else None)
+        if earlier is None:
+            db.add(DocumentReading(**values))
+        else:
+            for name, value in values.items():
+                setattr(earlier, name, value)
+        db.commit()
 
     def decide_all(ai2_fields=None, ai2_systems=_MISSING):
         field_out, system_out = {}, {}

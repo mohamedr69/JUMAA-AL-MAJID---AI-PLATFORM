@@ -94,9 +94,15 @@ def recording(monkeypatch):
 
 @pytest.fixture()
 def ai_on(monkeypatch):
+    """The model on, for the cell-level assistance these tests are about.
+    The whole-sheet AI read (app.ai.sheet_reader) is switched off the way a
+    deployment would switch it off, so the sheet is read by OCR alone and
+    the unreadable cell is what reaches the model."""
     monkeypatch.setattr(settings, "ai_enabled", True)
+    monkeypatch.setattr(settings, "ai_disabled_tasks", "read_sheet_page")
     yield
     monkeypatch.setattr(settings, "ai_enabled", False)
+    monkeypatch.setattr(settings, "ai_disabled_tasks", "")
 
 
 def _project_with_sheet(db, tmp_path, rows, code="PAVA") -> tuple[Project, Path]:

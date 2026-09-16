@@ -88,9 +88,12 @@ def record_design_sheet_run(
         parser_version=design_sheet_extractor.PARSER_VERSION,
         outcome=result.outcome.value,
         lines_accepted=len(result.lines),
-        coverage=result.coverage.to_dict(),
+        coverage={**result.coverage.to_dict(), "notes": list(getattr(result, "notes", []) or [])},
         failure=result.failure,
         trigger=trigger,
+        # Who read the lines and, for the model, from which stored reading.
+        reader=getattr(result, "reader", "ocr") or "ocr",
+        reading_id=getattr(result, "reading_id", None),
         finished_at=utc_now(),
     )
     for issue in result.issues:

@@ -624,6 +624,11 @@ class ExtractionRun(Base):
     failure: Mapped[str | None] = mapped_column(Text, nullable=True)
     # "auto" (on first open) | "manual" (Assist / Retry)
     trigger: Mapped[str] = mapped_column(String(16), nullable=False, default="auto")
+    # Who read the lines: "ocr" (Tesseract alone) or "ai" (the model read
+    # every page, with the OCR read as the witness -- app.ai.sheet_reader).
+    reader: Mapped[str] = mapped_column(String(8), nullable=False, default="ocr", server_default="ocr")
+    # The stored AI reading the lines came from, when `reader` is "ai".
+    reading_id: Mapped[int | None] = mapped_column(ForeignKey("document_readings.id"), nullable=True)
     ai_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ai_cost: Mapped[float] = mapped_column(Numeric(10, 5), nullable=False, default=0)
     budget_exhausted: Mapped[str | None] = mapped_column(String(48), nullable=True)
@@ -712,6 +717,42 @@ class AiUsage(Base):
     # "ok" | "transport" | "rate_limit" | "invalid_response" | "refused" | "auth" | "rejected"
     outcome: Mapped[str] = mapped_column(String(24), nullable=False)
     at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False, index=True)
+
+
+class DocumentReading(Base):
+    """What the AI read off one document, kept for good.
+
+    One row per document content (its SHA-256), kind and reading prompt: the
+    model's page-by-page reading of a Design Sheet, or its reading of a
+    DRF's fields and Systems table. A project opened later whose document
+    has the same content -- the same project reopened, or another project
+    filed with the same sheet -- takes the reading from here and calls no
+    model. Only a completed reading is reused; a failed one is recorded so
+    the page can say why, and is read again on the next open.
+    """
+
+    __tablename__ = "document_readings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # The project that first asked; access follows the document's content.
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
+    # "design_sheet" | "drf"
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    document_path: Mapped[str] = mapped_column(Text, nullable=False)
+    document_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    model: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    pages: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # design_sheet: {"pages": [{"page", "width", "height", "rows": [{"kind",
+    # "quantity", "catalog_no", "description", "readable", "box"}]}]}
+    # drf: {"fields": {name: value | None}, "systems": {name: {...}} | None}
+    reading: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    # "completed" | "failed"
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="completed")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
 class ResultCache(Base):

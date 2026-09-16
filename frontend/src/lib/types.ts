@@ -246,6 +246,10 @@ export interface BoqEnsureResponse {
   warnings: string[];
   /** The version a save names in If-Match. */
   version: number;
+  /** When the AI has to read the Design Sheets first, that runs as a job and
+   * this is it: the page follows it and asks again when it is done. Null
+   * once the BOQ is read. */
+  reading?: import("./useJob").Job | null;
 }
 
 export type CheckStatus = "ok" | "warning" | "blocked" | "unknown";
@@ -1401,8 +1405,26 @@ export interface ExtractionRun {
   ai_cost: number;
   budget_exhausted: string | null;
   trigger: string;
+  /** Who read the lines: the OCR alone, or the AI with the OCR read as witness. */
+  reader: "ocr" | "ai";
+  /** What the reader noted about the read. */
+  notes: string[];
   started_at: string;
   issues: ExtractionIssue[];
+}
+
+/** A stored AI reading of one of the project's documents: made once, kept
+ * for good, reused by every later open of a document with the same content. */
+export interface DocumentReading {
+  id: number;
+  kind: "design_sheet" | "drf";
+  document_name: string;
+  model: string;
+  pages: number;
+  status: "completed" | "failed";
+  error: string | null;
+  calls: number;
+  created_at: string;
 }
 
 export interface ExtractionState {
@@ -1413,6 +1435,7 @@ export interface ExtractionState {
   ai_status: string;
   runs: ExtractionRun[];
   open_issues: number;
+  readings: DocumentReading[];
 }
 
 /** A suggestion the model made during resolution; shown, never applied. */

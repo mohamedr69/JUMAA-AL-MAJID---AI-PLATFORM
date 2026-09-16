@@ -152,6 +152,10 @@ class BoqEnsureResponse(BaseModel):
     items: list[ProjectBoqItemOut]
     extracted: bool
     warnings: list[str] = []
+    # When the model has to read the sheets first, that runs as a job and
+    # this is it (app.routers.jobs.JobOut): the page follows it and asks
+    # again when it is done. None once the BOQ is read.
+    reading: dict | None = None
     # The version a save must name in If-Match (app.services.concurrency).
     version: int = 0
 

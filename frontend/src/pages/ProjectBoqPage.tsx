@@ -16,6 +16,8 @@ import {
   type ProjectBoqItemInput,
 } from "../lib/types";
 import { useUnsavedChanges } from "../lib/useUnsavedChanges";
+import { useJob } from "../lib/useJob";
+import { JobProgress } from "../components/JobProgress";
 import { UnderMaintenance } from "../components/UnderMaintenance";
 import { ExtractionReview } from "../components/ExtractionReview";
 import { AiCheckBadge, AiVerificationPanel } from "../components/AiVerificationPanel";
@@ -149,6 +151,12 @@ export function ProjectBoqPage() {
 
   useUnsavedChanges(dirty);
 
+  // The first open of a project's BOQ has the AI read its Design Sheets,
+  // which takes minutes and runs as a job: the page follows it and loads
+  // the BOQ out of the stored reading when it ends.
+  const reading = useJob(project.id, "boq_read", `/projects/${project.id}/boq/ensure`, () => setReloadEpoch((n) => n + 1));
+  const followReading = reading.follow;
+
   function applyItems(items: ProjectBoqItem[], newVersion: number | null) {
     setRows(items.map(toRow));
     setMeta(new Map(items.map((item) => [item.id, item])));
@@ -189,6 +197,14 @@ export function ProjectBoqPage() {
     load
       .then((result) => {
         if (cancelled) return;
+        if (result.reading) {
+          // The AI is reading the sheets: follow the job; the finish reloads.
+          followReading(result.reading);
+          applyItems([], result.version);
+          setDirty(false);
+          loadStatus();
+          return;
+        }
         applyItems(result.items, result.version);
         setDirty(false);
         setStaleError(null);
@@ -210,7 +226,7 @@ export function ProjectBoqPage() {
     return () => {
       cancelled = true;
     };
-  }, [project.id, canEdit, reloadEpoch, loadStatus]);
+  }, [project.id, canEdit, reloadEpoch, loadStatus, followReading]);
 
   // One tab per system the project has a Design Sheet for -- FAS and ELS on a
   // project with those two sheets. Systems only present on existing BOQ lines
@@ -342,6 +358,7 @@ export function ProjectBoqPage() {
   const blankRows = rows.filter((row) => row.description.trim() === "").length;
   const openIssues = extraction?.open_issues ?? 0;
   const designRuns = (extraction?.runs ?? []).filter((run) => run.kind === "design_sheet");
+  const aiRead = designRuns.some((run) => run.reader === "ai");
   const unprocessedPages = designRuns.reduce((sum, run) => sum + run.unprocessed_pages.length, 0);
   const parserVersions = Array.from(new Set([...meta.values()].map((item) => item.parser_version).filter(Boolean)));
   const readTimes = designRuns.map((run) => run.started_at).sort();
@@ -459,8 +476,14 @@ export function ProjectBoqPage() {
                     .map((sheet) => sheet.system_code ?? "?")
                     .join(", ")}`}
               <div className="text-gray-500">
-                {readTimes.length > 0 ? `Read ${formatApiDate(readTimes[readTimes.length - 1], "short")}` : "No recorded read"}
-                {parserVersions.length > 0 && ` · parser ${parserVersions.join(", ")}`}
+                {readTimes.length > 0
+                  ? `${aiRead ? "Read by AI" : "Read"} ${formatApiDate(readTimes[readTimes.length - 1], "short")}`
+                  : "No recorded read"}
+                {aiRead
+                  ? " · reading stored, reused on every open"
+                  : parserVersions.length > 0
+                    ? ` · parser ${parserVersions.join(", ")}`
+                    : ""}
               </div>
             </StripCell>
             <StripCell label="Coverage" tone={unprocessedPages > 0 || openIssues > 0 ? "warn" : "ok"}>
@@ -521,11 +544,15 @@ export function ProjectBoqPage() {
           </div>
 
           {extractNote && <div className="mt-4 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">{extractNote}</div>}
+          {reading.job && (reading.active || reading.job.status === "failed") && (
+            <JobProgress job={reading.job} onCancel={reading.cancel} what="the AI read of the Design Sheets" />
+          )}
+          {reading.error && <div className="mt-2 text-xs text-red-700">{reading.error}</div>}
           {warnings.length > 0 && (
             <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
               <div className="font-medium">
-                {warnings.length === 1 ? "A Design Sheet" : `${warnings.length} Design Sheets`} could not be read, so{" "}
-                {warnings.length === 1 ? "its" : "their"} lines are not below. Enter them by hand.
+                {warnings.length === 1 ? "A Design Sheet" : `${warnings.length} Design Sheets`} could not be read
+                {aiRead ? " by the AI or the OCR" : ""}, so {warnings.length === 1 ? "its" : "their"} lines are not below. Enter them by hand.
               </div>
               <ul className="mt-1 list-disc pl-5 text-xs">
                 {warnings.map((warning) => (

@@ -53,7 +53,6 @@ from app.extraction.issues import Coverage, Issue, IssueCode, PageCoverage
 from app.services import activity, boq_provenance, concurrency, design_sheet_extractor
 from app.services.design_sheet_extractor import (
     DesignSheetExtraction,
-    extract_design_sheet,
     DesignSheetExtractionError,
     ExtractedBoqLine,
     extract_boq_lines,
@@ -84,6 +83,11 @@ XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.s
 # atomic claim in ensure_project_boq is what prevents duplicate lines, and
 # that holds across processes where this lock does not.
 _boq_extraction_lock = threading.Lock()
+# Checking for a running AI read and starting one happen under one lock: a
+# page that asks twice at the same moment (React runs a page's first effect
+# twice in development) must start one read, not two paying for the same pages.
+_boq_read_start_lock = threading.Lock()
+BOQ_READ_JOB = "boq_read"
 
 
 def _get_project_or_404(db: Session, project_id: int) -> Project:
@@ -614,7 +618,7 @@ def replace_project_boq(
 @router.post("/{project_id}/boq/ensure", response_model=BoqEnsureResponse)
 def ensure_project_boq(
     project_id: int,
-    _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> BoqEnsureResponse:
     """Return the BOQ, reading it out of the Design Sheets the first time.
@@ -634,6 +638,80 @@ def ensure_project_boq(
     if project.boq_extracted_at is not None:
         return _stored_boq(project)
 
+    # The model reads the sheets the first time (app.ai.sheet_reader), and
+    # that takes minutes for a scanned multi-page sheet: it runs as a job the
+    # page follows, and the BOQ is read out of the stored reading when it is
+    # done. A sheet read before -- the same content, on any project -- has
+    # its reading in the database already and is read out of it here and now.
+    from app.ai import sheet_reader
+    from app.services import jobs
+
+    if project.design_sheets and sheet_reader.available(project) is None and _needs_ai_read(db, project):
+        with _boq_read_start_lock:
+            db.expire_all()
+            if project.boq_extracted_at is not None:
+                return _stored_boq(project)
+            running = jobs.active_job(db, project.id, BOQ_READ_JOB)
+            if running is None:
+                running = _start_boq_read(db, project, current_user)
+        db.expire_all()
+        if running.status == "succeeded" and project.boq_extracted_at is not None:
+            # The job ran inline (tests) and is already done: this call read the sheets.
+            return BoqEnsureResponse(items=project.boq_items, extracted=True,
+                                     warnings=project.boq_extraction_warnings or [], version=project.boq_version)
+        if project.boq_extracted_at is not None:
+            return _stored_boq(project)
+        from app.routers.jobs import _out as job_out
+
+        return BoqEnsureResponse(items=[], extracted=False, warnings=[], version=project.boq_version,
+                                 reading=job_out(running).model_dump(mode="json"))
+
+    return _extract_boq(db, project, user_id=current_user.id)
+
+
+def _needs_ai_read(db: Session, project: Project) -> bool:
+    """Whether any of the project's sheets has no stored AI reading yet."""
+    from app.ai import sheet_reader
+
+    for sheet in project.design_sheets:
+        path = Path(sheet.document_path)
+        if not path.is_file():
+            continue
+        if sheet_reader.stored(db, extraction_pipeline.sha256_of(path) or "") is None:
+            return True
+    return False
+
+
+def _start_boq_read(db: Session, project: Project, user: User):
+    """The first read of the BOQ as a job: the model reads the sheets, the
+    reading is stored, and the BOQ is written out of it -- the same read
+    `ensure_project_boq` makes inline when no model call is needed."""
+    project_id, user_id = project.id, user.id
+
+    def work(session: Session, ctx) -> dict:
+        target = session.get(Project, project_id)
+        response = _extract_boq(session, target, user_id=user_id, ctx=ctx)
+        actor = session.get(User, user_id)
+        if response.extracted:
+            lines = len(response.items)
+            unread = len(response.warnings)
+            activity.record(session, actor, "boq.read_by_ai",
+                            f"AI read the Design Sheets into the BOQ: {lines} line{'s' if lines != 1 else ''}"
+                            + (f"; {unread} sheet{'s' if unread != 1 else ''} not read" if unread else ""),
+                            project=target, entity_type="boq", entity_id=project_id,
+                            detail={"lines": lines, "warnings": response.warnings})
+        return {"lines": len(response.items), "warnings": response.warnings, "extracted": response.extracted}
+
+    from app.routers import jobs as jobs_router
+    from app.services import jobs
+
+    return jobs.start(db, kind=BOQ_READ_JOB, project_id=project.id, user_id=user.id, work=work,
+                      run_inline=jobs_router.RUN_INLINE)
+
+
+def _extract_boq(db: Session, project: Project, *, user_id: int | None, ctx=None) -> BoqEnsureResponse:
+    """Read the sheets into the BOQ, once. Idempotent under the lock and the
+    `boq_extracted_at` stamp; a second caller gets what the first stored."""
     with _boq_extraction_lock:
         # Another open may have finished the read while this one waited.
         db.expire(project)
@@ -647,8 +725,16 @@ def ensure_project_boq(
         # Each sheet's read is kept with what it covered and could not
         # settle, so a dropped row is a row to review rather than a row gone.
         reads: list[tuple[ProjectDesignSheet, DesignSheetExtraction]] = []
-        for sheet in project.design_sheets:
-            result = _read_design_sheet(Path(sheet.document_path))
+        total_sheets = len(project.design_sheets)
+        for index, sheet in enumerate(project.design_sheets):
+            name = Path(sheet.document_path).name
+
+            def on_page(page: int, pages: int, index=index, name=name) -> None:
+                if ctx is not None:
+                    ctx.progress(index * 100 + round(100 * (page - 1) / max(pages, 1)), total_sheets * 100,
+                                 f"Reading {name}: page {page} of {pages} (sheet {index + 1} of {total_sheets})")
+
+            result = _read_design_sheet(db, project, sheet, on_page=on_page, ctx=ctx, user_id=user_id)
             reads.append((sheet, result))
             if result.failure:
                 warnings.append(f"{Path(sheet.document_path).name}: {result.failure}")
@@ -709,17 +795,23 @@ def ensure_project_boq(
     return BoqEnsureResponse(items=project.boq_items, extracted=True, warnings=warnings, version=project.boq_version)
 
 
-def _read_design_sheet(path: Path, on_page=None) -> DesignSheetExtraction:
-    """One sheet's read, with its coverage and issues.
+def _read_design_sheet(db: Session, project: Project, sheet: ProjectDesignSheet, on_page=None, ctx=None,
+                       user_id: int | None = None) -> DesignSheetExtraction:
+    """One sheet's read, with its coverage and issues: the model's reading
+    witnessed by the OCR read (app.ai.sheet_reader), or the OCR read alone
+    where the model cannot be used.
 
     `extract_boq_lines` is the seam the test suite stubs -- a fake that
     returns lines, or raises -- and it is honoured: when the name bound in
     this module is the real function the detailed read is used, otherwise
     the stub's lines (or its error) are wrapped as a read that covered one
-    page and settled everything else.
+    page and settled everything else, and no model is asked.
     """
     if extract_boq_lines is design_sheet_extractor.extract_boq_lines:
-        return extract_design_sheet(path, on_page=on_page)
+        from app.ai import sheet_reader
+
+        return sheet_reader.read_design_sheet(db, project, sheet, user_id=user_id, ctx=ctx, on_page=on_page)
+    path = Path(sheet.document_path)
     try:
         lines = extract_boq_lines(path)
     except DesignSheetExtractionError as exc:

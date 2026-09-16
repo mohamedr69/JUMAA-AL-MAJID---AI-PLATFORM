@@ -28,6 +28,11 @@ os.environ["LIBRARY_RESCAN_SECONDS"] = "0"
 os.environ["COMPLIANCE_KNOWLEDGE_SOURCE"] = ""
 os.environ["COMPLIANCE_KNOWLEDGE_AUTODETECT"] = "false"
 os.environ["COMPLIANCE_KNOWLEDGE_IMPORT_ON_START"] = "false"
+# No model either: the developer's .env may turn AI on for the running
+# platform, but a test that wants the model says so (`ai_enabled` patched
+# on the settings) and hands in a scripted provider. Without this, opening
+# a BOQ in a test read its sheets through the real Claude Code CLI.
+os.environ["AI_ENABLED"] = "false"
 
 import pytest
 from fastapi.testclient import TestClient
