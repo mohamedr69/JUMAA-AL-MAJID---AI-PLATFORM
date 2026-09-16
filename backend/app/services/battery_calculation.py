@@ -51,6 +51,14 @@ BPS_HEADING_RE = re.compile(r"booster|\bbps\b", re.IGNORECASE)
 APS_HEADING_RE = re.compile(r"amplifier|\baps\b|power\s*supply", re.IGNORECASE)
 # The cabinet kinds that get a battery calculation, and what each is called.
 SIZED_KINDS = {"panel": "FACP", "aps": "APS", "bps": "BPS"}
+# What an APS / BPS cabinet's battery carries: the power supply itself, its
+# amplifiers, and the Signature / panel modules mounted in it. A field
+# device the BOQ files under the cabinet's group -- a beam detector, a call
+# kit, a sounder -- is powered elsewhere and is not the cabinet's load
+# (platform owner, 16 September 2026).
+CABINET_LOAD_RE = re.compile(
+    r"^(BPS|APS|3-|4-|SIGA-(CT|CC|CR|UIO|REL|MM|IO|MCT|MCR|MCC|MAB|AA|MAA))", re.IGNORECASE
+)
 
 # A battery line, when its part is not in the catalogue: the BOQ's own words,
 # "Battery, 12 V @ 65 AH", "10Ah Sealed Lead Acid Battery - 12 Vdc".
@@ -246,6 +254,7 @@ def calculate_panel(
     `kind`: "panel", "aps" or "bps" -- what the group is a cabinet of."""
     notes: list[str] = []
     count = 1
+    excluded: list[tuple[str, float | None]] = []
     out_lines: list[BatteryLineOut] = []
     quoted: list[BatterySetOut] = []
     missing: list[str] = []
@@ -266,6 +275,11 @@ def calculate_panel(
         key = part_key(line.catalog_no)
         unit = batteries.get(key)
         stated = None if unit else battery_from_text(line.description)
+        if kind != "panel" and not (unit or stated) and not CABINET_LOAD_RE.match(key):
+            excluded.append((line.catalog_no.strip(), quantity))
+            out_lines.append(BatteryLineOut(part_no=line.catalog_no.strip(), description=line.description, quantity=quantity,
+                                            manufacturer=line.manufacturer, kind="not_cabinet_load"))
+            continue
         if unit or stated:
             capacity, voltage = (unit.capacity_ah, unit.voltage) if unit else stated  # type: ignore[misc]
             units = quantity or 0
@@ -344,6 +358,12 @@ def calculate_panel(
         notes.append(
             "Nothing in this group draws any current, so its modules are probably not itemized in the BOQ; "
             "the panel cannot be sized from it."
+        )
+    if excluded:
+        listed = ", ".join(f"{part} (x{qty:g})" if qty is not None else part for part, qty in excluded)
+        notes.append(
+            f"Not this cabinet's battery load, though the BOQ files them under its group: {listed} -- "
+            "powered elsewhere, so not counted here."
         )
     if kind != "panel" and count > 1:
         notes.append(

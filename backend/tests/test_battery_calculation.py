@@ -203,6 +203,13 @@ def test_ep30784_boq_groups():
     # The amplifier and booster cabinets are sized too -- once each, though
     # the BOQ quotes 18 closets and 8 booster cabinets.
     assert (aps.kind, aps.count, bps.kind, bps.count) == ("aps", 18, "bps", 8)
+    # The call-for-assistance kit filed under the booster's group is not the
+    # booster's battery load; the booster and its input module are.
+    kinds = {line.part_no: line.kind for line in bps.lines if line.part_no}
+    assert kinds["6538-G5"] == "not_cabinet_load" and kinds["BPS10A/230"] == "load" and kinds["SIGA-CT2"] == "load"
+    assert "6538-G5" not in bps.missing_parts and any("Not this cabinet" in n for n in bps.notes)
+    # The APS: its amplifiers and modules; the power supply unit is a line too, settled elsewhere.
+    assert {line.part_no for line in aps.lines if line.kind == "load"} == {"SIGA-AAS0", "APS6A/230", "SIGA-CT2"}
     assert aps.quoted_ah == bps.quoted_ah == 10 and any("calculated here once" in n for n in aps.notes)
     # The sub-panel group quotes two panels; its lines are per panel.
     assert (main.count, sub.count) == (1, 2)

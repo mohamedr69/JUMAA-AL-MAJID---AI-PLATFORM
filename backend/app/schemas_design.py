@@ -317,8 +317,10 @@ class BatteryLineOut(BaseModel):
     # As the BOQ line gives it; picks the datasheet library to search.
     manufacturer: str | None = None
     # "load": draws current; "battery": the panel's own battery; "no_part":
-    # a line without a part number, not counted.
-    kind: Literal["load", "battery", "no_part"]
+    # a line without a part number, not counted; "not_cabinet_load": a line
+    # of an APS / BPS group that is not the cabinet's own equipment (a field
+    # device filed under it), powered elsewhere and not counted.
+    kind: Literal["load", "battery", "no_part", "not_cabinet_load"]
     standby_ma: float | None = None
     alarm_ma: float | None = None
     total_standby_ma: float | None = None

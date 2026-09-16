@@ -670,7 +670,9 @@ export interface BatteryLine {
   description: string;
   quantity: number | null;
   manufacturer: string | null;
-  kind: "load" | "battery" | "no_part";
+  /** "not_cabinet_load": filed under an APS / BPS group but not the
+   * cabinet's own equipment; powered elsewhere, not counted. */
+  kind: "load" | "battery" | "no_part" | "not_cabinet_load";
   standby_ma: number | null;
   alarm_ma: number | null;
   total_standby_ma: number | null;
