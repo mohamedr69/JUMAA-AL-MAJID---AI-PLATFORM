@@ -58,6 +58,24 @@ NO_LOAD_PARTS: list[tuple[str, str]] = [
     ("4-CAB24DL", "Door Assembly - Bronze outer door and black inner door (left hand)"),
     ("4-FIL", "Blank Filler Plate"),
     ("BC-1", "Battery cabinet"),
+    # An APS cabinet's battery calculation is its amplifiers (SIGA-AA50) and
+    # modules (SIGA-CT2), each a line of the BOQ with its datasheet figure;
+    # the power supply unit itself is not a line of it (platform owner,
+    # 16 September 2026).
+    ("APS6A", "6.5 A Auxiliary Power Supply: its load is its amplifiers and modules"),
+    ("APS6A/230", "6.5 A Auxiliary Power Supply (220 V): its load is its amplifiers and modules"),
+    ("APS10A", "10 A Auxiliary Power Supply: its load is its amplifiers and modules"),
+    ("APS10A/230", "10 A Auxiliary Power Supply (220 V): its load is its amplifiers and modules"),
+]
+# Devices whose figures are read off their datasheets in the library when
+# the table is seeded, so a project's first battery page has them at once.
+DATASHEET_SEEDS: list[tuple[str, str]] = [
+    ("BPS10A", "10 A Booster Power Supply"),
+    ("BPS6A", "6.5 A Booster Power Supply"),
+    ("SIGA-AA50", "Intelligent Audio Amplifier - 50 W"),
+    ("SIGA-AA30", "Intelligent Audio Amplifier - 30 W"),
+    ("SIGA-CT2", "Dual Input Module"),
+    ("SIGA-CT1", "Single Input Module"),
 ]
 # (part number, description, the module it is built into).
 BUILT_IN_PARTS: list[tuple[str, str, str]] = [
@@ -212,6 +230,7 @@ def seed(db: Session) -> int:
         row = db.query(EquipmentCurrent).filter(EquipmentCurrent.key == _key(target)).one_or_none()
         if row is not None and _key(alias) not in {_key(a) for a in row.aliases or []}:
             row.aliases = [*(row.aliases or []), alias]
+    added += seed_from_datasheets(db, existing)
     # What the catalogue already learned from datasheets and engineers.
     rules = (db.query(DesignRule)
              .filter(DesignRule.category == PART_CURRENT_CATEGORY, DesignRule.superseded_at.is_(None)).all())
@@ -235,6 +254,42 @@ def seed(db: Session) -> int:
         existing.add(rule.key)
         added += 1
     db.commit()
+    return added
+
+
+def seed_from_datasheets(db: Session, existing: set[str]) -> int:
+    """DATASHEET_SEEDS read off their datasheets in the Edwards library, for
+    the parts not in the table yet. Nothing is typed in: a part whose
+    datasheet is not in the library, or gives no current, is left out, to
+    be read when a project quotes it. Returns how many rows were added."""
+    from app.services.datasheet_currents import read_part_current
+    from app.services.datasheet_library import get_libraries
+
+    try:
+        library = get_libraries().get(MANUFACTURER)
+    except Exception:  # noqa: BLE001 -- no library on this machine: nothing to read
+        return 0
+    if library is None:
+        return 0
+    added = 0
+    for part_no, description in DATASHEET_SEEDS:
+        if _key(part_no) in existing:
+            continue
+        for match in library.find(part_no):
+            reading = read_part_current(library.folder / match.path, part_no,
+                                        doc_named_for_part=match.matched_on in ("filename", "family"))
+            if reading is None:
+                continue
+            pages = ", ".join(str(p) for p in reading.pages)
+            source = f"{match.source.rsplit(', p.', 1)[0]}, p.{pages}: read automatically"
+            if reading.notes:
+                source += " (" + "; ".join(reading.notes) + ")"
+            db.add(EquipmentCurrent(manufacturer=MANUFACTURER, key=_key(part_no), part_no=part_no, description=description,
+                                    no_load=False, kind=DEVICE, standby_ma=reading.standby_ma, alarm_ma=reading.alarm_ma,
+                                    source=source[:1000], confirmed_by=None))
+            existing.add(_key(part_no))
+            added += 1
+            break
     return added
 
 

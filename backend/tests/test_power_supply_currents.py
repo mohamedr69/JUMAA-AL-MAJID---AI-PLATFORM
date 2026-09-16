@@ -36,10 +36,9 @@ def test_a_booster_is_its_internal_currents_plus_its_full_rated_output(tmp_path)
     assert any("full rated output 10 A" in n for n in ten.notes)
     six = read_part_current(pdf, "BPS6A", doc_named_for_part=True)
     assert (six.standby_ma, six.alarm_ma) == (70, 6770)
-    # An APS: its amplifiers are their own lines, so no rated output -- its
-    # internal currents and its dedicated auxiliary output, both ways.
-    aps = read_part_current(pdf, "APS6A/230", doc_named_for_part=False)
-    assert (aps.standby_ma, aps.alarm_ma) == (270, 470)
+    # An APS has no figure of its own: its battery calculation is its
+    # amplifiers and modules, each a line of the BOQ.
+    assert read_part_current(pdf, "APS6A/230", doc_named_for_part=False) is None
 
 
 def test_amperes_and_microamperes_are_read_in_milliamperes(tmp_path):

@@ -34,6 +34,7 @@ def test_the_table_is_seeded_with_the_settled_edwards_parts(client, db_session):
     assert {"3-CAB14B", "3-CHAS7", "4-FIL", "4-COMREL", "BC-1", "4-CAB24D"} <= set(rows)
     assert rows["3-CAB14B"].no_load and rows["3-CAB14B"].kind == "mechanical" and rows["3-CAB14B"].confirmed_by
     assert rows["4-COMREL"].included_in == "4-CPU" and rows["4-COMREL"].kind == "built_in"
+    assert rows["APS6A/230"].no_load, "an APS's load is its amplifiers and modules"
     assert "3-CABSB" in rows["3-CAB5B"].aliases, "the scanned spelling resolves to the part"
     # Seeding again adds nothing and undoes nothing.
     rows["4-FIL"].description = "corrected by hand"

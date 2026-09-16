@@ -105,16 +105,19 @@ _BATTERY_BRANDS = ("ROCKET",)
 
 
 def read_battery_datasheet(first_page: str) -> BatteryDatasheet | None:
-    lines = [line.strip() for line in first_page.splitlines() if line.strip()][:12]
-    for i, line in enumerate(lines[:-1]):
+    """The model line ("ES 18-12") and the rating line ("12V - 18Ah") of the
+    first page, wherever they fall -- the footer sits between them on some
+    of ROCKET's sheets -- and only when they agree: the model encodes the
+    rating (ES65-12 is 65 Ah at 12 V), so a pair that disagrees is not this
+    battery's name."""
+    lines = [line.strip() for line in first_page.splitlines() if line.strip()][:40]
+    ratings = [(float(m.group(1)), float(m.group(2))) for line in lines if (m := _BATTERY_RATING_RE.match(line))]
+    for line in lines:
         model = _BATTERY_MODEL_RE.match(line)
-        rating = _BATTERY_RATING_RE.match(lines[i + 1])
-        if not (model and rating):
+        if not model:
             continue
-        voltage, capacity = float(rating.group(1)), float(rating.group(2))
-        # The model encodes the rating (ES65-12 is 65 Ah at 12 V); a line
-        # that disagrees with the one under it is not this battery's name.
-        if float(model.group(2)) != capacity or float(model.group(3)) != voltage:
+        capacity, voltage = float(model.group(2)), float(model.group(3))
+        if (voltage, capacity) not in ratings:
             continue
         upper = first_page.upper()
         brand = next((b for b in _BATTERY_BRANDS if b in upper), None)
@@ -222,7 +225,10 @@ def _index_file(path: Path, stat: os.stat_result | None = None) -> _Indexed:
 # The index is written to disk so a restart does not re-read every PDF.
 # Reading the 86 Edwards datasheets takes about eleven seconds off a synced
 # drive and a fraction of a second out of this file.
-_CACHE_VERSION = 3
+# Bumped when what is read off a datasheet changes: a cache written by an
+# older reader is re-read, not trusted (4: battery sheets whose rating line
+# does not follow the model line).
+_CACHE_VERSION = 4
 
 
 class DatasheetLibrary:

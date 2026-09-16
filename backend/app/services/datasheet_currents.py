@@ -303,11 +303,13 @@ class _Page:
 
 
 def read_power_supply_current(pdf_path, part_no: str) -> CurrentReading | None:
-    """A BPS or APS: (internal supervisory, internal alarm + rated output
-    [+ dedicated auxiliary for an APS]) mA off its datasheet, or None."""
+    """A BPS booster: (internal supervisory, internal alarm + the full rated
+    NAC output) mA off its datasheet, or None. An APS has no figure of its
+    own here: its battery calculation is its amplifiers and modules, each a
+    line of the BOQ (platform owner, 16 September 2026)."""
     key = part_key(part_no)
     model = _POWER_SUPPLY_RE.match(key.split("/")[0])
-    if not model:
+    if not model or model.group(1).upper() != "BPS":
         return None
     family, rating = model.group(1).upper(), float(model.group(2))
     try:
@@ -364,6 +366,8 @@ def read_part_current(pdf_path, part_no: str, doc_named_for_part: bool, panel_vo
     key = part_key(part_no)
     base = key.split("/")[0]
     if _POWER_SUPPLY_RE.match(base):
+        # A power supply is not read the generic way: a booster by its own
+        # rule, an APS not at all (its load is its amplifiers and modules).
         return read_power_supply_current(pdf_path, part_no)
     try:
         doc = pymupdf.open(pdf_path)
