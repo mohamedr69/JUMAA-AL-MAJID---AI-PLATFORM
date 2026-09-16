@@ -426,7 +426,9 @@ def submittal_map(
     project = _get_project_or_404(db, project_id)
     reason = submittal_reader.available(project)
     latest = submittal_reader.latest_map(db, project) or {}
-    delta = submittal_reader.changes(db, project)
+    # From the database only: whether the folder changed is the shared
+    # document sync's business (app.services.document_sync), never an open's.
+    delta = {"changed": False, "listing_files": int(latest.get("listing_files") or 0), "reason": ""}
     return SubmittalMapOut(available=reason is None, reason=reason, changed=delta["changed"],
                            listing_files=delta["listing_files"], change_reason=delta["reason"],
                            **{k: v for k, v in latest.items()

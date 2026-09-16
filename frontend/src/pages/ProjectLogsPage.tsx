@@ -2,6 +2,9 @@ import { Fragment, useEffect, useState } from "react";
 import { ApiError, api, apiUrl } from "../lib/api";
 import type { ProjectLogs, SubmittalRegister } from "../lib/types";
 import { directoryRevision, registerRevision, groupRevisions, type LogRevision } from "../lib/projectLog";
+import { useAuth } from "../context/AuthContext";
+import { PROJECT_EDITOR_ROLES } from "../lib/types";
+import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { useProject } from "./ProjectWorkspace";
 
 const ALL = "__all__";
@@ -13,6 +16,8 @@ function when(value: string): string {
 
 export function ProjectLogsPage() {
   const { project } = useProject();
+  const { user } = useAuth();
+  const canEdit = user !== null && PROJECT_EDITOR_ROLES.includes(user.role);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -28,8 +33,10 @@ export function ProjectLogsPage() {
     setLogs(null);
     setSubmittals(null);
     setError(null);
+    // From the index only: opening the logs reads the database. The folder
+    // is read by "Sync documents", which reloads this when it ends.
     Promise.all([
-      api.get<ProjectLogs>(`/projects/${project.id}/logs?refresh=true`),
+      api.get<ProjectLogs>(`/projects/${project.id}/logs`),
       api.get<SubmittalRegister>(`/projects/${project.id}/submittals`),
     ])
       .then(([directory, register]) => {
@@ -122,7 +129,10 @@ export function ProjectLogsPage() {
       <div className="text-xs text-gray-500">EP-{project.ep_number} / {selectedSystem === ALL ? "ALL" : selectedSystem} / Logs</div>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-4">
         <div><h1 className="text-3xl font-bold">Project Logs</h1><p className="mt-2 text-sm text-gray-500">Track submissions, drawings and samples across every revision.</p></div>
-        <div className="flex gap-3"><button disabled={(!logs && !error) || logs?.scanning} onClick={() => setRefresh((v) => v + 1)} className="rounded-lg border border-brand-600 px-5 py-2 text-brand-600">Refresh</button><button onClick={exportLog} disabled={!visible.length} className="rounded-lg bg-brand-600 px-5 py-2 font-semibold text-white disabled:opacity-40">Export log</button></div>
+        <div className="flex gap-3"><button onClick={exportLog} disabled={!visible.length} className="rounded-lg bg-brand-600 px-5 py-2 font-semibold text-white disabled:opacity-40">Export log</button></div>
+      </div>
+      <div className="mt-4">
+        <SyncDocumentsCard projectId={project.id} canEdit={canEdit} compact onSynced={() => setRefresh((v) => v + 1)} />
       </div>
       {error && <div role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-red-700">{error}</div>}
       {/* Scan warnings are deliberately not shown. They are notes about the

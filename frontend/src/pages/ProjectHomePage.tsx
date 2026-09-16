@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { JobProgress } from "../components/JobProgress";
 import { ReadinessPanel } from "../components/ReadinessPanel";
+import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api } from "../lib/api";
 import { quantityTotals } from "../lib/boq";
@@ -87,6 +88,11 @@ export function ProjectHomePage() {
       <div className="mt-6">
         {readiness ? (
           <>
+            {/* The project's first sync is its initial processing, started from
+                here once; after that the folder is read only on "Sync documents". */}
+            <div className="mb-4">
+              <SyncDocumentsCard projectId={project.id} canEdit={canEdit} autoStart onSynced={() => loadReadiness()} />
+            </div>
             <ReadinessPanel readiness={readiness} onCheckDocuments={canEdit ? checkDocuments : undefined} checking={checking} />
             {intake.job && intake.active && <JobProgress job={intake.job} what="the document check" onCancel={intake.cancel} />}
           </>

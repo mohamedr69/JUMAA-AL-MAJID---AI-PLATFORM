@@ -441,9 +441,12 @@ def latest_map(db: Session, project: Project) -> dict | None:
             "error": row.error}
 
 
-def check(db: Session, project: Project, user: User | None, *, ctx=None, provider: AiProvider | None = None) -> dict:
+def check(db: Session, project: Project, user: User | None, *, ctx=None, provider: AiProvider | None = None,
+          files: list[Path] | None = None) -> dict:
     """Read the folder's submittals (the new ones by the model, the rest from
-    the database), draw the map, store it, and bring the register up to it."""
+    the database), draw the map, store it, and bring the register up to it.
+    `files`: the forms as the document index knows them, so the folder is
+    not walked and no first page is opened to find them."""
     provider = provider or get_provider()
     why_not = available(project, provider)
     if why_not:
@@ -455,7 +458,10 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
     if ctx is not None:
         ctx.progress(0, 1, "Looking for material submittal forms in the project folder")
     listing_sha, listing_files = listing_fingerprint(root)
-    files, warnings = candidates(root)
+    if files is None:
+        files, warnings = candidates(root)
+    else:
+        warnings = []
     readings: list[dict] = []
     fingerprint = hashlib.sha256()
     for index, path in enumerate(files, start=1):

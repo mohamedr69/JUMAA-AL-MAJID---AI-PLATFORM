@@ -346,7 +346,10 @@ def run(db: Session, project: Project, ctx=None) -> list[ProjectDocument]:
     Documents no longer on the project are dropped from the record."""
     settings = get_settings()
     archive_root = Path(settings.projects_root) if settings.projects_root else None
-    existing = {(doc.role, doc.path): doc for doc in db.query(ProjectDocument).filter(ProjectDocument.project_id == project.id)}
+    # Its own rows only: the document index (app.services.document_sync)
+    # keeps every other file of the folder in the same table.
+    existing = {(doc.role, doc.path): doc for doc in db.query(ProjectDocument)
+                .filter(ProjectDocument.project_id == project.id, ProjectDocument.role.in_(("drf", "design_sheet")))}
     now = utc_now()
     kept: list[ProjectDocument] = []
     documents = project_documents(project)

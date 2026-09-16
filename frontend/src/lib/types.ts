@@ -107,10 +107,27 @@ export interface ProjectLogDrawing {
   modified: string;
 }
 
+/** The project's document index (`GET /projects/{id}/documents/status`):
+ * when the folder was last synced, what is stale because a source changed,
+ * and what could not be read. */
+export interface DocumentStatus {
+  synced_at: string | null;
+  documents: number;
+  by_state: Record<string, number>;
+  failed: { path: string; error: string | null }[];
+  stale: { dependent_type: string; dependent_id: string; reason: string; source: string; source_role: string; source_state: string }[];
+  syncing: boolean;
+  job: import("./useJob").Job | null;
+  folder: string | null;
+  folder_reachable: boolean;
+}
+
 export interface ProjectLogs {
   scanning: boolean;
   processed_files: number;
   total_files: number;
+  /** When the index was last synced with the folder; null until the first sync. */
+  synced_at: string | null;
   samples: ProjectLogDrawing[];
   material_submittals: ProjectLogDrawing[];
   systems: string[];

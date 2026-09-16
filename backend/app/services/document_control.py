@@ -358,6 +358,18 @@ def _scan_document_control(root: Path, use_ocr: bool = True, progress=None) -> t
             warnings.append(f"Could not access {path.name}.")
         if progress:
             progress(list(found.values()), list(dict.fromkeys(warnings)), index + 1, len(paths))
+    return combine(list(found.values())), list(dict.fromkeys(warnings))
+
+
+def combine(records: list[ControlledDocument]) -> list[ControlledDocument]:
+    """The register from the records read off every document -- one row per
+    submission, replies folded in, drawings matched to their schedule --
+    whether the records were just read or come from the index."""
+    found: dict = {}
+    for row in records:
+        key = (row.category, row.system_code, row.reference.upper(), row.revision)
+        old = found.get(key)
+        found[key] = row if old is None else _merge(old, row)
     # Replies are evidence, not entries: a reply carrying a consultant
     # decision settles the submission it answers, and is then dropped. One
     # that carries no decision (the contractor answering comments, which is
@@ -378,7 +390,24 @@ def _scan_document_control(root: Path, use_ocr: bool = True, progress=None) -> t
         candidates = [s for s in schedules if s.system_code == row.system_code and s.floor and normalize_floor(s.floor) == normalize_floor(row.floor)]
         if len(candidates) == 1:
             rows[i] = replace(row, group_reference=candidates[0].reference)
-    return sorted(rows, key=lambda row: (row.category, row.system_code or "", row.reference, row.revision)), list(dict.fromkeys(warnings))
+    # An older revision still "under review" when a later one exists was
+    # superseded, not left with the consultant: the later revision is the
+    # one that stands, and the register says so instead of showing an open
+    # review that will never close.
+    latest: dict[tuple, int] = {}
+    for row in rows:
+        key = (row.category, row.system_code, row.reference.upper())
+        latest[key] = max(latest.get(key, -1), _revision_number(row.revision))
+    for i, row in enumerate(rows):
+        key = (row.category, row.system_code, row.reference.upper())
+        if row.status == "UR" and _revision_number(row.revision) < latest[key]:
+            rows[i] = replace(row, status="SUPERSEDED")
+    return sorted(rows, key=lambda row: (row.category, row.system_code or "", row.reference, row.revision))
+
+
+def _revision_number(revision: str | None) -> int:
+    digits = re.sub(r"\D", "", revision or "")
+    return int(digits) if digits else 0
 
 
 def scan_document_control(root: Path, use_ocr: bool = True, progress=None) -> tuple[list[ControlledDocument], list[str]]:

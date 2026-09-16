@@ -351,12 +351,10 @@ now do not:
   again on "Search project folder again", or by itself when a file it found
   is no longer where it was. The submittal package's specification section
   reads the same record.
-- **Material submittals.** The map and the register come from the database.
-  Opening the tab compares a cheap listing of the folder (every PDF's path,
-  size and time, nothing opened) with the listing the last check was drawn
-  from, and starts the AI check by itself only when something was filed,
-  replaced or removed -- a submittal received, a new one filed; otherwise it
-  says "up to date". The check itself reads only files it has not read before.
+- **Material submittals.** The map and the register come from the database;
+  opening the tab reads nothing else. The folder is read by "Sync documents"
+  (below), which re-reads only the forms that changed and rebuilds the map
+  from the stored readings.
 - **A user's data on every PC.** The database is a file under `backend/` by
   default, which is why a project made on one PC is not on another. Set
   `DATA_ROOT` in `backend/.env` to a folder OneDrive syncs
@@ -368,6 +366,53 @@ now do not:
   finishes syncing (the database is kept as one file, no write-ahead log,
   for that reason). A shared database server (Postgres via `DATABASE_URL`)
   is the answer for several people working at once.
+
+### The document index and "Sync documents"
+
+The rule for every tab -- Logs, Material submittal, BOQ, Compliance, Battery
+calculation -- is that opening it touches the database only: no AI call, no
+walk of the OneDrive folder. OneDrive holds the source documents; the
+database holds the working data and every extraction; Python does the change
+detection, the dependency tracking, the validation and the arithmetic; the
+AI is called only for a document that is new or changed, or on an explicit
+request.
+
+- **The index** (`project_documents`, `app/services/document_sync.py`) has
+  one row per file in the project folder: path, role (`drf`, `design_sheet`,
+  `submittal_form`, `spec`, `document`), size, modified time, content hash
+  (`sha256`, the cache key with the file), what was read from it
+  (`reference`, `revision`, `status`, `extracted`, a link to the stored AI
+  `reading_id`), `state` (`fresh`, `stale`, `processing`, `failed`,
+  `removed`), `last_processed_at` and `index_version`.
+- **The sync** (`POST /projects/{id}/jobs/sync-documents`, a job) stats
+  every file and compares size and time with the row, then the hash for a
+  file whose stat changed: a new file is processed, a changed file is
+  processed, an unchanged file is skipped, a missing file's row is marked
+  `removed` (its data is kept). Processing a submittal form is the one
+  place the AI is called, and the reading is stored by content hash first,
+  so the same PDF is never read twice. A file that fails to read keeps its
+  previous result and is marked `failed` with the error; the next sync tries
+  it again. The first sync of a project is its initial processing, started
+  by itself from the project home once; after that only the button reads
+  the folder. The result says how many files were new, changed, unchanged,
+  removed, failed and read by the AI.
+- **Dependencies** (`document_dependencies`): what was built from which
+  document -- the BOQ and Project Info from the Design Sheets and the DRF,
+  the compliance search from the specifications, each register row from its
+  form -- with the hash it was validated against. When a source changes the
+  sync marks its dependents stale (`GET /projects/{id}/documents/status`
+  lists them, and the "Project documents" card on the pages shows them);
+  nothing is rebuilt by itself. BOQ -> Re-read, the AI check on Project
+  Info, and the compliance page's next search are the explicit rebuilds. A
+  new specification drops the stored search so the compliance page searches
+  again.
+- **The pages.** Logs list the index's rows (with revision history: an
+  older revision with a later one is `superseded`, never left "under
+  review"); the material submittal map is the stored map; the BOQ is the
+  saved BOQ; compliance loads the stored specification locations and
+  checks a clause only when asked; the battery calculation is Python
+  arithmetic over stored inputs (the BOQ quantities, the equipment current
+  table), recomputed per panel from what is saved, with no AI in it.
 
 ### The AI reads the material submittals
 

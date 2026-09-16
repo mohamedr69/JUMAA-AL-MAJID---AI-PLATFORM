@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api, apiUrl } from "../lib/api";
@@ -16,6 +16,7 @@ import {
 } from "../lib/types";
 import { SubmittalPackageBuilder } from "../components/SubmittalPackageBuilder";
 import { JobProgress } from "../components/JobProgress";
+import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { useJob } from "../lib/useJob";
 import { useProject } from "./ProjectWorkspace";
 
@@ -72,21 +73,9 @@ export function ProjectMaterialSubmittalPage() {
     void loadMap();
   });
 
-  const checkStart = check.start;
-  const checkActive = check.active;
-  const autoChecked = useRef<number | null>(null);
-
-  // Opening the tab reads the folder only when it changed: the map and the
-  // register come from the database; a submittal received or a new one
-  // filed since the last check starts the check by itself.
-  useEffect(() => {
-    if (!map || !canEdit || !map.available || checkActive || autoChecked.current === project.id) return;
-    if (map.changed) {
-      autoChecked.current = project.id;
-      void checkStart();
-    }
-  }, [map, canEdit, checkActive, checkStart, project.id]);
-
+  // Opening the tab reads the database only. The folder is read by "Sync
+  // documents" (the shared index), which rebuilds the map from the readings
+  // of the forms that changed and reloads this page when it ends.
   useEffect(() => {
     setData(null);
     setError(null);
@@ -185,17 +174,21 @@ export function ProjectMaterialSubmittalPage() {
       </div>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      <div className="mt-4">
+        <SyncDocumentsCard
+          projectId={project.id}
+          canEdit={canEdit}
+          compact
+          onSynced={() => {
+            void load();
+            void loadMap();
+          }}
+        />
+      </div>
       {check.job && (check.active || check.job.status === "failed") && (
         <JobProgress job={check.job} onCancel={check.cancel} what="the AI check of the material submittals" />
       )}
       {check.error && <div className="mt-2 text-xs text-red-700">{check.error}</div>}
-      {map && map.checked_at && !check.active && (
-        <div className={`mt-2 text-xs ${map.changed ? "text-amber-800" : "text-gray-500"}`}>
-          {map.changed
-            ? `The project folder changed since the last check (${map.change_reason}); checking it again.`
-            : `Up to date with the project folder: nothing filed or replaced since the last check (${map.listing_files} PDF${map.listing_files === 1 ? "" : "s"}).`}
-        </div>
-      )}
       {map && map.actions.length > 0 && (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
           <div className="font-semibold">Action required</div>

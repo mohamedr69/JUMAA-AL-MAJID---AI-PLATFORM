@@ -319,6 +319,7 @@ def apply(db: Session, project: Project, candidate: BoqCandidate, decisions: dic
     candidate.decided_at = now
     candidate.decisions = decisions
     db.commit()
+    _settle_sources(db, project)
     return counts
 
 
@@ -326,6 +327,16 @@ def _brand(project: Project, system_code: str | None) -> str | None:
     from app.routers.projects import _brand_for
 
     return _brand_for(system_code, project.systems, project.separate_ve_panel)
+
+
+def _settle_sources(db: Session, project: Project) -> None:
+    """The BOQ was rebuilt from the sheets as they are now."""
+    try:
+        from app.services import document_sync
+
+        document_sync.register_intake_dependencies(db, project)
+    except Exception:  # noqa: BLE001 -- bookkeeping never fails an apply
+        db.rollback()
 
 
 def discard(db: Session, candidate: BoqCandidate, user: User) -> None:

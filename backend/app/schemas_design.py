@@ -924,6 +924,8 @@ class ProjectLogsOut(BaseModel):
     scanning: bool = False
     processed_files: int = 0
     total_files: int = 0
+    # When the index was last synced with the folder; None until the first sync.
+    synced_at: datetime | None = None
     samples: list[ProjectLogDrawingOut] = Field(default_factory=list)
     material_submittals: list[ProjectLogDrawingOut] = Field(default_factory=list)
     systems: list[str]

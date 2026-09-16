@@ -176,6 +176,9 @@ app.include_router(knowledge.router)
 app.include_router(extraction.router)
 app.include_router(extraction.admin_router)
 app.include_router(verification.router)
+from app.routers import documents as documents_router  # noqa: E402
+
+app.include_router(documents_router.router)
 
 
 @app.get("/health")

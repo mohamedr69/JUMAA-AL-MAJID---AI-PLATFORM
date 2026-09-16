@@ -57,7 +57,9 @@ def test_replies_merge_by_reference_revision_and_refresh(tmp_path):
     assert rows[0].page == 2
     (tmp_path / "reply.pdf").unlink()
     rows, _ = scan_document_control(tmp_path, use_ocr=False)
-    assert rows[0].status == "UR"
+    # With the reply gone R0 has no decision on file -- but R1 exists, so R0
+    # was superseded, not left with the consultant.
+    assert rows[0].status == "SUPERSEDED" and rows[1].status == "ANN"
 
 
 def test_drawing_title_block_and_floor():

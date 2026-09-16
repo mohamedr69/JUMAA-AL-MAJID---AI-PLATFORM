@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    Float,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -104,6 +105,11 @@ class Project(Base):
     spec_locations: Mapped[list | None] = mapped_column(JSON, nullable=True)
     spec_warnings: Mapped[list | None] = mapped_column(JSON, nullable=True)
     specs_found_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+
+    # When the document index was last synced with the folder, and the
+    # folder's listing then (app.services.document_sync).
+    documents_synced_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    documents_listing_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # When the Design Sheets were read into the BOQ. Set once, on the first
     # attempt, and never cleared: extraction is a starting point the engineer
@@ -424,6 +430,47 @@ class ProjectDocument(Base):
     # A finding the engineer has looked at and accepted ("the file is named
     # EP-30088 but it is this project's sheet"), with who and why.
     acknowledged: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+
+    # --- the document index (app.services.document_sync) ---
+    # Every file in the project folder is a row too, with `role`
+    # "submittal_form" / "spec" / "document"; the sync compares size and
+    # mtime first, the content hash second, and reads only what changed.
+    mtime: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # "fresh" | "stale" | "processing" | "failed" | "removed"
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="fresh", server_default="fresh")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # What was read off it: its reference, revision and status, the
+    # document-control records (`extracted["records"]`) and, for a form,
+    # the model's reading (`extracted["form"]`, stored in document_readings).
+    reference: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    revision: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    extracted: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    reading_id: Mapped[int | None] = mapped_column(ForeignKey("document_readings.id"), nullable=True)
+    index_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    last_processed_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+
+
+class DocumentDependency(Base):
+    """What was built from a document, so a change to the document marks
+    it stale and nothing else: a Design Sheet -> the BOQ, the DRF -> Project
+    Info, a specification -> the compliance page, a submittal form -> its
+    register row and its log entry. `last_validated_sha256` is the content
+    the dependent was last built from."""
+
+    __tablename__ = "document_dependencies"
+    __table_args__ = (UniqueConstraint("source_document_id", "dependent_type", "dependent_id", name="uq_document_dependency"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    source_document_id: Mapped[int] = mapped_column(ForeignKey("project_documents.id"), nullable=False)
+    # "boq" | "details" | "compliance" | "submittal" | "log"
+    dependent_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    dependent_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    reason: Mapped[str] = mapped_column(String(200), nullable=False)
+    last_validated_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    stale: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
 class BoqCandidate(Base):

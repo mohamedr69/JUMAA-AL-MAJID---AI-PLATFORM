@@ -13,6 +13,7 @@ from app.core.timeutils import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_role
 from app.models import (
+    ProjectDocument,
     Project,
     ProjectBoqItem,
     ProjectBoqRevision,
@@ -783,6 +784,14 @@ def _extract_boq(db: Session, project: Project, *, user_id: int | None, ctx=None
         project.boq_version += 1
         db.commit()
 
+    # The BOQ now stands on these sheets as they are: a later change to one
+    # of them marks it stale (app.services.document_sync).
+    try:
+        from app.services import document_sync
+
+        document_sync.register_intake_dependencies(db, project)
+    except Exception:  # noqa: BLE001 -- bookkeeping must never fail the read
+        db.rollback()
     # The assistance stage runs after the lock is released: it may call a
     # model, and it must never make the read itself fail. With AI_ENABLED
     # false it calls nothing.
@@ -1210,15 +1219,17 @@ def project_logs(
     systems = {code for code in systems if code}
     if not project.source_folder_path:
         return ProjectLogsOut(systems=sorted(systems), drawings=[], searched=None, warnings=["The project has no archive folder to search."])
-    folder = Path(project.source_folder_path)
-    if not folder.is_dir():
-        return ProjectLogsOut(systems=sorted(systems), drawings=[], searched=project.source_folder_path, warnings=["The project's archive folder is not reachable."])
-    scan = get_log_scan(folder, refresh=refresh)
-    records, warnings = scan.records, scan.warnings
+    # From the index, never the folder: "Sync documents" reads what changed.
+    from app.services import document_sync
+
+    records, warnings = document_sync.log_records(db, project)
+    if project.documents_synced_at is None:
+        warnings = ["The project folder has not been synced yet: sync the documents to fill the logs."] + warnings
     def output(row):
         return ProjectLogDrawingOut(**{key: value for key, value in vars(row).items() if key != "category"})
+    indexed = db.query(ProjectDocument).filter(ProjectDocument.project_id == project.id).count()
     return ProjectLogsOut(
-        scanning=scan.scanning, processed_files=scan.processed, total_files=scan.total,
+        scanning=False, processed_files=indexed, total_files=indexed, synced_at=project.documents_synced_at,
         systems=sorted(systems | {row.system_code for row in records if row.system_code}),
         material_submittals=[output(row) for row in records if row.category == "submittals"],
         drawings=[output(row) for row in records if row.category == "drawings"],

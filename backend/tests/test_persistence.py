@@ -6,6 +6,8 @@ PCs."""
 from pathlib import Path
 
 from app.core.config import Settings, get_settings
+from app.models import Project
+from app.services import document_sync
 from app.services.spec_finder import SpecMatch
 
 from .conftest import login
@@ -83,16 +85,18 @@ def test_the_submittal_folder_is_checked_again_only_when_it_changed(client, db_s
         project_id = _project(client, folder, ep="30802")
 
         before = client.get(f"/projects/{project_id}/submittals/map").json()
-        assert before["checked_at"] is None and before["changed"] is True and before["change_reason"] == "never checked"
+        assert before["checked_at"] is None
 
         assert client.post(f"/projects/{project_id}/submittals/scan").status_code == 202
         after = client.get(f"/projects/{project_id}/submittals/map").json()
-        assert after["checked_at"] and after["changed"] is False and after["listing_files"] == 1
+        assert after["checked_at"] and after["listing_files"] == 1 and provider.calls == 1
 
-        # A submittal received: the folder changed, the page knows to check again.
+        # A submittal received: opening the map reads the database (nothing
+        # changes, nothing is read); the shared sync is what notices the file.
         _submittal_form(folder / "08- approval" / "MS" / "form.pdf", reply="(A) Approved")
-        changed = client.get(f"/projects/{project_id}/submittals/map").json()
-        assert changed["changed"] is True and changed["listing_files"] == 2
+        opened = client.get(f"/projects/{project_id}/submittals/map").json()
+        assert opened["checked_at"] == after["checked_at"] and provider.calls == 1
+        assert document_sync.changes_since(db_session, db_session.get(Project, project_id)) is True
     finally:
         provider_module.set_provider(None)
 
