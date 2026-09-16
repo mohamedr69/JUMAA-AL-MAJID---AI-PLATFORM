@@ -156,6 +156,31 @@ def _quantity_key(text: str | None) -> str:
     return "?" + _alnum(text)
 
 
+def split_inline_quantity(reading: dict) -> dict:
+    """A model's reading of a row, with an inline quantity moved where the
+    sheet read puts it.
+
+    A sub-component's quantity is written inside the description column --
+    "( 2 ) Central Processor Module" -- and the sheet read takes it out into
+    the quantity (`INLINE_QUANTITY_RE`). A model shown the row's image
+    reports it where it sees it: in the description, with the quantity cell
+    -- which really is blank on those rows -- left empty. Compared like
+    that, a correct quantity of 2 reads as a disagreement and the row is
+    "corrected" to no quantity at all, which is how fourteen lines of
+    EP-30784's main panel lost theirs.
+
+    An unreadable row keeps its None: the model said it could not read the
+    row, and a number lifted out of the description would be invented.
+    """
+    quantity, description = reading.get("quantity"), reading.get("description") or ""
+    if quantity is None or quantity.strip() or not description:
+        return reading
+    match = design_sheet_extractor.INLINE_QUANTITY_RE.match(description)
+    if match is None:
+        return reading
+    return {**reading, "quantity": match.group(1), "description": description[match.end():].strip() or None}
+
+
 def agree_quantity(a: str | None, b: str | None) -> bool:
     return _quantity_key(a) == _quantity_key(b) and not _quantity_key(a).startswith("?")
 
@@ -411,7 +436,12 @@ def _stored_reading(run: _Run, row: _Row, kind: str) -> tuple[bool, dict | None]
     value = result_cache.get(run.db, _reading_key(row, kind), project_id=run.project.id, ttl_days=STORED_READING_DAYS)
     if value is None:
         return False, None
-    return True, value.get("reading")
+    reading = value.get("reading")
+    # Readings stored before an inline quantity was split out replay with
+    # it still in the description; the key does not change with the parse,
+    # so they are normalised here rather than read again. Idempotent: a split
+    # description no longer starts with "( n )".
+    return True, split_inline_quantity(reading) if reading is not None else None
 
 
 def _store_reading(run: _Run, row: _Row, kind: str, reading: dict | None) -> None:
@@ -460,11 +490,11 @@ def _read_rows(run: _Run, pages: _Pages, rows: list[_Row], *, tier: str, ctx, pr
                     setattr(row, slot, None)
                     continue
                 readable = bool(answer.get("readable"))
-                reading = {
+                reading = split_inline_quantity({
                     "quantity": str(answer.get("quantity", "")).strip() if readable else None,
                     "catalog_no": str(answer.get("catalog_no", "")).strip() if readable else None,
                     "description": str(answer.get("description", "")).strip() or None,
-                }
+                })
                 setattr(row, slot, reading)
                 _store_reading(run, row, kind, reading)
             done += 1
@@ -499,9 +529,10 @@ def _read_close_up(run: _Run, pages: _Pages, rows: list[_Row], *, ctx) -> None:
         if answer is None:
             continue
         readable = bool(answer.get("readable"))
-        row.ai3 = {"quantity": str(answer.get("quantity", "")).strip() if readable else None,
-                   "catalog_no": str(answer.get("catalog_no", "")).strip() if readable else None,
-                   "description": str(answer.get("description", "")).strip() or None}
+        row.ai3 = split_inline_quantity(
+            {"quantity": str(answer.get("quantity", "")).strip() if readable else None,
+             "catalog_no": str(answer.get("catalog_no", "")).strip() if readable else None,
+             "description": str(answer.get("description", "")).strip() or None})
         _store_reading(run, row, "close_up", row.ai3)
 
 

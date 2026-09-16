@@ -86,6 +86,62 @@ def test_agreement_between_two_sources_settles_a_value():
                                spell_as_ai=True)[1] == "E-232 301H"
 
 
+def test_a_quantity_written_inside_the_description_is_read_as_a_quantity():
+    """EP-30784: a sub-component's quantity is inside the description column,
+    "( 2 ) Central Processor Module". The sheet read takes it out; a model
+    shown the row reports it where it sees it, leaving the quantity empty.
+    Compared like that, fourteen correct quantities were "corrected" away."""
+    split = verification.split_inline_quantity
+    assert split({"quantity": "", "catalog_no": "4-CPU", "description": "( 2 ) Central Processor Module"}) == {
+        "quantity": "2", "catalog_no": "4-CPU", "description": "Central Processor Module"}
+    # OCR renders the brackets loosely.
+    assert split({"quantity": "", "catalog_no": "4-FIL", "description": "(_ 16 ) Blank Filler Plate"})["quantity"] == "16"
+    # A quantity the model did read is left alone, inline text or not.
+    assert split({"quantity": "3", "catalog_no": "3-CHAS7", "description": "( 9 ) Seven Space Chassis"})["quantity"] == "3"
+    # Nothing inline: unchanged, and still empty.
+    assert split({"quantity": "", "catalog_no": "4-FIL", "description": "Blank Filler Plate"})["quantity"] == ""
+    # An unreadable row keeps its None: a number lifted out would be invented.
+    assert split({"quantity": None, "catalog_no": None, "description": "( 2 ) Central Processor Module"})["quantity"] is None
+
+
+def test_a_reading_stored_before_the_split_is_normalised_on_replay(db_session, monkeypatch):
+    """Rows read by the earlier run replay from the database ("never pay
+    twice"); the key does not change with the parse, so the stored raw
+    reading -- quantity '', "( 2 )" still in the description -- must be
+    split on the way back or the same rows blank again on every re-check."""
+    from app.ai import cache as result_cache
+
+    class _RunStub:
+        db = db_session
+
+        class project:
+            id = 1
+
+    class _SheetRun:
+        document_sha256 = "abc"
+        document_path = "x.pdf"
+
+    row = verification._Row(key="c1", kind="unchanged", run=_SheetRun(), page=1, region=(0, 0, 10, 10), held=None,
+                            ocr={"quantity": "2", "catalog_no": "4-CPU", "description": "Central Processor Module"})
+    monkeypatch.setattr(result_cache, "get", lambda *a, **k: {"reading": {
+        "quantity": "", "catalog_no": "4-CPU", "description": "( 2 ) Central Processor Module"}})
+    found, reading = verification._stored_reading(_RunStub(), row, "first")
+    assert found and reading == {"quantity": "2", "catalog_no": "4-CPU", "description": "Central Processor Module"}
+    # A stored unreadable row stays unreadable.
+    monkeypatch.setattr(result_cache, "get", lambda *a, **k: {"reading": None})
+    assert verification._stored_reading(_RunStub(), row, "first") == (True, None)
+
+
+def test_an_inline_quantity_now_confirms_the_value_held():
+    """The reading, once split, agrees with the BOQ instead of blanking it."""
+    q = verification.agree_quantity
+    raw = {"quantity": "", "catalog_no": "4-CPU", "description": "( 2 ) Central Processor Module"}
+    before = verification.settle(q, "2", "2", raw["quantity"], raw["quantity"])
+    assert before[:2] == ("corrected", "")  # what wiped the fourteen lines
+    after = verification.split_inline_quantity(raw)
+    assert verification.settle(q, "2", "2", after["quantity"])[:2] == ("confirmed", "2")
+
+
 def test_descriptions_with_different_numbers_do_not_agree():
     assert verification.agree_text("Digital Power Amplifier Module 300W", "Digital Power Amplifier Module 300 W")
     assert not verification.agree_text("Digital Power Amplifier Module 300W", "Digital Power Amplifier Module 500W")
