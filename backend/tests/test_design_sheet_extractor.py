@@ -6,7 +6,9 @@ import pytest
 from app.services.design_sheet_extractor import (
     INLINE_QUANTITY_RE,
     DesignSheetExtractionError,
+    ExtractedBoqLine,
     _clean_quantity,
+    _dropped_row_issue,
     _is_heading,
     extract_boq_lines,
 )
@@ -297,3 +299,27 @@ def test_unreadable_layout_reports_rather_than_inventing_lines():
     )
     with pytest.raises(DesignSheetExtractionError):
         extract_boq_lines(path)
+
+
+def _row(description: str, raw_quantity: str | None, catalog_no: str | None = None) -> ExtractedBoqLine:
+    """A row the read kept without a usable quantity."""
+    return ExtractedBoqLine(
+        catalog_no=catalog_no, description=description, quantity=None, group_heading=None,
+        confidence=90.0, page=1, raw_quantity=raw_quantity,
+    )
+
+
+def test_the_tables_own_header_row_is_not_sent_for_review():
+    # EP-30784: the header was read as a row, and the engineer was asked to
+    # settle a quantity of "Qty." -- the column label itself.
+    assert _dropped_row_issue(_row("a Description", "Qty."), 0) is None
+    assert _dropped_row_issue(_row("Description", None), 0) is None
+    # However the OCR decorates it with the neighbouring rules.
+    assert _dropped_row_issue(_row("a Description", "| QTY. |"), 0) is None
+
+
+def test_a_real_row_missing_its_quantity_is_still_reviewed():
+    issue = _dropped_row_issue(_row("Addressable Smoke Detector", "l0", catalog_no="SIGA-PS"), 0)
+    assert issue is not None and issue.detail["catalog_no"] == "SIGA-PS"
+    # A described item with no catalog number is an item too.
+    assert _dropped_row_issue(_row("Surface Mounted Emergency Light", ""), 0) is not None

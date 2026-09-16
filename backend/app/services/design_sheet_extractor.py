@@ -502,11 +502,19 @@ _CELL_HALF_HEIGHT_PX = 22
 
 def _dropped_row_issue(line: ExtractedBoqLine, ordinal: int) -> Issue | None:
     """A row the read kept everything of except its quantity. Page furniture
-    -- totals rows, footers -- has no catalog number and no item-like
-    description and is left out; an item is offered for review with the
-    cell it came from."""
+    -- totals rows, footers, the table's own header row -- has no quantity to
+    settle and is left out; an item is offered for review with the cell it
+    came from."""
     description = (line.description or "").strip()
     if not line.catalog_no and (len(description) < 6 or _SECTION_NOISE_RE.search(description)):
+        return None
+    # The table's own header row, read as an item. Its quantity cell holds
+    # the column label -- "Qty." -- which no real line ever does, so there is
+    # no quantity to settle and nothing to ask an engineer about. The model
+    # gets this right when asked ("this is the header row of the BoQ table")
+    # and still cannot close the issue, because a proposal can only carry a
+    # quantity; so it is dropped here instead of being sent for review.
+    if _is_column_heading(line.raw_quantity or "") or _is_column_heading(description):
         return None
     region = None
     if line.quantity_span is not None and line.y_px is not None:
