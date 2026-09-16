@@ -4,6 +4,7 @@ import { ProtectedRoute, RoleRoute } from "./components/ProtectedRoute";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { AccessDeniedPage } from "./pages/AccessDeniedPage";
 import { AccountPage } from "./pages/AccountPage";
+import { AdminEquipmentCurrentsPage } from "./pages/AdminEquipmentCurrentsPage";
 import { AdminKnowledgePage } from "./pages/AdminKnowledgePage";
 import { AdminSystemPage } from "./pages/AdminSystemPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
@@ -123,6 +124,14 @@ export default function App() {
             element={
               <RoleRoute roles={["admin"]}>
                 <AdminSystemPage />
+              </RoleRoute>
+            }
+          />
+          <Route
+            path="/admin/equipment-currents"
+            element={
+              <RoleRoute roles={["admin", "design_manager", "design_engineer"]}>
+                <AdminEquipmentCurrentsPage />
               </RoleRoute>
             }
           />

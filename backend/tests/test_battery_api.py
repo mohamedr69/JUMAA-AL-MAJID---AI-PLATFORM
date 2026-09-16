@@ -181,8 +181,9 @@ def test_currents_are_filled_from_the_datasheets(client, tmp_path, monkeypatch):
         ("4-COMREL", 0, 0),
     ]
     assert filled[0]["source"].startswith("Edwards datasheet (01- 4-CPU.pdf), p.1: read automatically")
-    assert filled[2]["source"].startswith("No electrical load: mechanical part")
-    assert filled[3]["source"].startswith("No current of its own: built into 4-CPU")
+    # Both settled by the equipment current table, which knows them.
+    assert filled[2]["source"].startswith("Equipment current table: no electrical load")
+    assert filled[3]["source"].startswith("Equipment current table: no current of its own: built into 4-CPU")
 
     body = client.get(f"/projects/{project_id}/design/battery").json()
     (panel,) = body["panels"]

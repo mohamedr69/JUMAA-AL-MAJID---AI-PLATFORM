@@ -52,7 +52,12 @@ def test_battery_hashes_follow_the_catalogue_version_and_automatic_no_load_needs
     first = client.get(f"/projects/{project_id}/design/battery").json()
     assert first["complete"] is False and any("lower bound" in r for r in first["incomplete_reasons"])
 
-    # The platform sets the filler plate to no current on its own.
+    # The platform sets the filler plate to no current on its own -- for a
+    # part the equipment current table does not know (4-FIL is seeded there,
+    # which is exactly what would spare the question; taken out for this test).
+    from app.models import EquipmentCurrent
+
+    db_session.query(EquipmentCurrent).filter(EquipmentCurrent.key == "4-FIL").delete()
     db_session.add(DesignRule(category=PART_CURRENT_CATEGORY, key="4-FIL", version=1, source="No electrical load: mechanical part, set automatically",
                               data={"part_no": "4-FIL", "standby_ma": 0, "alarm_ma": 0, "description": "Filler plate", "auto": True, "no_load": True}))
     db_session.commit()

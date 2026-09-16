@@ -263,6 +263,42 @@ class PartCurrentIn(BaseModel):
     source: str = Field(min_length=3, max_length=500)
 
 
+class EquipmentCurrentIn(BaseModel):
+    """One row of the equipment current table (app.services.equipment_currents):
+    a part that draws no current (`no_load`, with `included_in` when it is
+    built into another module), or a device with its standby and alarm
+    figures. `source` says where that comes from."""
+
+    part_no: str = Field(min_length=1, max_length=64)
+    description: str | None = Field(default=None, max_length=300)
+    no_load: bool = False
+    standby_ma: float | None = Field(default=None, ge=0, le=100000)
+    alarm_ma: float | None = Field(default=None, ge=0, le=100000)
+    included_in: str | None = Field(default=None, max_length=64)
+    source: str = Field(min_length=3, max_length=1000)
+    aliases: list[str] | None = None
+
+
+class EquipmentCurrentOut(BaseModel):
+    id: int
+    manufacturer: str
+    part_no: str
+    key: str
+    description: str | None
+    kind: str
+    no_load: bool
+    standby_ma: float | None
+    alarm_ma: float | None
+    included_in: str | None
+    source: str
+    confirmed_by: str | None
+    aliases: list[str]
+    # Whether the row answers the question (no load, or a figure).
+    settled: bool
+    created_at: datetime
+    updated_at: datetime | None
+
+
 class BatteryUnitIn(BaseModel):
     """One battery as sold (a 12 V block), from its datasheet."""
 

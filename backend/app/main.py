@@ -43,6 +43,9 @@ async def lifespan(app: FastAPI):
     try:
         seed_default_admin(db)
         seed_design_rules(db)
+        from app.services import equipment_currents
+
+        equipment_currents.seed(db)
         # Work a previous run of the server left unfinished never finishes.
         from app.services.jobs import fail_interrupted
 

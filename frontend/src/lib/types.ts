@@ -1413,6 +1413,28 @@ export interface ExtractionRun {
   issues: ExtractionIssue[];
 }
 
+/** One row of the equipment current table (`/design-rules/equipment-currents`):
+ * what a part draws, settled once for every project. */
+export interface EquipmentCurrent {
+  id: number;
+  manufacturer: string;
+  part_no: string;
+  key: string;
+  description: string | null;
+  kind: "mechanical" | "built_in" | "device" | "unknown";
+  no_load: boolean;
+  standby_ma: number | null;
+  alarm_ma: number | null;
+  included_in: string | null;
+  source: string;
+  confirmed_by: string | null;
+  aliases: string[];
+  /** Whether the row answers the question (no load, or a figure). */
+  settled: boolean;
+  created_at: string;
+  updated_at: string | null;
+}
+
 /** A stored AI reading of one of the project's documents: made once, kept
  * for good, reused by every later open of a document with the same content. */
 export interface DocumentReading {

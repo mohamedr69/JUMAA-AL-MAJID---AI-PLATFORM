@@ -337,6 +337,26 @@ says whether images, the schema and the validation all work on the
 configured model (`--all` tries a shortlist). Tests use a scripted
 provider; nothing in the suite calls a live model.
 
+### The equipment current table
+
+`equipment_currents` (`app/services/equipment_currents.py`, the "Equipment
+currents" page for admins) is what each part of a fire alarm system draws,
+settled once for every project: the Edwards parts that are metalwork
+(backboxes, chassis, doors, brackets, filler plates, the BC-1 battery
+cabinet), the parts built into another module (4-COMREL is on the 4-CPU
+board), and the devices with their standby and alarm figures and where
+each came from. It is seeded with the parts the platform owner settled on
+2026-09-16 and with the catalogue's datasheet-read figures, and it grows:
+a figure typed in on a battery page, a datasheet read, and an engineer's
+"confirm: no current" or "it draws current" are all written here as well.
+
+The battery calculation asks the table first. A part in it is recorded in
+the catalogue as confirmed and the page asks nobody -- the old
+"Confirm parts set to draw no current" list is only for parts the table
+does not know, and a part answered once joins the table and is never asked
+about again. `AI_MODEL` has nothing to do with it: the table is data, kept
+in the database, edited on the page.
+
 ### The AI reads the documents; the OCR read is the witness
 
 Selective assistance only ever showed the model rows the OCR had located,

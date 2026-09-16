@@ -226,6 +226,41 @@ class DesignRule(Base):
     superseded_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
 
+class EquipmentCurrent(Base):
+    """The equipment current table: what one part of a fire alarm system
+    draws, shared by every project (app.services.equipment_currents).
+
+    A mechanical part (`no_load`), a part built into another module
+    (`no_load` with `included_in`), or a device with its standby and alarm
+    figures and their source. One row per part number; `aliases` are the
+    spellings scanned sheets have produced for it. A part in this table is
+    settled: the battery calculation takes its figure from here and asks no
+    engineer to confirm it.
+    """
+
+    __tablename__ = "equipment_currents"
+    __table_args__ = (UniqueConstraint("manufacturer", "key", name="uq_equipment_current_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    manufacturer: Mapped[str] = mapped_column(String(64), nullable=False, default="EDWARDS")
+    # part_key(part_no): how BOQ part numbers are matched.
+    key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    part_no: Mapped[str] = mapped_column(String(64), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # "mechanical" | "built_in" | "device" | "unknown"
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="device")
+    no_load: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    standby_ma: Mapped[float | None] = mapped_column(Numeric(10, 3), nullable=True)
+    alarm_ma: Mapped[float | None] = mapped_column(Numeric(10, 3), nullable=True)
+    included_in: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source: Mapped[str] = mapped_column(Text, nullable=False)
+    confirmed_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    aliases: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+
+
 class ProjectSystem(Base):
     """One row per system marked on the DRF's Systems table.
 

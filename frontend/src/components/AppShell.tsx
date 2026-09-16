@@ -28,6 +28,9 @@ export function AppShell() {
               <Link to="/admin/system" className="text-gray-600 hover:text-brand-600">
                 AI &amp; backups
               </Link>
+              <Link to="/admin/equipment-currents" className="text-gray-600 hover:text-brand-600">
+                Equipment currents
+              </Link>
               <Link to="/admin/users" className="text-gray-600 hover:text-brand-600">
                 Users
               </Link>

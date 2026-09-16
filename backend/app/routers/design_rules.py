@@ -14,7 +14,7 @@ from app.core.config import get_settings
 from app.core.timeutils import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_role
-from app.models import DesignRule, User
+from app.models import DesignRule, RoleEnum, User
 from app.routers.projects import CREATOR_ROLES
 from app.schemas_design import (
     BatteryUnitIn,
@@ -23,6 +23,8 @@ from app.schemas_design import (
     DatasheetMatchOut,
     DatasheetRowOut,
     DesignRuleOut,
+    EquipmentCurrentIn,
+    EquipmentCurrentOut,
     PartCurrentIn,
 )
 from app.seed import BATTERY_UNIT_CATEGORY, PART_CURRENT_CATEGORY
@@ -107,7 +109,73 @@ def save_part_current(
         "description": payload.description,
     }
     rule = save_rule_version(db, PART_CURRENT_CATEGORY, part_key(payload.part_no), data, payload.source.strip(), current_user)
+    # A figure an engineer typed in is a settled one: into the table, so the
+    # part is known on every project from now on.
+    from app.services import equipment_currents
+
+    equipment_currents.upsert(db, part_no=payload.part_no.strip(), description=payload.description,
+                              standby_ma=payload.standby_ma, alarm_ma=payload.alarm_ma, kind=equipment_currents.DEVICE,
+                              source=payload.source.strip(), confirmed_by=current_user.full_name, user=current_user)
     return rule_out(rule)
+
+
+@router.get("/equipment-currents", response_model=list[EquipmentCurrentOut])
+def list_equipment_currents(
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[EquipmentCurrentOut]:
+    """The equipment current table: every part that is settled -- no load,
+    built into a module, or a device with its figures -- and the ones an
+    engineer said draw current but gave no figure for yet."""
+    from app.services import equipment_currents
+
+    return [EquipmentCurrentOut(**equipment_currents.as_dict(r)) for r in equipment_currents.all_rows(db)]
+
+
+@router.post("/equipment-currents", response_model=EquipmentCurrentOut)
+def save_equipment_current(
+    payload: EquipmentCurrentIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> EquipmentCurrentOut:
+    """Add or correct one row. A settled row is also written to the
+    catalogue as a confirmed entry, so every project with the part uses it
+    at once and no engineer is asked to confirm it."""
+    from app.services import equipment_currents
+
+    if not payload.no_load and (payload.standby_ma is None) != (payload.alarm_ma is None):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Give both the standby and the alarm current, or neither")
+    if payload.included_in and not payload.no_load:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A part built into another module draws no current of its own")
+    try:
+        row = equipment_currents.upsert(
+            db, part_no=payload.part_no.strip(), description=payload.description, no_load=payload.no_load,
+            standby_ma=payload.standby_ma, alarm_ma=payload.alarm_ma, included_in=(payload.included_in or "").strip() or None,
+            source=payload.source.strip(), confirmed_by=current_user.full_name, user=current_user, aliases=payload.aliases,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    if equipment_currents.settled(row):
+        data, source = equipment_currents.rule_data(row, row.part_no, row.description)
+        save_rule_version(db, PART_CURRENT_CATEGORY, row.key, data, source, current_user)
+    return EquipmentCurrentOut(**equipment_currents.as_dict(row))
+
+
+@router.delete("/equipment-currents/{row_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_equipment_current(
+    row_id: int,
+    _current_user: User = Depends(require_role(RoleEnum.admin)),
+    db: Session = Depends(get_db),
+) -> None:
+    """Take a row out of the table. The catalogue keeps what projects
+    already computed from; the part is simply no longer settled here."""
+    from app.models import EquipmentCurrent
+
+    row = db.get(EquipmentCurrent, row_id)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such row")
+    db.delete(row)
+    db.commit()
 
 
 def _libraries() -> dict:

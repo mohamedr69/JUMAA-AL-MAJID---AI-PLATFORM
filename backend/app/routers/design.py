@@ -311,7 +311,23 @@ def fill_battery_currents(
         libraries = _datasheet_libraries()
         filled: list[FilledCurrentOut] = []
         rejected = {r.key for r in active_rules(db, PART_CURRENT_CATEGORY) if r.data.get("rejected_no_load")}
+        from app.services import equipment_currents
+
         for line in _missing_parts(result.panels):
+            # The equipment current table settles the part before anything
+            # else is tried: no datasheet read, no automatic guess, no
+            # confirmation asked.
+            known = equipment_currents.lookup(db, line.part_no)
+            if known is not None and equipment_currents.settled(known):
+                data, source = equipment_currents.rule_data(known, line.part_no or known.part_no, line.description)
+                try:
+                    save_rule_version(db, PART_CURRENT_CATEGORY, part_key(line.part_no or ""), data, source, current_user)
+                except IntegrityError:
+                    db.rollback()
+                    continue
+                filled.append(FilledCurrentOut(part_no=line.part_no or "", standby_ma=data["standby_ma"],
+                                               alarm_ma=data["alarm_ma"], source=source))
+                continue
             host = included_in_module(line.part_no)
             if part_key(line.part_no or "") in rejected and not host:
                 # An engineer rejected setting this part to no current: only a
@@ -356,6 +372,12 @@ def fill_battery_currents(
             except IntegrityError:
                 db.rollback()
                 continue
+            if reading and match:
+                # A figure read off a datasheet joins the table as a device,
+                # with the datasheet as its source; not confirmed by anyone.
+                equipment_currents.upsert(db, part_no=line.part_no or "", description=line.description,
+                                          standby_ma=reading.standby_ma, alarm_ma=reading.alarm_ma,
+                                          kind=equipment_currents.DEVICE, source=source[:1000], confirmed_by=None)
             filled.append(FilledCurrentOut(part_no=line.part_no or "", standby_ma=data["standby_ma"], alarm_ma=data["alarm_ma"], source=source))
     return BatteryFillOut(filled=filled)
 
@@ -423,11 +445,17 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
     # no engineer has confirmed: shown for confirmation, and the calculation
     # is not complete until they are.
     named = {part_key(line.catalog_no or "") for line in lines if line.catalog_no}
+    # A part in the equipment current table is settled: nothing to confirm,
+    # whatever an earlier automatic setting in the catalogue still says.
+    from app.services import equipment_currents
+
+    settled_keys = {key for key, row in equipment_currents.index(db).items() if equipment_currents.settled(row)}
     needs_confirmation = [
         {"part_no": r.data.get("part_no") or r.key, "description": r.data.get("description"), "reason": r.source,
          "rule_id": r.id, "rule_version": r.version}
         for r in active_rules(db, PART_CURRENT_CATEGORY)
         if r.key in named and r.data.get("auto") and r.data.get("no_load") and not r.data.get("confirmed_by")
+        and r.key not in settled_keys
     ]
     reasons: list[str] = []
     if rule is None:
@@ -485,11 +513,17 @@ def confirm_no_load(
     current = next((r for r in active_rules(db, PART_CURRENT_CATEGORY) if r.key == key), None)
     if current is None or not current.data.get("no_load"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="That part is not set to draw no current")
+    from app.services import equipment_currents
+
     if payload.get("confirm", True):
         data = {**current.data, "confirmed_by": current_user.full_name, "confirmed_by_id": current_user.id,
                 "confirmed_at": utc_now().isoformat()}
         source = f"{current.source or ''} -- confirmed by {current_user.full_name}"
         summary = f"Confirmed {part_no} draws no current"
+        # Into the equipment current table: settled for every project, for good.
+        equipment_currents.upsert(db, part_no=current.data.get("part_no") or part_no, description=current.data.get("description"),
+                                  no_load=True, included_in=current.data.get("included_in"), source=source[:1000],
+                                  confirmed_by=current_user.full_name, user=current_user)
     else:
         # Rejected: a version that carries no figure, so the part is missing a
         # current again -- and that the automatic fill will not set back.
@@ -497,6 +531,11 @@ def confirm_no_load(
                 "rejected_no_load": True, "rejected_by": current_user.full_name, "rejected_at": utc_now().isoformat()}
         save_rule_version(db, PART_CURRENT_CATEGORY, key, data,
                           f"No-current setting rejected by {current_user.full_name}: enter the part's current", current_user)
+        # The table says so too: it draws current, figure still to come.
+        equipment_currents.upsert(db, part_no=current.data.get("part_no") or part_no, description=current.data.get("description"),
+                                  no_load=False, kind=equipment_currents.UNKNOWN,
+                                  source=f"Draws current ({current_user.full_name} rejected the no-current setting); figure to be entered",
+                                  confirmed_by=current_user.full_name, user=current_user)
         activity.record(db, current_user, "design.no_load_rejected", f"Rejected the no-current setting for {part_no}",
                         project=project, entity_type="design_rule", entity_id=current.id)
         return get_battery_calculation(project_id, current_user, db)
