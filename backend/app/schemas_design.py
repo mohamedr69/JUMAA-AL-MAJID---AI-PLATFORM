@@ -614,32 +614,26 @@ class SubmittalRegisterOut(BaseModel):
     storage: list[StorageFolderOut]
 
 
-class ScannedFormOut(BaseModel):
-    """A material submittal form found in the project folder."""
+class SubmittalMapOut(BaseModel):
+    """The AI's map of the project's material submittals
+    (app.ai.submittal_reader): per system, one row per submittal reference
+    and one column per revision, each cell UR / A / ANN / RR / REJ; and the
+    actions the map calls for. `checked_at` is None until a check has run."""
 
-    reference: str
-    revision: str
-    title: str
-    system_code: str | None
-    supplier: str | None
-    # The consultant's reply: "A", "B", "C", or None where there is none yet.
-    reply_code: str | None
-    reply_text: str | None
-    status: SubmittalStatusName
-    path: str
-    # The reply was read from the consultant's stamp by OCR.
-    read_by_ocr: bool
-
-
-class SubmittalScanOut(BaseModel):
-    found: int
-    created: int
-    updated: int
-    unchanged: int
-    warnings: list[str]
-    forms: list[ScannedFormOut]
-    # The register as the scan leaves it, so the page needs no second call.
-    updated_register: SubmittalRegisterOut
+    available: bool
+    reason: str | None = None
+    checked_at: datetime | None = None
+    model: str | None = None
+    revisions: list[str] = []
+    systems: list[dict] = []
+    actions: list[str] = []
+    submittals: int = 0
+    forms: int = 0
+    files: int = 0
+    calls: int = 0
+    reused: int = 0
+    warnings: list[str] = []
+    register_counts: dict = {}
 
 
 # --- compliance statements -------------------------------------------------------

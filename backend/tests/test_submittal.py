@@ -204,43 +204,85 @@ def _submittal_form(path, reference="BBY006-GME-MAS-EL-FA-0001", revision="00", 
     return _form(path, reference=reference, revision=revision, reply=reply)
 
 
-def test_scanning_reads_the_consultants_reply_into_the_register(client, tmp_path, monkeypatch):
+def _reading(reference, revision, status="none", from_consultant=True, title="Material Submittal for Fire Alarm System",
+             system="Fire Alarm", code=""):
+    return {"is_submittal": True, "reference": reference, "revision": revision, "title": title, "system": system,
+            "supplier": "AL ARABIA", "manufacturer": "EDWARDS", "submitted": "20 April 2026",
+            "reply": {"present": status != "none", "from_consultant": from_consultant and status != "none", "status": status,
+                      "code": code, "consultant": "Al Hilal" if status != "none" else "", "date": "", "evidence": f"stamp {code}" if code else ""}}
+
+
+def test_the_ai_check_reads_the_forms_into_the_map_and_the_register(client, db_session, tmp_path, monkeypatch):
+    """The model reads each form (the OCR read of the stamp is gone); the map
+    settles a revision filed twice by the copy carrying the consultant's
+    reply; the register follows the map; a second check reads nothing again."""
+    import app.routers.jobs as jobs_router
     import app.routers.submittal as submittal_router
+    from app.ai import provider as provider_module
+    from app.ai.provider import RecordingProvider
 
     monkeypatch.setattr(submittal_router, "get_libraries", lambda *_: {})
-    login(client, settings.default_admin_email, settings.default_admin_password)
-    folder = tmp_path / "EP-30784"
-    _submittal_form(folder / "03- MS" / "01- FA" / "form.pdf")
-    _submittal_form(folder / "08- approval" / "MS" / "FA" / "form.pdf", reply="(B) Approved As Noted")
-    _submittal_form(folder / "03- MS" / "03- FRC" / "tianjie.pdf", reference="BBY006-GME-MAS-EL-FA-0004", reply="(C) Revise & Resubmit")
-    _submittal_form(folder / "03- MS" / "02- EML" / "eml.pdf", reference="BBY006-GME-MAS-EL-LI-0001")
-    project_id = _project_with_folder(client, folder)
+    monkeypatch.setattr(settings, "ai_enabled", True)
+    monkeypatch.setattr(jobs_router, "RUN_INLINE", True)
+    provider = RecordingProvider()
+    provider_module.set_provider(provider)
+    try:
+        login(client, settings.default_admin_email, settings.default_admin_password)
+        folder = tmp_path / "EP-30784"
+        _submittal_form(folder / "03- MS" / "01- FA" / "form.pdf")
+        _submittal_form(folder / "03- MS" / "02- EML" / "eml.pdf", reference="BBY006-GME-MAS-EL-LI-0001")
+        _submittal_form(folder / "03- MS" / "03- FRC" / "tianjie.pdf", reference="BBY006-GME-MAS-EL-FA-0004", reply="(C) Revise & Resubmit")
+        _submittal_form(folder / "08- approval" / "MS" / "FA" / "form.pdf", reply="(B) Approved As Noted")
+        project_id = _project_with_folder(client, folder)
+        # In the folder's sorted order: the prepared FA copy, the EML form, the
+        # FRC form the consultant returned, and the FA copy that came back.
+        provider.answers = [
+            _reading("BBY006-GME-MAS-EL-FA-0001", 0),
+            _reading("BBY006-GME-MAS-EL-LI-0001", 0, title="Material Submittal for Emergency Lighting", system="Emergency lighting"),
+            _reading("BBY006-GME-MAS-EL-FA-0004", 0, "resubmit", code="C", title="Material Submittal for Fire Rated Cables", system="FRC"),
+            _reading("BBY006-GME-MAS-EL-FA-0001", 0, "approved_as_noted", code="B"),
+        ]
 
-    body = client.post(f"/projects/{project_id}/submittals/scan").json()
-    assert (body["found"], body["created"], body["updated"], body["unchanged"]) == (3, 3, 0, 0)
-    register = {i["reference"]: i for i in body["updated_register"]["items"]}
-    assert register["BBY006-GME-MAS-EL-FA-0001"]["status"] == "approved"
-    assert register["BBY006-GME-MAS-EL-FA-0001"]["reply_code"] == "B"
-    # Its approved copy is the one recorded.
-    assert register["BBY006-GME-MAS-EL-FA-0001"]["document_path"].startswith("08- approval")
-    assert register["BBY006-GME-MAS-EL-FA-0004"]["status"] == "rejected"
-    # Submitted with no reply on the form: out for review, never approved.
-    assert register["BBY006-GME-MAS-EL-LI-0001"]["status"] == "under_review"
-    assert body["updated_register"]["counts"] == {"approved": 1, "rejected": 1, "under_review": 1, "not_submitted": 0, "total": 3}
+        started = client.post(f"/projects/{project_id}/submittals/scan")
+        assert started.status_code == 202, started.text
+        assert started.json()["status"] == "succeeded" and started.json()["result"]["submittals"] == 3
+        assert provider.calls == 4
 
-    # Scanning again changes nothing ...
-    again = client.post(f"/projects/{project_id}/submittals/scan").json()
-    assert (again["created"], again["updated"], again["unchanged"]) == (0, 0, 3)
+        body = client.get(f"/projects/{project_id}/submittals/map").json()
+        assert body["available"] and body["checked_at"] and body["revisions"] == ["R0"]
+        rows = {row["reference"]: row for system in body["systems"] for row in system["rows"]}
+        assert rows["BBY006-GME-MAS-EL-FA-0001"]["cells"]["R0"]["status"] == "ANN", "the copy with the consultant's reply wins"
+        assert rows["BBY006-GME-MAS-EL-FA-0001"]["cells"]["R0"]["file"].startswith("08- approval")
+        assert rows["BBY006-GME-MAS-EL-FA-0001"]["cells"]["R0"]["copies"] == 2
+        assert rows["BBY006-GME-MAS-EL-FA-0004"]["cells"]["R0"]["status"] == "RR"
+        assert rows["BBY006-GME-MAS-EL-LI-0001"]["cells"]["R0"]["status"] == "UR"
+        assert body["actions"] == ["Material submittal required: BBY006-GME-MAS-EL-FA-0004 R0 was returned revise and resubmit; R1 is not filed"]
+        assert {s["system_code"] for s in body["systems"]} == {"FAS", "ELS", "FRC"}
 
-    # ... until the consultant replies, and then the history says so.
-    _submittal_form(folder / "08- approval" / "MS" / "EML" / "eml.pdf", reference="BBY006-GME-MAS-EL-LI-0001", reply="(A) Approved")
-    third = client.post(f"/projects/{project_id}/submittals/scan").json()
-    assert (third["created"], third["updated"]) == (0, 1)
-    eml = {i["reference"]: i for i in third["updated_register"]["items"]}["BBY006-GME-MAS-EL-LI-0001"]
-    assert (eml["status"], eml["reply_code"]) == ("approved", "A")
-    details = [e["detail"] for e in third["updated_register"]["activity"]]
-    assert any(d.startswith("Approved (A)") for d in details)
-    assert any(d.startswith("Under review") for d in details)
+        register = {i["reference"]: i for i in client.get(f"/projects/{project_id}/submittals").json()["items"]}
+        assert (register["BBY006-GME-MAS-EL-FA-0001"]["status"], register["BBY006-GME-MAS-EL-FA-0001"]["reply_code"]) == ("approved", "B")
+        assert register["BBY006-GME-MAS-EL-FA-0001"]["document_path"].startswith("08- approval")
+        assert register["BBY006-GME-MAS-EL-FA-0004"]["status"] == "rejected"
+        assert register["BBY006-GME-MAS-EL-LI-0001"]["status"] == "under_review"
+
+        # Checked again: every form is read from the database, no call.
+        again = client.post(f"/projects/{project_id}/submittals/scan").json()
+        assert again["status"] == "succeeded" and provider.calls == 4
+        assert again["result"]["reused"] == 4 and again["result"]["unchanged"] == 3
+
+        # The FRC resubmission arrives as R1: read once, under review, and the action is gone.
+        _submittal_form(folder / "03- MS" / "03- FRC" / "tianjie R1.pdf", reference="BBY006-GME-MAS-EL-FA-0004", revision="01")
+        provider.answers = [_reading("BBY006-GME-MAS-EL-FA-0004", 1, title="Material Submittal for Fire Rated Cables", system="FRC")]
+        third = client.post(f"/projects/{project_id}/submittals/scan").json()
+        assert third["status"] == "succeeded" and provider.calls == 5
+        body = client.get(f"/projects/{project_id}/submittals/map").json()
+        frc = next(row for system in body["systems"] for row in system["rows"] if row["reference"] == "BBY006-GME-MAS-EL-FA-0004")
+        assert body["revisions"] == ["R0", "R1"] and frc["cells"]["R1"]["status"] == "UR" and frc["cells"]["R0"]["status"] == "RR"
+        assert body["actions"] == []
+        frc_register = {i["reference"]: i for i in client.get(f"/projects/{project_id}/submittals").json()["items"]}["BBY006-GME-MAS-EL-FA-0004"]
+        assert (frc_register["revision"], frc_register["status"]) == ("R01", "under_review")
+    finally:
+        provider_module.set_provider(None)
 
 
 def test_scanning_needs_a_reachable_folder_and_an_editor(client, db_session, tmp_path, monkeypatch):
@@ -248,6 +290,7 @@ def test_scanning_needs_a_reachable_folder_and_an_editor(client, db_session, tmp
     from app.models import RoleEnum
 
     monkeypatch.setattr(submittal_router, "get_libraries", lambda *_: {})
+    monkeypatch.setattr(settings, "ai_enabled", True)
     login(client, settings.default_admin_email, settings.default_admin_password)
     no_folder = client.post("/projects", json={"ep_number": "11111", "design_sheets": []}).json()["id"]
     assert client.post(f"/projects/{no_folder}/submittals/scan").status_code == 409

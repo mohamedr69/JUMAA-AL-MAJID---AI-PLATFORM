@@ -339,6 +339,26 @@ says whether images, the schema and the validation all work on the
 configured model (`--all` tries a shortlist). Tests use a scripted
 provider; nothing in the suite calls a live model.
 
+### The AI reads the material submittals
+
+The consultant's reply on a material submittal form is a stamp or a
+hand-written comment, and the OCR read of it was not reliable; the form is
+now read by the model (`app/ai/submittal_reader.py`): the first two pages
+of every PDF in the project folder that looks like a submittal (a MAS
+reference on its first page, or a scan filed under a submittal / approval
+folder), as images, once -- each reading is stored by the file's content
+(`document_readings`) and never read again. "AI check of the project
+folder" on the Material Submittals page runs it as a job and draws the
+**map**: per system, a row per submittal reference and a column per
+revision (R0, R1, ...), each cell UR (submitted, no consultant reply),
+A, ANN (approved as noted), RR (revise and resubmit) or REJ, a reply
+counting only when the model saw it was the consultant's; the same
+revision filed twice is settled by the copy carrying the reply. The map
+names the **actions**: a revision returned RR or REJ with no later
+revision filed, or a project with no submittal filed at all, is
+"Material submittal required". The register follows the map (latest
+revision and where it stands); `GET /projects/{id}/submittals/map` has it.
+
 ### The equipment current table
 
 `equipment_currents` (`app/services/equipment_currents.py`, the "Equipment
@@ -460,7 +480,7 @@ Project -> Panel Batteries sizes each fire alarm panel's standby battery from th
 
 **The method is the engineers'**, and three of their workbooks agree on it (EP-20779, EP-30784, and EP-29076's sheet copied into EP-30784): required Ah = (standby mA x 24 h + alarm mA x 30 min) / 1000 x 1.2. The durations, the 1.2 and the 24 V panel voltage are a seeded `design_rules` row (`battery.sizing` / `fas_panel`) with its source; the platform owner confirmed them. EP-20779's three EST3 panels are the test oracle: with the currents the engineer used they come out at the engineer's 60.33 / 32.35 / 26.64 Ah and 65 / 42 / 42 Ah batteries.
 
-**Panels come from BOQ groups.** A group whose heading names a panel ("Fire Alarm Control Panel", "FACP", ...) is one panel type; its heading line (the line with no part number, "... Includes:") gives how many identical panels it quotes, and the lines under it are **per panel** -- the sub-panel groups quote one chassis and one backbox for two panels, which only reads one way. Amplifier / booster power supply groups (APS, BPS) are sized too, the way the company's EST4 BC template's APS and BPS sheets do it, but **once per cabinet type** however many the BOQ quotes (18 amplifier closets are one APS calculation: every cabinet carries the same load), named APS and BPS rather than FACP-nn; the template's figures for BPS10A, SIGA-AA50, APS6A/230 (its auxiliary output) and SIGA-CT2 are in the equipment current table. A repeater panel is not sized: it is powered by the panel it repeats. Every BOQ group is shown on the page with what was done with it, so a panel whose heading does not match is visible as "not calculated" rather than missing. On the readiness dashboard a quoted battery smaller than required is a warning to check, not a block.
+**Panels come from BOQ groups.** A group whose heading names a panel ("Fire Alarm Control Panel", "FACP", ...) is one panel type; its heading line (the line with no part number, "... Includes:") gives how many identical panels it quotes, and the lines under it are **per panel** -- the sub-panel groups quote one chassis and one backbox for two panels, which only reads one way. Amplifier / booster power supply groups (APS, BPS) are sized too, the way the company's EST4 BC template's APS and BPS sheets do it, but **once per cabinet type** however many the BOQ quotes (18 amplifier closets are one APS calculation: every cabinet carries the same load), named APS and BPS rather than FACP-nn. Their figures come off the datasheets like every other part's, never typed in from the template: a power supply is read by its own rule (`datasheet_currents.read_power_supply_current`) -- standby its internal supervisory current, alarm its internal alarm current plus, for a BPS, the full rated NAC output (BPS10A: 70 / 10 270 mA), or, for an APS, its dedicated 200 mA auxiliary output (its amplifiers are their own lines: SIGA-AA50 2 mA / 2.8 A full load); a module's microamperes (SIGA-CT2: 396 / 680 uA) and an amplifier's amperes are read in those units and kept in mA. The exported sheet lists only the parts that draw current. A repeater panel is not sized: it is powered by the panel it repeats. Every BOQ group is shown on the page with what was done with it, so a panel whose heading does not match is visible as "not calculated" rather than missing. On the readiness dashboard a quoted battery smaller than required is a warning to check, not a block.
 
 **Currents come only from datasheets.** A part's standby and alarm mA is a `design_rules` entry (`part.current`, keyed by part number) that an engineer enters from the datasheet, with the datasheet named as its source -- nothing is seeded, and a value without a source is refused. Mechanical parts (chassis, filler plates, cabinets, doors) are recorded once as "no electrical load". Batteries are recognised from the battery catalogue (`battery.unit`) or, failing that, from the BOQ's own description ("Battery, 12 V @ 65 AH"), and are not loads.
 

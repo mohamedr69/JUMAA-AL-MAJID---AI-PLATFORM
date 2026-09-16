@@ -171,7 +171,12 @@ def _status_lines(panel) -> list[str]:
 
 
 def _panel_page(doc, project: Project, panel, systems: str, manufacturer: str) -> None:
-    lines = [line for line in panel.lines if line.kind == "load"]
+    # Only what draws current goes on the sheet: a part settled as no load
+    # (a chassis, a door, a filler plate) is not a row of a battery
+    # calculation. A part whose current is still missing stays, since the
+    # sheet must say the load is a lower bound because of it.
+    lines = [line for line in panel.lines if line.kind == "load"
+             and (line.missing_current or (line.total_standby_ma or 0) > 0 or (line.total_alarm_ma or 0) > 0)]
     first_rows = _rows_per_page(first=True)
     more_rows = _rows_per_page(first=False)
     head, tail = lines[:first_rows], lines[first_rows:]

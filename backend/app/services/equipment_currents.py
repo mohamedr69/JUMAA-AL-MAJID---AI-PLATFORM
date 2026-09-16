@@ -63,31 +63,31 @@ NO_LOAD_PARTS: list[tuple[str, str]] = [
 BUILT_IN_PARTS: list[tuple[str, str, str]] = [
     ("4-COMREL", "Common Relay Module", "4-CPU"),
 ]
-# (part number, description, standby mA, alarm mA, source, other spellings)
-# -- devices whose figures come from the company's own EST4 battery
-# calculation template (Systems/01- FAVE/01- Edwards - UL&EN/01- EST4/
-# Templates/BC.xlsx, the BPS and APS sheets), read on 2026-09-16.
+# A figure is never typed in from a template: a device's current comes off
+# its datasheet in the library (app.services.datasheet_currents), read the
+# first time a project quotes it, and joins the table with the datasheet as
+# its source. Rows an earlier build seeded from the company's BC template
+# are taken out so the datasheet read replaces them.
 BC_TEMPLATE = "Company EST4 battery calculation template (EST4/Templates/BC.xlsx)"
-DEVICES: list[tuple[str, str, float, float, str, list[str]]] = [
-    ("BPS10A", "10 A Booster Power Supply", 70.0, 10270.0,
-     f"{BC_TEMPLATE}, BPS sheet: 70 mA standby, 10 270 mA alarm at the full 10 A load",
-     ["BPS10A/230", "SIGA-BPS10A/230", "SIGA-BPS10A"]),
-    ("SIGA-AA50", "Intelligent Audio Amplifier - 50 W", 2.0, 2800.0,
-     f"{BC_TEMPLATE}, APS sheet: 2 mA standby, 2 800 mA alarm at the full 50 W load",
-     ["3-AA50", "SIGA-AAS0"]),
-    ("APS6A/230", "Auxiliary Power Supply, 6.5 A, 230 V", 200.0, 200.0,
-     f"{BC_TEMPLATE}, APS sheet: the APS's auxiliary output, 200 mA standby and alarm; its amplifiers carry the rest",
-     ["SIGA-APS6A/230", "SIGA-APS6A", "APS6A"]),
-    ("SIGA-CT2", "Dual Input Module", 0.396, 0.68,
-     "Edwards SIGA-CT2 datasheet: 396 uA standby, 680 uA alarm (the BC template writes 0.00396 / 0.0068, in A)",
-     []),
-]
-# Spellings the scanned sheets have produced for these parts.
+RETIRED_SOURCES = (BC_TEMPLATE, "Edwards SIGA-CT2 datasheet: 396 uA standby")
+
+# Spellings the scanned sheets have produced for these parts, and the part
+# numbers a sheet uses for what the datasheets call something else. Applied
+# before a part is looked up here or in the datasheet library.
 ALIASES: dict[str, str] = {
     "3-CABSB": "3-CAB5B",
     "4-CABI6D": "4-CAB16D",
     "4-PPS": "4-PPS/M",
+    "SIGA-AAS0": "SIGA-AA50",
+    "3-AA50": "SIGA-AA50",
+    "3-AA30": "SIGA-AA30",
 }
+
+
+def canonical(part_no: str | None) -> str:
+    """The spelling the datasheets use for a BOQ part number."""
+    key = _key(part_no)
+    return ALIASES.get(key, part_no.strip() if part_no else "")
 
 
 def _key(part_no: str | None) -> str:
@@ -112,7 +112,7 @@ def index(db: Session) -> dict[str, EquipmentCurrent]:
 
 
 def lookup(db: Session, part_no: str | None) -> EquipmentCurrent | None:
-    key = _key(part_no)
+    key = _key(canonical(part_no))
     if not key:
         return None
     row = db.query(EquipmentCurrent).filter(EquipmentCurrent.key == key).one_or_none()
@@ -202,13 +202,11 @@ def seed(db: Session) -> int:
                                     confirmed_by="platform owner"))
             existing.add(_key(part_no))
             added += 1
-    for part_no, description, standby, alarm, source, aliases in DEVICES:
-        if _key(part_no) not in existing:
-            db.add(EquipmentCurrent(manufacturer=MANUFACTURER, key=_key(part_no), part_no=part_no, description=description,
-                                    no_load=False, kind=DEVICE, standby_ma=standby, alarm_ma=alarm, source=source,
-                                    confirmed_by="platform owner", aliases=list(aliases)))
-            existing.add(_key(part_no))
-            added += 1
+    for row in all_rows(db):
+        if row.source and row.source.startswith(RETIRED_SOURCES):
+            db.delete(row)
+            existing.discard(row.key)
+    db.flush()
     # A spelling learned later for a part already in the table.
     for alias, target in ALIASES.items():
         row = db.query(EquipmentCurrent).filter(EquipmentCurrent.key == _key(target)).one_or_none()
@@ -219,6 +217,12 @@ def seed(db: Session) -> int:
              .filter(DesignRule.category == PART_CURRENT_CATEGORY, DesignRule.superseded_at.is_(None)).all())
     for rule in rules:
         data = rule.data or {}
+        if rule.source and any(marker in rule.source for marker in RETIRED_SOURCES):
+            # A catalogue version the table wrote from the template: retired,
+            # so the part is missing a current again and the next fill reads
+            # its datasheet.
+            rule.superseded_at = utc_now()
+            continue
         if rule.key in existing or data.get("rejected_no_load") or data.get("no_load"):
             continue
         if data.get("standby_ma") is None or data.get("alarm_ma") is None:

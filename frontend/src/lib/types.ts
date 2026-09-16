@@ -872,27 +872,54 @@ export interface SubmittalRegister {
   storage: StorageFolder[];
 }
 
-export interface ScannedForm {
-  reference: string;
-  revision: string;
-  title: string;
-  system_code: string | null;
-  supplier: string | null;
-  reply_code: string | null;
-  reply_text: string | null;
-  status: SubmittalStatus;
-  path: string;
-  read_by_ocr: boolean;
+/** How one revision of a submittal stands, as the AI read it: under review,
+ * approved, approved as noted, revise and resubmit, rejected. */
+export type SubmittalCellStatus = "UR" | "A" | "ANN" | "RR" | "REJ";
+
+export interface SubmittalMapCell {
+  status: SubmittalCellStatus;
+  file: string;
+  date: string;
+  reply_code: string;
+  consultant: string;
+  reply_date: string;
+  evidence: string;
+  /** A reply is on the form but was not verified as the consultant's. */
+  unverified_reply: boolean;
+  /** Copies of this revision found in the folder. */
+  copies: number;
 }
 
-export interface SubmittalScan {
-  found: number;
-  created: number;
-  updated: number;
-  unchanged: number;
+export interface SubmittalMapRow {
+  reference: string;
+  title: string;
+  supplier: string;
+  manufacturer: string;
+  system_code: string | null;
+  cells: Record<string, SubmittalMapCell>;
+  latest: string;
+  latest_status: SubmittalCellStatus;
+  action: string | null;
+}
+
+/** The AI's map of the project's material submittals
+ * (`GET /projects/{id}/submittals/map`): per system, a row per reference
+ * and a column per revision, plus the actions it calls for. */
+export interface SubmittalMap {
+  available: boolean;
+  reason: string | null;
+  checked_at: string | null;
+  model: string | null;
+  revisions: string[];
+  systems: { system_code: string | null; rows: SubmittalMapRow[] }[];
+  actions: string[];
+  submittals: number;
+  forms: number;
+  files: number;
+  calls: number;
+  reused: number;
   warnings: string[];
-  forms: ScannedForm[];
-  updated_register: SubmittalRegister;
+  register_counts: Record<string, number>;
 }
 
 // --- Compliance statements (app/routers/compliance.py) ---

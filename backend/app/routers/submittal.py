@@ -35,14 +35,13 @@ from app.schemas_design import (
     PackageDocumentOut,
     PackagePlanOut,
     PackageSectionOut,
-    ScannedFormOut,
+    SubmittalMapOut,
     StorageFolderOut,
     SubmittalEventOut,
     SubmittalIn,
     SubmittalOut,
     SubmittalPatch,
     SubmittalRegisterOut,
-    SubmittalScanOut,
     SubmittalSuggestionOut,
 )
 from app.services import activity, system_rules
@@ -63,7 +62,8 @@ from app.services.submittal_package import (
     plan_package,
     read_checklist,
 )
-from app.services.submittal_scanner import scan_folder
+from app.ai import submittal_reader
+from app.services import jobs
 
 settings = get_settings()
 
@@ -368,103 +368,66 @@ def delete_submittal(
     db.commit()
 
 
-@router.post("/{project_id}/submittals/scan", response_model=SubmittalScanOut)
+@router.post("/{project_id}/submittals/scan", status_code=http_status.HTTP_202_ACCEPTED)
 def scan_submittals(
     project_id: int,
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
-) -> SubmittalScanOut:
-    """Read the project folder's material submittals and bring the register
-    up to date with them: the consultant's reply where the form carries one,
-    under review where it does not (see app.services.submittal_scanner)."""
+):
+    """Start the AI check of the project folder's material submittals
+    (app.ai.submittal_reader): the model reads every form it has not read
+    before, the map is drawn and stored, and the register is brought up to
+    it. Runs as a job the page follows; `GET .../submittals/map` has the
+    result."""
+    from app.routers.jobs import JobOut, RUN_INLINE, _out, _refuse_duplicate
+
     project = _get_project_or_404(db, project_id)
     if not project.source_folder_path:
-        raise HTTPException(http_status.HTTP_409_CONFLICT, detail="The project has no archive folder to scan")
+        raise HTTPException(http_status.HTTP_409_CONFLICT, detail="The project has no archive folder to check")
     folder = Path(project.source_folder_path)
     if not folder.is_dir():
         raise HTTPException(http_status.HTTP_503_SERVICE_UNAVAILABLE, detail="The project's archive folder is not reachable")
-
+    reason = submittal_reader.available(project)
+    if reason:
+        raise HTTPException(http_status.HTTP_409_CONFLICT, detail=reason)
     with _scan_lock:
-        forms, warnings = scan_folder(folder)
-        by_reference = {(s.reference or "").upper(): s for s in project.submittals if s.reference}
-        created = updated = unchanged = 0
-        for form in forms:
-            submittal = by_reference.get(form.reference.upper())
-            if submittal is None:
-                submittal = ProjectSubmittal(
-                    project_id=project.id,
-                    title=form.title,
-                    reference=form.reference,
-                    system_code=form.system_code,
-                    manufacturer=form.supplier,
-                    revision=form.revision,
-                    status=SubmittalStatus(form.status),
-                    reply_code=form.reply_code,
-                    document_path=form.relative,
-                    note=form.reply_text,
-                )
-                _log(submittal, "scanned", _scan_detail(form), current_user)
-                db.add(submittal)
-                by_reference[form.reference.upper()] = submittal
-                created += 1
-                continue
+        db.expire_all()
+        _refuse_duplicate(db, project, submittal_reader.JOB_KIND)
+        user_id = current_user.id
 
-            changes = []
-            if submittal.status.value != form.status or submittal.reply_code != form.reply_code:
-                changes.append(_scan_detail(form))
-                submittal.status = SubmittalStatus(form.status)
-                submittal.reply_code = form.reply_code
-            if submittal.revision != form.revision:
-                changes.append(f"Revision {form.revision} (was {submittal.revision})")
-                submittal.revision = form.revision
-            submittal.document_path = form.relative
-            submittal.manufacturer = submittal.manufacturer or form.supplier
-            submittal.system_code = submittal.system_code or form.system_code
-            if changes:
-                submittal.updated_at = utc_now()
-                for detail in changes:
-                    _log(submittal, "scanned", detail, current_user)
-                updated += 1
-            else:
-                unchanged += 1
-        db.commit()
-        activity.record(db, current_user, "submittal.scanned",
-                        f"Scanned the project folder: {len(forms)} submittal form{'s' if len(forms) != 1 else ''} found",
-                        project=project, entity_type="submittal",
-                        detail={"found": len(forms), "created": created, "updated": updated, "unchanged": unchanged})
-        db.refresh(project)
+        def work(session: Session, ctx: jobs.JobContext) -> dict:
+            target = session.get(Project, project_id)
+            actor = session.get(User, user_id)
+            result = submittal_reader.check(session, target, actor, ctx=ctx)
+            counts = result.get("register_counts") or {}
+            activity.record(session, actor, "submittal.ai_checked",
+                            f"AI checked the material submittals: {result['submittals']} submittal{'s' if result['submittals'] != 1 else ''} "
+                            f"mapped from {result['forms']} form{'s' if result['forms'] != 1 else ''}"
+                            + (f"; {len(result['actions'])} action{'s' if len(result['actions']) != 1 else ''} required" if result["actions"] else ""),
+                            project=target, entity_type="submittal",
+                            detail={"files": result["files"], "forms": result["forms"], "submittals": result["submittals"],
+                                    "calls": result["calls"], "reused": result["reused"], **counts})
+            return {"files": result["files"], "forms": result["forms"], "submittals": result["submittals"],
+                    "actions": result["actions"], "calls": result["calls"], "reused": result["reused"], **counts}
 
-    return SubmittalScanOut(
-        found=len(forms),
-        created=created,
-        updated=updated,
-        unchanged=unchanged,
-        warnings=warnings,
-        forms=[
-            ScannedFormOut(
-                reference=f.reference,
-                revision=f.revision,
-                title=f.title,
-                system_code=f.system_code,
-                supplier=f.supplier,
-                reply_code=f.reply_code,
-                reply_text=f.reply_text,
-                status=f.status,
-                path=f.relative,
-                read_by_ocr=f.ocr_used,
-            )
-            for f in forms
-        ],
-        updated_register=list_submittals(project_id, current_user, db),
-    )
+        job = jobs.start(db, kind=submittal_reader.JOB_KIND, project_id=project.id, user_id=current_user.id, work=work,
+                         run_inline=RUN_INLINE)
+    return JobOut.model_validate(_out(job).model_dump())
 
 
-def _scan_detail(form) -> str:
-    """What the scan read, as the register's history records it."""
-    if form.reply_code:
-        label = {"A": "Approved (A)", "B": "Approved as noted (B)", "C": "Revise and resubmit (C)"}[form.reply_code]
-        return f"{label} — read from the consultant's reply on {Path(form.relative).name}"
-    return f"Under review — no consultant reply on {Path(form.relative).name}"
+@router.get("/{project_id}/submittals/map", response_model=SubmittalMapOut)
+def submittal_map(
+    project_id: int,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SubmittalMapOut:
+    """The latest map the AI drew of the project's material submittals, and
+    whether a check can run now."""
+    project = _get_project_or_404(db, project_id)
+    reason = submittal_reader.available(project)
+    latest = submittal_reader.latest_map(db, project) or {}
+    return SubmittalMapOut(available=reason is None, reason=reason,
+                           **{k: v for k, v in latest.items() if k in SubmittalMapOut.model_fields and k not in ("available", "reason")})
 
 
 @router.get("/{project_id}/submittals/export.xlsx")

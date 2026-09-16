@@ -250,13 +250,18 @@ def _missing_parts(panels) -> list[BatteryLineOut]:
 def _read_from_datasheets(line: BatteryLineOut, libraries: dict, panel_voltage: float):
     """(reading, match) from the first of the part's datasheets that gives
     its current, or (None, the best match or None)."""
+    from app.services import equipment_currents
+
     best = None
+    # The datasheets' own spelling of the part ("SIGA-AAS0" as a scan wrote
+    # it is SIGA-AA50; "3-AA50" is the same amplifier).
+    part_no = equipment_currents.canonical(line.part_no) or (line.part_no or "")
     for library in libraries_for(line.manufacturer, libraries):
-        for match in library.find(line.part_no or ""):
+        for match in library.find(part_no):
             best = best or match
             reading = read_part_current(
                 library.folder / match.path,
-                line.part_no or "",
+                part_no,
                 doc_named_for_part=match.matched_on in ("filename", "family"),
                 panel_voltage=panel_voltage,
             )
@@ -266,9 +271,12 @@ def _read_from_datasheets(line: BatteryLineOut, libraries: dict, panel_voltage: 
 
 
 def _unresolved_reason(line: BatteryLineOut, libraries: dict) -> str:
+    from app.services import equipment_currents
+
     if not libraries:
         return "No datasheet library is available"
-    matches = [m for lib in libraries_for(line.manufacturer, libraries) for m in lib.find(line.part_no or "")]
+    part_no = equipment_currents.canonical(line.part_no) or (line.part_no or "")
+    matches = [m for lib in libraries_for(line.manufacturer, libraries) for m in lib.find(part_no)]
     if not matches:
         return "No datasheet in the library mentions this part"
     return f"{matches[0].filename} mentions it, but gives no current for this model"

@@ -9,11 +9,14 @@ import {
   type StorageFolder,
   type Submittal,
   type SubmittalRegister,
-  type SubmittalScan,
+  type SubmittalCellStatus,
+  type SubmittalMap,
   type SubmittalStatus,
   type SubmittalSuggestion,
 } from "../lib/types";
 import { SubmittalPackageBuilder } from "../components/SubmittalPackageBuilder";
+import { JobProgress } from "../components/JobProgress";
+import { useJob } from "../lib/useJob";
 import { useProject } from "./ProjectWorkspace";
 
 const ALL = "__all__";
@@ -47,8 +50,7 @@ export function ProjectMaterialSubmittalPage() {
   const [busy, setBusy] = useState(false);
   const [creating, setCreating] = useState<SubmittalSuggestion | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
-  const [scanning, setScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<SubmittalScan | null>(null);
+  const [map, setMap] = useState<SubmittalMap | null>(null);
 
   const load = useCallback(
     () =>
@@ -58,16 +60,28 @@ export function ProjectMaterialSubmittalPage() {
         .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load the submittals")),
     [project.id]
   );
+  const loadMap = useCallback(
+    () => api.get<SubmittalMap>(`/projects/${project.id}/submittals/map`).then(setMap).catch(() => setMap(null)),
+    [project.id]
+  );
+
+  // The AI check of the project folder runs as a job the page follows; when
+  // it ends the map and the register are read again.
+  const check = useJob(project.id, "submittal_check", `/projects/${project.id}/submittals/scan`, () => {
+    void load();
+    void loadMap();
+  });
 
   useEffect(() => {
     setData(null);
     setError(null);
     load();
+    loadMap();
     api
       .get<MaterialSubmittal>(`/projects/${project.id}/submittal/materials`)
       .then(setMaterials)
       .catch(() => setMaterials(null));
-  }, [load, project.id]);
+  }, [load, loadMap, project.id]);
 
   async function create(values: { title: string; system_code: string | null; manufacturer: string | null }) {
     setBusy(true);
@@ -106,23 +120,6 @@ export function ProjectMaterialSubmittalPage() {
       setError(err instanceof ApiError ? err.message : "Could not remove the submittal");
     } finally {
       setBusy(false);
-    }
-  }
-
-  /** Read the project folder: the consultant's reply where a form carries
-   * one, under review where it does not. */
-  async function scan() {
-    setScanning(true);
-    setError(null);
-    setScanResult(null);
-    try {
-      const result = await api.post<SubmittalScan>(`/projects/${project.id}/submittals/scan`);
-      setData(result.updated_register);
-      setScanResult(result);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not scan the project folder");
-    } finally {
-      setScanning(false);
     }
   }
 
@@ -173,32 +170,16 @@ export function ProjectMaterialSubmittalPage() {
       </div>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
-      {scanning && (
-        <div className="mt-4 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">
-          Reading the project folder: every PDF&rsquo;s first page, then the consultant&rsquo;s stamp on the forms found.
-        </div>
+      {check.job && (check.active || check.job.status === "failed") && (
+        <JobProgress job={check.job} onCancel={check.cancel} what="the AI check of the material submittals" />
       )}
-      {scanResult && !scanning && (
-        <div className="mt-4 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">
-          <div className="font-medium">
-            {scanResult.found} submittal{scanResult.found === 1 ? "" : "s"} found in the project folder · {scanResult.created} added,{" "}
-            {scanResult.updated} updated, {scanResult.unchanged} unchanged.
-          </div>
-          <ul className="mt-1 space-y-0.5 text-xs">
-            {scanResult.forms.map((form) => (
-              <li key={`${form.reference}:${form.revision}`}>
-                <span className="font-medium">
-                  {form.reference} {form.revision}
-                </span>{" "}
-                — {form.reply_code ? `reply ${form.reply_code}` : "no consultant reply yet"}
-                {form.read_by_ocr && form.reply_code ? " (read from the stamp)" : ""} ·{" "}
-                <span className="text-blue-700">{STATUS[form.status].label}</span> · {form.path}
-              </li>
-            ))}
-            {scanResult.warnings.map((warning) => (
-              <li key={warning} className="text-amber-700">
-                {warning}
-              </li>
+      {check.error && <div className="mt-2 text-xs text-red-700">{check.error}</div>}
+      {map && map.actions.length > 0 && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
+          <div className="font-semibold">Action required</div>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">
+            {map.actions.map((action) => (
+              <li key={action}>{action}</li>
             ))}
           </ul>
         </div>
@@ -245,6 +226,8 @@ export function ProjectMaterialSubmittalPage() {
               <Stat icon={<IconClock />} tint="bg-orange-50 text-orange-500" value={counts.under_review ?? 0} label="Under Review" />
               <Stat icon={<IconCross />} tint="bg-red-50 text-red-500" value={counts.rejected ?? 0} label="Rejected" />
             </div>
+
+            <SubmittalMapSection map={map} tab={tab} />
 
             <div className="mt-4 overflow-x-auto rounded-xl border border-gray-200 bg-white">
               <table className="w-full min-w-[860px] text-sm">
@@ -422,10 +405,14 @@ export function ProjectMaterialSubmittalPage() {
                   <ActionCard
                     tint="bg-green-50/70"
                     icon={<IconScan />}
-                    title={scanning ? "Reading the project folder..." : "Scan project folder"}
-                    body="Find the submittals filed for this project and read the consultant's reply (A / B / C) off each."
-                    disabled={scanning || !project.source_folder_path}
-                    onClick={scan}
+                    title={check.active ? "AI checking the project folder..." : "AI check of the project folder"}
+                    body={
+                      map && !map.available && map.reason
+                        ? map.reason
+                        : "The AI reads every material submittal form filed for this project, draws the map (R0, R1, ... per system) and reads the consultant's reply off each."
+                    }
+                    disabled={check.active || !project.source_folder_path || (map !== null && !map.available)}
+                    onClick={() => void check.start()}
                   />
                 )}
                 {canEdit && (
@@ -469,6 +456,114 @@ export function ProjectMaterialSubmittalPage() {
         />
       )}
     </div>
+  );
+}
+
+const CELL: Record<SubmittalCellStatus, { label: string; className: string; title: string }> = {
+  UR: { label: "UR", className: "bg-blue-50 text-blue-700 ring-blue-200", title: "Under review: submitted, no consultant reply yet" },
+  A: { label: "A", className: "bg-green-50 text-green-700 ring-green-200", title: "Approved" },
+  ANN: { label: "ANN", className: "bg-emerald-50 text-emerald-700 ring-emerald-200", title: "Approved as noted" },
+  RR: { label: "RR", className: "bg-red-50 text-red-700 ring-red-200", title: "Revise and resubmit" },
+  REJ: { label: "REJ", className: "bg-red-100 text-red-800 ring-red-300", title: "Rejected" },
+};
+
+/** The AI's map of the submittals: per system, a row per reference and a
+ * column per revision, each cell how that revision stands. */
+function SubmittalMapSection({ map, tab }: { map: SubmittalMap | null; tab: string }) {
+  if (!map) return null;
+  if (!map.checked_at) {
+    return (
+      <div className="mt-4 rounded-xl border border-dashed border-gray-300 bg-white px-4 py-3 text-xs text-gray-500">
+        No AI check of the project folder yet. Run &ldquo;AI check of the project folder&rdquo; under Quick Actions to draw the
+        submittal map (R0, R1, ... per system) from the forms filed for this project.
+        {!map.available && map.reason ? ` ${map.reason}.` : ""}
+      </div>
+    );
+  }
+  const systems = map.systems.filter((s) => tab === ALL || (s.system_code ?? "") === tab);
+  return (
+    <section aria-label="Submittal map" className="mt-4 rounded-xl border border-gray-200 bg-white p-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold text-navy-900">Submittal map</h2>
+        <span className="text-xs text-gray-500">
+          AI check {when(map.checked_at, true)} · {map.submittals} submittal{map.submittals === 1 ? "" : "s"} from {map.forms} form
+          {map.forms === 1 ? "" : "s"} in {map.files} file{map.files === 1 ? "" : "s"} · {map.calls} read now, {map.reused} from the database
+        </span>
+      </div>
+      {systems.length === 0 && <div className="mt-2 text-xs text-gray-500">No submittal on the map for this system.</div>}
+      {systems.map((system) => (
+        <div key={system.system_code ?? "none"} className="mt-3 overflow-x-auto">
+          <div className="mb-1 text-xs font-semibold text-gray-600">{system.system_code ?? "System not identified"}</div>
+          <table className="min-w-full text-xs">
+            <thead className="bg-gray-50 text-left uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-2 py-1.5 font-medium">Submittal</th>
+                {map.revisions.map((rev) => (
+                  <th key={rev} className="px-2 py-1.5 text-center font-medium">
+                    {rev}
+                  </th>
+                ))}
+                <th className="px-2 py-1.5 font-medium">Latest</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {system.rows.map((row) => (
+                <tr key={row.reference} className={row.action ? "bg-amber-50/60" : ""}>
+                  <td className="px-2 py-1.5">
+                    <div className="font-mono text-navy-900">{row.reference}</div>
+                    <div className="text-gray-500">
+                      {row.title}
+                      {row.manufacturer ? ` · ${row.manufacturer}` : row.supplier ? ` · ${row.supplier}` : ""}
+                    </div>
+                  </td>
+                  {map.revisions.map((rev) => {
+                    const cell = row.cells[rev];
+                    if (!cell) {
+                      return (
+                        <td key={rev} className="px-2 py-1.5 text-center text-gray-300">
+                          —
+                        </td>
+                      );
+                    }
+                    const style = CELL[cell.status];
+                    const tip = [
+                      style.title,
+                      cell.consultant ? `by ${cell.consultant}` : "",
+                      cell.reply_date ? `on ${cell.reply_date}` : "",
+                      cell.evidence ? `"${cell.evidence}"` : "",
+                      cell.unverified_reply ? "a reply is on the form but was not verified as the consultant's" : "",
+                      cell.copies > 1 ? `${cell.copies} copies filed; the one with the reply is used` : "",
+                      cell.file,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <td key={rev} className="px-2 py-1.5 text-center">
+                        <span title={tip} className={`inline-block rounded-full px-2 py-0.5 font-semibold ring-1 ${style.className}`}>
+                          {style.label}
+                        </span>
+                        {cell.unverified_reply && <span className="ml-0.5 text-amber-600" title="A reply is on the form but was not verified as the consultant's">?</span>}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1.5 text-gray-700">
+                    {row.latest} {CELL[row.latest_status].label}
+                    {row.action && <div className="text-amber-800">{row.action}</div>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+      {map.warnings.length > 0 && (
+        <ul className="mt-2 list-disc pl-5 text-xs text-amber-700">
+          {map.warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

@@ -33,6 +33,17 @@ with these refinements:
   the 4-COMREL Common Relay Module") takes the standby figure -- the rest is
   that module's own line in the BOQ.
 
+A **power supply** (a BPS booster or an APS auxiliary power supply) is
+read by its own rule, since its battery carries its load, not just its own
+electronics: standby is the unit's internal supervisory current; alarm is
+its internal alarm current plus the full rated output of the model
+(10 A for a BPS10A / APS10A, 6.5 A for the 6.5 A models), which is what the
+company's own BC template sizes for -- and, for an APS, its dedicated
+auxiliary output (200 mA) in both, the datasheet saying it is not in the
+total. Its amplifiers are their own lines in the BOQ. An amplifier's
+"Active 2.8 A at 24 V full load" and a module's "Standby = 396 uA" are read
+in amperes and microamperes and kept in milliamperes.
+
 Anything that cannot be read this way is reported, never guessed.
 """
 
@@ -52,8 +63,20 @@ POINTER_BELOW_PT = 15.0
 HEADING_MIN_SIZE = 9.5
 _HEADING_FONT_RE = re.compile(r"bd|bold|md|medium|heavy|black|semibold", re.IGNORECASE)
 
-_NUMBER_RE = re.compile(r"^(\d+(?:\.\d+)?)(m\s?A)?(/\S*)?[;,.:]?$", re.IGNORECASE)
-_MA_RE = re.compile(r"^m\s?A(/\S*)?[;,.:]?$", re.IGNORECASE)
+# A figure with its unit attached ("130mA", "2.8A", "396uA") or as the next
+# word. Bare "A" is amperes only as a whole word right after the number.
+_NUMBER_RE = re.compile(r"^(\d+(?:\.\d+)?)(m\s?A|[u\u00b5\u03bc\ufffd]\s?A|A)?(/\S*)?[;,.:]?$", re.IGNORECASE)
+_MA_RE = re.compile(r"^(m\s?A|[u\u00b5\u03bc\ufffd]\s?A|A)(/\S*)?[;,.:]?$", re.IGNORECASE)
+_POWER_SUPPLY_RE = re.compile(r"^(BPS|APS)(\d+(?:\.\d+)?)A", re.IGNORECASE)
+
+
+def _to_ma(amount: float, unit: str) -> float:
+    unit = unit.replace(" ", "").lower()
+    if unit == "a":
+        return amount * 1000
+    if unit.startswith("m"):
+        return amount
+    return amount / 1000   # uA / \u00b5A
 _MODEL_RE = re.compile(r"^\(?(\d-[A-Z0-9]+(?:[-/][A-Z0-9]+)*|[A-Z]{2,}-[A-Z0-9]+(?:[-/][A-Z0-9]+)*)-?[,;:.)]?$")
 _VOLTS_RE = re.compile(r"(\d+(?:\.\d+)?)\s*v(?:dc)?\b", re.IGNORECASE)
 _PER_UNIT_RE = re.compile(r"^per\s+(\w+)", re.IGNORECASE)
@@ -111,12 +134,13 @@ class CurrentReading:
 
 
 def _label_kind(text: str, previous: str | None) -> str | None:
-    text = text.lower().strip(":;,")
-    if "standby" in text and ("alarm" in text or "active" in text):
+    text = text.lower().strip(":;,=")
+    # "Alarm", "Active", "Activated": the figure when the device is working.
+    if "standby" in text and ("alarm" in text or "activ" in text):
         return "both"
     if "standby" in text:
         return "standby"
-    if "alarm" in text or "active" in text:
+    if "alarm" in text or "activ" in text:
         return "alarm"
     if text == "current":
         # "Standby Current" / "Alarm Current": the word before decides.
@@ -186,13 +210,14 @@ class _Page:
                         continue
                     per = match.group(3)
                     rest = cell[i + 1 :]
-                    if not match.group(2):
+                    unit_text = match.group(2)
+                    if not unit_text:
                         unit = _MA_RE.match(rest[0].text) if rest else None
                         if not unit:
                             continue
-                        per, rest = unit.group(1), rest[1:]
+                        unit_text, per, rest = unit.group(1), unit.group(2), rest[1:]
                     trailing = " ".join(w.text for w in rest).split(";")[0]
-                    value = _Value(ma=float(match.group(1)), word=word, trailing=trailing, page=self.number)
+                    value = _Value(ma=_to_ma(float(match.group(1)), unit_text), word=word, trailing=trailing, page=self.number)
                     per_word = _PER_UNIT_RE.match(trailing)
                     if per:
                         value.per_unit = per.strip("/") or "unit"
@@ -229,7 +254,8 @@ class _Page:
         if named:
             return named
         half = value.word.x0 < self.mid
-        single = len({v.word.cell for v in row_values}) == 1
+        cells = sorted({v.word.cell for v in row_values})
+        single = len(cells) == 1
         for heading in sorted((h for h in self.headings if h.y < value.word.y0), key=lambda h: -h.y):
             columns = heading.models
             if len({round(x0) for _, x0, _ in columns}) >= 2:
@@ -238,6 +264,16 @@ class _Page:
                 if lo <= value.word.xc <= hi:
                     if single:
                         return {m for _, _, m in columns}
+                    if 1 < len(cells) < len(columns) and len(columns) % len(cells) == 0:
+                        # Fewer figures than models, evenly: each figure spans a
+                        # run of columns ("396 uA" under both SIGA-CT2 and
+                        # SIGA-MCT2), and belongs to every model in its run.
+                        ordered = sorted(columns, key=lambda c: c[0])
+                        span = len(columns) // len(cells)
+                        index = cells.index(value.word.cell)
+                        run = ordered[index * span:(index + 1) * span]
+                        if run[0][1] - 80 <= value.word.xc <= run[-1][0] + 80:
+                            return {m for _, _, m in run}
                     return {min(columns, key=lambda c: abs(c[0] - value.word.xc))[2]}
             in_half = [c for c in columns if (c[1] < self.mid) == half]
             if in_half:
@@ -266,10 +302,69 @@ class _Page:
         return None
 
 
+def read_power_supply_current(pdf_path, part_no: str) -> CurrentReading | None:
+    """A BPS or APS: (internal supervisory, internal alarm + rated output
+    [+ dedicated auxiliary for an APS]) mA off its datasheet, or None."""
+    key = part_key(part_no)
+    model = _POWER_SUPPLY_RE.match(key.split("/")[0])
+    if not model:
+        return None
+    family, rating = model.group(1).upper(), float(model.group(2))
+    try:
+        doc = pymupdf.open(pdf_path)
+    except Exception:  # noqa: BLE001
+        return None
+    supervisory = alarm = aux = None
+    outputs: list[float] = []
+    pages: list[int] = []
+    with doc:
+        for number, page in enumerate(doc, start=1):
+            text = page.get_text()
+            flat = re.sub(r"\s+", " ", text)
+            found = False
+            m = re.search(r"Supervisory Current\s*(\d+(?:\.\d+)?)\s*mA", flat, re.IGNORECASE)
+            if m and supervisory is None:
+                supervisory, found = float(m.group(1)), True
+            m = re.search(r"Alarm Current\s*(\d+(?:\.\d+)?)\s*mA", flat, re.IGNORECASE)
+            if m and alarm is None:
+                alarm, found = float(m.group(1)), True
+            for m in re.finditer(r"(\d+(?:\.\d+)?)\s*A max\.? total", flat, re.IGNORECASE):
+                outputs.append(float(m.group(1)))
+                found = True
+            m = re.search(r"(\d+)\s*mA (?:dedicated )?auxiliary", flat, re.IGNORECASE)
+            if m and aux is None:
+                aux, found = float(m.group(1)), True
+            if found:
+                pages.append(number)
+    if supervisory is None or alarm is None:
+        return None
+    # The model's own rating, where the datasheet lists several ("6.5A max
+    # total", "10A max total"); the part number's figure otherwise.
+    output = next((o for o in outputs if abs(o - rating) < 0.6), rating) * 1000
+    notes = [f"standby: the unit's internal supervisory current {supervisory:g} mA"]
+    standby, total_alarm = supervisory, alarm
+    if family == "BPS":
+        # A booster's battery carries its NACs: the full rated output in alarm.
+        total_alarm += output
+        notes.append(f"alarm: internal alarm current {alarm:g} mA + the full rated output {output / 1000:g} A")
+    else:
+        # An APS's output is its amplifiers, which are their own lines in the
+        # BOQ; what is the unit's own is its internal alarm current and its
+        # dedicated auxiliary output, which the datasheet keeps out of the total.
+        notes.append(f"alarm: internal alarm current {alarm:g} mA; the amplifiers it powers are their own lines")
+        if aux:
+            standby += aux
+            total_alarm += aux
+            notes.append(f"plus the dedicated {aux:g} mA auxiliary output, standby and alarm")
+    return CurrentReading(standby_ma=round(standby, 3), alarm_ma=round(total_alarm, 3), pages=sorted(set(pages)), notes=notes)
+
+
 def read_part_current(pdf_path, part_no: str, doc_named_for_part: bool, panel_voltage: float = 24) -> CurrentReading | None:
     """The part's (standby, alarm) mA from one datasheet, or None."""
     key = part_key(part_no)
     base = key.split("/")[0]
+    if _POWER_SUPPLY_RE.match(base):
+        return read_power_supply_current(pdf_path, part_no)
     try:
         doc = pymupdf.open(pdf_path)
     except Exception:  # noqa: BLE001 -- unreadable: nothing read from it
@@ -282,7 +377,7 @@ def read_part_current(pdf_path, part_no: str, doc_named_for_part: bool, panel_vo
     pointer = None
     with doc:
         for number, raw in enumerate(doc, start=1):
-            if not re.search(r"\d\s*m\s?A", raw.get_text(), re.IGNORECASE):
+            if not re.search(r"\d\s*(m|[u\u00b5\u03bc\ufffd])?\s?A\b", raw.get_text(), re.IGNORECASE):
                 continue
             page = _Page(raw, number)
             values = page.values()
