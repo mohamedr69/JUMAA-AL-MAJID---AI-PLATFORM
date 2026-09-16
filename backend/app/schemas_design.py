@@ -424,6 +424,24 @@ class DatasheetLibraryOut(BaseModel):
     datasheets: int = 0
 
 
+class DatasheetFileOut(BaseModel):
+    """One datasheet in a manufacturer's library, for browsing the library
+    from a project. The library is shared: the same files on every job."""
+
+    library: str
+    path: str
+    folder: str
+    filename: str
+    document_no: str | None = None
+    pages: int = 0
+    size: int = 0
+    # The first page gives a document number or says DATASHEET. False for
+    # another manufacturer's sheet filed here (the Rocket batteries), which
+    # is still the datasheet for those parts.
+    reads_as_datasheet: bool = True
+    unreadable: bool = False
+
+
 class UnresolvedPartOut(BaseModel):
     """A part whose current could not be filled from the datasheets."""
 

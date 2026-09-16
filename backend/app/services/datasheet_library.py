@@ -123,6 +123,37 @@ def read_battery_datasheet(first_page: str) -> BatteryDatasheet | None:
     return None
 
 
+# Folders inside a manufacturer's library that hold no product datasheets.
+# `library/datasheets/<BRAND>/` is meant to hold datasheets only, but the
+# Edwards library is synced from the whole EST4 archive folder, which carries
+# the submittal builder and the EST4 manuals along with it.
+NOT_DATASHEET_FOLDERS = ("submittal",)
+# One-page dividers the submittal package puts in front of a section.
+_COVER_PAGE_RE = re.compile(r"(?i)^(\d+[-. ]*)?cover\s*page\.pdf$")
+
+
+@dataclass
+class DatasheetFile:
+    """One PDF in a manufacturer's library, as the library holds it.
+
+    `reads_as_datasheet` is what the index made of the first page: a
+    document number, or the word DATASHEET on it. It is not a filter --
+    another manufacturer's sheet in the folder (the Rocket batteries) gives
+    neither and is still the datasheet for those parts -- so it is reported
+    and left to the reader.
+    """
+
+    library: str
+    path: str  # relative to the library folder
+    folder: str  # the section it is filed under, "" at the library root
+    filename: str
+    document_no: str | None
+    pages: int
+    size: int
+    reads_as_datasheet: bool
+    unreadable: bool
+
+
 @dataclass
 class DatasheetMatch:
     library: str
@@ -314,6 +345,38 @@ class DatasheetLibrary:
     def count(self) -> int:
         """How many PDFs the library holds."""
         return len(self._refresh())
+
+    def listing(self) -> list["DatasheetFile"]:
+        """Every product datasheet in the library, filed section by section.
+
+        The submittal builder and the EST4 manuals sit in the same synced
+        folder without being datasheets, so they are left out (see
+        `NOT_DATASHEET_FOLDERS`), as are the one-page section dividers.
+        """
+        files = []
+        for path, entry in self._refresh().items():
+            try:
+                relative = path.relative_to(self.folder)
+            except ValueError:
+                continue
+            parts = relative.parts
+            if any(any(skip in part.lower() for skip in NOT_DATASHEET_FOLDERS) for part in parts[:-1]):
+                continue
+            if _COVER_PAGE_RE.match(path.name):
+                continue
+            files.append(DatasheetFile(
+                library=self.name,
+                path=str(relative).replace("\\", "/"),
+                folder="/".join(parts[:-1]),
+                filename=path.name,
+                document_no=entry.document_no,
+                pages=entry.pages,
+                size=entry.size,
+                reads_as_datasheet=entry.is_datasheet,
+                unreadable=bool(entry.error),
+            ))
+        files.sort(key=lambda f: (f.folder.lower(), f.filename.lower()))
+        return files
 
     def find(self, part_no: str) -> list[DatasheetMatch]:
         key = part_key(part_no)

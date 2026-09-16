@@ -18,6 +18,7 @@ from app.models import DesignRule, User
 from app.routers.projects import CREATOR_ROLES
 from app.schemas_design import (
     BatteryUnitIn,
+    DatasheetFileOut,
     DatasheetLibraryOut,
     DatasheetMatchOut,
     DatasheetRowOut,
@@ -157,6 +158,38 @@ def reindex_datasheet_libraries(
     for library in _libraries().values():
         library.reindex()
     return list_datasheet_libraries(_current_user)
+
+
+@router.get("/datasheets/all", response_model=list[DatasheetFileOut])
+def list_all_datasheets(
+    manufacturer: str | None = None,
+    _current_user: User = Depends(get_current_user),
+) -> list[DatasheetFileOut]:
+    """Every datasheet the platform holds, filed as the library files them.
+
+    The library is shared, so this is the same list on every project: a
+    project page shows it to say what can be looked up, and links to each
+    file through `/datasheets/file`. The submittal builder and the EST4
+    manuals live in the same synced folder and are not datasheets, so they
+    are left out.
+    """
+    files = []
+    for library in libraries_for(manufacturer, _libraries()):
+        files += library.listing()
+    return [
+        DatasheetFileOut(
+            library=f.library,
+            path=f.path,
+            folder=f.folder,
+            filename=f.filename,
+            document_no=f.document_no,
+            pages=f.pages,
+            size=f.size,
+            reads_as_datasheet=f.reads_as_datasheet,
+            unreadable=f.unreadable,
+        )
+        for f in files
+    ]
 
 
 @router.get("/datasheets", response_model=list[DatasheetMatchOut])

@@ -1509,3 +1509,17 @@ export interface Account {
   activity_total: number;
   actions: string[];
 }
+
+/** One datasheet in a manufacturer's library. The library is shared, so the
+ * same files are on every project. */
+export interface DatasheetFile {
+  library: string;
+  path: string;
+  folder: string;
+  filename: string;
+  document_no: string | null;
+  pages: number;
+  size: number;
+  reads_as_datasheet: boolean;
+  unreadable: boolean;
+}

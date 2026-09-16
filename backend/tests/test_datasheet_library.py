@@ -132,6 +132,56 @@ def test_api_finds_and_serves_datasheets(client, library, monkeypatch):
     assert resp.status_code == 404
 
 
+@pytest.fixture()
+def mixed_library(tmp_path) -> DatasheetLibrary:
+    """A library filed the way the synced Edwards folder really is: product
+    datasheets, the submittal builder alongside them, section dividers, and
+    another manufacturer's sheet that carries no Edwards document number."""
+    root = tmp_path / "EDWARDS"
+    _pdf(root / "01- PANEL" / "01- 4-CPU.pdf",
+         [[(72, 60, "D A T A S H E E T E85014-0010"), (72, 90, "Central Processor")]])
+    _pdf(root / "01- PANEL" / "00- coverpage.pdf", [[(72, 60, "Panel")]])
+    _pdf(root / "12- Battery_Rocket" / "ES 18-12.pdf", [[(72, 60, "ES 18-12 12V 18Ah")]])
+    _pdf(root / "submittal builder" / "Trade License" / "licence.pdf", [[(72, 60, "Trade Licence")]])
+    _pdf(root / "00- submittal" / "userguide.pdf", [[(72, 60, "EST4 User Guide")]])
+    return DatasheetLibrary("EDWARDS", root)
+
+
+def test_the_listing_leaves_out_what_is_not_a_datasheet(mixed_library):
+    paths = [f.path for f in mixed_library.listing()]
+    assert paths == ["01- PANEL/01- 4-CPU.pdf", "12- Battery_Rocket/ES 18-12.pdf"]
+    # All five PDFs are still indexed and findable; only the listing narrows.
+    assert mixed_library.count() == 5
+
+
+def test_the_listing_reports_a_sheet_without_a_document_number(mixed_library):
+    rocket = next(f for f in mixed_library.listing() if f.folder == "12- Battery_Rocket")
+    # Another manufacturer's sheet: no Edwards document number, and still the
+    # datasheet for those parts, so it is listed and flagged rather than hidden.
+    assert rocket.reads_as_datasheet is False
+    assert rocket.document_no is None
+    assert rocket.filename == "ES 18-12.pdf" and rocket.pages == 1
+
+    cpu = next(f for f in mixed_library.listing() if f.folder == "01- PANEL")
+    assert cpu.reads_as_datasheet is True and cpu.document_no == "E85014-0010"
+
+
+def test_api_lists_the_whole_library(client, mixed_library, monkeypatch):
+    import app.routers.design_rules as design_rules_router
+
+    monkeypatch.setattr(design_rules_router, "_libraries", lambda: {"EDWARDS": mixed_library})
+    login(client, settings.default_admin_email, settings.default_admin_password)
+
+    rows = client.get("/design-rules/datasheets/all").json()
+    assert [r["path"] for r in rows] == ["01- PANEL/01- 4-CPU.pdf", "12- Battery_Rocket/ES 18-12.pdf"]
+    assert rows[0]["library"] == "EDWARDS" and rows[0]["folder"] == "01- PANEL"
+
+    # The listed path is what /datasheets/file takes, forward slashes and all.
+    served = client.get("/design-rules/datasheets/file",
+                        params={"library": "EDWARDS", "path": rows[0]["path"]})
+    assert served.status_code == 200 and served.content.startswith(b"%PDF")
+
+
 @requires_live_archive
 def test_live_edwards_library():
     libraries = get_libraries(settings.model_fields["archive_datasheet_libraries"].default, LIVE_ROOT)

@@ -1,9 +1,9 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { DocumentIntakePanel } from "../components/DocumentIntakePanel";
-import { ApiError, api } from "../lib/api";
+import { ApiError, api, apiUrl } from "../lib/api";
 import { copyText, shortPath } from "../lib/format";
-import { PROJECT_EDITOR_ROLES, type Project } from "../lib/types";
+import { PROJECT_EDITOR_ROLES, type DatasheetFile, type Project } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
 /** The Design Sheet codes the platform reads. Which of them this project
@@ -154,6 +154,8 @@ export function ProjectDocumentsPage() {
         </p>
       </section>
 
+      <DatasheetLibrarySection />
+
       <section className="mt-4 rounded-xl border border-gray-200 bg-white p-5">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Source Folder</h2>
         {project.source_folder_path ? (
@@ -277,4 +279,85 @@ function AddSheet({ busy, onPick }: { busy: boolean; onPick: (file: File, code: 
       <UploadButton label="Add a Design Sheet" busy={busy} onPick={(file) => onPick(file, code.trim())} />
     </div>
   );
+}
+
+/** The manufacturers' datasheet library, as it stands on every project.
+ *
+ * These are not this project's files: the library is shared and read-only,
+ * which is why the rows carry no upload or remove action. The section is
+ * here so an engineer can see from the project what the platform can look a
+ * part up in, and open any sheet. */
+function DatasheetLibrarySection() {
+  const [files, setFiles] = useState<DatasheetFile[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    api
+      .get<DatasheetFile[]>("/design-rules/datasheets/all")
+      .then((rows) => live && setFiles(rows))
+      .catch((err) => live && setError(err instanceof ApiError ? err.message : "The datasheet library could not be read"));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const sections = groupByFolder(files ?? []);
+
+  return (
+    <section className="mt-4 rounded-xl border border-gray-200 bg-white p-5">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Datasheets</h2>
+        {files !== null && (
+          <button onClick={() => setOpen((v) => !v)} className="text-xs font-semibold text-brand-600 hover:underline">
+            {open ? "Hide" : `Show all ${files.length}`}
+          </button>
+        )}
+      </div>
+      {error && <p className="mt-2 text-sm text-amber-700">{error}</p>}
+      {files === null && !error && <p className="mt-2 text-sm text-gray-500">Reading the datasheet library...</p>}
+      {files !== null && (
+        <p className="mt-1 text-sm text-gray-600">
+          {files.length} datasheet{files.length === 1 ? "" : "s"} in {sections.length} section
+          {sections.length === 1 ? "" : "s"}, shared by every project. The library is read-only here.
+        </p>
+      )}
+      {open &&
+        sections.map(([folder, rows]) => (
+          <div key={folder} className="mt-3">
+            <h3 className="text-xs font-semibold text-navy-900">{folder || "Library root"}</h3>
+            <ul className="mt-1 divide-y divide-gray-100">
+              {rows.map((f) => (
+                <li key={`${f.library}/${f.path}`} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
+                  <a
+                    href={apiUrl(`/design-rules/datasheets/file?library=${encodeURIComponent(f.library)}&path=${encodeURIComponent(f.path)}`)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="min-w-0 flex-1 truncate font-medium text-brand-600 hover:underline"
+                  >
+                    {f.filename}
+                  </a>
+                  <span className="text-xs text-gray-500">
+                    {f.document_no ?? "no document number"} · {f.pages} page{f.pages === 1 ? "" : "s"}
+                  </span>
+                  {f.unreadable && <span className="text-xs font-medium text-red-600">unreadable</span>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+    </section>
+  );
+}
+
+/** The library's own filing, kept in the order the endpoint returns. */
+function groupByFolder(files: DatasheetFile[]): [string, DatasheetFile[]][] {
+  const sections = new Map<string, DatasheetFile[]>();
+  for (const file of files) {
+    const rows = sections.get(file.folder);
+    if (rows) rows.push(file);
+    else sections.set(file.folder, [file]);
+  }
+  return [...sections.entries()];
 }
