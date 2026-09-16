@@ -5,8 +5,10 @@ __pycache__/
 .pytest_cache/
 *.db
 
-# Env
+# Env -- and any copy of it kept beside it before an edit: it holds the secret key
+# and the admin password.
 .env
+*.env.bak*
 
 # Server logs
 *.log

@@ -18,11 +18,25 @@ Install **Python 3.12**, **Node.js**, **Git**, and optionally **Tesseract OCR**
 (scanned DRFs and Design Sheets) and **Claude Code** (the AI features). Then:
 
 ```
+git config --global core.longpaths true    # once per PC, before cloning (see below)
 git clone https://github.com/mohamedr69/JUMAA-AL-MAJID---AI-PLATFORM.git
 cd JUMAA-AL-MAJID---AI-PLATFORM
 setup.bat        # once: Python packages, backend\.env with a new secret key, npm packages
 start.bat        # every time: API on :8000, web app on :5173, opens the browser
 ```
+
+The `core.longpaths` line matters on Windows: the company library keeps the
+manufacturers' folder names, and its deepest datasheet path is 166 characters
+before the clone folder is added. Without it, a clone into any folder longer
+than about 90 characters -- a OneDrive-redirected Documents folder, say --
+stops with "Filename too long" and a half-checked-out tree. `setup.bat` sets
+it too, so later pulls are safe; only the first clone comes before it.
+
+Clone into a **short folder** all the same -- `C:\dev` is what this was built
+in. Git copes with long paths once told to; Python does not unless Windows'
+own long-path setting is on, and a clone folder past about 90 characters puts
+the deepest datasheets out of the library's reach. `setup.bat` warns when the
+folder is too long.
 
 Nothing else needs setting:
 
@@ -38,7 +52,9 @@ Nothing else needs setting:
   Windows user that runs the platform.
 
 Projects, statements and approvals live in each PC's own database; they are not
-shared by the repository.
+shared by the repository. To carry them to another PC, stop the API and copy
+`backend/ep_platform.db` (with `backend/uploads/` if documents were uploaded)
+into the same place on the other machine; it is migrated on the next start.
 
 ## Setting up on a machine
 
