@@ -419,6 +419,11 @@ class BatteryPanelOut(BaseModel):
     selected: list[BatterySetOut] | None
     selected_ah: float | None
     notes: list[str] = Field(default_factory=list)
+    # The previous calculation, shown because recalculating this panel
+    # failed (`error` says how); fresh figures replace it on the next read
+    # that succeeds.
+    stale: bool = False
+    error: str | None = None
 
 
 class BoqGroupOut(BaseModel):
@@ -450,6 +455,10 @@ class BatteryCalculationOut(BaseModel):
     result_hash: str = ""
     complete: bool = True
     incomplete_reasons: list[str] = Field(default_factory=list)
+    # Panels read back from their saved calculation (inputs unchanged) and
+    # panels calculated on this read (inputs moved, or never calculated).
+    reused_panels: int = 0
+    recalculated_panels: int = 0
     # Parts the platform set to draw no current on its own (a mechanical
     # description, a part built into a module) that no engineer has confirmed.
     needs_confirmation: list[dict] = Field(default_factory=list)

@@ -11,6 +11,7 @@ import {
   type ExtraComponent,
   type PanelSettings,
 } from "../lib/types";
+import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { useProject } from "./ProjectWorkspace";
 
 type SizingField = "standby_hours" | "alarm_minutes" | "spare_factor" | "panel_voltage";
@@ -210,6 +211,29 @@ export function ProjectBatteryPage() {
       </div>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+
+      {/* Opening this page computes nothing the platform already holds: each
+          panel comes from its saved calculation while its inputs stand. The
+          folder is read only by "Sync documents". */}
+      <div className="mt-4">
+        <SyncDocumentsCard
+          projectId={project.id}
+          canEdit={canEdit}
+          compact
+          onSynced={() => {
+            void fetchCalculation().then((calc) => accept(calc, true)).catch(() => undefined);
+          }}
+        />
+      </div>
+      {panels.some((p) => p.stale) && (
+        <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {panels.filter((p) => p.stale).map((p) => (
+            <div key={p.key}>
+              <span className="font-semibold">{p.name || p.heading}</span>: the previous calculation is shown because recalculating it failed ({p.error}). It is recalculated on the next open once the cause is fixed.
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="mt-5 flex flex-wrap items-center gap-6 rounded-xl border border-gray-200 bg-white px-5 py-4">
         <Stat icon={<IconCalc />} tint="bg-blue-50 text-blue-600" value={panels.length} label="Panels" />

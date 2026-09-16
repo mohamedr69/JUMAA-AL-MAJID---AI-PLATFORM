@@ -717,6 +717,9 @@ export interface BatterySet {
 }
 
 export interface BatteryPanel {
+  /** The previous calculation, shown because recalculating this panel failed (`error` says how). */
+  stale?: boolean;
+  error?: string | null;
   heading: string;
   system_code: string | null;
   /** "panel": one card per panel quoted; "aps" / "bps": one card for the
@@ -760,6 +763,9 @@ export interface BoqGroup {
 export interface BatteryCalculation {
   /** The version a save names in If-Match. */
   design_version?: number;
+  /** Panels read back from their saved calculation, and panels calculated on this read. */
+  reused_panels?: number;
+  recalculated_panels?: number;
   /** What the figures were made from and what they are (backend calc_integrity). */
   input_hash?: string;
   result_hash?: string;

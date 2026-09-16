@@ -37,6 +37,7 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import io
+import os
 import re
 from datetime import datetime
 from pathlib import Path
@@ -217,7 +218,7 @@ def listing_fingerprint(root: Path) -> tuple[str, int]:
         if n >= MAX_PDFS:
             break
         try:
-            stat = path.stat()
+            stat = os.stat(document_control._os_path(path))   # a path past 260 characters included
         except OSError:
             continue
         digest.update(f"{path.relative_to(root)}|{stat.st_size}|{int(stat.st_mtime)}".encode("utf-8", "replace"))
@@ -515,7 +516,7 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
     for index, path in enumerate(files, start=1):
         if ctx is not None:
             ctx.progress(index - 1, len(files), f"AI reading {path.name} ({index} of {len(files)})")
-        stat = path.stat()
+        stat = os.stat(document_control._os_path(path))
         fingerprint.update(f"{path}|{stat.st_size}|{int(stat.st_mtime)}".encode())
         sha = pipeline.sha256_of(path) or ""
         reading = read_form(db, run, path, document_sha=sha, user_id=user.id if user else None)

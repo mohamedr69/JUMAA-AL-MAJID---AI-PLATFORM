@@ -58,9 +58,11 @@ SCOPE = "default"   # single tenant today; part of every cache key so a later sp
 
 
 def sha256_of(path: Path) -> str | None:
+    from app.services.document_control import _os_path   # the long-path form of a deep archive path
+
     try:
         digest = hashlib.sha256()
-        with open(path, "rb") as handle:
+        with open(_os_path(path), "rb") as handle:
             for chunk in iter(lambda: handle.read(1 << 20), b""):
                 digest.update(chunk)
         return digest.hexdigest()

@@ -412,7 +412,17 @@ request.
   saved BOQ; compliance loads the stored specification locations and
   checks a clause only when asked; the battery calculation is Python
   arithmetic over stored inputs (the BOQ quantities, the equipment current
-  table), recomputed per panel from what is saved, with no AI in it.
+  table) with no AI in it, and each panel's result is kept
+  (`battery_panel_results`) under the hash of its own inputs -- its BOQ
+  lines, its settings, the currents of its parts, the batteries on file --
+  so opening the page reads a panel back while those stand, recalculates
+  only a panel whose inputs moved (a BPS quantity changed: that BPS alone),
+  and, when a recalculation fails, keeps the previous figures visible
+  marked stale with the reason (`reused_panels` / `recalculated_panels` in
+  `GET /projects/{id}/design/battery`). The compliance statement does the
+  same for its clauses: when the BOQ, the scope, the knowledge base or the
+  specification moves, only the rows answered from the knowledge base or
+  the model are flagged for recheck; the engineer's answers stand.
 
 ### The AI reads the material submittals
 

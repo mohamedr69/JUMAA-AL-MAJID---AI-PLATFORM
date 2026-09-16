@@ -51,6 +51,27 @@ def battery_inputs(lines: list, design, sizing_rule, selection_rule, currents: d
     }
 
 
+def panel_inputs(heading: str, system_code: str | None, instance: int, kind: str, lines: list, sizing: dict,
+                 extras: list, currents: dict, batteries: dict) -> dict:
+    """Everything one panel's calculation reads -- its own BOQ lines, its
+    sizing, the loads added by hand, the currents of its parts and the
+    batteries on file -- so that a change elsewhere in the BOQ or the
+    catalogue is not a change to this panel."""
+    from app.services.battery_calculation import part_key
+
+    named = {part_key(line.catalog_no or "") for line in lines if line.catalog_no}
+    named |= {part_key(extra.get("part_no") or "") for extra in extras if extra.get("part_no")}
+    return {
+        "heading": heading, "system": system_code, "instance": instance, "kind": kind,
+        "lines": [[l.system_code, l.group_heading, l.catalog_no, l.description, l.quantity, l.manufacturer] for l in lines],
+        "sizing": sizing,
+        "extras": extras,
+        "currents": sorted([key, c.rule_id, c.rule_version, c.standby_ma, c.alarm_ma, c.datasheet]
+                           for key, c in currents.items() if key in named),
+        "batteries": sorted([key, b.capacity_ah, b.voltage, b.brand, b.datasheet] for key, b in batteries.items()),
+    }
+
+
 def battery_result(panels: list) -> list:
     return [[p.key, p.total_ah, p.required_ah, p.lower_bound, sorted(p.missing_parts), p.status,
              [[s.part_no, s.units, s.strings] for s in (p.selected or [])]] for p in panels]

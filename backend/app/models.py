@@ -473,6 +473,30 @@ class DocumentDependency(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
+class BatteryPanelResult(Base):
+    """One panel's battery calculation as last made, under the hash of
+    everything it was made from: its BOQ lines, its settings, the currents
+    of its parts, the batteries on file. Read back while those stand, so a
+    panel nothing changed for is not recomputed; recomputed for that panel
+    alone when they move; kept and marked `stale` when a recalculation
+    fails, so the previous figures stay visible."""
+
+    __tablename__ = "battery_panel_results"
+    __table_args__ = (UniqueConstraint("project_id", "panel_key", name="uq_battery_panel_result"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    # "<system>|<BOQ group heading>|<n>", as app.schemas_design.BatteryDesign keys its panels.
+    panel_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # app.schemas_design.BatteryPanelOut, as JSON.
+    result: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # "fresh" | "stale"
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="fresh", server_default="fresh")
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class BoqCandidate(Base):
     """A re-read of the Design Sheets waiting on an engineer.
 

@@ -18,6 +18,7 @@ import {
 import { useUnsavedChanges } from "../lib/useUnsavedChanges";
 import { useJob } from "../lib/useJob";
 import { JobProgress } from "../components/JobProgress";
+import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { UnderMaintenance } from "../components/UnderMaintenance";
 import { ExtractionReview } from "../components/ExtractionReview";
 import { AiCheckBadge, AiVerificationPanel } from "../components/AiVerificationPanel";
@@ -375,6 +376,9 @@ export function ProjectBoqPage() {
           </div>
           <h1 className="text-3xl font-bold text-navy-900">Bill of Quantities (BOQ)</h1>
           <p className="mt-1 text-sm text-gray-500">Line items per system. The Design Sheets under Documents are the source.</p>
+          <div className="mt-3">
+            <SyncDocumentsCard projectId={project.id} canEdit={canEdit} compact onSynced={() => setReloadEpoch((n) => n + 1)} />
+          </div>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <Link

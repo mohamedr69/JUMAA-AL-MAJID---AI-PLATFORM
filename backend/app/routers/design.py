@@ -17,20 +17,21 @@ from app.core.config import get_settings
 from app.core.timeutils import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_role
-from app.models import DesignRule, Project, ProjectDesign, User
+from app.models import BatteryPanelResult, DesignRule, Project, ProjectDesign, User
 from app.routers.design_rules import active_rules, rule_out, save_rule_version
 from app.routers.projects import CREATOR_ROLES, XLSX_MEDIA_TYPE, _get_project_or_404
 from app.schemas_design import (
     BatteryCalculationOut,
     BatteryDesign,
-    BatterySetOut,
-    PanelSettings,
     BatteryFillOut,
     BatteryLineOut,
-    FilledCurrentOut,
-    UnresolvedPartOut,
+    BatteryPanelOut,
+    BatterySetOut,
     DesignDocument,
     DesignRuleOut,
+    FilledCurrentOut,
+    PanelSettings,
+    UnresolvedPartOut,
     VoiceEvacuationDesign,
     VoiceEvacuationImportIn,
     VoiceEvacuationOut,
@@ -417,6 +418,7 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
     design = _stored_battery_design(project)
     panels, groups = [], []
     currents: dict = {}
+    reused_panels = recalculated_panels = 0
     if rule is not None:
         currents = {
             r.key: PartCurrent(
@@ -436,6 +438,12 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
         # them carries the same load, so it is calculated once.
         of_kind = {kind: sum(1 for t in types if t.kind == kind) for kind in SIZED_KINDS}
         numbered = {kind: 0 for kind in SIZED_KINDS}
+        # Each panel's last calculation, under the hash of what it was made
+        # from: read back while that stands, recalculated -- this panel
+        # alone -- when it moved, kept and marked stale when recalculating
+        # fails. Python arithmetic either way; no model is ever asked.
+        saved_results = {r.panel_key: r for r in db.query(BatteryPanelResult).filter(BatteryPanelResult.project_id == project.id)}
+        results_changed = False
         for panel_type in types:
             instances = range(1, panel_type.count + 1) if panel_type.kind == "panel" else [1]
             for instance in instances:
@@ -443,10 +451,35 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
                 settings = design.panels.get(key) or PanelSettings()
                 overridden = [f for f in SIZING_FIELDS if getattr(settings, f) is not None]
                 sizing = {f: getattr(settings, f) if f in overridden else defaults[f] for f in SIZING_FIELDS}
-                panel = calculate_panel(
-                    panel_type.heading, panel_type.system_code, members[(panel_type.system_code, panel_type.heading)],
-                    Sizing(**sizing), currents, batteries, extras=settings.extra_components, kind=panel_type.kind,
-                )
+                panel_lines = members[(panel_type.system_code, panel_type.heading)]
+                extras = [e.model_dump(mode="json") for e in settings.extra_components]
+                digest = calc_integrity.stable_hash(calc_integrity.panel_inputs(
+                    panel_type.heading, panel_type.system_code, instance, panel_type.kind, panel_lines, sizing, extras,
+                    currents, batteries))
+                saved = saved_results.get(key)
+                if saved is not None and saved.input_hash == digest and saved.state == "fresh":
+                    panel = BatteryPanelOut.model_validate(saved.result)
+                    reused_panels += 1
+                else:
+                    try:
+                        panel = calculate_panel(
+                            panel_type.heading, panel_type.system_code, panel_lines,
+                            Sizing(**sizing), currents, batteries, extras=settings.extra_components, kind=panel_type.kind,
+                        )
+                    except Exception as exc:  # noqa: BLE001 -- the previous figures stay visible, marked
+                        if saved is None:
+                            raise
+                        panel = BatteryPanelOut.model_validate(saved.result)
+                        panel.stale, panel.error = True, f"{type(exc).__name__}: {exc}"[:500]
+                        saved.state, saved.error = "stale", panel.error
+                    else:
+                        recalculated_panels += 1
+                        if saved is None:
+                            saved = BatteryPanelResult(project_id=project.id, panel_key=key, input_hash=digest, result={})
+                            db.add(saved)
+                        saved.input_hash, saved.state, saved.error = digest, "fresh", None
+                        saved.result = panel.model_dump(mode="json")
+                    results_changed = True
                 panel.key, panel.instance = key, instance
                 numbered[panel_type.kind] += 1
                 label = SIZED_KINDS[panel_type.kind]
@@ -456,6 +489,8 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
                 panel.location = settings.location
                 panel.settings, panel.overridden = sizing, overridden
                 panels.append(panel)
+        if results_changed:
+            db.commit()
 
     unlisted: dict[str, dict] = {}
     for panel in panels:
@@ -509,6 +544,8 @@ def _battery_calculation(db: Session, project: Project) -> BatteryCalculationOut
         complete=not reasons,
         incomplete_reasons=reasons,
         needs_confirmation=needs_confirmation,
+        reused_panels=reused_panels,
+        recalculated_panels=recalculated_panels,
     )
     out.input_hash = calc_integrity.stable_hash(
         calc_integrity.battery_inputs(lines, design, rule, selection, currents, batteries))

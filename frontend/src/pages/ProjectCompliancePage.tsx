@@ -23,6 +23,7 @@ import {
   type WorkflowStatus,
 } from "../lib/types";
 import { useUnsavedChanges } from "../lib/useUnsavedChanges";
+import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { useProject } from "./ProjectWorkspace";
 
 // --- helpers -----------------------------------------------------------------------
@@ -251,6 +252,9 @@ export function ProjectCompliancePage() {
         <div>
           <h1 className="text-2xl font-bold text-navy-900">Compliance Statement</h1>
           <p className="mt-1 text-sm text-gray-500">Review and respond to every specification clause.</p>
+          <div className="mt-3">
+            <SyncDocumentsCard projectId={project.id} canEdit={canEdit} compact onSynced={() => void load()} />
+          </div>
         </div>
         <div className="text-right">
           <button onClick={() => load(true)} disabled={busy} className={btnSecondary}>

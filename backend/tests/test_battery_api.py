@@ -509,3 +509,47 @@ def test_a_panel_still_missing_a_current_is_shown_as_a_lower_bound(client, tmp_p
     # substitute a middle dot for it.
     assert ">=" in text
     assert "Pending: a part has no current yet" in text
+
+
+def test_a_panel_is_recalculated_only_when_its_own_inputs_move(client, db_session, monkeypatch):
+    """Each panel's calculation is kept under the hash of its inputs: an
+    unchanged panel is read back, a panel whose part got a current is the
+    one recalculated, and a recalculation that fails leaves the previous
+    figures visible, marked stale."""
+    from app.models import BatteryPanelResult
+    from app.routers import design as design_router
+
+    _login_admin(client)
+    project_id = _project_with_boq(client)
+    first = client.get(f"/projects/{project_id}/design/battery").json()
+    assert (first["reused_panels"], first["recalculated_panels"]) == (0, 2)
+    again = client.get(f"/projects/{project_id}/design/battery").json()
+    assert (again["reused_panels"], again["recalculated_panels"]) == (2, 0)
+    assert again["panels"] == first["panels"]
+
+    # A current arrives for a part of the main panel: that panel alone is recalculated.
+    assert _current(client, "4-CPU", 211, 211).status_code == 200
+    third = client.get(f"/projects/{project_id}/design/battery").json()
+    assert (third["reused_panels"], third["recalculated_panels"]) == (1, 1)
+    main = next(p for p in third["panels"] if p["kind"] == "panel")
+    assert "4-CPU" not in main["missing_parts"] and not main["stale"]
+
+    # The next change reaches a calculation that falls over: the previous
+    # figures stay, marked stale with the reason; the other panel is untouched.
+    def broken(*args, **kwargs):
+        raise RuntimeError("the sizing rule fell over")
+
+    monkeypatch.setattr(design_router, "calculate_panel", broken)
+    assert _current(client, "3-SDDC2", 264, 336).status_code == 200
+    fourth = client.get(f"/projects/{project_id}/design/battery").json()
+    stale = next(p for p in fourth["panels"] if p["kind"] == "panel")
+    assert stale["stale"] and "fell over" in stale["error"]
+    assert stale["standby_ma"] == main["standby_ma"] and stale["missing_parts"] == main["missing_parts"]
+    assert (fourth["reused_panels"], fourth["recalculated_panels"]) == (1, 0)
+    assert {r.state for r in db_session.query(BatteryPanelResult).filter(BatteryPanelResult.project_id == project_id)} == {"fresh", "stale"}
+
+    # Recalculating works again: fresh figures replace the stale ones.
+    monkeypatch.undo()
+    fifth = client.get(f"/projects/{project_id}/design/battery").json()
+    fixed = next(p for p in fifth["panels"] if p["kind"] == "panel")
+    assert not fixed["stale"] and "3-SDDC2" not in fixed["missing_parts"]
