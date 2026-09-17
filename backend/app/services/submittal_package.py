@@ -725,6 +725,14 @@ def schedule_blocks(project: Project, system_code: str | None = None) -> list[tu
             if wanted and effective_code(row.system_code, project) != wanted:
                 continue
             added.append(row)
+    # The engineers' order, whatever the sheet's: the panel and its
+    # equipment first, then the repeater panels, then the APS and BPS
+    # cabinets, and the field devices last -- the BOQ's own order within
+    # each; the materials added on the tab at the end.
+    from app.services.battery_calculation import classify_group
+
+    rank = {"panel": 0, "repeater": 1, "aps": 2, "bps": 3}
+    order.sort(key=lambda key: rank.get(classify_group(None if key == UNGROUPED_BLOCK else key), 4))
     if added:
         order.append(ADDED_BLOCK)
         grouped[ADDED_BLOCK] = added

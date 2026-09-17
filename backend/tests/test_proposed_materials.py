@@ -202,3 +202,28 @@ def test_each_tab_exports_its_schedule_of_material_with_the_added_materials_on_i
     lighting = client.get(f"/projects/{project_id}/materials/schedule.pdf?system_code=ELS")
     text = "\n".join(page.get_text() for page in pymupdf.open(stream=lighting.content, filetype="pdf"))
     assert "SL2NM65D3-M" in text and "4-CPU" not in text and "PROPOSED MATERIALS" not in text
+
+
+def test_the_schedule_reads_panel_then_repeaters_then_aps_and_bps_then_field_devices(client, db_session):
+    from app.models import Project
+    from app.services.submittal_package import schedule_blocks
+
+    _login(client)
+    project_id = client.post("/projects", json={"ep_number": "30795", "project_name": "Titania", "design_sheets": []}).json()["id"]
+    line = lambda heading, part: {"system_code": "FAS", "group_heading": heading, "catalog_no": part, "description": part,  # noqa: E731
+                                  "quantity": "1", "manufacturer": "EDWARDS"}
+    # The sheet's order: field devices first, the panel last.
+    client.put(f"/projects/{project_id}/boq", json=[
+        line("Field Devices", "SIGA-PS"),
+        line("Booster Power Supply", "BPS10A"),
+        line("Auxiliary Power Supply", "APS6A"),
+        line("Repeater Panel", "4-2ANN"),
+        line("EST4 Main Fire Alarm Control Panel", "4-CPU"),
+        line("Notification Appliances", "G1AVRN"),
+    ])
+    client.post(f"/projects/{project_id}/materials", json={"system_code": "FAS", "catalog_no": "SIGA-LED"})
+    project = db_session.get(Project, project_id)
+    titles = [title for _letter, title, _items in schedule_blocks(project, "FAS")]
+    assert titles == ["EST4 Main Fire Alarm Control Panel", "Repeater Panel", "Auxiliary Power Supply", "Booster Power Supply",
+                      "Field Devices", "Notification Appliances", "Proposed materials (added beyond the BOQ)"]
+    assert [letter for letter, _t, _i in schedule_blocks(project, "FAS")] == list("ABCDEFG")
