@@ -7,19 +7,24 @@ document's content), so a sheet with the same content is never read by a
 model again: not on the same project reopened, not on another project filed
 with it.
 
-A line is never made from one reading. For each item row the model read:
+A line is never made from one reading. Every page is read twice -- the
+small tier, then the standard tier, each without sight of the other -- and
+the rows are paired by their text (the model's row boxes drift down a page,
+so nothing cut from a box alone can be trusted to hold the row). For each
+item row:
 
-  a second, independent reading of the row strip (the standard tier)
-  agrees on the quantity                              -> a BOQ line
-  the two readings disagree, or the second could not
-  read the row                                        -> one close-up reading at
-                                                         full scan resolution;
-                                                         it settles for whichever
-                                                         it agrees with, else the
-                                                         row is a row to review
-  the model could not read the quantity              -> a row to review, with
-                                                         the close-up's reading
-                                                         beside it
+  both readings quote it with the same quantity        -> a BOQ line
+  they dispute it, or only one of them read it        -> one close-up, at full
+                                                          scan resolution, of a
+                                                          strip around the row
+                                                          that names the row; it
+                                                          settles for whichever
+                                                          reading it agrees with,
+                                                          else the row is a row
+                                                          to review
+  neither reading could read the quantity            -> a row to review, with
+                                                          the close-up's reading
+                                                          beside it
 
 The lines carry the model's reading beside them, so the AI check of the BOQ
 (app.ai.verification) takes it from the line instead of asking again.
@@ -38,6 +43,7 @@ Nothing here writes a line into a project: the result is the
 from __future__ import annotations
 
 import dataclasses
+import difflib
 import io
 import re
 from collections.abc import Iterator
@@ -67,8 +73,14 @@ KIND = "design_sheet"
 PAGE_IMAGE_WIDTH = 1600
 BAND_HEIGHT = 1100
 BAND_OVERLAP = 180
-# Row strips composed for the second reading, per call (as the AI check does).
-ROWS_PER_CALL = 16
+# How far apart the two readings may place the same row and still be paired
+# (the model's boxes drift down a page; the text decides, this only rules out
+# the far rows), and how alike two descriptions must read to be one row.
+ROW_MATCH_PX = 320
+DESCRIPTION_MATCH = 0.8
+# A close-up shows this many row heights above and below the box it was cut
+# for, so the row is in the image despite the drift; the prompt names the row.
+CLOSE_UP_ROWS = 2
 # A stored reading is about the exact document content it was made from.
 STORED_READING_DAYS = 36_500
 
@@ -280,7 +292,8 @@ def _clean(text) -> str:
     return re.sub(r"[ \t]+", " ", str(text or "")).strip()
 
 
-def _read_page(run: _Run, document_sha: str, page_number: int, image: Image.Image, *, progress=None) -> dict:
+def _read_page(run: _Run, document_sha: str, page_number: int, image: Image.Image, *, progress=None,
+               tier: str = "small") -> dict:
     """One page's rows in page pixels at the extractor's DPI, or why it
     could not be read: {"page", "width", "height", "rows", "has_line_items",
     "failed"}."""
@@ -296,13 +309,14 @@ def _read_page(run: _Run, document_sha: str, page_number: int, image: Image.Imag
             return {"page": page_number, "width": width, "height": height, "rows": [], "has_line_items": False,
                     "failed": f"the AI budget ran out ({run.exhausted.replace('_', ' ')})"}
         if progress is not None:
-            progress(f"AI reading page {page_number}, band {index} of {len(page_bands)}")
+            progress(f"AI {'second ' if tier != 'small' else ''}reading of page {page_number}, band {index} of {len(page_bands)}")
         band = sent.crop((0, top, sent.width, bottom))
         data = run.call(
-            document_sha=document_sha, task="read_sheet_page", system=SYSTEM_PAGE,
+            document_sha=document_sha, task="read_sheet_page" if tier == "small" else "read_sheet_page_second",
+            system=SYSTEM_PAGE,
             parts=[TextPart("task", f"Page {page_number}, band {index} of {len(page_bands)}, top to bottom."),
                    ImagePart(f"page_{page_number}_band_{index}", _png(band))],
-            schema=PAGE_SCHEMA, max_output=8000, tier="small", effort=settings.ai_read_effort,
+            schema=PAGE_SCHEMA, max_output=8000, tier=tier, effort=settings.ai_read_effort,
         )
         if data is None:
             return {"page": page_number, "width": width, "height": height, "rows": [], "has_line_items": False,
@@ -338,16 +352,21 @@ def _read_page(run: _Run, document_sha: str, page_number: int, image: Image.Imag
 
 def read_document(db: Session, run: _Run, path: Path, *, document_sha: str, user_id: int | None = None,
                   ctx=None, on_page=None) -> DocumentReading:
-    """The stored reading of the sheet, made now if there is none. A failed
-    earlier reading is replaced, not kept beside a new one."""
+    """The stored reading of the sheet, made now if there is none: the
+    model's reading of every page (the small tier) and its second,
+    independent reading of the same pages (the standard tier), kept together
+    as {"pages": [...], "second": [...]}. A failed earlier reading is
+    replaced, not kept beside a new one; a reading stored before the second
+    reading was kept gets its second reading now."""
     existing = stored(db, document_sha)
-    if existing is not None:
+    if existing is not None and existing.reading.get("second") is not None:
         run.reused += 1
         return existing
     record = stored(db, document_sha, any_status=True)
-    pages: list[dict] = []
+    pages: list[dict] = list((existing.reading.get("pages") or [])) if existing is not None else []
+    second: list[dict] = []
     failed: list[str] = []
-    count = 0
+    count = existing.pages if existing is not None else 0
     for page_number, count, image in page_images(path):
         if on_page is not None:
             on_page(page_number, count)
@@ -356,15 +375,25 @@ def read_document(db: Session, run: _Run, path: Path, *, document_sha: str, user
             if ctx is not None:
                 ctx.progress(page_number - 1, count, f"{path.name}: {message}")
 
-        result = _read_page(run, document_sha, page_number, image, progress=progress)
-        pages.append(result)
-        if result["failed"]:
-            failed.append(f"page {page_number}: {result['failed']}")
+        if existing is None:
+            result = _read_page(run, document_sha, page_number, image, progress=progress)
+            pages.append(result)
+            if result["failed"]:
+                failed.append(f"page {page_number}: {result['failed']}")
+        second.append(_read_page(run, document_sha, page_number, image, progress=progress, tier="standard"))
+    if existing is not None:
+        run.reused += 1
+        existing.reading = {**existing.reading, "second": second}
+        existing.calls = (existing.calls or 0) + run.calls
+        db.commit()
+        db.refresh(existing)
+        return existing
     settings = get_settings()
     values = dict(
         project_id=run.project.id, kind=KIND, document_path=str(path), document_sha256=document_sha,
         model=", ".join(sorted(run.models)) or settings.ai_model_small, prompt_version=PROMPT_VERSION,
-        pages=count, reading={"pages": pages}, status="failed" if failed or not pages else "completed",
+        pages=count, reading={"pages": pages, "second": second},
+        status="failed" if failed or not pages else "completed",
         error="; ".join(failed)[:2000] if failed else ("the document has no pages" if not pages else None),
         calls=run.calls, created_by_id=user_id,
     )
@@ -386,11 +415,48 @@ def _norm(text: str | None) -> str:
     return re.sub(r"[^a-z0-9]", "", (text or "").lower())
 
 
+def _items(page: dict | None) -> list[dict]:
+    """The item rows of one page reading, in page order."""
+    return [row for row in ((page or {}).get("rows") or [])
+            if row.get("kind") == "item" and (row.get("description") or row.get("catalog_no"))]
+
+
+def _match(candidates: list[dict], row: dict, taken: set[int]) -> dict | None:
+    """The row of the other reading that is the same row as this one: the
+    same part number, or near-identical wording, near the same place on the
+    page. The text decides; the box only rules out the far rows, since the
+    model's boxes drift."""
+    centre = (row["box"][1] + row["box"][3]) / 2
+    part = identity.part_key(row["catalog_no"]) if row["catalog_no"] else ""
+    best: tuple[float, dict] | None = None
+    for other in candidates:
+        if id(other) in taken:
+            continue
+        if abs((other["box"][1] + other["box"][3]) / 2 - centre) > ROW_MATCH_PX:
+            continue
+        score = 0.0
+        ratio = difflib.SequenceMatcher(None, _norm(row["description"]), _norm(other["description"])).ratio()
+        if part and other["catalog_no"] and identity.part_key(other["catalog_no"]) == part:
+            score = 2.0 + ratio
+        elif ratio >= DESCRIPTION_MATCH:
+            score = ratio
+        if score and (best is None or score > best[0]):
+            best = (score, other)
+    if best is None:
+        return None
+    taken.add(id(best[1]))
+    return best[1]
+
+
 def _row_crop(image: Image.Image, box: list[int], *, label: str) -> Image.Image:
+    """A strip of the page around a row's box: CLOSE_UP_ROWS row heights
+    above and below it, so the row is in the strip even where the box has
+    drifted, with the label on the left."""
     from app.ai.verification import LABEL_WIDTH, _font
 
     x0, y0, x1, y1 = box
-    crop = image.crop((max(0, x0 - 16), max(0, y0 - 14), min(image.width, x1 + 16), min(image.height, y1 + 14)))
+    pad = max(60, (y1 - y0) * CLOSE_UP_ROWS)
+    crop = image.crop((max(0, x0 - 16), max(0, y0 - pad), min(image.width, x1 + 16), min(image.height, y1 + pad)))
     framed = Image.new("L", (crop.width + LABEL_WIDTH + 20, crop.height + 20), 255)
     framed.paste(crop, (LABEL_WIDTH + 10, 10))
     ImageDraw.Draw(framed).text((10, max(0, framed.height // 2 - 20)), label, fill=0, font=_font(40))
@@ -408,39 +474,22 @@ def _answer(answer: dict | None) -> dict | None:
                                   "description": _clean(answer.get("description")) or None})
 
 
-def _close_up(run: _Run, document_sha: str, image: Image.Image, box: list[int]) -> dict | None:
+def _close_up(run: _Run, document_sha: str, image: Image.Image, box: list[int], *, target: dict) -> dict | None:
+    """One close-up reading, at full scan resolution, of the row named by
+    `target` (its catalog number and description as first read): the strip
+    holds the rows around the box as well, and the model is told which one."""
     from app.ai.verification import ROWS_SCHEMA, SYSTEM_ROWS
 
+    name = f"catalog number '{target['catalog_no']}'" if target.get("catalog_no") else "no catalog number"
+    wording = (target.get("description") or "")[:60]
     data = run.call(document_sha=document_sha, task="read_sheet_row_close_up", system=SYSTEM_ROWS,
-                    parts=[TextPart("task", "1 row labelled R1, at full scan resolution"),
+                    parts=[TextPart("task", "1 row labelled R1, at full scan resolution. The strip shows the rows around "
+                                            f"it as well: R1 is the row with {name} and a description beginning "
+                                            f"'{wording}'. Report that row only; if it is not in the strip, "
+                                            "report it as not readable."),
                            ImagePart("row", _png(_row_crop(image, box, label="R1")))],
                     schema=ROWS_SCHEMA, max_output=600, tier="standard")
     return _answer(next((a for a in (data or {}).get("rows", []) if isinstance(a, dict)), None))
-
-
-def _second_readings(run: _Run, document_sha: str, image: Image.Image, boxes: list[list[int]]) -> list[dict | None]:
-    """Independent readings of the rows, ROWS_PER_CALL strips to an image,
-    by the standard tier -- the second source every line needs."""
-    from app.ai.verification import ROWS_SCHEMA, SYSTEM_ROWS, compose_rows
-
-    readings: list[dict | None] = [None] * len(boxes)
-    for start in range(0, len(boxes), ROWS_PER_CALL):
-        if run.exhausted:
-            break
-        batch = boxes[start:start + ROWS_PER_CALL]
-        crops = []
-        for index, box in enumerate(batch, start=1):
-            x0, y0, x1, y1 = box
-            crops.append((f"R{index}", image.crop((max(0, x0 - 16), max(0, y0 - 10),
-                                                   min(image.width, x1 + 16), min(image.height, y1 + 10)))))
-        data = run.call(document_sha=document_sha, task="read_sheet_rows_second", system=SYSTEM_ROWS,
-                        parts=[TextPart("task", f"{len(batch)} rows labelled R1 to R{len(batch)}"),
-                               ImagePart("rows", compose_rows(crops))],
-                        schema=ROWS_SCHEMA, max_output=min(8000, 200 + 90 * len(batch)), tier="standard")
-        by_label = {str(a.get("label", "")).strip().upper(): a for a in (data or {}).get("rows", []) if isinstance(a, dict)}
-        for index in range(len(batch)):
-            readings[start + index] = _answer(by_label.get(f"R{index + 1}"))
-    return readings
 
 
 # --- combining --------------------------------------------------------------------------
@@ -480,19 +529,24 @@ def _review_issue(line: ExtractedBoqLine, ordinal: int, *, reason: str, readings
 
 
 def combine(run: _Run, *, document_sha: str, reading: DocumentReading, page_image, ctx=None) -> DesignSheetExtraction:
-    """The model's reading, settled row by row by a second reading and, where
-    needed, a close-up, as the lines and the rows to review. `page_image(page)`
-    renders a page for the strips; it is only called for a page that needs one."""
+    """The model's two readings of every page, settled row by row into the
+    lines and the rows to review. A row both readings quote with the same
+    quantity is a line. A row they dispute, or one only one of them read,
+    goes to a close-up, which settles for whichever reading it agrees with;
+    a row nothing settles is a row to review, with every reading beside it.
+    `page_image(page)` renders a page for the close-ups; it is only called
+    for a page that needs one."""
     from app.ai.verification import agree_quantity
 
     result = DesignSheetExtraction(reader="ai", reading_id=reading.id)
+    second_by_page = {int(p["page"]): p for p in reading.reading.get("second") or [] if not p.get("failed")}
 
     lines: list[ExtractedBoqLine] = []
     review: list[tuple[ExtractedBoqLine, str, dict]] = []
     section: str | None = None
     heading: str | None = None
     any_items = False
-    settled = {"second": 0, "close_up": 0, "catalogued": 0}
+    settled = {"agreed": 0, "close_up": 0, "added": 0, "catalogued": 0}
 
     for page in reading.reading.get("pages") or []:
         number = int(page["page"])
@@ -507,7 +561,9 @@ def combine(run: _Run, *, document_sha: str, reading: DocumentReading, page_imag
         coverage.processed = True
         coverage.reason = "read by AI"
         image = None
-        page_lines: list[tuple[ExtractedBoqLine, dict]] = []
+        others = _items(second_by_page.get(number))
+        taken: set[int] = set()
+        page_lines: list[tuple[ExtractedBoqLine, dict, dict | None]] = []
         for row in page.get("rows") or []:
             if row["kind"] == "section":
                 if row["description"]:
@@ -521,62 +577,47 @@ def combine(run: _Run, *, document_sha: str, reading: DocumentReading, page_imag
                 continue
             if not row["description"] and not row["catalog_no"]:
                 continue
-            page_lines.append((_line_from(row, number, section, heading), row))
+            page_lines.append((_line_from(row, number, section, heading), row, _match(others, row, taken)))
         coverage.regions.append(RegionCoverage(kind="table", top=0, bottom=int(page.get("height") or 0),
                                                status="processed", rows_accepted=len(page_lines)))
 
-        # Every readable row gets a second, independent AI reading, in one go.
-        readable = [(line, row) for line, row in page_lines if row["readable"] and _quantity(row["quantity"])]
-        second: dict[int, dict | None] = {}
-        if readable and not run.exhausted:
-            if ctx is not None:
-                ctx.progress(0, 0, f"AI second reading of {len(readable)} row{'s' if len(readable) != 1 else ''} on page {number}")
-            image = image or page_image(number)
-            answers = _second_readings(run, document_sha, image, [r["box"] for _l, r in readable])
-            for (line, _row), answer in zip(readable, answers):
-                second[id(line)] = answer
-
-        for line, row in page_lines:
+        for line, row, partner in page_lines:
             ai_qty = _quantity(row["quantity"]) if row["readable"] else None
-            readings: dict[str, dict | None] = {"ai": line.ai_reading if row["readable"] else None}
-            if ai_qty is None:
-                # The model could not read the quantity: a close-up may, but
+            other_qty = _quantity(partner["quantity"]) if partner is not None and partner["readable"] else None
+            readings: dict[str, dict | None] = {
+                "ai": line.ai_reading if row["readable"] else None,
+                "ai_second": {"quantity": partner["quantity"], "catalog_no": partner["catalog_no"],
+                              "description": partner["description"]} if partner is not None and partner["readable"] else None,
+            }
+            if ai_qty is not None and other_qty is not None and agree_quantity(ai_qty, other_qty):
+                line.quantity, line.confidence = ai_qty, 92.0
+                settled["agreed"] += 1
+                lines.append(line)
+                continue
+            if run.exhausted:
+                review.append((line, "the AI budget ran out before the row could be settled", readings))
+                continue
+            # Disputed, or read by one reading only: one close-up settles it,
+            # or nobody does.
+            if ctx is not None:
+                ctx.progress(0, 0, f"AI close-up of a row on page {number}")
+            image = image or page_image(number)
+            close = _close_up(run, document_sha, image, row["box"], target=row)
+            readings["ai_close_up"] = close
+            close_qty = _quantity(close.get("quantity")) if close else None
+            if ai_qty is None and other_qty is None:
+                # Neither reading could read the quantity: a close-up may, but
                 # one reading is not two; the row is for the engineer, with
                 # the close-up's value beside it.
-                close = None
-                if not run.exhausted:
-                    image = image or page_image(number)
-                    close = _close_up(run, document_sha, image, row["box"])
-                readings["ai_close_up"] = close
                 if close and close.get("quantity"):
                     line.ai_reading = {**line.ai_reading, **{k: v for k, v in close.items() if v}}
                 review.append((line, "the model could not read the quantity with confidence", readings))
                 continue
-            other = second.get(id(line))
-            readings["ai_second"] = other
-            if other and other.get("quantity") and agree_quantity(ai_qty, other["quantity"]):
-                line.quantity, line.confidence = ai_qty, 92.0
-                settled["second"] += 1
-                lines.append(line)
-                continue
-            if run.exhausted:
-                review.append((line, "the AI budget ran out before a second reading", readings))
-                continue
-            # The readings disagree, or the second reading could not read
-            # the row: one close-up settles it, or nobody does.
-            close = None
-            if not run.exhausted:
-                image = image or page_image(number)
-                close = _close_up(run, document_sha, image, row["box"])
-            readings["ai_close_up"] = close
-            close_qty = _quantity(close.get("quantity")) if close else None
-            other = second.get(id(line))
-            other_qty = _quantity(other.get("quantity")) if other else None
-            if close_qty is not None and agree_quantity(close_qty, ai_qty):
+            if close_qty is not None and ai_qty is not None and agree_quantity(close_qty, ai_qty):
                 line.quantity, line.confidence = ai_qty, 90.0
             elif close_qty is not None and other_qty is not None and agree_quantity(close_qty, other_qty):
-                line.quantity, line.confidence = close_qty, 85.0
-                line.ai_reading = {**line.ai_reading, "quantity": close_qty}
+                line.quantity, line.confidence = other_qty, 85.0
+                line.ai_reading = {**line.ai_reading, "quantity": other_qty}
             else:
                 sources = ", ".join(f"{name} {(_quantity((value or {}).get('quantity')) or '-')}"
                                     for name, value in readings.items() if value is not None)
@@ -585,6 +626,22 @@ def combine(run: _Run, *, document_sha: str, reading: DocumentReading, page_imag
             settled["close_up"] += 1
             lines.append(line)
 
+        # Rows only the second reading found: a close-up confirms each, and
+        # it is a line only when the close-up reads the same quoted item.
+        for other in others:
+            if id(other) in taken or not other["readable"] or not _quantity(other["quantity"]) or run.exhausted:
+                continue
+            if ctx is not None:
+                ctx.progress(0, 0, f"AI close-up of a row on page {number}")
+            image = image or page_image(number)
+            close = _close_up(run, document_sha, image, other["box"], target=other)
+            close_qty = _quantity(close.get("quantity")) if close else None
+            if close_qty is None or not agree_quantity(close_qty, _quantity(other["quantity"])):
+                continue
+            line = _line_from(other, number, section, heading)
+            line.quantity, line.confidence = close_qty, 80.0
+            settled["added"] += 1
+            lines.append(line)
 
     lines.sort(key=lambda l: (l.page, l.y_px or 0))
     # The model reads a catalog number as printed, so its reading stands as
@@ -607,9 +664,10 @@ def combine(run: _Run, *, document_sha: str, reading: DocumentReading, page_imag
     if run.exhausted:
         result.notes.append(f"The AI budget ran out ({run.exhausted.replace('_', ' ')}); rows not reached are rows to review.")
     result.notes.append(
-        f"AI read {len(lines)} line{'s' if len(lines) != 1 else ''}: {settled['second']} confirmed by a second "
-        f"reading, {settled['close_up']} by a close-up; {len(review)} to review; "
-        f"{run.calls} call{'s' if run.calls != 1 else ''}, {run.reused} stored reading{'s' if run.reused != 1 else ''} reused"
+        f"AI read {len(lines)} line{'s' if len(lines) != 1 else ''}: {settled['agreed']} agreed by two readings, "
+        f"{settled['close_up']} settled by a close-up, {settled['added']} found by the second reading; "
+        f"{len(review)} to review; {run.calls} call{'s' if run.calls != 1 else ''}, "
+        f"{run.reused} stored reading{'s' if run.reused != 1 else ''} reused"
     )
     if not lines and not review and not any_items:
         result.failure = "The AI found no table of quoted items in this Design Sheet"

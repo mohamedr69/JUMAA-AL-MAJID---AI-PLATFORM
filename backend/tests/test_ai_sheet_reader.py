@@ -48,15 +48,15 @@ def _close_up(qty, catalog, description):
     return {"rows": [{"label": "R1", "quantity": qty, "catalog_no": catalog, "description": description, "readable": True}]}
 
 
-def _second(rows):
-    """The second reading of the readable rows, in page order."""
-    return {"rows": [{"label": f"R{index}", "quantity": qty, "catalog_no": catalog, "description": description, "readable": True}
-                     for index, (qty, catalog, description) in enumerate(rows, start=1)]}
+def _page_with(quantities: dict) -> dict:
+    """PAGE_ANSWER with some rows' quantities changed: a second reading of
+    the page that disputes those rows."""
+    rows = [dict(row, quantity=quantities.get(row["catalog_no"], row["quantity"])) for row in PAGE_ANSWER["rows"]]
+    return {"rows": rows, "has_line_items": True}
 
 
-# The second reading of PAGE_ANSWER's readable rows, agreeing with the first.
-SECOND = _second([("1", "4-CPU", "Central Processor Module"), ("120", "SIGA-PS", "Photoelectric smoke detector"),
-                  ("14", "SIGA-CT1", "Single input module")])
+# The second reading of the page, agreeing with the first on every row.
+SECOND = _page_with({})
 
 
 @pytest.fixture()
@@ -104,8 +104,7 @@ def test_bands_partition_a_page_and_overlap():
 def test_the_model_reads_the_sheet_and_a_second_reading_settles_it(client, db_session, tmp_path, ai, recording):
     sheet = tmp_path / "EP-70001 FAS Design.pdf"
     sheet.write_bytes(b"%PDF-1.4 one sheet")
-    # The page, the second reading of its readable rows, then a close-up of
-    # the row the model could not read.
+    # The page read twice, then a close-up of the row neither reading could read.
     recording.answers = [PAGE_ANSWER, SECOND, _close_up("30", "SIGA-HFS", "Heat detector")]
     project = _project(db_session, sheet)
     _login(client)
@@ -118,7 +117,7 @@ def test_the_model_reads_the_sheet_and_a_second_reading_settles_it(client, db_se
     assert by_catalog["SIGA-PS"]["quantity"] == "120", "two readings agree"
     assert by_catalog["4-CPU"]["group_heading"] == "B1 BUILDING"
     assert recording.calls == 3
-    assert [r.task for r in recording.requests] == ["read_sheet_page", "read_sheet_rows_second", "read_sheet_row_close_up"]
+    assert [r.task for r in recording.requests] == ["read_sheet_page", "read_sheet_page_second", "read_sheet_row_close_up"]
 
     run = db_session.query(ExtractionRun).filter(ExtractionRun.project_id == project.id).one()
     assert run.reader == "ai" and run.reading_id is not None and run.failure is None
@@ -162,11 +161,7 @@ def test_a_row_the_two_readings_dispute_goes_to_a_close_up(client, db_session, t
     agreeing make the line, and a close-up settles the rows they dispute."""
     sheet = tmp_path / "EP-70004 ELS Design.pdf"
     sheet.write_bytes(b"%PDF-1.4 unruled sheet")
-    second = {"rows": [
-        {"label": "R1", "quantity": "1", "catalog_no": "4-CPU", "description": "Central Processor Module", "readable": True},
-        {"label": "R2", "quantity": "120", "catalog_no": "SIGA-PS", "description": "Photoelectric smoke detector", "readable": True},
-        {"label": "R3", "quantity": "41", "catalog_no": "SIGA-CT1", "description": "Single input module", "readable": True},
-    ]}
+    second = _page_with({"SIGA-CT1": "41"})
     recording.answers = [PAGE_ANSWER, second,
                          _close_up("14", "SIGA-CT1", "Single input module"),   # the disputed row: sides with the page
                          _close_up("30", "SIGA-HFS", "Heat detector")]
@@ -177,8 +172,11 @@ def test_a_row_the_two_readings_dispute_goes_to_a_close_up(client, db_session, t
 
     assert body["warnings"] == []
     assert {i["catalog_no"]: i["quantity"] for i in body["items"]} == {"4-CPU": "1", "SIGA-PS": "120", "SIGA-CT1": "14"}
-    assert [r.task for r in recording.requests] == ["read_sheet_page", "read_sheet_rows_second",
+    assert [r.task for r in recording.requests] == ["read_sheet_page", "read_sheet_page_second",
                                                     "read_sheet_row_close_up", "read_sheet_row_close_up"]
+    # The close-up names the row it is after, since the model's boxes drift.
+    close_up = recording.requests[2]
+    assert any("SIGA-CT1" in getattr(part, "text", "") for part in close_up.parts)
     run = db_session.query(ExtractionRun).filter(ExtractionRun.project_id == project.id).one()
     assert run.reader == "ai" and run.failure is None
 
@@ -206,7 +204,7 @@ def test_without_the_model_the_sheet_is_recorded_as_not_read(client, db_session,
 def test_a_read_the_model_fails_is_recorded_as_not_read(client, db_session, tmp_path, ai, recording):
     sheet = tmp_path / "EP-70007 FAS Design.pdf"
     sheet.write_bytes(b"%PDF-1.4 sheet")
-    recording.answers = [{"rows": [], "has_line_items": False}]
+    recording.answers = [{"rows": [], "has_line_items": False}, {"rows": [], "has_line_items": False}]
     project = _project(db_session, sheet, ep="70007")
     _login(client)
 
