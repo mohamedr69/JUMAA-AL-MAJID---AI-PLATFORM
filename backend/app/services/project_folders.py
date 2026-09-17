@@ -35,7 +35,12 @@ DRAWINGS = "03- Drawings"
 APPROVED = "Approved"
 
 # The platform's system code -> the folder name the archive uses for it.
-SYSTEM_FOLDERS: dict[str, str] = {"FAS": "FA", "ELS": "ELS"}
+SYSTEM_FOLDERS: dict[str, str] = {"FAS": "FA", "ELS": "ELS", "FRC": "FRC"}
+# The folders a full-package project has as well: the fire-rated cables' submittals.
+FULL_PACKAGE_STRUCTURE: tuple[str, ...] = (
+    f"{MATERIAL_SUBMITTALS}/FRC/R0",
+    f"{MATERIAL_SUBMITTALS}/{APPROVED}/FRC",
+)
 
 STRUCTURE: tuple[str, ...] = (
     f"{MATERIAL_SUBMITTALS}/FA/R0",
@@ -81,6 +86,8 @@ def ensure(project) -> list[str]:
     if not _is_dir(root):
         return []
     wanted = list(STRUCTURE)
+    if system_rules.is_full_package(project):
+        wanted += list(FULL_PACKAGE_STRUCTURE)
     if not _has_scan_folder(root):
         wanted.insert(0, SCAN)
     created: list[str] = []

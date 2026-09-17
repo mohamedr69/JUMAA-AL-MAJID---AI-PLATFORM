@@ -477,6 +477,11 @@ def build_map(readings: list[dict], *, systems_on_project: list[str] | None = No
         })
     if not by_reference:
         actions.append("Material submittal required: no material submittal is filed for this project")
+    for code in systems_on_project or []:
+        if code and code not in systems:
+            systems[code] = []
+            if by_reference:
+                actions.append(f"Material submittal required: no material submittal is filed for {code}")
     ordered = sorted(systems.items(), key=lambda kv: (kv[0] is None, kv[0] or ""))
     return {
         "revisions": revisions,
@@ -550,7 +555,7 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
         relative = str(path.relative_to(root))
         readings.append({**reading, "relative": relative, "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
                          "in_approval_folder": bool(submittal_scanner.APPROVAL_FOLDER_RE.search(str(Path(relative).parent)))})
-    submittal_map = build_map(readings)
+    submittal_map = build_map(readings, systems_on_project=system_rules.project_codes(project))
     submittal_map["warnings"] = warnings + run.notes[:10]
     submittal_map["calls"] = run.calls
     submittal_map["reused"] = run.reused

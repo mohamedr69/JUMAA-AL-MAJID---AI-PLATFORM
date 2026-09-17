@@ -290,7 +290,8 @@ def list_submittals(
     return SubmittalRegisterOut(
         items=items,
         counts=counts,
-        systems=sorted({i.system_code or "" for i in materials} | {s.system_code or "" for s in project.submittals}),
+        systems=sorted({i.system_code or "" for i in materials} | {s.system_code or "" for s in project.submittals}
+                       | set(system_rules.project_codes(project))),
         activity=activity,
         suggestions=suggestions,
         storage=_storage(project),

@@ -155,3 +155,10 @@ def test_the_model_names_the_system_and_emergency_lighting_goes_by_every_name():
         assert submittal_reader._system_code({"title": "Material Submittal", "system": ""}, f"{folder}/form.pdf") == "ELS", folder
     # OTHER: not a system the platform tracks, unless the folder says otherwise.
     assert submittal_reader._system_code({"title": "Fire Pump", "system": "", "system_code": "OTHER"}, "MS/Pumps/form.pdf") is None
+
+
+def test_a_system_of_the_project_with_no_submittal_is_on_the_map_as_an_action():
+    readings = [_reading("BBY006-GME-MAS-EL-FA-0001", 0, "approved", relative="MS/FA/form.pdf", approval=True)]
+    submittal_map = submittal_reader.build_map(readings, systems_on_project=["FAS", "FRC"])
+    assert [(s["system_code"], len(s["rows"])) for s in submittal_map["systems"]] == [("FAS", 1), ("FRC", 0)]
+    assert submittal_map["actions"] == ["Material submittal required: no material submittal is filed for FRC"]

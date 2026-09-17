@@ -19,6 +19,8 @@ from app.models import PartDatasheetLink
 # (manufacturer, part number, library, datasheet path in the library)
 SEED_LINKS: list[tuple[str, str, str, str]] = [
     ("EDWARDS", "3-CHAS7", "EDWARDS", "01- PANEL/11- E85014-0004 -- EST4 Cabinets and Chassis.pdf"),
+    ("EDWARDS", "TP434", "EDWARDS", "11- Back Box/Concealed/01- TP606, TP434 SG,DG.pdf"),
+    ("EDWARDS", "TP606", "EDWARDS", "11- Back Box/Concealed/01- TP606, TP434 SG,DG.pdf"),
     ("EDWARDS", "SIGA-UM", "EDWARDS", "04- Modules/02- Output devices/01- Notification Appliance Circuits/SIGA -UM.pdf"),
     ("MENVIER", "CTR400CGL2KS-M", "MENVIER", "CTR160CGL2KS-M.pdf"),
     ("MENVIER", "NEXI300-3H-CGL-IPM", "MENVIER", "NEXI300-3H-CGL.pdf"),

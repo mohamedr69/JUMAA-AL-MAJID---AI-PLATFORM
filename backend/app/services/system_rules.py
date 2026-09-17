@@ -33,7 +33,12 @@ FIRE_TELEPHONE = "Fire Telephone"
 FAS_FAMILY_ROWS = (FIRE_ALARM, VOICE_EVACUATION, FIRE_TELEPHONE)
 
 # The platform's order, and the DRF rows each code stands for when nothing is integrated.
-CODE_ORDER = ("FAS", "VES", "PAVA", "ELS")
+CODE_ORDER = ("FAS", "VES", "PAVA", "ELS", "FRC")
+# Fire-rated cables are not a DRF row: they are the company's on every
+# project whose scope is the full package (design, supply, installation),
+# so such a project has FRC as a system -- its own material submittal, its
+# own proposed materials -- with nothing in them until the engineer fills them.
+FULL_PACKAGE = "fullpackage"
 # The two kinds of emergency lighting, one system (ELS) but not one product:
 # the DRF's "Emergency Light Monitoring" row is a monitored self-contained
 # system (every luminaire carries its own battery -- Menvier -- so there is
@@ -56,6 +61,7 @@ CODE_NAMES = {
     "VES": "Voice Evacuation",
     "PAVA": "Public Address & Voice Alarm",
     "ELS": "Emergency Lighting",
+    "FRC": "Fire Rated Cables",
 }
 # Spellings documents use for the same system.
 ALIASES = {
@@ -180,11 +186,23 @@ def system_display_name(project, system_code: str | None) -> str:
     return CODE_NAMES.get(code, code or "Unassigned")
 
 
+def is_full_package(project) -> bool:
+    """Whether the project's scope of work is the full package, in any
+    spelling the DRF or the form gives it ("Full Package", "fullpackage")."""
+    import re
+
+    scope = re.sub(r"[^a-z]", "", str(getattr(project, "scope_of_work", None) or "").lower())
+    return scope == FULL_PACKAGE
+
+
 def project_codes(project) -> list[str]:
-    """The systems this project has: what its DRF marks, and what its Design
-    Sheets and BOQ deliver, each under its effective code."""
+    """The systems this project has: what its DRF marks, what its Design
+    Sheets and BOQ deliver, each under its effective code -- and the
+    fire-rated cables on a full-package project."""
     integrated = project_integrated(project)
     codes = set(codes_for_rows(project.systems, separate_panel=bool(getattr(project, "separate_ve_panel", False))))
+    if is_full_package(project):
+        codes.add("FRC")
     for sheet in getattr(project, "design_sheets", []) or []:
         codes.add(effective_code(sheet.system_code, integrated=integrated))
     for item in getattr(project, "boq_items", []) or []:

@@ -344,3 +344,35 @@ def test_a_self_contained_emergency_light_schedule_is_panel_lights_and_exit_ligh
     assert blocks["Emergency Light Panel"] == ["CTR400CGL2KS-M"]
     assert blocks["Emergency Light"] == ["NEXI300-3H-CGL-IPM", "RT2RHEO200CGL3HIPM", "SL2NM65D3-M"]
     assert blocks["Exit Light"] == ["SL2-42D3D-CGL-M+SL23I"]
+
+
+def test_a_full_package_project_has_fire_rated_cables_as_a_system_with_nothing_in_it_yet(client, db_session, tmp_path):
+    from app.models import Project
+    from app.services import project_folders
+
+    _login(client)
+    root = tmp_path / "EP-30799"
+    root.mkdir()
+    project_id = client.post("/projects", json={
+        "ep_number": "30799", "project_name": "Titania", "design_sheets": [], "source_folder_path": str(root),
+        "scope_of_work": "Full Package",
+        "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True}],
+    }).json()["id"]
+    project = db_session.get(Project, project_id)
+    assert system_rules.is_full_package(project)
+    assert system_rules.project_codes(project) == ["FAS", "FRC"]
+    assert system_rules.system_display_name(project, "FRC") == "Fire Rated Cables"
+    # Its folders were made with the project.
+    assert (root / "02- Material Submittals" / "FRC" / "R0").is_dir() and (root / "02- Material Submittals" / "Approved" / "FRC").is_dir()
+    assert project_folders.system_folder("FRC") == "FRC"
+    # The tabs: proposed materials and the register both show FRC, empty.
+    materials = client.get(f"/projects/{project_id}/materials").json()
+    assert [(s["code"], s["title"]) for s in materials["systems"]] == [("FAS", "Fire Alarm"), ("FRC", "Fire Rated Cables")]
+    assert [i for i in materials["items"] if i["system_code"] == "FRC"] == []
+    register = client.get(f"/projects/{project_id}/submittals").json()
+    assert "FRC" in register["systems"]
+
+    # A supply-only project has no FRC.
+    other = client.post("/projects", json={"ep_number": "30800", "project_name": "Other", "design_sheets": [], "scope_of_work": "Supply Only",
+                                          "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True}]}).json()["id"]
+    assert system_rules.project_codes(db_session.get(Project, other)) == ["FAS"]
