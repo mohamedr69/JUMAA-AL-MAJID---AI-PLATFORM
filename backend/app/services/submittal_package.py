@@ -113,6 +113,16 @@ NOT_BUILT: dict[int, str] = {
 
 TEMPLATES = "templates"
 COVER_TEMPLATE = "Cover Page - Material Submittal - R0.pdf"
+
+
+def _template(library_root: Path, name: str) -> Path:
+    """A template of the submittal builder. Templates are the company's, not
+    a brand's, so they are found under COMMON (or the root, in the older
+    layout); the path is returned even when the file is not there, so the
+    caller's own "missing" handling still names it."""
+    from app.services import company_library
+
+    return company_library.submittal_path(library_root, None, f"{TEMPLATES}/{name}") or library_root / TEMPLATES / name
 INDEX_TEMPLATE = "Index & divider.pdf"
 
 _MERGEABLE = ".pdf"
@@ -159,6 +169,8 @@ class PackagePlan:
     warnings: list[str] = field(default_factory=list)
     library_found: bool = False
     library_path: str | None = None
+    # The manufacturer the package is for; whose submittal-builder folder it draws on.
+    brand: str | None = None
 
     @property
     def selected_sections(self) -> list[PackageSection]:
@@ -199,10 +211,13 @@ def _non_pdf_originals(folder: Path) -> list[Path]:
     )
 
 
-def _library_documents(library: Path, section: int) -> list[PackageDocument]:
+def _library_documents(library: Path, section: int, brand: str | None = None) -> list[PackageDocument]:
+    from app.services import company_library
+
     found: list[PackageDocument] = []
     for entry in LIBRARY_FOLDERS.get(section, ()):
-        target = library / entry
+        # The brand's own folder first, then COMMON, then the older flat layout.
+        target = company_library.submittal_path(library, brand, entry) or library / entry
         if target.is_file():
             if target.suffix.lower() == _MERGEABLE:
                 found.append(PackageDocument(name=target.name, path=str(target), source="submittal builder"))
@@ -272,7 +287,8 @@ def _search_archive(folder: Path | None, name: str) -> Path | None:
     return None
 
 
-def datasheet_documents(project: Project, libraries: dict, system_code: str | None = None) -> list[PackageDocument]:
+def datasheet_documents(project: Project, libraries: dict, system_code: str | None = None,
+                        links: dict | None = None) -> list[PackageDocument]:
     """One datasheet per part the BOQ quotes, each included once.
 
     A part legitimately recurs all over a BOQ -- every panel has its own CPU
@@ -286,7 +302,13 @@ def datasheet_documents(project: Project, libraries: dict, system_code: str | No
     fire alarm package that walked the whole BOQ would carry the emergency
     lighting parts as well, and report every one of them as a missing
     datasheet because they are another manufacturer's.
+
+    `links` is the equipment table by key (app.services.equipment_currents
+    .index): a part with a datasheet recorded there takes that sheet before
+    the library is searched. That is how SL2-65D3D-CGL-M, which no sheet is
+    named for and which its sheet calls SL2MNM65D3D, gets its datasheet.
     """
+    from app.services import equipment_currents
     from app.services.datasheet_library import libraries_for
 
     documents: list[PackageDocument] = []
@@ -305,7 +327,13 @@ def datasheet_documents(project: Project, libraries: dict, system_code: str | No
 
         match = None
         absolute: Path | None = None
-        for library in libraries_for(item.manufacturer, libraries):
+        row = (links or {}).get(equipment_currents.key_of(part))
+        if row is not None and row.datasheet_path:
+            mapped = equipment_currents.mapped_match(row, libraries)
+            if mapped is not None:
+                library, match = mapped
+                absolute = Path(library.folder) / match.path
+        for library in ([] if match is not None else libraries_for(item.manufacturer, libraries)):
             found = library.find(part)
             if found:
                 # Best first. A text match is kept: Edwards documents several
@@ -348,9 +376,14 @@ def plan_package(
     spec_documents: list[tuple[str, str]] | None = None,
     system_code: str | None = None,
     battery_panels=None,
+    brand: str | None = None,
+    datasheet_links: dict | None = None,
 ) -> PackagePlan:
-    """What would go into the package, section by section, without building it."""
+    """What would go into the package, section by section, without building it.
+    `brand` is the manufacturer the submittal's system is for, which decides
+    whose folder of the submittal builder the company documents come from."""
     plan = PackagePlan()
+    plan.brand = brand
     if library_root is None or not library_root.is_dir():
         plan.warnings.append(
             "The submittal builder folder was not found; company documents cannot be collected. "
@@ -396,14 +429,14 @@ def plan_package(
         elif number == WARRANTY_SECTION:
             section.documents.append(PackageDocument(name="Warranty Certificate", source="generated"))
         elif number == DATASHEET_SECTION:
-            section.documents = datasheet_documents(project, datasheet_libraries or {}, system_code)
+            section.documents = datasheet_documents(project, datasheet_libraries or {}, system_code, datasheet_links)
             if not section.documents:
                 section.note = (
                     f"The BOQ quotes no {system_code} part numbers to find datasheets for."
                     if system_code else "The BOQ quotes no part numbers to find datasheets for."
                 )
         elif plan.library_found and library_root is not None:
-            section.documents = _library_documents(library_root, number)
+            section.documents = _library_documents(library_root, number, brand)
             # Anything the builder does not hold is looked for in the archive.
             for document in section.documents:
                 if document.path is None and document.missing_reason == "Not in the submittal builder.":
@@ -500,7 +533,7 @@ def build_cover(library_root: Path, project: Project, revision: str, systems: st
     The template is the approved artwork -- logo, layout, the supplier block
     -- so it is opened and its project fields swapped, never redrawn.
     """
-    template = library_root / TEMPLATES / COVER_TEMPLATE
+    template = _template(library_root, COVER_TEMPLATE)
     if not template.is_file():
         return None
     doc = pymupdf.open(template)
@@ -589,7 +622,7 @@ def build_divider(library_root: Path, number: int, project: Project) -> pymupdf.
     and has its title rewritten too, so it looks like the rest of the set
     rather than like a page from somewhere else.
     """
-    template = library_root / TEMPLATES / INDEX_TEMPLATE
+    template = _template(library_root, INDEX_TEMPLATE)
     if not template.is_file():
         return None
     name = SECTION_NAMES[number]
@@ -850,7 +883,7 @@ def build_package(
             builder = {
                 SCHEDULE_SECTION: lambda: build_schedule(project, system_code),
                 BATTERY_SECTION: lambda: _battery_sheet(project, battery_panels, systems),
-                COO_SECTION: lambda: build_country_of_origin(project, library_root, system_code),
+                COO_SECTION: lambda: build_country_of_origin(project, library_root, system_code, plan.brand),
                 WARRANTY_SECTION: lambda: build_warranty(project, library_root, system_code),
             }[section.number]
             page = attempt(f"{label} (generated)", builder)
@@ -972,7 +1005,7 @@ WARRANTY_YEARS = 1
 _YEAR_WORDS = {1: "ONE YEAR", 2: "TWO YEARS", 3: "THREE YEARS", 5: "FIVE YEARS"}
 
 
-def read_origins(library_root: Path | None) -> dict[str, tuple[str, str]]:
+def read_origins(library_root: Path | None, brand: str | None = None) -> dict[str, tuple[str, str]]:
     """Where each model is made and shipped from, out of the COO template.
 
     The country of origin of a part is a fact about the part, not about the
@@ -983,7 +1016,11 @@ def read_origins(library_root: Path | None) -> dict[str, tuple[str, str]]:
     """
     if library_root is None:
         return {}
-    template = library_root / COO_TEMPLATE
+    from app.services import company_library
+
+    # The country-of-origin sheet is the manufacturer's: under the brand's
+    # folder of the submittal builder, else COMMON, else the older layout.
+    template = company_library.submittal_path(library_root, brand, COO_TEMPLATE) or library_root / COO_TEMPLATE
     if not template.is_file():
         return {}
     try:
@@ -1027,7 +1064,8 @@ def read_origins(library_root: Path | None) -> dict[str, tuple[str, str]]:
 
 
 def build_country_of_origin(
-    project: Project, library_root: Path | None, system_code: str | None = None
+    project: Project, library_root: Path | None, system_code: str | None = None,
+    brand: str | None = None,
 ) -> pymupdf.Document:
     """The Country of Origin table, laid out as the Schedule of Material is.
 
@@ -1035,7 +1073,7 @@ def build_country_of_origin(
     set -- a reviewer who finds a part in the schedule finds it in the same
     place here. The two extra columns are the declaration itself.
     """
-    origins = read_origins(library_root)
+    origins = read_origins(library_root, brand)
     doc = pymupdf.open()
     page = doc.new_page(width=841.92, height=595.32)
     columns = [("SL.", 42), ("MODEL", 82), ("DESCRIPTION", 214), ("MADE IN", 566), ("SHIPPED FROM", 688)]
@@ -1296,7 +1334,9 @@ def build_warranty(
     details and the warranty period differ from the file in the builder,
     which still reads TWO YEARS.
     """
-    template = (library_root / WARRANTY_TEMPLATE) if library_root else None
+    from app.services import company_library
+
+    template = (company_library.submittal_path(library_root, None, WARRANTY_TEMPLATE) or library_root / WARRANTY_TEMPLATE)         if library_root else None
     if template is not None and template.is_file():
         filled = _fill_docx(template, warranty_replacements(project, years))
         if filled is not None:

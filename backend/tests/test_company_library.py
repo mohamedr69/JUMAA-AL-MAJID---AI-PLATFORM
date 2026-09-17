@@ -368,3 +368,27 @@ def test_an_empty_brand_folder_is_not_a_library(tmp_path, library_at):
     found = company_library.datasheet_folders()
 
     assert company_library.source_of(found["EDWARDS"]) == "archive"
+
+
+def test_the_submittal_builder_is_filed_by_brand(tmp_path):
+    """COMMON holds what every package carries; a brand's folder what is the
+    manufacturer's; the root itself is the layout before brands. Section
+    names are matched without regard to case ("Previous approval")."""
+    root = tmp_path / "submittal"
+    _pdf(root / "COMMON" / "Company Profile" / "profile.pdf", [(72, 60, "Profile")])
+    _pdf(root / "COMMON" / "templates" / "stamp.pdf", [(72, 60, "Stamp")])
+    _pdf(root / "EDWARDS" / "Test certificates" / "ul.pdf", [(72, 60, "UL")])
+    _pdf(root / "MENVIER" / "test certificate" / "ce.pdf", [(72, 60, "CE")])
+    _pdf(root / "MENVIER" / "Previous approval" / "dcd.pdf", [(72, 60, "DCD")])
+    _pdf(root / "Trade License" / "licence.pdf", [(72, 60, "Licence")])
+
+    assert company_library.submittal_path(root, "MENVIER", "Test certificates") == root / "MENVIER" / "test certificate"
+    assert company_library.submittal_path(root, "EDWARDS", "Test certificates") == root / "EDWARDS" / "Test certificates"
+    assert company_library.submittal_path(root, "MENVIER", "Previous Approvals") == root / "MENVIER" / "Previous approval"
+    # What the brand does not hold comes from COMMON, then from the root.
+    assert company_library.submittal_path(root, "MENVIER", "Company Profile") == root / "COMMON" / "Company Profile"
+    assert company_library.submittal_path(root, "MENVIER", "templates/stamp.pdf") == root / "COMMON" / "templates" / "stamp.pdf"
+    assert company_library.submittal_path(root, "MENVIER", "Trade License") == root / "Trade License"
+    assert company_library.submittal_path(root, None, "Test certificates") is None
+    assert company_library.submittal_path(root, "MENVIER", "Country Of Origin") is None
+    assert company_library.submittal_brands(root) == ["EDWARDS", "MENVIER"]

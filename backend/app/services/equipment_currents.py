@@ -31,7 +31,34 @@ from app.seed import PART_CURRENT_CATEGORY
 from app.services.battery_calculation import part_key
 
 MANUFACTURER = "EDWARDS"
+MENVIER = "MENVIER"
 TABLE_SOURCE = "Equipment current table"
+# datasheet_match for a sheet an engineer assigned to the part, as against
+# one the library matched by filename, family or text.
+MAPPED = "mapped"
+MENVIER_SOURCE = "Menvier emergency lighting: datasheet assigned by the platform owner on 2026-09-17"
+# (BOQ part number, its datasheet in the MENVIER library, the model name the
+# sheet prints) -- the platform owner's mapping. The luminaire's variants and
+# the accessories quoted with it (+SL23I, +SL2CD +SL2DC3I, +SL2PPLR+SL2RB)
+# are documented on the base luminaire's sheet, which names the models
+# differently from the BOQ (SL2MNM65D3D for SL2-65D3D-CGL-M), so no filename
+# or text match ever finds them: they are recorded here, with the printed
+# model as an alias, and looked up before the library is searched.
+MENVIER_DATASHEETS: list[tuple[str, str, str | None]] = [
+    ("SL2-42D3D-CGL-M", "SL2-42D3D-CGL-M.pdf", "SL2MNM42D3D"),
+    ("SL2-65D3D-CGL-M", "SL2-42D3D-CGL-M.pdf", "SL2MNM65D3D"),
+    ("RT2RHEO200CGL3HIPM", "RT2RHEO200CGL3HIPM.pdf", None),
+    ("SL2-42D3D-CGL-M +SL23I", "SL2-42D3D-CGL-M.pdf", None),
+    ("SL2-65D3D-CGL-M +SL23I", "SL2-42D3D-CGL-M.pdf", None),
+    ("SL2-65D3D-CGL-M +SL2CD +SL2DC3I", "SL2-42D3D-CGL-M.pdf", None),
+    # Quoted on EP-30784 and EP-30058 beside the three above; the same sheet
+    # names both accessories. Added on the same rule -- to be confirmed.
+    ("SL2-42D3D-CGL-M +SL2PPLR+SL2RB", "SL2-42D3D-CGL-M.pdf", None),
+    ("CTR400CGL2KS-M", "CTR160CGL2KS-M.pdf", "CTR400CGL2KS"),
+    ("CTR160CGL2KS-M", "CTR160CGL2KS-M.pdf", "CTR160CGL2KS"),
+    ("NEXI300-3H-CGL", "NEXI300-3H-CGL.pdf", None),
+    ("NEXI300-3H-CGL-IP", "NEXI300-3H-CGL.pdf", None),
+]
 SEED_SOURCE = "Edwards EST3 / EST4 parts that draw no current; settled by the platform owner on 2026-09-16"
 
 # kind: "mechanical" | "built_in" | "device" | "unknown"
@@ -112,6 +139,11 @@ def _key(part_no: str | None) -> str:
     return part_key(part_no or "")
 
 
+def key_of(part_no: str | None) -> str:
+    """The table's key for a BOQ part number, aliases applied."""
+    return _key(canonical(part_no))
+
+
 # --- reading the table ----------------------------------------------------------------
 
 
@@ -140,6 +172,23 @@ def lookup(db: Session, part_no: str | None) -> EquipmentCurrent | None:
         if key in {_key(a) for a in candidate.aliases or []}:
             return candidate
     return None
+
+
+def datasheet_for(db: Session, part_no: str | None) -> EquipmentCurrent | None:
+    """The row that records which datasheet a part is on, or None."""
+    row = lookup(db, part_no)
+    return row if row is not None and row.datasheet_path else None
+
+
+def mapped_match(row: EquipmentCurrent, libraries: dict):
+    """(library, match) for the datasheet a row records, from the libraries
+    available, or None when that library or file is not on this machine."""
+    library = libraries.get((row.datasheet_library or "").upper())
+    if library is None:
+        return None
+    match = library.match_for(row.datasheet_path, matched_on=row.datasheet_match or MAPPED,
+                              pages=list(row.datasheet_pages or []))
+    return (library, match) if match is not None else None
 
 
 def settled(row: EquipmentCurrent) -> bool:
@@ -255,6 +304,7 @@ def seed(db: Session) -> int:
         if row is not None and _key(alias) not in {_key(a) for a in row.aliases or []}:
             row.aliases = [*(row.aliases or []), alias]
     added += seed_from_datasheets(db, existing)
+    added += seed_menvier_datasheets(db, existing)
     link_datasheets(db)
     # What the catalogue already learned from datasheets and engineers.
     rules = (db.query(DesignRule)
@@ -279,6 +329,38 @@ def seed(db: Session) -> int:
         existing.add(rule.key)
         added += 1
     db.commit()
+    return added
+
+
+def seed_menvier_datasheets(db: Session, existing: set[str]) -> int:
+    """MENVIER_DATASHEETS as rows, for the parts not in the table yet; a row
+    already there without a datasheet takes the mapping's. No figure is
+    typed in -- the row says which sheet the part is on, and the current is
+    read off that sheet when a project needs it. Returns how many were added."""
+    from app.services.datasheet_library import get_libraries
+
+    try:
+        library = get_libraries().get(MENVIER)
+    except Exception:  # noqa: BLE001
+        library = None
+    added = 0
+    for part_no, sheet, model in MENVIER_DATASHEETS:
+        link = {"datasheet_library": MENVIER, "datasheet_path": sheet, "datasheet_pages": [], "datasheet_match": MAPPED,
+                "datasheet_sha256": sheet_sha256(library, sheet)}
+        row = db.query(EquipmentCurrent).filter(EquipmentCurrent.key == _key(part_no)).one_or_none()
+        if row is None:
+            db.add(EquipmentCurrent(manufacturer=MENVIER, key=_key(part_no), part_no=part_no, kind=UNKNOWN,
+                                    no_load=False, source=MENVIER_SOURCE, confirmed_by="platform owner",
+                                    aliases=[model] if model else [], **link))
+            existing.add(_key(part_no))
+            added += 1
+            continue
+        if not row.datasheet_path:
+            for name, value in link.items():
+                setattr(row, name, value)
+        if model and _key(model) not in {_key(a) for a in row.aliases or []}:
+            row.aliases = [*(row.aliases or []), model]
+    db.flush()
     return added
 
 
@@ -335,16 +417,21 @@ def link_datasheets(db: Session) -> int:
     from app.services.datasheet_library import get_libraries
 
     try:
-        library = get_libraries().get(MANUFACTURER)
+        libraries = get_libraries()
     except Exception:  # noqa: BLE001
         return 0
-    if library is None:
+    if not libraries:
         return 0
     from app.services.datasheet_currents import read_part_current
 
     linked = 0
     for row in all_rows(db):
         if row.datasheet_path:
+            continue
+        # The row's own manufacturer's library: a Menvier luminaire is not
+        # looked for among the Edwards sheets.
+        library = libraries.get((row.manufacturer or MANUFACTURER).upper())
+        if library is None:
             continue
         matches = library.find(canonical(row.part_no) or row.part_no)
         if not matches:

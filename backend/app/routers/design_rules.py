@@ -283,12 +283,22 @@ def find_datasheets(
     part_no: str,
     manufacturer: str | None = None,
     _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> list[DatasheetMatchOut]:
     """The datasheets in the manufacturer's library that document the part,
-    best first, with the rows of each that give a current."""
+    best first, with the rows of each that give a current. A sheet recorded
+    for the part in the equipment table comes first."""
+    from app.services import equipment_currents
+
+    libraries = _libraries()
     matches = []
-    for library in libraries_for(manufacturer, _libraries()):
-        matches += library.find(part_no)
+    row = equipment_currents.datasheet_for(db, part_no)
+    mapped = equipment_currents.mapped_match(row, libraries) if row is not None else None
+    if mapped is not None:
+        matches.append(mapped[1])
+    for library in libraries_for(manufacturer, libraries):
+        matches += [m for m in library.find(part_no)
+                    if not any(m.path == x.path and m.library == x.library for x in matches)]
     return [
         DatasheetMatchOut(
             library=m.library,

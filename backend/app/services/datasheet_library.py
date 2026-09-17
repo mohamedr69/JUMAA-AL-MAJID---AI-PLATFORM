@@ -439,6 +439,21 @@ class DatasheetLibrary:
     def unreadable(self) -> list[str]:
         return [p.relative_to(self.folder).as_posix() for p, e in self._refresh().items() if e.error]
 
+    def match_for(self, relative: str | None, *, matched_on: str = "mapped",
+                  pages: list[int] | None = None) -> "DatasheetMatch | None":
+        """The match for a file of the library named outright -- a sheet an
+        engineer assigned to a part -- with what the index knows of it, or
+        None when the file is not in the library."""
+        file = self.resolve(relative or "")
+        if file is None:
+            return None
+        entry = self._refresh().get(file)
+        return DatasheetMatch(
+            library=self.name, path=str(file.relative_to(self.folder.resolve())).replace("\\", "/"),
+            filename=file.name, document_no=entry.document_no if entry else None, matched_on=matched_on,
+            pages=list(pages or []), current_rows=list(entry.current_rows) if entry and not entry.error else [],
+        )
+
     def resolve(self, relative: str) -> Path | None:
         """The library file at `relative`, or None if that is outside it."""
         folder = self.folder.resolve()

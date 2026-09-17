@@ -1047,3 +1047,65 @@ def test_without_a_calculation_the_section_says_so(client, db_session, tmp_path)
     battery = next(s for s in plan.sections if s.number == 6)
     assert battery.found == 0
     assert battery.note and "no calculation to enclose" in battery.note
+
+
+def _brand_library(tmp_path):
+    root = tmp_path / "submittal builder"
+    _pdf(root / "COMMON" / "Company Profile" / "Company Profile.pdf", ["Company Profile"])
+    _pdf(root / "EDWARDS" / "Test certificates" / "UL listing.pdf", ["UL"])
+    _pdf(root / "MENVIER" / "test certificate" / "CE certificate.pdf", ["CE"])
+    return root
+
+
+def test_company_documents_come_from_the_submittal_s_own_brand(client, db_session, tmp_path):
+    """One submittal per system, and the manufacturer's documents are the
+    manufacturer's: the Menvier package carries Menvier's test certificate,
+    the Edwards package Edwards', and both the company profile from COMMON."""
+    from app.models import Project
+
+    _login_admin(client)
+    pid = client.post("/projects", json={"ep_number": "40410", "project_name": "P", "design_sheets": []}).json()["id"]
+    project = db_session.get(Project, pid)
+    root = _brand_library(tmp_path)
+
+    menvier = plan_package(project, {1, 12}, root, None, brand="MENVIER")
+    by_number = {s.number: s for s in menvier.sections}
+    assert [d.name for d in by_number[12].documents] == ["CE certificate.pdf"]
+    assert [d.name for d in by_number[1].documents] == ["Company Profile.pdf"]
+
+    edwards = plan_package(project, {12}, root, None, brand="EDWARDS")
+    assert [d.name for d in {s.number: s for s in edwards.sections}[12].documents] == ["UL listing.pdf"]
+
+    # No brand known: only what COMMON (or the old flat layout) holds.
+    none = plan_package(project, {12}, root, None)
+    assert [d.missing_reason for d in {s.number: s for s in none.sections}[12].documents] == ["Not in the submittal builder."]
+
+
+def test_a_recorded_datasheet_is_taken_before_the_library_is_searched(client, db_session, tmp_path):
+    """SL2-65D3D-CGL-M has no sheet of its own and its sheet calls it
+    SL2MNM65D3D, so no filename or text match finds it: the equipment table
+    records which sheet it is on, and the package takes that."""
+    from app.models import Project
+    from app.services import equipment_currents
+    from app.services.datasheet_library import DatasheetLibrary
+
+    _login_admin(client)
+    pid = client.post("/projects", json={"ep_number": "40411", "project_name": "P", "design_sheets": []}).json()["id"]
+    client.put(f"/projects/{pid}/boq", json=[
+        {"system_code": "ELS", "manufacturer": "MENVIER", "catalog_no": "SL2-65D3D-CGL-M", "description": "Emergency light", "quantity": "73"},
+        {"system_code": "ELS", "manufacturer": "MENVIER", "catalog_no": "SL210DI", "description": "Pictogram", "quantity": "3"},
+    ])
+    project = db_session.get(Project, pid)
+    folder = tmp_path / "MENVIER"
+    _pdf(folder / "SL2-42D3D-CGL-M.pdf", ["SL2MNM42D3D SL2MNM65D3D"])
+    libraries = {"MENVIER": DatasheetLibrary("MENVIER", folder)}
+
+    # Without the record the sheet is not found.
+    assert datasheet_documents(project, libraries, "ELS")[0].missing_reason == "No datasheet in the manufacturer's library."
+
+    equipment_currents.upsert(db_session, part_no="SL2-65D3D-CGL-M", source="assigned by the platform owner",
+                              manufacturer="MENVIER", datasheet={"datasheet_library": "MENVIER", "datasheet_path": "SL2-42D3D-CGL-M.pdf",
+                                                                  "datasheet_pages": [], "datasheet_match": "mapped", "datasheet_sha256": None})
+    documents = datasheet_documents(project, libraries, "ELS", links=equipment_currents.index(db_session))
+    assert documents[0].name == "SL2-42D3D-CGL-M.pdf" and documents[0].covers == ["SL2-65D3D-CGL-M"]
+    assert documents[1].missing_reason == "No datasheet in the manufacturer's library."

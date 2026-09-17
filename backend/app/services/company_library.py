@@ -51,6 +51,7 @@ makes the copy. Nothing here ever writes to the archive.
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -69,6 +70,14 @@ DEFAULT_CACHE_DIRNAME = ".cache"
 # repeated here only so the scaffold and the sync script can create them.
 DATASHEETS = "datasheets"
 SUBMITTAL = "submittal"
+# The submittal builder is filed by brand: `submittal/COMMON/` holds what every
+# package carries (the company profile, the trade licence, the ISO
+# certificates, the templates), `submittal/EDWARDS/`, `submittal/MENVIER/` what
+# is the manufacturer's (its catalogue, test certificates, civil-defence
+# certificates, previous approvals, reference list). A folder is looked for
+# under the brand first, then COMMON, then the root itself -- the layout
+# before brands, which older copies of the library still have.
+COMMON = "COMMON"
 
 SUBMITTAL_FOLDERS = (
     "Company Profile",
@@ -82,6 +91,61 @@ SUBMITTAL_FOLDERS = (
     "Country Of Origin",
     "templates",
 )
+
+
+def _fold(name: str) -> str:
+    """A folder name as it is compared: case, punctuation and a plural "s"
+    set aside, so "test certificate" is "Test certificates"."""
+    folded = re.sub(r"[^a-z0-9]", "", name.lower())
+    return folded[:-1] if folded.endswith("s") else folded
+
+
+def _child(folder: Path, name: str) -> Path | None:
+    """The entry of `folder` called `name`, matched without regard to case or
+    punctuation ("Previous approval" is "Previous Approvals"), or None."""
+    direct = folder / name
+    if direct.exists():
+        return direct
+    want = _fold(name)
+    try:
+        for child in folder.iterdir():
+            if _fold(child.name) == want:
+                return child
+    except OSError:
+        pass
+    return None
+
+
+def submittal_path(root: Path, brand: str | None, relative: str) -> Path | None:
+    """Where the submittal builder keeps `relative` -- a section folder
+    ("Test certificates") or a file in one ("templates/stamp.png") -- for a
+    brand: under the brand's folder, then COMMON, then the root. None when
+    it is nowhere."""
+    parts = [part for part in relative.replace("\\", "/").split("/") if part]
+    if not parts or not root.is_dir():
+        return None
+    shelves = [_child(root, brand)] if brand else []
+    shelves.append(_child(root, COMMON))
+    shelves.append(root)
+    for shelf in shelves:
+        if shelf is None or not shelf.is_dir():
+            continue
+        found: Path | None = shelf
+        for part in parts:
+            found = _child(found, part) if found is not None else None
+        if found is not None:
+            return found
+    return None
+
+
+def submittal_brands(root: Path) -> list[str]:
+    """The brand folders the submittal builder holds, COMMON left out."""
+    if not root.is_dir():
+        return []
+    sections = {_fold(name) for name in SUBMITTAL_FOLDERS}
+    return sorted(child.name for child in root.iterdir()
+                  if child.is_dir() and child.name != COMMON and _fold(child.name) not in sections
+                  and not child.name.startswith("."))
 
 
 def library_root() -> Path:

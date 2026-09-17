@@ -248,15 +248,25 @@ def _missing_parts(panels) -> list[BatteryLineOut]:
     return list(seen.values())
 
 
-def _read_from_datasheets(line: BatteryLineOut, libraries: dict, panel_voltage: float):
+def _read_from_datasheets(line: BatteryLineOut, libraries: dict, panel_voltage: float, db: Session | None = None):
     """(reading, match) from the first of the part's datasheets that gives
-    its current, or (None, the best match or None)."""
+    its current, or (None, the best match or None). A sheet recorded for
+    the part in the equipment table is read first."""
     from app.services import equipment_currents
 
     best = None
     # The datasheets' own spelling of the part ("SIGA-AAS0" as a scan wrote
     # it is SIGA-AA50; "3-AA50" is the same amplifier).
     part_no = equipment_currents.canonical(line.part_no) or (line.part_no or "")
+    row = equipment_currents.datasheet_for(db, line.part_no) if db is not None else None
+    mapped = equipment_currents.mapped_match(row, libraries) if row is not None else None
+    if mapped is not None:
+        library, match = mapped
+        best = match
+        reading = read_part_current(library.folder / match.path, part_no, doc_named_for_part=True,
+                                    panel_voltage=panel_voltage)
+        if reading and equipment_currents.trusted(match, reading):
+            return reading, match
     for library in libraries_for(line.manufacturer, libraries):
         for match in library.find(part_no):
             best = best or match
@@ -345,13 +355,13 @@ def fill_battery_currents(
             if part_key(line.part_no or "") in rejected and not host:
                 # An engineer rejected setting this part to no current: only a
                 # datasheet figure or a typed one may fill it now.
-                reading, match = _read_from_datasheets(line, libraries, panel_voltage)
+                reading, match = _read_from_datasheets(line, libraries, panel_voltage, db)
                 if not (reading and match):
                     continue
             # Asked before the datasheet, not after: a part built into another
             # module has no current of its own, so a figure read off the host
             # module's sheet would be that module's current counted twice.
-            reading, match = (None, None) if host else _read_from_datasheets(line, libraries, panel_voltage)
+            reading, match = (None, None) if host else _read_from_datasheets(line, libraries, panel_voltage, db)
             if reading and match:
                 pages = ", ".join(str(p) for p in reading.pages)
                 source = f"{match.source.rsplit(', p.', 1)[0]}, p.{pages}: read automatically"

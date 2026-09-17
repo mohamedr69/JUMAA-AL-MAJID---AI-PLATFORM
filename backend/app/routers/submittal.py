@@ -44,6 +44,7 @@ from app.schemas_design import (
     SubmittalRegisterOut,
     SubmittalSuggestionOut,
 )
+from app.services import equipment_currents
 from app.services import activity, system_rules
 from app.services.battery_calculation import part_key
 from app.services import company_library
@@ -553,10 +554,26 @@ def _plan_for(project: Project, sections: set[int], system_code: str | None, db:
     libraries = get_libraries() if DATASHEET_SECTION in sections else {}
     specs = _specs_for(project, system_code) if SPEC_SECTION in sections else []
     panels = _battery_panels(db, project, sections) if db is not None else []
+    links = equipment_currents.index(db) if db is not None and DATASHEET_SECTION in sections else {}
     return plan_package(
         project, sections, library, folder, libraries,
         spec_documents=specs, system_code=system_code, battery_panels=panels,
+        brand=_brand_of(project, system_code), datasheet_links=links,
     )
+
+
+def _brand_of(project: Project, system_code: str | None) -> str | None:
+    """The manufacturer a system's submittal is for: the brand the DRF gives
+    the system, else the one its BOQ lines carry."""
+    from app.routers.projects import _brand_for
+
+    brand = _brand_for(system_code, project.systems, project.separate_ve_panel) if system_code else None
+    if brand:
+        return brand.strip().upper()
+    wanted = (system_code or "").strip().upper()
+    carried = {(i.manufacturer or "").strip().upper() for i in project.boq_items
+               if i.manufacturer and (not wanted or (i.system_code or "").upper() == wanted)}
+    return carried.pop() if len(carried) == 1 else None
 
 
 def _plan_out(project: Project, plan: PackagePlan, system_code: str | None) -> PackagePlanOut:

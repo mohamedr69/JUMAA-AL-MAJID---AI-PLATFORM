@@ -197,3 +197,42 @@ def test_the_table_is_written_by_editors_and_deleted_by_admins_only(client, db_s
     _login_admin(client)
     assert client.delete(f"/design-rules/equipment-currents/{row['id']}").status_code == 204
     assert db_session.query(EquipmentCurrent).filter(EquipmentCurrent.key == "Z-9").count() == 0
+
+
+def test_the_menvier_datasheets_are_seeded_as_links(client, db_session):
+    """The platform owner's mapping of Menvier parts to their sheets: a row
+    per BOQ part number, no figure, the printed model name as an alias."""
+    rows = {r.part_no: r for r in db_session.query(EquipmentCurrent).filter(EquipmentCurrent.manufacturer == "MENVIER")}
+    assert {"SL2-65D3D-CGL-M", "SL2-65D3D-CGL-M +SL2CD +SL2DC3I", "CTR400CGL2KS-M", "NEXI300-3H-CGL-IP"} <= set(rows)
+    row = rows["SL2-65D3D-CGL-M"]
+    assert row.datasheet_library == "MENVIER" and row.datasheet_path == "SL2-42D3D-CGL-M.pdf" and row.datasheet_match == "mapped"
+    assert row.standby_ma is None and not row.no_load and row.kind == "unknown"
+    assert "SL2MNM65D3D" in row.aliases
+    assert rows["CTR400CGL2KS-M"].datasheet_path == "CTR160CGL2KS-M.pdf"
+    # The printed model name resolves to the same row.
+    assert equipment_currents.lookup(db_session, "SL2MNM65D3D") is row
+    assert equipment_currents.datasheet_for(db_session, "SL2-65D3D-CGL-M +SL23I").datasheet_path == "SL2-42D3D-CGL-M.pdf"
+    assert equipment_currents.datasheet_for(db_session, "SL210DI") is None
+    # Seeding again adds nothing.
+    assert equipment_currents.seed(db_session) == 0
+
+
+def test_a_recorded_sheet_is_matched_from_the_library_it_names(db_session, tmp_path):
+    from app.services.datasheet_library import DatasheetLibrary
+
+    import pymupdf
+
+    folder = tmp_path / "MENVIER"
+    folder.mkdir()
+    doc = pymupdf.open()
+    doc.new_page().insert_text((72, 72), "D A T A S H E E T M100 SL2MNM65D3D Standby 4 mA at 24 Vdc", fontsize=9)
+    doc.save(folder / "SL2-42D3D-CGL-M.pdf")
+    doc.close()
+    row = equipment_currents.datasheet_for(db_session, "SL2-65D3D-CGL-M")
+    libraries = {"MENVIER": DatasheetLibrary("MENVIER", folder)}
+    library, match = equipment_currents.mapped_match(row, libraries)
+    assert library.name == "MENVIER" and match.path == "SL2-42D3D-CGL-M.pdf" and match.matched_on == "mapped"
+    assert match.document_no == "M100"
+    # A library that does not hold the file: no match, no error.
+    assert equipment_currents.mapped_match(row, {"EDWARDS": DatasheetLibrary("EDWARDS", tmp_path)}) is None
+    assert equipment_currents.mapped_match(row, {}) is None
