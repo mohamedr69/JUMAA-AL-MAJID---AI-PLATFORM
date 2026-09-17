@@ -20,6 +20,7 @@ little:
     visual        30   a classifier's reading of the rendered symbol (not built yet)
     legend        15   what this drawing's own legend calls the symbol
     attributes     5   what the block carries (TYP=EXIT)
+    nearby text    5   what is written beside it on the plan (SD-01)
     block name     5   what it is called
     layer          5   what layer it sits on
 
@@ -57,6 +58,7 @@ WEIGHTS: dict[str, int] = {
     "visual": 30,
     "legend": 15,
     "attributes": 5,
+    "nearby_text": 5,
     "block_name": 5,
     "layer": 5,
 }
@@ -313,6 +315,7 @@ def classify(
     legend: dict[str, str] | None = None,
     library: "SymbolLibrary | None" = None,
     attributes: dict[str, str] | None = None,
+    nearby: str | None = None,
     visual: tuple[str, float] | None = None,
 ) -> Classification:
     """What this symbol is, and how sure the platform is.
@@ -338,6 +341,10 @@ def classify(
     attribute_device = device_in(attribute_text)
     if attribute_device:
         votes.append(Evidence("attributes", attribute_device, WEIGHTS["attributes"], attribute_text.strip()))
+
+    nearby_device = device_in(nearby)
+    if nearby_device:
+        votes.append(Evidence("nearby_text", nearby_device, WEIGHTS["nearby_text"], (nearby or "").strip()[:60]))
 
     name_device = device_in(block)
     name_detail = block

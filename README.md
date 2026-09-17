@@ -561,6 +561,7 @@ a device, weighted by what it deserves to be believed:
 | Visual | 30 | A classifier's reading of the rendered symbol (not built yet) |
 | Legend | 15 | What this drawing's own legend calls the symbol |
 | Attributes | 5 | What the block carries: an address, `TYP=EXIT` |
+| Nearby text | 5 | What is tagged beside it on the plan ("SD-01") |
 | Block name | 5 | What a draughtsman typed |
 | Layer | 5 | What layer it sits on |
 

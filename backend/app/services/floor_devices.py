@@ -642,6 +642,68 @@ def diagram_labels(read: DrawingRead, space: str) -> list[Label]:
     ]
 
 
+# How far beside a symbol its own tag is written, as a share of the usual
+# spacing between devices: any further off and the text belongs to
+# something else.
+_BESIDE_REACH = 0.7
+
+
+def nearby_text(inserts: list[Insert], labels: list[Label]) -> dict[str, str]:
+    """What is written beside each kind of symbol on the plan.
+
+    A drawing that names nothing else still tags its devices -- "SD-01",
+    "HD 12", "MCP" -- and where most of a symbol's tags say the same
+    thing, that is worth hearing. It is the weakest evidence there is, and
+    is weighed as such.
+    """
+    if not inserts or not labels:
+        return {}
+    spacing = _spacing(inserts)
+    if spacing <= 0:
+        return {}
+    reach = spacing * _BESIDE_REACH
+    said: dict[str, dict[str, int]] = {}
+    # A few instances of each symbol are enough to hear what it is called.
+    seen: dict[str, int] = {}
+    for insert in inserts:
+        if seen.get(insert.block, 0) >= 30:
+            continue
+        seen[insert.block] = seen.get(insert.block, 0) + 1
+        close = [
+            label for label in labels
+            if abs(label.x - insert.x) <= reach and abs(label.y - insert.y) <= reach
+        ]
+        for label in close:
+            device = device_in(label.text)
+            if device:
+                counts = said.setdefault(insert.block, {})
+                counts[label.text.strip()] = counts.get(label.text.strip(), 0) + 1
+    return {
+        block: max(counts, key=lambda text: (counts[text], text))
+        for block, counts in said.items()
+    }
+
+
+def _spacing(inserts: list[Insert]) -> float:
+    """The usual distance between devices: the drawing's own scale,
+    whatever its units."""
+    if len(inserts) < 2:
+        return 0.0
+    nearest: list[float] = []
+    for index, insert in enumerate(inserts):
+        best = min(
+            (math.hypot(insert.x - other.x, insert.y - other.y)
+             for position, other in enumerate(inserts) if position != index),
+            default=0.0,
+        )
+        if best > 0:
+            nearest.append(best)
+    if not nearest:
+        return 0.0
+    nearest.sort()
+    return nearest[len(nearest) // 2]
+
+
 def assign(inserts: list[Insert], labels: list[Label]) -> dict[str, list[Insert]]:
     """Which floor each device belongs to: the floor whose title is nearest
     it. One title means one floor and everything on it."""
@@ -706,6 +768,11 @@ def extract(paths: list[Path], names: dict[Path, str] | None = None, library: Sy
                                        "shape": (read.geometries.get(entry.block) or Geometry("", "", {})).shape,
                                        "description": entry.description, "file": shown})
 
+            # What is written beside the symbols on the plan: a tag like
+            # "SD-01" is a weak word for what they are, and the only word
+            # some drawings give.
+            beside = nearby_text(inserts, [l for l in read.labels if l.space == space])
+
             # Each symbol is recognised once, however many times it is used.
             found: dict[str, Classification] = {}
             for insert in inserts:
@@ -714,6 +781,7 @@ def extract(paths: list[Path], names: dict[Path, str] | None = None, library: Sy
                 found[insert.block] = classify(
                     block=insert.block, layer=insert.layer, geometry=read.geometries.get(insert.block),
                     legend=spoken, library=library, attributes=insert.attributes,
+                    nearby=beside.get(insert.block),
                 )
 
             # Drawing furniture: the sheet's own parts and the architecture

@@ -171,3 +171,32 @@ def test_the_library_recognises_what_it_was_taught_and_says_nothing_when_unsure(
     other = Geometry(fingerprint="different", shape=detector.shape, features={"entities": 2})
     library.learn("Heat detector", geometry=other, block="HD")
     assert library.match(Geometry(fingerprint="unseen", shape=detector.shape, features={"entities": 2})) is None
+
+
+def test_what_is_written_beside_a_symbol_speaks_for_it():
+    """A drawing that names nothing else still tags its devices. It is the
+    weakest evidence there is, and is weighed as such."""
+    from app.services.floor_devices import Insert, Label, nearby_text
+
+    inserts = [
+        Insert(block="AB01", layer="FA", x=0, y=0, space="Model"),
+        Insert(block="AB01", layer="FA", x=900, y=0, space="Model"),
+        Insert(block="AB02", layer="FA", x=1800, y=0, space="Model"),
+    ]
+    labels = [
+        Label(text="SD-01", x=100, y=100, space="Model"),
+        Label(text="SD-02", x=1000, y=100, space="Model"),
+        Label(text="MCP-01", x=1900, y=100, space="Model"),
+        Label(text="STAIR LOBBY", x=40000, y=40000, space="Model"),   # a room, far away
+    ]
+
+    beside = nearby_text(inserts, labels)
+
+    assert device_in(beside["AB01"]) == "Smoke detector"
+    assert device_in(beside["AB02"]) == "Manual call point"
+    assert "STAIR LOBBY" not in beside.values()
+
+    # It is worth 5, like any other weak word: never enough on its own.
+    tagged = classify(block="AB01", nearby=beside["AB01"])
+    assert tagged.device == "Smoke detector" and tagged.confidence == 10.0
+    assert tagged.state == UNRESOLVED and tagged.method == "nearby_text"
