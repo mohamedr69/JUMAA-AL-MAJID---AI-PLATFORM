@@ -532,7 +532,13 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
     for index, path in enumerate(files, start=1):
         if ctx is not None:
             ctx.progress(index - 1, len(files), f"AI reading {path.name} ({index} of {len(files)})")
-        stat = os.stat(document_control._os_path(path))
+        try:
+            stat = os.stat(document_control._os_path(path))
+        except OSError:
+            # Gone since it was listed (deleted, or moved by hand): not a
+            # form on the map, and not a reason to draw no map at all.
+            warnings.append(f"{path.name} is no longer in the project folder; it is left off the map.")
+            continue
         fingerprint.update(f"{path}|{stat.st_size}|{int(stat.st_mtime)}".encode())
         sha = pipeline.sha256_of(path) or ""
         reading = read_form(db, run, path, document_sha=sha, user_id=user.id if user else None)

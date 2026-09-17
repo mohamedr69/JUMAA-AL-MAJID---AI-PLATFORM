@@ -178,3 +178,27 @@ def test_a_read_that_fails_keeps_the_previous_result_and_is_marked(client, db_se
     assert row.state == "failed" and "fell over" in row.error and row.extracted == first
     status = client.get(f"/projects/{project_id}/documents/status").json()
     assert status["by_state"] == {"failed": 1} and status["failed"][0]["path"] == "03- MS/form.pdf"
+
+
+def test_a_form_deleted_from_the_folder_leaves_the_map_not_the_sync(client, db_session, tmp_path, ai):
+    """A submittal form removed from the folder (a filed package deleted by
+    hand) is marked removed and left off the map; the sync still finishes."""
+    folder = tmp_path / "EP-30814"
+    _submittal_form(folder / "03- MS" / "01- FA" / "form.pdf")
+    _submittal_form(folder / "03- MS" / "02- ELS" / "form.pdf", reference="BBY006-GME-MAS-EL-EL-0001")
+    ai.answers = [_reading("BBY006-GME-MAS-EL-FA-0001", 0), _reading("BBY006-GME-MAS-EL-EL-0001", 0)]
+    project_id = _project(client, folder, ep="30814")
+    first = client.post(f"/projects/{project_id}/jobs/sync-documents").json()
+    assert first["status"] == "succeeded", first
+    assert client.get(f"/projects/{project_id}/submittals/map").json()["submittals"] == 2
+
+    (folder / "03- MS" / "02- ELS" / "form.pdf").unlink()
+    second = client.post(f"/projects/{project_id}/jobs/sync-documents").json()
+    assert second["status"] == "succeeded", second.get("error")
+    assert second["result"]["removed"] == 1 and second["result"]["forms_changed"] is True
+    gone = db_session.query(ProjectDocument).filter(ProjectDocument.relative_path == "03- MS/02- ELS/form.pdf").one()
+    db_session.refresh(gone)
+    assert gone.state == "removed"
+    submittal_map = client.get(f"/projects/{project_id}/submittals/map").json()
+    assert submittal_map["submittals"] == 1
+    assert [r["reference"] for s in submittal_map["systems"] for r in s["rows"]] == ["BBY006-GME-MAS-EL-FA-0001"]

@@ -332,6 +332,10 @@ def sync(db: Session, project: Project, *, user: User | None = None, ctx=None, p
     if forms_changed and can_read_forms:
         if ctx is not None:
             ctx.progress(len(files), len(files), "Drawing the submittal map from the readings")
+        # Flushed first: a form marked removed just above is still "fresh"
+        # to a query until it is, and the map was handed a file that was no
+        # longer there (EP-30880: a filed package deleted from the folder).
+        db.flush()
         form_paths = [Path(r.path) for r in db.query(ProjectDocument)
                       .filter(ProjectDocument.project_id == project.id, ProjectDocument.role == ROLE_SUBMITTAL,
                               ProjectDocument.state != REMOVED)]
