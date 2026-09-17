@@ -64,9 +64,12 @@ DEVICE_RULES: tuple[tuple[str, str], ...] = (
     ("Exit light", r"EXIT"),
 )
 
-# A block that is drawing furniture rather than a device.
+# A block that is drawing furniture rather than a device: the sheet's own
+# parts, the architecture brought in as an external reference, and the
+# anonymous blocks AutoCAD makes for dimensions and dynamic blocks
+# ("*U29", "A$C0a1b2c3"), which every real layout carries.
 FURNITURE_RE = re.compile(
-    r"TITLE|FRAME|BORDER|LOGO|NORTH|SCALE|STAMP|SHEET|REVISION|CLOUD|TAG|GRID|LEVEL[- ]?MARK|SECTION|DETAIL|VIEWPORT|A\$C",
+    r"^\*|^A\$C|XREF|TITLE|FRAME|BORDER|LOGO|NORTH|SCALE|STAMP|SHEET|REVISION|CLOUD|TAG|GRID|LEVEL[- ]?MARK|SECTION|DETAIL|VIEWPORT",
     re.IGNORECASE,
 )
 
@@ -154,9 +157,36 @@ def _range_of(label: str) -> list[str]:
     return []
 
 
+# A sheet title names every floor it carries: "GROUND, FIRST & ROOF FLOOR
+# FIRE ALARM LAYOUT" is three plans on one sheet.
+_FLOOR_TOKEN_RE = re.compile(
+    rf"\b(BASEMENT\s*\d*|LOWER\s+GROUND|GROUND|MEZZANINE|PODIUM\s*\d*|ROOF|PENTHOUSE|"
+    rf"(?:{'|'.join(_ORDINALS)})|\d{{1,3}}(?:ST|ND|RD|TH))\b",
+    re.IGNORECASE,
+)
+_TITLE_WORDS_RE = re.compile(r"\b(FLOOR|LEVEL|PLAN|LAYOUT)\b", re.IGNORECASE)
+
+
+def floor_names_in(title: str) -> list[str]:
+    """The floors a sheet title lists, in the order it lists them. Empty
+    when the title names none, or is not a sheet title at all."""
+    if not title or not _TITLE_WORDS_RE.search(title):
+        return []
+    found: list[str] = []
+    for match in _FLOOR_TOKEN_RE.finditer(title):
+        name = re.sub(r"\s+", " ", match.group(1).strip()).title()
+        if name.upper() in ("PLAN", "LAYOUT"):
+            continue
+        if name not in found:
+            found.append(name)
+    return found
+
+
 def floor_of(label: str) -> Floor:
     """The floor a label names."""
     name = re.sub(r"\s+", " ", (label or "").strip()) or "Unnamed floor"
+    if name == OTHER_AREA:
+        return Floor(name=name, order=_AWAY_ORDER)      # after every floor of the building
     covers = tuple(_range_of(name))
     return Floor(name=name, order=_order_of(name), covers=covers)
 
@@ -357,6 +387,24 @@ def plan_box(read: DrawingRead, space: str) -> Box | None:
     return Box(left, bottom, right, top)
 
 
+OTHER_AREA = "Not on a named floor"
+_AWAY_ORDER = 10_000.0
+
+
+def _sheet_floors(read: DrawingRead) -> list[str]:
+    """The floors this drawing's sheet title lists, from any space: the
+    title block is usually on the layout, the plans in the model."""
+    for label in sorted(read.labels, key=lambda label: -len(label.text)):
+        named = floor_names_in(label.text)
+        if len(named) > 1:
+            return named
+    for label in read.labels:
+        named = floor_names_in(label.text)
+        if named:
+            return named
+    return []
+
+
 @dataclasses.dataclass
 class FloorCount:
     floor: Floor
@@ -410,10 +458,110 @@ def floor_labels(read: DrawingRead, space: str) -> list[Label]:
     found = [
         label
         for label in read.labels
-        if label.space == space and FLOOR_TEXT_RE.search(label.text) and not LEGEND_TITLE_RE.search(label.text)
-        and len(label.text) <= 60
+        # A plan is titled "GROUND FLOOR PLAN" or "LEVEL 3", not "ROOF":
+        # a bare floor word is a room label, and every roof plan has one.
+        if label.space == space and FLOOR_TEXT_RE.search(label.text) and _TITLE_WORDS_RE.search(label.text)
+        and not LEGEND_TITLE_RE.search(label.text) and len(label.text) <= 60
     ]
     return sorted(found, key=lambda label: (-label.height, label.text))
+
+
+def clusters(inserts: list[Insert]) -> list[list[Insert]]:
+    """The separate plans a space holds, by where the devices are.
+
+    A drawing that titles each plan says where its floors are; one that
+    does not -- and the archive is full of them -- stacks the plans with a
+    clear gap between them. Devices nearer to each other than three times
+    the usual spacing are the same plan; a gap wider than that is the next
+    one. Returned lowest plan first, which is how a building is drawn.
+    """
+    if len(inserts) < 2:
+        return [list(inserts)] if inserts else []
+    # The usual spacing: the median distance from a device to its nearest
+    # neighbour, which is the drawing's own scale whatever its units.
+    nearest: list[float] = []
+    for index, insert in enumerate(inserts):
+        best = min(
+            (math.hypot(insert.x - other.x, insert.y - other.y) for position, other in enumerate(inserts) if position != index),
+            default=0.0,
+        )
+        if best > 0:
+            nearest.append(best)
+    if not nearest:
+        return [list(inserts)]
+    nearest.sort()
+    typical = nearest[len(nearest) // 2]
+    reach = typical * _CLUSTER_REACH
+
+    # Union-find over the devices within reach of each other.
+    parent = list(range(len(inserts)))
+
+    def root(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    order = sorted(range(len(inserts)), key=lambda index: (inserts[index].x, inserts[index].y))
+    for position, index in enumerate(order):
+        for other in order[position + 1:]:
+            if inserts[other].x - inserts[index].x > reach:
+                break
+            if math.hypot(inserts[index].x - inserts[other].x, inserts[index].y - inserts[other].y) <= reach:
+                left, right = root(index), root(other)
+                if left != right:
+                    parent[left] = right
+
+    groups: dict[int, list[Insert]] = {}
+    for index, insert in enumerate(inserts):
+        groups.setdefault(root(index), []).append(insert)
+    found = list(groups.values())
+    found.sort(key=lambda group: (min(i.y for i in group), min(i.x for i in group)))
+    return found
+
+
+# How far apart two devices can be and still be the same plan, as a
+# multiple of the drawing's usual device spacing.
+_CLUSTER_REACH = 3.0
+# A plan further from the others than this multiple of the usual gap
+# between plans belongs to another drawing on the same sheet.
+_AWAY_REACH = 3.0
+
+
+def main_area(plans: list[list[Insert]]) -> tuple[list[list[Insert]], list[list[Insert]]]:
+    """(the plans of this sheet, the plans drawn away from them).
+
+    One model space often carries more than one drawing -- the fire alarm
+    plans, and the emergency lighting layout eighty metres above them.
+    The plans of a building are stacked at a regular distance; a plan
+    further off than a few of those gaps is another drawing, and its
+    devices are not on the floors this sheet names.
+    """
+    if len(plans) < 3:
+        return plans, []
+    ordered = sorted(plans, key=lambda plan: min(insert.y for insert in plan))
+    tops = [max(insert.y for insert in plan) for plan in ordered]
+    bottoms = [min(insert.y for insert in plan) for plan in ordered]
+    gaps = [bottoms[index + 1] - tops[index] for index in range(len(ordered) - 1)]
+    if not gaps:
+        return plans, []
+    typical = sorted(gaps)[len(gaps) // 2]
+    if typical <= 0:
+        return plans, []
+    # Cut the run wherever the gap is far wider than the usual one, and
+    # keep the stretch holding the most devices.
+    runs: list[list[list[Insert]]] = [[ordered[0]]]
+    for index, gap in enumerate(gaps, start=1):
+        if gap > typical * _AWAY_REACH:
+            runs.append([])
+        runs[-1].append(ordered[index])
+    runs = [run for run in runs if run]
+    if len(runs) == 1:
+        return plans, []
+    runs.sort(key=lambda run: sum(len(plan) for plan in run), reverse=True)
+    kept = runs[0]
+    away = [plan for run in runs[1:] for plan in run]
+    return kept, away
 
 
 def assign(inserts: list[Insert], labels: list[Label]) -> dict[str, list[Insert]]:
@@ -470,11 +618,42 @@ def extract(paths: list[Path], names: dict[Path, str] | None = None) -> Extracti
                 inserts = [i for i in inserts if i not in outside]
 
             labels = floor_labels(read, space)
-            if not labels:
-                # The file name is the floor when the drawing does not say
-                # ("GF-FF & RF.dwg", "Level 03 FA layout.dxf").
-                labels = [Label(text=Path(shown).stem, x=0.0, y=0.0, space=space)]
-            groups = assign(inserts, labels)
+            if labels:
+                groups = assign(inserts, labels)
+            else:
+                # No plan is titled: the plans are where the devices are,
+                # and the sheet title says which floors they are.
+                named = _sheet_floors(read)
+                plans = clusters(inserts)
+                # A drawing sharing the sheet -- the lighting layout beside
+                # the fire alarm plans -- is not one of this sheet's floors.
+                plans, elsewhere = main_area(plans)
+                if named and len(plans) > len(named):
+                    # More plans than the title names: the biggest are the
+                    # floors, the rest a detail or a key plan.
+                    biggest = sorted(plans, key=len, reverse=True)[: len(named)]
+                    elsewhere += [plan for plan in plans if plan not in biggest]
+                    plans = [plan for plan in plans if plan in biggest]
+                if named and len(plans) == len(named):
+                    groups = {name: plan for name, plan in zip(named, plans)}
+                    if elsewhere:
+                        away: list[Insert] = [insert for plan in elsewhere for insert in plan]
+                        groups[OTHER_AREA] = away
+                        result.warnings.append(
+                            f"{shown}: {len(away)} device{'s' if len(away) != 1 else ''} are drawn away from the "
+                            f"{len(named)} plan{'s' if len(named) != 1 else ''} the title names "
+                            f"({', '.join(named)}); they are listed under \"{OTHER_AREA}\"."
+                        )
+                elif len(plans) + len(elsewhere) > 1:
+                    plans = plans + elsewhere
+                    groups = {f"Plan {number}": plan for number, plan in enumerate(plans, start=1)}
+                    result.warnings.append(
+                        f"{shown}: {len(plans)} plans are drawn on the sheet and none is titled; they are listed as "
+                        "Plan 1 upwards, lowest first. Name them on the drawing, or hand in one file per floor."
+                    )
+                else:
+                    # One plan: the file name is the floor ("GF.dxf").
+                    groups = {Path(shown).stem: inserts}
 
             for name, group in groups.items():
                 if not group:

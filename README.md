@@ -497,6 +497,44 @@ Material** (`GET /projects/{id}/materials/schedule.pdf?system_code=FAS`)
 by assembly and then the materials added on the tab as a block of their
 own.
 
+### The BOQ floor wise, read off the drawings
+
+A fire alarm layout is a CAD drawing, and every device on it is a block
+reference. The **BOQ floor wise** tab takes the layouts as they are --
+DWG or DXF -- and counts the devices floor by floor
+(`app/services/floor_devices.py`). It stands on its own: the drawings are
+handed in through the page, nothing is read from the project folder and
+nothing is written back to the BOQ.
+
+A **DWG is converted first** (`app/services/dwg_convert.py`). The
+converter is whatever the PC has: AutoCAD's headless core console
+(`accoreconsole.exe`, which comes with AutoCAD and with the free DWG
+TrueView) or the ODA File Converter; `DWG_CONVERTER` in `backend/.env`
+names one explicitly. Without one the page says so and asks for the DXF
+export instead, rather than quietly dropping the drawing.
+
+Counting is more than counting the blocks:
+
+- **the legend is not the building** -- its symbols are found by the
+  legend's title and the column running down from it, and left out;
+- **what is outside the plan is not installed** -- the plan's extent comes
+  from the architectural layers, so the symbols in the title block and the
+  notes are left out;
+- **the architecture and AutoCAD's own blocks are not devices** -- an
+  external reference (`01-XREF_GF`) and the anonymous blocks (`*U29`,
+  `A$C...`) are drawing furniture;
+- **a floor is a region, not a file** -- one drawing per floor, several
+  plans stacked in one model space (found by where the devices are and
+  named from the sheet title: "GROUND, FIRST & ROOF FLOOR"), or one layout
+  issued for a range ("TYPICAL 2ND TO 14TH"), which the schedule shows as
+  a row per floor;
+- a drawing sharing the sheet -- the lighting layout beside the fire alarm
+  plans -- is listed apart, under "Not on a named floor", with a note.
+
+The schedule is a row per floor from the lowest to the highest and a
+column per device, stored per project (`project_floor_boq`) so the tab
+opens from the database.
+
 ### The AI reads the material submittals
 
 The consultant's reply on a material submittal form is a stamp or a

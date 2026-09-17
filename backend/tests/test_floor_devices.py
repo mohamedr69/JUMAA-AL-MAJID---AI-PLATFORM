@@ -166,3 +166,49 @@ def test_a_file_that_is_not_a_drawing_is_reported_not_raised(tmp_path):
     result = extract([broken])
 
     assert result.floors == [] and result.warnings and "could not be read" in result.warnings[0]
+
+
+def test_plans_the_drawing_does_not_title_are_found_by_where_they_are(tmp_path):
+    """A real layout stacks its plans and names them only in the sheet
+    title ("GROUND, FIRST & ROOF FLOOR FIRE ALARM LAYOUT"), with the
+    lighting layout drawn far above them. Each plan is found by where its
+    devices are; the drawing that shares the sheet is kept apart."""
+    doc = ezdxf.new(setup=True)
+    _blocks(doc, ["SMOKE DETECTOR", "MANUAL CALL POINT", "EMERGENCY LIGHT", "01-XREF_GF", "*U29"])
+    space = doc.modelspace()
+    for index, (count, calls) in enumerate([(6, 2), (4, 1), (1, 1)]):
+        bottom = index * 20000
+        for n in range(count):
+            space.add_blockref("SMOKE DETECTOR", (1000 + n * 900, bottom + 1000), dxfattribs={"layer": "FA"})
+        for n in range(calls):
+            space.add_blockref("MANUAL CALL POINT", (1000 + n * 900, bottom + 2500), dxfattribs={"layer": "FA"})
+    # The lighting layout of the same sheet, drawn far above the plans.
+    for n in range(5):
+        space.add_blockref("EMERGENCY LIGHT", (1000 + n * 900, 300000), dxfattribs={"layer": "LIGHT"})
+    # The architecture as an external reference, and an anonymous block:
+    # neither is a device.
+    space.add_blockref("01-XREF_GF", (0, 0), dxfattribs={"layer": "0"})
+    space.add_blockref("*U29", (50000, 50000), dxfattribs={"layer": "FA"})
+    # The sheet title lives on the layout, as it does on a real drawing.
+    doc.layout("Layout1").add_text("GROUND, FIRST & ROOF FLOOR FIRE ALARM LAYOUT", dxfattribs={"height": 3}).set_placement((10, 10))
+    drawing = _save(doc, tmp_path / "GF-FF & RF.dxf")
+
+    result = extract([drawing])
+
+    counted = {floor.floor.name: floor.devices for floor in result.floors}
+    assert list(counted) == ["Ground", "First", "Roof", "Not on a named floor"]
+    assert counted["Ground"] == {"Smoke detector": 6, "Manual call point": 2}
+    assert counted["First"] == {"Smoke detector": 4, "Manual call point": 1}
+    assert counted["Roof"] == {"Smoke detector": 1, "Manual call point": 1}
+    assert counted["Not on a named floor"] == {"Emergency light": 5}
+    assert any("drawn away from the 3 plans" in warning for warning in result.warnings)
+    assert result.furniture_excluded == 2                      # the XREF and the anonymous block
+
+
+def test_the_floors_a_sheet_title_lists():
+    from app.services.floor_devices import floor_names_in
+
+    assert floor_names_in("GROUND, FIRST & ROOF FLOOR \nFIRE ALARM LAYOUT") == ["Ground", "First", "Roof"]
+    assert floor_names_in("BASEMENT 2, BASEMENT 1 AND GROUND FLOOR PLAN") == ["Basement 2", "Basement 1", "Ground"]
+    assert floor_names_in("RECEPTION AREA") == []              # a room label is not a sheet title
+    assert floor_names_in("") == []
