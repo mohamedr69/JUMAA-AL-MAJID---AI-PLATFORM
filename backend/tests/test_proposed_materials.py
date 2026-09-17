@@ -177,3 +177,28 @@ def test_a_part_the_file_names_do_not_carry_is_documented_by_the_datasheet_linke
     assert client.put("/materials/datasheet-link", json={"manufacturer": "MENVIER", "part_no": "XYZ-999", "library": "MENVIER", "path": "nope.pdf"}).status_code == 404
     assert client.delete("/materials/datasheet-link?manufacturer=MENVIER&part_no=XYZ-999").status_code == 204
     assert db_session.query(PartDatasheetLink).filter(PartDatasheetLink.key == "XYZ999").count() == 0
+
+
+def test_each_tab_exports_its_schedule_of_material_with_the_added_materials_on_it(client, db_session):
+    _login(client)
+    project_id = client.post("/projects", json={
+        "ep_number": "30794", "project_name": "Titania", "design_sheets": [],
+        "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True},
+                    {"name": "Emergency Light Monitoring", "brand": "MENVIER", "method_statement": True, "drawing": True}],
+    }).json()["id"]
+    client.put(f"/projects/{project_id}/boq", json=[
+        {"system_code": "FAS", "group_heading": "Main Panel", "catalog_no": "4-CPU", "description": "Central Processor Module", "quantity": "1", "manufacturer": "EDWARDS"},
+        {"system_code": "ELS", "group_heading": "Lights", "catalog_no": "SL2NM65D3-M", "description": "Surface Emergency Light", "quantity": "6", "manufacturer": "MENVIER"},
+    ])
+    assert client.post(f"/projects/{project_id}/materials", json={"system_code": "FAS", "catalog_no": "SIGA-LED", "description": "Remote alarm LED"}).status_code == 201
+
+    fire = client.get(f"/projects/{project_id}/materials/schedule.pdf?system_code=FAS")
+    assert fire.status_code == 200 and fire.headers["content-type"] == "application/pdf"
+    assert "Schedule of Material - FAS" in fire.headers["content-disposition"]
+    text = "\n".join(page.get_text() for page in pymupdf.open(stream=fire.content, filetype="pdf"))
+    assert "4-CPU" in text and "SIGA-LED" in text and "PROPOSED MATERIALS" in text
+    assert "SL2NM65D3-M" not in text                      # the other system's
+
+    lighting = client.get(f"/projects/{project_id}/materials/schedule.pdf?system_code=ELS")
+    text = "\n".join(page.get_text() for page in pymupdf.open(stream=lighting.content, filetype="pdf"))
+    assert "SL2NM65D3-M" in text and "4-CPU" not in text and "PROPOSED MATERIALS" not in text

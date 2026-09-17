@@ -491,7 +491,11 @@ NEXI300-3H-CGL.pdf; every SL2 exit sign on SL2-42D3D-CGL-M.pdf) -- is
 (`part_datasheet_links`, `app/services/datasheet_links.py`: the
 engineers' Menvier links are seeded, "Link datasheet" on the tab adds
 more), and every place a material gets its datasheet reads the link
-before searching the library.
+before searching the library. Each system's tab exports its **Schedule of
+Material** (`GET /projects/{id}/materials/schedule.pdf?system_code=FAS`)
+-- the page the submittal package encloses as section 5, the BOQ's parts
+by assembly and then the materials added on the tab as a block of their
+own.
 
 ### The AI reads the material submittals
 

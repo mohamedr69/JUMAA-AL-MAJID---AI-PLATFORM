@@ -58,11 +58,24 @@ export function ProjectProposedMaterialsPage() {
             What is proposed for each system: the BOQ's parts, and any material added here. A quantity is not needed for an added material.
           </p>
         </div>
-        {canEdit && currentSystem && (
-          <button onClick={() => setAdding(true)} className="rounded-lg bg-brand-600 px-5 py-2 font-semibold text-white">
-            Add material
-          </button>
-        )}
+        <div className="flex flex-wrap items-end gap-2">
+          {currentSystem && (
+            <a
+              href={apiUrl(`/projects/${project.id}/materials/schedule.pdf?system_code=${encodeURIComponent(currentSystem.code)}`)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg border border-brand-600 px-5 py-2 font-semibold text-brand-600"
+              title="The Schedule of Material for this system, as the submittal package encloses it"
+            >
+              Export PDF
+            </a>
+          )}
+          {canEdit && currentSystem && (
+            <button onClick={() => setAdding(true)} className="rounded-lg bg-brand-600 px-5 py-2 font-semibold text-white">
+              Add material
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}

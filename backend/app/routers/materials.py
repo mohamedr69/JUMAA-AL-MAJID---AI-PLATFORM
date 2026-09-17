@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -190,6 +192,28 @@ def propose(
                               id=row.id, note=row.note, added_at=row.created_at)
     _attach_datasheets([out], get_libraries(), db)
     return out
+
+
+@router.get("/projects/{project_id}/materials/schedule.pdf")
+def export_schedule(
+    project_id: int,
+    system_code: str | None = Query(default=None, max_length=16),
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """The Schedule of Material for one system, as the submittal package
+    encloses it (section 5): the BOQ's parts by assembly, then the
+    materials added on the tab. From the database; nothing scanned."""
+    from app.services.submittal_package import build_schedule
+
+    project = _get_project_or_404(db, project_id)
+    code = system_rules.effective_code(system_code, project) if system_code else None
+    doc = build_schedule(project, code)
+    pdf = doc.tobytes()
+    doc.close()
+    name = f"EP-{project.ep_number} - Schedule of Material{' - ' + code if code else ''}.pdf"
+    return Response(pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f"attachment; filename=\"{name}\"; filename*=UTF-8''{quote(name)}"})
 
 
 @router.delete("/projects/{project_id}/materials/{material_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)

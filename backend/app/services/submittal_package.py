@@ -675,6 +675,9 @@ UNGROUPED_BLOCK = "Field Devices"
 _RED = (0.75, 0.1, 0.15)
 
 
+ADDED_BLOCK = "Proposed materials (added beyond the BOQ)"
+
+
 def schedule_blocks(project: Project, system_code: str | None = None) -> list[tuple[str, str, list]]:
     """The BOQ as the design sheet lays it out: a lettered block per assembly.
 
@@ -707,6 +710,24 @@ def schedule_blocks(project: Project, system_code: str | None = None) -> list[tu
             grouped[key] = []
             order.append(key)
         grouped[key].append(item)
+
+    # The materials proposed on the Proposed Materials tab beyond the BOQ,
+    # under the same system: the schedule is what is proposed for approval,
+    # so they are on it, as a block of their own after the BOQ's.
+    from sqlalchemy.orm import Session as _Session
+
+    from app.models import ProjectProposedMaterial
+
+    session = _Session.object_session(project)
+    added = []
+    if session is not None:
+        for row in session.query(ProjectProposedMaterial).filter(ProjectProposedMaterial.project_id == project.id).order_by(ProjectProposedMaterial.id):
+            if wanted and effective_code(row.system_code, project) != wanted:
+                continue
+            added.append(row)
+    if added:
+        order.append(ADDED_BLOCK)
+        grouped[ADDED_BLOCK] = added
 
     blocks: list[tuple[str, str, list]] = []
     for index, key in enumerate(order):
