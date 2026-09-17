@@ -44,7 +44,8 @@ class DocumentCandidateOut(BaseModel):
 
 class ExtractedFieldOut(BaseModel):
     value: str
-    confidence: float
+    # The OCR read gave a figure per field; the model's read gives none.
+    confidence: float | None = None
     raw_label: str
 
 

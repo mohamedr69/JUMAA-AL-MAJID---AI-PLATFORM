@@ -1075,91 +1075,120 @@ def verify_details(db: Session, project: Project, user: User, *, ctx=None, provi
         raise
 
 
+DRF_NAME = {"project_name": "project_title"}  # the DRF's own name for the field, as the review form keys it
+
+
+def drf_read_once(run: _Run, drf: Path, sha: str, tier: str) -> tuple[dict, dict | None]:
+    """One model reading of the DRF: its fields by name (None for a field
+    the model could not read) and its Systems table by system name, or None
+    for a table it could not read."""
+    from app.services import details_check
+
+    schema = _read_drf_schema()
+    names = TextPart("allowed_system_names", "\n".join(details_check.SYSTEMS))
+    parts = [names, *_drf_images(drf, second=tier != "small")]
+    data = run.call(document_sha=sha, task="verify_drf", system=SYSTEM_READ_DRF, parts=parts,
+                    schema=schema, max_output=3000, tier=tier) or {}
+    fields = {}
+    for answer in data.get("fields") or []:
+        name = answer.get("field")
+        if name in details_check.FIELDS and name not in fields:
+            fields[name] = re.sub(r"[ \t]+", " ", str(answer.get("value") or "")).strip() if answer.get("readable") else None
+    systems = None
+    if data.get("systems_readable") is not False and data:
+        systems = {}
+        for answer in data.get("systems") or []:
+            if answer.get("name") in details_check.SYSTEMS and answer["name"] not in systems:
+                entry = {"brand": str(answer.get("brand") or "").strip() or None,
+                         "method_statement": bool(answer.get("method_statement")),
+                         "drawing": bool(answer.get("drawing"))}
+                if entry["brand"] or entry["method_statement"] or entry["drawing"]:
+                    systems[answer["name"]] = entry
+        # Every DRF marks at least one system: a table read with none
+        # marked is a table that was not really read.
+        systems = systems or None
+    return fields, systems
+
+
+def drf_run(db: Session, project: Project | None, provider: AiProvider | None = None, record=None) -> _Run:
+    """A run to read a DRF in: for a project, or -- at project creation,
+    before there is one -- for none, budgeted against the day's calls."""
+    import types
+
+    owner = project if project is not None else types.SimpleNamespace(id=None)
+    return _Run(db=db, project=owner, provider=provider or get_provider(), budget=_budget(db, owner.id), record=record)
+
+
+def read_drf(db: Session, drf: Path, *, project: Project | None, user_id: int | None = None,
+             provider: AiProvider | None = None, run: _Run | None = None) -> tuple[dict, dict | None, _Run]:
+    """The first AI reading of a DRF: the stored one when a form with this
+    content was read before (on this project or any other), else one
+    small-tier call, stored for good. Raises RuntimeError with the reason
+    when the model cannot be used: nothing reads the form instead."""
+    from app.ai import sheet_reader
+    from app.core.config import get_settings as _settings
+    from app.models import DocumentReading
+
+    settings = _settings()
+    if run is None:
+        # On its own (project creation): the same gate a verification job
+        # passes before it starts. Inside a verification, the job was admitted.
+        if not settings.ai_enabled:
+            raise RuntimeError("AI assistance is disabled (AI_ENABLED=false)")
+        if project is not None and not project_policy.allowed(project):
+            raise RuntimeError(project_policy.BLOCKED_MESSAGE)
+        provider = provider or get_provider()
+        if not getattr(provider, "ready", False):
+            raise RuntimeError(str(getattr(provider, "status", "AI is not available on this server")))
+    if not drf.is_file():
+        raise RuntimeError("the file is not there")
+    run = run or drf_run(db, project, provider)
+    sha = pipeline.sha256_of(drf) or ""
+    stored_drf = sheet_reader.stored(db, sha, kind="drf", prompt_version=PROMPT_VERSION)
+    if stored_drf is not None:
+        run.reused += 1
+        return dict(stored_drf.reading.get("fields") or {}), stored_drf.reading.get("systems"), run
+    fields, systems = drf_read_once(run, drf, sha, "small")
+    readable = bool(fields) or systems is not None
+    earlier = sheet_reader.stored(db, sha, kind="drf", prompt_version=PROMPT_VERSION, any_status=True)
+    values = dict(project_id=project.id if project is not None else None, kind="drf", document_path=str(drf),
+                  document_sha256=sha, model=", ".join(sorted(run.models)) or settings.ai_model_small,
+                  prompt_version=PROMPT_VERSION, pages=1, reading={"fields": fields, "systems": systems},
+                  status="completed" if readable else "failed",
+                  error=None if readable else (run.notes[-1] if run.notes else "the model gave no reading of the DRF"),
+                  calls=run.calls, created_by_id=user_id)
+    if earlier is None:
+        db.add(DocumentReading(**values))
+    else:
+        for name, value in values.items():
+            setattr(earlier, name, value)
+    db.commit()
+    return fields, systems, run
+
+
 def _verify_details(db: Session, project: Project, user: User, record: AiVerification, drf: Path, *, ctx, provider) -> AiVerification:
     from app.routers import projects as projects_router
     from app.schemas_project import ProjectDetailsIn
-    from app.services import details_check, drf_extractor
+    from app.services import details_check
 
     run = _Run(db=db, project=project, provider=provider, budget=_budget(db, project.id), record=record)
     sha = pipeline.sha256_of(drf) or ""
-    if ctx is not None:
-        ctx.progress(0, 4, "Reading the DRF again")
-    try:
-        ocr_result = drf_extractor.extract_drf_fields(drf)
-        ocr_fields = {("project_name" if k == "project_title" else k): v.value for k, v in ocr_result.fields.items()}
-        ocr_fields["scope_of_work"] = ocr_result.scope_of_work
-        ocr_fields["other_information"] = ocr_result.other_information
-        ocr_systems = {s.name: {"brand": s.brand, "method_statement": s.method_statement, "drawing": s.drawing}
-                       for s in ocr_result.systems}
-        if not ocr_systems or any("Systems table" in w for w in ocr_result.warnings):
-            # No table found is no reading, not a table with nothing marked.
-            ocr_systems = None
-        for name in ("scope_of_work", "other_information"):
-            if not ocr_fields.get(name):
-                ocr_fields.pop(name, None)
-    except Exception as exc:  # noqa: BLE001 -- an unreadable form still gets the AI's two readings
-        run.notes.append(f"The OCR read of the DRF failed: {exc}")
-        ocr_fields, ocr_systems = {}, None
+    # No OCR reading of the form since 2026-09-17: the held values, the
+    # model's reading and, where they do not settle a field, its second.
+    ocr_fields: dict = {}
+    ocr_systems = None
 
     held = {name: getattr(project, name) or "" for name in details_check.FIELDS}
     held_systems = {s.name: {"brand": s.brand, "method_statement": s.method_statement, "drawing": s.drawing}
                     for s in project.systems}
-    images = _drf_images(drf)
-    schema = _read_drf_schema()
-    names = TextPart("allowed_system_names", "\n".join(details_check.SYSTEMS))
 
     def read(tier: str) -> tuple[dict, dict | None]:
-        parts = [names, *(images if tier == "small" else _drf_images(drf, second=True))]
-        data = run.call(document_sha=sha, task="verify_drf", system=SYSTEM_READ_DRF, parts=parts,
-                        schema=schema, max_output=3000, tier=tier) or {}
-        fields = {}
-        for answer in data.get("fields") or []:
-            name = answer.get("field")
-            if name in details_check.FIELDS and name not in fields:
-                fields[name] = re.sub(r"[ \t]+", " ", str(answer.get("value") or "")).strip() if answer.get("readable") else None
-        systems = None
-        if data.get("systems_readable") is not False and data:
-            systems = {}
-            for answer in data.get("systems") or []:
-                if answer.get("name") in details_check.SYSTEMS and answer["name"] not in systems:
-                    entry = {"brand": str(answer.get("brand") or "").strip() or None,
-                             "method_statement": bool(answer.get("method_statement")),
-                             "drawing": bool(answer.get("drawing"))}
-                    if entry["brand"] or entry["method_statement"] or entry["drawing"]:
-                        systems[answer["name"]] = entry
-            # Every DRF marks at least one system: a table read with none
-            # marked is a table that was not really read.
-            systems = systems or None
-        return fields, systems
+        return drf_read_once(run, drf, sha, tier)
 
     if ctx is not None:
         ctx.progress(1, 4, "AI reading the DRF")
-    from app.ai import sheet_reader
-    from app.models import DocumentReading
-
-    stored_drf = sheet_reader.stored(db, sha, kind="drf", prompt_version=PROMPT_VERSION)
-    if stored_drf is not None:
-        # Read before (this project reopened, or another with the same form):
-        # the stored reading is the first AI reading, and costs nothing.
-        ai1_fields = dict(stored_drf.reading.get("fields") or {})
-        ai1_systems = stored_drf.reading.get("systems")
-        run.reused += 1
-    else:
-        ai1_fields, ai1_systems = read("small")
-        readable = bool(ai1_fields) or ai1_systems is not None
-        earlier = sheet_reader.stored(db, sha, kind="drf", prompt_version=PROMPT_VERSION, any_status=True)
-        values = dict(project_id=project.id, kind="drf", document_path=str(drf), document_sha256=sha,
-                      model=", ".join(sorted(run.models)) or get_settings().ai_model_small, prompt_version=PROMPT_VERSION,
-                      pages=1, reading={"fields": ai1_fields, "systems": ai1_systems},
-                      status="completed" if readable else "failed",
-                      error=None if readable else (run.notes[-1] if run.notes else "the model gave no reading of the DRF"),
-                      calls=run.calls, created_by_id=user.id if user else None)
-        if earlier is None:
-            db.add(DocumentReading(**values))
-        else:
-            for name, value in values.items():
-                setattr(earlier, name, value)
-        db.commit()
+    ai1_fields, ai1_systems, _run = read_drf(db, drf, project=project, user_id=user.id if user else None,
+                                             provider=provider, run=run)
 
     def decide_all(ai2_fields=None, ai2_systems=_MISSING):
         field_out, system_out = {}, {}
@@ -1200,7 +1229,7 @@ def _verify_details(db: Session, project: Project, user: User, record: AiVerific
     items = []
     new_values = dict(held)
     for name, (decision, value, reason) in field_decisions.items():
-        readings = [ocr_fields.get(name), ai1_fields.get(name), (ai2_fields or {}).get(name) if ai2_fields else None]
+        readings = [ai1_fields.get(name), (ai2_fields or {}).get(name) if ai2_fields else None]
         if all(r is None for r in readings):
             decision, value, reason = "not_checked", held[name], "no reading of this field: the DRF does not show it clearly"
         elif decision == "second":
@@ -1225,7 +1254,7 @@ def _verify_details(db: Session, project: Project, user: User, record: AiVerific
     new_systems = {name: dict(system) for name, system in held_systems.items()}
     source_for = {"held": held_systems, "ocr": ocr_systems or {}, "ai": ai1_systems or {}, "ai2": ai2_systems or {}}
     for name, (decision, value, reason) in system_decisions.items():
-        readings = [ocr_systems, ai1_systems, ai2_systems]
+        readings = [ai1_systems, ai2_systems]
         if all(r is None for r in readings):
             decision, reason = "not_checked", "the Systems table could not be read on the DRF"
         elif decision == "second":

@@ -22,7 +22,10 @@ from app.core.config import get_settings
 from app.extraction import pipeline
 from app.extraction.issues import Coverage, Issue, IssueCode, Outcome, PageCoverage, llm_task_for, outcome_for
 from app.models import AiProposal, AiUsage, ExtractionIssue, ExtractionRun, Project, ProjectDesignSheet, RoleEnum, User
+from app.services import design_sheet_extractor
 from app.services.design_sheet_extractor import (
+    DesignSheetExtraction,
+    ExtractedBoqLine,
     DesignSheetExtraction,
     ExtractedBoqLine,
     extract_boq_lines,
@@ -95,18 +98,66 @@ def recording(monkeypatch):
 @pytest.fixture()
 def ai_on(monkeypatch):
     """The model on, for the cell-level assistance these tests are about.
-    The whole-sheet AI read (app.ai.sheet_reader) is switched off the way a
-    deployment would switch it off, so the sheet is read by OCR alone and
-    the unreadable cell is what reaches the model."""
+    The read runs in the request: as a job it would run in a thread that
+    cannot see the test database."""
+    import app.routers.jobs as jobs_router
+
     monkeypatch.setattr(settings, "ai_enabled", True)
-    monkeypatch.setattr(settings, "ai_disabled_tasks", "read_sheet_page")
+    monkeypatch.setattr(jobs_router, "RUN_INLINE", True)
     yield
     monkeypatch.setattr(settings, "ai_enabled", False)
-    monkeypatch.setattr(settings, "ai_disabled_tasks", "")
+
+
+# What the sheet read returns for each drawn sheet, by path. The read is the
+# model's (app.ai.sheet_reader) and is scripted here: a line per row with a
+# quantity, and a row to review -- with its region on the page, for the
+# evidence crop -- per row drawn with a scribble instead of one.
+SCRIPTED: dict[str, list[tuple[str, str, str]]] = {}
+_PX = design_sheet_extractor.RENDER_DPI / 72   # points -> pixels at the render DPI
+_COLUMNS = [40, 100, 220, 430, 500, 570]
+
+
+def _scripted_read(rows: list[tuple[str, str, str]]) -> DesignSheetExtraction:
+    result = DesignSheetExtraction(reader="ai", coverage=Coverage(pages=[PageCoverage(page=1, processed=True)]))
+    y = 72 + 6
+    dropped = 0
+    for qty, catalog, description in rows:
+        y += 18
+        span = (int(_COLUMNS[0] * _PX), int(_COLUMNS[1] * _PX))
+        bounds = (int((y - 12) * _PX), int((y + 4) * _PX))
+        if qty == "?":
+            # Rows to review are numbered among themselves, as the read numbers them.
+            dropped += 1
+            result.issues.append(Issue(
+                IssueCode.QUANTITY_OR_UNIT_PARSE_FAILURE, page=1, region=(span[0], bounds[0], span[1], bounds[1]),
+                target=f"boq_line:1:{dropped}",
+                detail={"description": description, "catalog_no": catalog, "group_heading": None, "raw_quantity": None,
+                        "quantity_parse": None, "alternates": [], "building": None,
+                        "ai_reading": {"quantity": "", "catalog_no": catalog, "description": description},
+                        "reason": "the model could not read the quantity with confidence", "reader": "ai"},
+            ))
+            continue
+        result.lines.append(ExtractedBoqLine(
+            catalog_no=catalog, description=description, quantity=qty, group_heading=None, confidence=92.0, page=1,
+            raw_quantity=qty, y_px=y * _PX, quantity_span=span, row_bounds=bounds,
+            table_span=(int(_COLUMNS[0] * _PX), int(_COLUMNS[-1] * _PX)),
+            quantity_parse=design_sheet_extractor._parse_quantity(qty).to_dict(),
+            ai_reading={"quantity": qty, "catalog_no": catalog, "description": description},
+        ))
+    return result
+
+
+@pytest.fixture(autouse=True)
+def scripted_sheet_read(monkeypatch):
+    from app.ai import sheet_reader
+
+    monkeypatch.setattr(sheet_reader, "read_design_sheet",
+                        lambda db, project, sheet, **kwargs: _scripted_read(SCRIPTED[sheet.document_path]))
 
 
 def _project_with_sheet(db, tmp_path, rows, code="PAVA") -> tuple[Project, Path]:
     sheet = _ruled_sheet(tmp_path / f"EP-1 {code} Design.pdf", rows)
+    SCRIPTED[str(sheet)] = list(rows)
     user = db.query(User).first() or make_user(db, "e@x.com", RoleEnum.design_engineer)
     project = Project(ep_number="40001", project_name="Test", created_by_id=user.id)
     project.design_sheets = [ProjectDesignSheet(system_code=code, document_path=str(sheet))]
@@ -144,7 +195,6 @@ def test_outcomes_keep_a_partial_read_from_passing_as_complete():
 # --- the deterministic path: zero calls ----------------------------------------------
 
 
-@requires_tesseract
 def test_a_complete_supported_sheet_makes_zero_model_calls(client, db_session, tmp_path, recording, ai_on):
     project, _ = _project_with_sheet(db_session, tmp_path, GOOD_ROWS)
     login(client, settings.default_admin_email, settings.default_admin_password)
@@ -202,7 +252,6 @@ def test_unsupported_and_missing_documents_are_outcomes_not_zero_rows(tmp_path):
 # --- evidence: only what the issue needs ---------------------------------------------
 
 
-@requires_tesseract
 def test_an_ambiguous_cell_sends_only_that_cell_and_its_row(client, db_session, tmp_path, ai_on):
     provider = RecordingProvider([_proposal("boq_line:1:1", "7")])
     provider_module.set_provider(provider)
@@ -265,7 +314,6 @@ def test_a_classification_is_a_suggestion_bounded_by_the_drf():
 # --- cache and de-duplication ---------------------------------------------------------
 
 
-@requires_tesseract
 def test_a_validated_cache_hit_makes_zero_model_calls(client, db_session, tmp_path, ai_on):
     provider = RecordingProvider([_proposal("boq_line:1:1", "7")])
     provider_module.set_provider(provider)
@@ -361,7 +409,6 @@ def test_budget_limits_are_enforced_before_the_call_and_reconciled_after():
     assert daily.value.limit == "calls_per_project_per_day"
 
 
-@requires_tesseract
 def test_budget_exhaustion_preserves_the_unresolved_issue(client, db_session, tmp_path, ai_on, monkeypatch):
     provider = RecordingProvider([_proposal("boq_line:1:1", "7"), _proposal("boq_line:1:2", "9")])
     provider_module.set_provider(provider)
@@ -384,7 +431,6 @@ def test_budget_exhaustion_preserves_the_unresolved_issue(client, db_session, tm
 # --- nothing is written without an engineer ---------------------------------------------
 
 
-@requires_tesseract
 def test_accepting_adds_the_row_and_a_second_accept_does_not_duplicate(client, db_session, tmp_path, ai_on):
     provider = RecordingProvider([_proposal("boq_line:1:1", "74")])
     provider_module.set_provider(provider)
@@ -410,7 +456,6 @@ def test_accepting_adds_the_row_and_a_second_accept_does_not_duplicate(client, d
         provider_module.set_provider(None)
 
 
-@requires_tesseract
 def test_an_engineer_s_own_line_is_never_overwritten_by_an_accept(client, db_session, tmp_path, ai_on):
     provider = RecordingProvider([_proposal("boq_line:1:1", "74")])
     provider_module.set_provider(provider)

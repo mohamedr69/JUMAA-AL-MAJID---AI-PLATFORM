@@ -213,7 +213,7 @@ export function AiVerificationPanel({
                     {item.outcome === "unresolved" && (
                       <>
                         {" "}
-                        · OCR read {lineText(item.ocr)} · AI read {lineText(item.ai)}
+                        · sheet read {lineText(item.ocr)} · AI check {lineText(item.ai)}
                         {item.ai2 ? ` · second AI read ${lineText(item.ai2)}` : ""}
                         {item.ai3 ? ` · close-up AI read ${lineText(item.ai3)}` : ""}
                       </>

@@ -122,7 +122,7 @@ def validate(
     """Judge one proposal for one issue.
 
     `sent_regions` are the labels of the evidence parts that were actually
-    sent; `independent_readings` are what a separate OCR pass read off the
+    sent; `independent_readings` are what the sheet read's other readings gave for the
     same crop (for cell tasks); `allowed_values` bounds a classification.
     `injection_flags` name instruction-like wording found in the document
     text sent: a proposal made from such text is never `validated`.
@@ -177,7 +177,7 @@ def _judge(
             return Validation("rejected", f"{value!r} is neither a whole number nor a quantity word")
         readings = {r for r in (independent_readings or set()) if r}
         if value in readings:
-            return Validation("validated", "agrees with an independent OCR reading of the same cell", value,
+            return Validation("validated", "agrees with an independent reading of the same cell", value,
                               independent_check="ocr_agrees")
         return Validation("needs_human_review", "no independent reading agrees; shown with the cell image for the engineer",
                           value, independent_check="ocr_disagrees")
@@ -195,7 +195,7 @@ def _judge(
         readings = {r for r in (independent_readings or set()) if r}
         normalised = re.sub(r"[^a-z0-9]", "", value.lower())
         if any(normalised == re.sub(r"[^a-z0-9]", "", r.lower()) for r in readings):
-            return Validation("validated", "agrees with an independent OCR reading", value, independent_check="ocr_agrees")
+            return Validation("validated", "agrees with an independent reading", value, independent_check="ocr_agrees")
         return Validation("needs_human_review", "no independent reading agrees", value, independent_check="ocr_disagrees")
 
     return Validation("rejected", f"unknown task {task!r}")

@@ -1,50 +1,43 @@
-"""The AI reads a Design Sheet, page by page, and the OCR read is the witness.
+"""The AI reads a Design Sheet, page by page; nothing else reads it.
 
-The deterministic extractor (app.services.design_sheet_extractor) reads a
-sheet by finding the vertical rules that fence its table, and a sheet whose
-layout it does not know comes back with no lines at all -- so the AI check
-that follows, which only ever looked at rows the OCR had located, had
-nothing to look at. Here the roles are the other way round:
+The model reads every page, in overlapping horizontal bands, and reports each
+row -- item, section banner, heading or other -- with its values and its box
+on the page. The reading is stored for good (`DocumentReading`, keyed by the
+document's content), so a sheet with the same content is never read by a
+model again: not on the same project reopened, not on another project filed
+with it.
 
-  AI       the model reads every page, in overlapping horizontal bands, and
-           reports each row -- item, section banner, heading or other -- with
-           its values and its box on the page. The reading is stored for good
-           (`DocumentReading`, keyed by the document's content), so a sheet
-           with the same content is never read by a model again: not on the
-           same project reopened, not on another project filed with it.
-  OCR      the extractor's own read of the same sheet, when it can read it.
-           It is never shown to the model: it is the independent witness.
+A line is never made from one reading. For each item row the model read:
 
-For each item row the model read:
-
-  the OCR read the same row with the same quantity   -> a BOQ line
-  the OCR could not read the sheet, or not this row  -> a second, independent
-                                                        AI reading of the row
-                                                        strip (the standard tier);
-                                                        two AI readings that agree
-                                                        make the line
-  the readings disagree                              -> one close-up reading at
-                                                        full scan resolution;
-                                                        it settles for whichever
-                                                        it agrees with, else the
-                                                        row is a row to review
+  a second, independent reading of the row strip (the standard tier)
+  agrees on the quantity                              -> a BOQ line
+  the two readings disagree, or the second could not
+  read the row                                        -> one close-up reading at
+                                                         full scan resolution;
+                                                         it settles for whichever
+                                                         it agrees with, else the
+                                                         row is a row to review
   the model could not read the quantity              -> a row to review, with
-                                                        the close-up's reading
-                                                        beside it
+                                                         the close-up's reading
+                                                         beside it
 
-A row only the OCR found is shown to the model as a close-up; it is a line
-only when the model reads a quoted item there. The lines carry the model's
-reading beside them, so the AI check of the BOQ (app.ai.verification) takes
-it from the line instead of asking again.
+The lines carry the model's reading beside them, so the AI check of the BOQ
+(app.ai.verification) takes it from the line instead of asking again.
 
-Nothing here writes a line into a project: the result is the same
-`DesignSheetExtraction` the OCR read returns, for the same callers.
+Where the model cannot be used -- AI off, the project's documents blocked, no
+credential, the daily budget spent, or the read itself failing -- the sheet is
+recorded as not read, with the reason, and nothing is invented: the platform
+owner decided on 2026-09-17 that extraction is done through the AI layer only.
+The deterministic extractor (app.services.design_sheet_extractor) no longer
+reads sheets; its parsers and page rendering are still used here.
+
+Nothing here writes a line into a project: the result is the
+`DesignSheetExtraction` the callers always took.
 """
 
 from __future__ import annotations
 
 import dataclasses
-import difflib
 import io
 import re
 from collections.abc import Iterator
@@ -78,11 +71,6 @@ BAND_OVERLAP = 180
 ROWS_PER_CALL = 16
 # A stored reading is about the exact document content it was made from.
 STORED_READING_DAYS = 36_500
-# How far the OCR's row centre may sit from the model's box centre and still
-# be the same row, at the extractor's render DPI (the OCR may have
-# straightened the page; text decides, this only rules out the far rows).
-ROW_MATCH_PX = 140
-DESCRIPTION_MATCH = 0.8
 
 
 class SheetReadError(Exception):
@@ -391,38 +379,11 @@ def read_document(db: Session, run: _Run, path: Path, *, document_sha: str, user
     return record
 
 
-# --- the witness and the second readings -------------------------------------------------
+# --- the second readings -------------------------------------------------
 
 
 def _norm(text: str | None) -> str:
     return re.sub(r"[^a-z0-9]", "", (text or "").lower())
-
-
-def _match(candidates: list[ExtractedBoqLine], row: dict, taken: set[int]) -> ExtractedBoqLine | None:
-    """The OCR line that is the same row as the model's: the same part number,
-    or near-identical wording, near the same place on the page."""
-    box = row["box"]
-    centre = (box[1] + box[3]) / 2
-    part = identity.part_key(row["catalog_no"]) if row["catalog_no"] else ""
-    best: tuple[float, ExtractedBoqLine] | None = None
-    for line in candidates:
-        if id(line) in taken:
-            continue
-        if line.y_px is not None and abs(line.y_px - centre) > ROW_MATCH_PX:
-            continue
-        score = 0.0
-        if part and line.catalog_no and identity.part_key(line.catalog_no) == part:
-            score = 2.0
-        else:
-            ratio = difflib.SequenceMatcher(None, _norm(row["description"]), _norm(line.description)).ratio()
-            if ratio >= DESCRIPTION_MATCH:
-                score = ratio
-        if score and (best is None or score > best[0]):
-            best = (score, line)
-    if best is None:
-        return None
-    taken.add(id(best[1]))
-    return best[1]
 
 
 def _row_crop(image: Image.Image, box: list[int], *, label: str) -> Image.Image:
@@ -459,7 +420,7 @@ def _close_up(run: _Run, document_sha: str, image: Image.Image, box: list[int]) 
 
 def _second_readings(run: _Run, document_sha: str, image: Image.Image, boxes: list[list[int]]) -> list[dict | None]:
     """Independent readings of the rows, ROWS_PER_CALL strips to an image,
-    by the standard tier -- the second source for a row with no OCR witness."""
+    by the standard tier -- the second source every line needs."""
     from app.ai.verification import ROWS_SCHEMA, SYSTEM_ROWS, compose_rows
 
     readings: list[dict | None] = [None] * len(boxes)
@@ -518,26 +479,20 @@ def _review_issue(line: ExtractedBoqLine, ordinal: int, *, reason: str, readings
     )
 
 
-def combine(run: _Run, *, document_sha: str, witness: DesignSheetExtraction, reading: DocumentReading,
-            page_image, ctx=None) -> DesignSheetExtraction:
-    """The model's reading, checked row by row against the OCR witness, as
-    the lines and the rows to review. `page_image(page)` renders a page for
-    the close-ups; it is only called for a page that needs one."""
+def combine(run: _Run, *, document_sha: str, reading: DocumentReading, page_image, ctx=None) -> DesignSheetExtraction:
+    """The model's reading, settled row by row by a second reading and, where
+    needed, a close-up, as the lines and the rows to review. `page_image(page)`
+    renders a page for the strips; it is only called for a page that needs one."""
     from app.ai.verification import agree_quantity
 
     result = DesignSheetExtraction(reader="ai", reading_id=reading.id)
-    witness_by_page: dict[int, list[ExtractedBoqLine]] = {}
-    for line in witness.lines:
-        witness_by_page.setdefault(line.page, []).append(line)
-    if witness.failure:
-        result.notes.append(f"The OCR read could not witness this sheet: {witness.failure}")
 
     lines: list[ExtractedBoqLine] = []
     review: list[tuple[ExtractedBoqLine, str, dict]] = []
     section: str | None = None
     heading: str | None = None
     any_items = False
-    settled = {"witnessed": 0, "second": 0, "close_up": 0, "added_from_ocr": 0, "catalogued": 0}
+    settled = {"second": 0, "close_up": 0, "catalogued": 0}
 
     for page in reading.reading.get("pages") or []:
         number = int(page["page"])
@@ -552,9 +507,7 @@ def combine(run: _Run, *, document_sha: str, witness: DesignSheetExtraction, rea
         coverage.processed = True
         coverage.reason = "read by AI"
         image = None
-        taken: set[int] = set()
-        candidates = witness_by_page.get(number, [])
-        page_lines: list[tuple[ExtractedBoqLine, dict, ExtractedBoqLine | None]] = []
+        page_lines: list[tuple[ExtractedBoqLine, dict]] = []
         for row in page.get("rows") or []:
             if row["kind"] == "section":
                 if row["description"]:
@@ -568,30 +521,24 @@ def combine(run: _Run, *, document_sha: str, witness: DesignSheetExtraction, rea
                 continue
             if not row["description"] and not row["catalog_no"]:
                 continue
-            line = _line_from(row, number, section, heading)
-            partner = _match(candidates, row, taken)
-            page_lines.append((line, row, partner))
+            page_lines.append((_line_from(row, number, section, heading), row))
         coverage.regions.append(RegionCoverage(kind="table", top=0, bottom=int(page.get("height") or 0),
                                                status="processed", rows_accepted=len(page_lines)))
 
-        # Rows with no witness get a second, independent AI reading in one go.
-        unwitnessed = [(line, row) for line, row, partner in page_lines
-                       if row["readable"] and _quantity(row["quantity"]) and (partner is None or not partner.quantity)]
+        # Every readable row gets a second, independent AI reading, in one go.
+        readable = [(line, row) for line, row in page_lines if row["readable"] and _quantity(row["quantity"])]
         second: dict[int, dict | None] = {}
-        if unwitnessed and not run.exhausted:
+        if readable and not run.exhausted:
             if ctx is not None:
-                ctx.progress(0, 0, f"AI second reading of {len(unwitnessed)} row{'s' if len(unwitnessed) != 1 else ''} on page {number}")
+                ctx.progress(0, 0, f"AI second reading of {len(readable)} row{'s' if len(readable) != 1 else ''} on page {number}")
             image = image or page_image(number)
-            answers = _second_readings(run, document_sha, image, [r["box"] for _l, r in unwitnessed])
-            for (line, _row), answer in zip(unwitnessed, answers):
+            answers = _second_readings(run, document_sha, image, [r["box"] for _l, r in readable])
+            for (line, _row), answer in zip(readable, answers):
                 second[id(line)] = answer
 
-        for line, row, partner in page_lines:
+        for line, row in page_lines:
             ai_qty = _quantity(row["quantity"]) if row["readable"] else None
-            ocr_qty = partner.quantity if partner is not None else None
-            readings: dict[str, dict | None] = {"ai": line.ai_reading if row["readable"] else None,
-                                                "ocr": {"quantity": ocr_qty, "catalog_no": partner.catalog_no,
-                                                        "description": partner.description} if partner else None}
+            readings: dict[str, dict | None] = {"ai": line.ai_reading if row["readable"] else None}
             if ai_qty is None:
                 # The model could not read the quantity: a close-up may, but
                 # one reading is not two; the row is for the engineer, with
@@ -605,22 +552,16 @@ def combine(run: _Run, *, document_sha: str, witness: DesignSheetExtraction, rea
                     line.ai_reading = {**line.ai_reading, **{k: v for k, v in close.items() if v}}
                 review.append((line, "the model could not read the quantity with confidence", readings))
                 continue
-            if ocr_qty is not None and agree_quantity(ai_qty, ocr_qty):
-                line.quantity, line.confidence = ai_qty, 96.0
-                settled["witnessed"] += 1
+            other = second.get(id(line))
+            readings["ai_second"] = other
+            if other and other.get("quantity") and agree_quantity(ai_qty, other["quantity"]):
+                line.quantity, line.confidence = ai_qty, 92.0
+                settled["second"] += 1
                 lines.append(line)
                 continue
-            if ocr_qty is None:
-                other = second.get(id(line))
-                readings["ai_second"] = other
-                if other and other.get("quantity") and agree_quantity(ai_qty, other["quantity"]):
-                    line.quantity, line.confidence = ai_qty, 92.0
-                    settled["second"] += 1
-                    lines.append(line)
-                    continue
-                if run.exhausted:
-                    review.append((line, "the AI budget ran out before a second reading", readings))
-                    continue
+            if run.exhausted:
+                review.append((line, "the AI budget ran out before a second reading", readings))
+                continue
             # The readings disagree, or the second reading could not read
             # the row: one close-up settles it, or nobody does.
             close = None
@@ -633,9 +574,6 @@ def combine(run: _Run, *, document_sha: str, witness: DesignSheetExtraction, rea
             other_qty = _quantity(other.get("quantity")) if other else None
             if close_qty is not None and agree_quantity(close_qty, ai_qty):
                 line.quantity, line.confidence = ai_qty, 90.0
-            elif close_qty is not None and ocr_qty is not None and agree_quantity(close_qty, ocr_qty):
-                line.quantity, line.confidence = ocr_qty, 85.0
-                line.ai_reading = {**line.ai_reading, "quantity": ocr_qty}
             elif close_qty is not None and other_qty is not None and agree_quantity(close_qty, other_qty):
                 line.quantity, line.confidence = close_qty, 85.0
                 line.ai_reading = {**line.ai_reading, "quantity": close_qty}
@@ -647,30 +585,6 @@ def combine(run: _Run, *, document_sha: str, witness: DesignSheetExtraction, rea
             settled["close_up"] += 1
             lines.append(line)
 
-        # Rows only the OCR found: shown to the model as close-ups; a line
-        # only when it reads a quoted item there.
-        for candidate in candidates:
-            if id(candidate) in taken or not candidate.quantity or not candidate.catalog_no or run.exhausted:
-                continue
-            region = candidate.region()
-            if region is None:
-                continue
-            image = image or page_image(number)
-            close = _close_up(run, document_sha, image, list(region))
-            close_qty = _quantity(close.get("quantity")) if close else None
-            if close_qty is None or not agree_quantity(close_qty, candidate.quantity):
-                continue
-            line = ExtractedBoqLine(
-                catalog_no=candidate.catalog_no, description=close.get("description") or candidate.description,
-                quantity=close_qty, group_heading=candidate.group_heading, confidence=80.0, page=number,
-                raw_quantity=close.get("quantity"), y_px=candidate.y_px, quantity_span=candidate.quantity_span,
-                row_bounds=candidate.row_bounds, table_span=candidate.table_span, section=candidate.section,
-                heading=candidate.heading, catalog_raw=candidate.catalog_raw,
-                ai_reading={"quantity": close.get("quantity"), "catalog_no": close.get("catalog_no") or candidate.catalog_no,
-                            "description": close.get("description") or candidate.description},
-            )
-            settled["added_from_ocr"] += 1
-            lines.append(line)
 
     lines.sort(key=lambda l: (l.page, l.y_px or 0))
     # The model reads a catalog number as printed, so its reading stands as
@@ -693,17 +607,11 @@ def combine(run: _Run, *, document_sha: str, witness: DesignSheetExtraction, rea
     if run.exhausted:
         result.notes.append(f"The AI budget ran out ({run.exhausted.replace('_', ' ')}); rows not reached are rows to review.")
     result.notes.append(
-        f"AI read {len(lines)} line{'s' if len(lines) != 1 else ''}: {settled['witnessed']} witnessed by the OCR read, "
-        f"{settled['second']} by a second AI reading, {settled['close_up']} by a close-up, "
-        f"{settled['added_from_ocr']} found by the OCR read and confirmed by the AI; "
-        f"{len(review)} to review; {run.calls} call{'s' if run.calls != 1 else ''}, "
-        f"{run.reused} stored reading{'s' if run.reused != 1 else ''} reused"
+        f"AI read {len(lines)} line{'s' if len(lines) != 1 else ''}: {settled['second']} confirmed by a second "
+        f"reading, {settled['close_up']} by a close-up; {len(review)} to review; "
+        f"{run.calls} call{'s' if run.calls != 1 else ''}, {run.reused} stored reading{'s' if run.reused != 1 else ''} reused"
     )
     if not lines and not review and not any_items:
-        if witness.lines:
-            witness.notes.append("Read by OCR alone: the AI found no table of quoted items on the pages, the OCR read did")
-            witness.notes.extend(result.notes)
-            return witness
         result.failure = "The AI found no table of quoted items in this Design Sheet"
         result.issues.append(Issue(IssueCode.UNRECOGNIZED_TABLE_LAYOUT, detail={"pages": reading.pages, "reader": "ai"}))
     return result
@@ -711,38 +619,41 @@ def combine(run: _Run, *, document_sha: str, witness: DesignSheetExtraction, rea
 
 # --- the read a caller asks for ------------------------------------------------------------
 
-# The OCR read: a module attribute so tests can hand in a scripted witness.
-ocr_read = ocr.extract_design_sheet
+
+def _not_read(why: str, *, reading_id: int | None = None) -> DesignSheetExtraction:
+    """A sheet the model did not read, saying why. Nothing stands in for the
+    reading: the BOQ page shows the reason and offers the read again."""
+    result = DesignSheetExtraction(reader="ai", reading_id=reading_id, failure=why)
+    result.issues.append(Issue(IssueCode.UNPROCESSED_PAGE_OR_REGION, target="document",
+                               detail={"reason": why, "reader": "ai"}))
+    result.notes.append(why)
+    return result
 
 
 def read_design_sheet(db: Session, project: Project, sheet: ProjectDesignSheet, *, user_id: int | None = None,
                       ctx=None, on_page=None, provider: AiProvider | None = None) -> DesignSheetExtraction:
-    """Read a sheet the way the platform reads one now: the model's stored
-    or fresh reading, witnessed by the OCR read. Where the model cannot be
-    used at all -- AI off, the project's documents blocked, no credential --
-    the OCR read is returned alone, as before, saying so."""
+    """Read a sheet the way the platform reads one: the model's stored or
+    fresh reading, settled by its second readings. Where the model cannot be
+    used, or its read fails, the sheet is recorded as not read, with the
+    reason -- no other reader stands in."""
     path = Path(sheet.document_path)
     why_not = available(project, provider)
-    witness = ocr_read(path, on_page=on_page)
     if why_not:
-        witness.notes.append(f"Read by OCR alone: {why_not}")
-        return witness
-    if not path.exists() or any(i.code == IssueCode.UNSUPPORTED_DOCUMENT for i in witness.issues):
-        return witness
+        return _not_read(f"Not read: {why_not}")
+    if not path.is_file():
+        return _not_read("Not read: the file is not there")
     document_sha = pipeline.sha256_of(path) or ""
     run = _Run(db=db, project=project, provider=provider or get_provider(), budget=_budget(db, project.id))
     try:
         reading = read_document(db, run, path, document_sha=document_sha, user_id=user_id, ctx=ctx, on_page=on_page)
-    except Exception as exc:  # noqa: BLE001 -- the OCR read stands when the model cannot be reached
+    except Exception as exc:  # noqa: BLE001 -- the reason is recorded; nothing reads the sheet instead
         from app.services.jobs import Cancelled
 
         if isinstance(exc, Cancelled):
             raise
-        witness.notes.append(f"Read by OCR alone: the AI read failed ({type(exc).__name__}: {exc})")
-        return witness
+        return _not_read(f"Not read: the AI read failed ({type(exc).__name__}: {exc})")
     if reading.status != "completed":
-        witness.notes.append(f"Read by OCR alone: the AI could not read the sheet ({reading.error})")
-        return witness
+        return _not_read(f"Not read: the AI could not read the sheet ({reading.error})", reading_id=reading.id)
 
     cache: dict[int, Image.Image] = {}
 
@@ -751,4 +662,4 @@ def read_design_sheet(db: Session, project: Project, sheet: ProjectDesignSheet, 
             cache[number] = render_page(path, number)
         return cache[number]
 
-    return combine(run, document_sha=document_sha, witness=witness, reading=reading, page_image=page_image, ctx=ctx)
+    return combine(run, document_sha=document_sha, reading=reading, page_image=page_image, ctx=ctx)

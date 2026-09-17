@@ -4,9 +4,9 @@ import type { AiBudget, ExtractionIssue, ExtractionRun, ExtractionState } from "
 
 /** What a Design Sheet read could not settle, for the engineer to decide.
  *
- * A row whose quantity the OCR could not parse is shown with the cell's own
- * image and, when AI assistance is on, the reading the model proposed and
- * whether an independent OCR pass agreed with it. Nothing here is applied
+ * A row whose quantity the read could not settle is shown with the row's
+ * own image and, when AI assistance is on, the reading the model proposed and
+ * whether a second AI reading agreed with it. Nothing here is applied
  * until Accept; a pending proposal changes nothing in the BOQ. */
 export function ExtractionReview({
   projectId,
@@ -193,13 +193,13 @@ function IssueRow({
           <div className="text-gray-500">
             {run.document_name}, page {issue.page}
             {detail.group_heading ? ` · ${detail.group_heading}` : ""}
-            {detail.raw_quantity ? ` · OCR read "${detail.raw_quantity}"` : " · OCR read nothing"}
+            {detail.raw_quantity ? ` · read as "${detail.raw_quantity}"` : " · no quantity read"}
           </div>
           {proposal && (
             <div className={`mt-1 ${proposal.state === "validated" ? "text-emerald-700" : "text-amber-800"}`}>
               AI suggested <span className="font-semibold">{proposal.value}</span>
               {proposal.state === "validated"
-                ? " — an independent OCR pass agrees."
+                ? " — a second AI reading agrees."
                 : " — unconfirmed; check the cell image before accepting."}
               {proposal.from_cache && " (from an earlier identical read)"}
               {proposal.injection_flags && proposal.injection_flags.length > 0 && (

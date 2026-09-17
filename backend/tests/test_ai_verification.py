@@ -15,7 +15,6 @@ from app.ai.provider import RecordingProvider
 from app.models import AiVerification, BoqSnapshot, Project
 from app.services import drf_extractor
 from app.services.design_sheet_extractor import ExtractedBoqLine
-from app.services.drf_extractor import DrfExtractionResult, ExtractedField, ExtractedSystem
 
 from .test_projects import _login_admin, _valid_project_payload
 
@@ -274,9 +273,6 @@ def test_project_info_is_settled_against_the_drf(client, db_session, sheets, rec
     project = db_session.get(Project, pid)
     project.drf_document_path = str(_drf(tmp_path))
     db_session.commit()
-    ocr = DrfExtractionResult(fields={"client": ExtractedField("Samana Developers LLC", 80, "Client")},
-                              systems=[ExtractedSystem("Fire Alarm", "EDWARDS", True, True)])
-    monkeypatch.setattr(drf_extractor, "extract_drf_fields", lambda path: ocr)
     read = {**HELD, "client": "Samana Developers LLC", "contractor": "Samana Developer"}
     marked = [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True},
               {"name": "Voice Evacuation", "brand": "EDWARDS", "method_statement": False, "drawing": False}]
@@ -293,8 +289,8 @@ def test_project_info_is_settled_against_the_drf(client, db_session, sheets, rec
     assert outcomes["client"] == "corrected"
     assert outcomes["contractor"] == "confirmed"
     assert outcomes["system:Voice Evacuation"] == "added"
-    # Removing a system needs every reading to agree; the OCR read a table
-    # without it, but both AI readings agree too -- so here it is removed.
+    # Removing a system needs every reading to agree: both AI readings read
+    # the table without it, so here it is removed.
     assert outcomes["system:Central Battery System"] == "removed"
 
     db_session.expire_all()
@@ -315,8 +311,6 @@ def test_what_the_drf_does_not_show_is_left_alone(client, db_session, sheets, re
     project.drf_document_path = str(_drf(tmp_path))
     db_session.commit()
     # A half-page scan: no Systems table and no Other Information box.
-    ocr = DrfExtractionResult(fields={}, warnings=["Could not locate the Systems table"])
-    monkeypatch.setattr(drf_extractor, "extract_drf_fields", lambda path: ocr)
     read = {**HELD, "other_information": None}
     recording.answers = [_drf_reply(read, [], readable=True), _drf_reply(read, [], readable=False)]
     assert client.post(f"/projects/{pid}/jobs/ai-verify?scope=details").json()["status"] == "succeeded"

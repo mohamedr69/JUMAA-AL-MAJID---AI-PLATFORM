@@ -556,7 +556,7 @@ export function ProjectBoqPage() {
             <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
               <div className="font-medium">
                 {warnings.length === 1 ? "A Design Sheet" : `${warnings.length} Design Sheets`} could not be read
-                {aiRead ? " by the AI or the OCR" : ""}, so {warnings.length === 1 ? "its" : "their"} lines are not below. Enter them by hand.
+                {aiRead ? " by the AI" : ""}, so {warnings.length === 1 ? "its" : "their"} lines are not below. Enter them by hand.
               </div>
               <ul className="mt-1 list-disc pl-5 text-xs">
                 {warnings.map((warning) => (
@@ -990,7 +990,7 @@ function StatusBadge({ status }: { status: BoqLineStatus | "new" }) {
   );
 }
 
-/** Where a line came from, as recorded: the sheet page, what OCR read, what
+/** Where a line came from, as recorded: the sheet page, what was read, what
  * the parser made of it, and the machine's value where an engineer changed it. */
 function Provenance({ row, meta }: { row: Row; meta: Map<number, ProjectBoqItem> }) {
   const stored = row.id ? meta.get(row.id) : undefined;
@@ -1024,7 +1024,7 @@ function Provenance({ row, meta }: { row: Row; meta: Map<number, ProjectBoqItem>
       )}
       {stored.raw_values?.quantity !== undefined && (
         <div>
-          <dt className="inline font-semibold">OCR quantity: </dt>
+          <dt className="inline font-semibold">Read quantity: </dt>
           <dd className="inline">"{stored.raw_values?.quantity ?? ""}"</dd>
         </div>
       )}
@@ -1038,7 +1038,7 @@ function Provenance({ row, meta }: { row: Row; meta: Map<number, ProjectBoqItem>
       )}
       {stored.ocr_confidence !== null && (
         <div>
-          <dt className="inline font-semibold">OCR confidence: </dt>
+          <dt className="inline font-semibold">Read confidence: </dt>
           <dd className="inline">{Number(stored.ocr_confidence).toFixed(0)}%</dd>
         </div>
       )}

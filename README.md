@@ -14,8 +14,10 @@ panel standby battery sizing and selection from the BOQ.
 
 ## Setting up on a new PC (quick start)
 
-Install **Python 3.12**, **Node.js**, **Git**, and optionally **Tesseract OCR**
-(scanned DRFs and Design Sheets) and **Claude Code** (the AI features). Then:
+Install **Python 3.12**, **Node.js**, **Git** and **Claude Code** (the AI reads the
+DRF and the Design Sheets; nothing else does), and optionally **Tesseract OCR**
+(document intake, document control and the submittal scanner read scanned page
+numbers and stamps with it). Then:
 
 ```
 git config --global core.longpaths true    # once per PC, before cloning (see below)
@@ -46,7 +48,9 @@ Nothing else needs setting:
 - **Company library** (documents, templates, stamp, datasheets): in `backend/library/`.
 - **Compliance knowledge base**: `data base/Compliance_Response_Database.xlsx` is
   imported in the background on the first start.
-- **Tesseract**: found on the PATH or where its installer puts it.
+- **Tesseract**: found on the PATH or where its installer puts it. Not needed for
+  extraction: since 2026-09-17 the DRF and the Design Sheets are read by the AI only,
+  and a sheet the AI cannot read is recorded as not read, with the reason.
 - **AI**: Claude through Claude Code on the Claude subscription (`AI_PROVIDER=claude-code`,
   no API key). Install Claude Code and run `claude` once to sign in, as the same
   Windows user that runs the platform.
@@ -119,8 +123,8 @@ This replaced `Base.metadata.create_all`, which created missing tables but never
 ### Project archive + OCR (Phase 2)
 
 - `PROJECTS_ROOT` in `.env`: local path to the synced project archive (dev/test shim -- production should use Microsoft Graph search against SharePoint instead; see `app/services/ep_resolver.py`).
-- DRF field extraction needs [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) installed separately (it's a system binary, not a pip package). Set `TESSERACT_CMD` in `.env` to its `tesseract.exe` path if it's not already on `PATH`.
-- Design Sheet -> BOQ extraction uses the same Tesseract install as the DRF. No API key or network access is involved.
+- The DRF and the Design Sheets are read by the AI (`app/ai/sheet_reader.py`, `app/ai/verification.py`): every page, twice, and a close-up where the readings disagree. One extra standard-tier call per sixteen rows against the earlier witnessed read. [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) is optional and used only by document intake, document control and the submittal scanner; set `TESSERACT_CMD` in `.env` if it is not on `PATH`.
+- The deterministic readers (`drf_extractor.py`, `design_sheet_extractor.py`) no longer read documents; their parsers and page rendering are reused by the AI read. They are kept, with their tests, until the AI-only read has run on enough projects, and are then to be deleted.
 
 ### The company library
 

@@ -496,7 +496,7 @@ function ChangeCard({
       </div>
       {change.after?.raw_values?.quantity_parse && change.fields.includes("quantity") && (
         <div className="mt-1 text-[11px] text-gray-500">
-          OCR read the quantity as "{change.after.raw_values.quantity ?? ""}" → {change.after.raw_values.quantity_parse.value ?? "—"} (
+          The sheet read gave the quantity as "{change.after.raw_values.quantity ?? ""}" → {change.after.raw_values.quantity_parse.value ?? "—"} (
           {change.after.raw_values.quantity_parse.rule})
         </div>
       )}

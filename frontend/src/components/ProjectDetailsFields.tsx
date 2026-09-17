@@ -13,7 +13,7 @@ export function ProjectDetailsFields({
   epNumber: string;
   draft: ProjectDetailsDraft;
   onChange: (next: ProjectDetailsDraft) => void;
-  /** OCR confidence per field, shown as a badge where the DRF supplied it. */
+  /** Read confidence per field, shown as a badge where a reader gave one (the model gives none). */
   confidence?: Partial<Record<DraftTextField, number>>;
 }) {
   const bind = (field: DraftTextField) => ({
@@ -233,8 +233,8 @@ function Field({
   );
 }
 
-function ConfidenceBadge({ confidence }: { confidence?: number }) {
-  if (confidence === undefined) return null;
+function ConfidenceBadge({ confidence }: { confidence?: number | null }) {
+  if (confidence === undefined || confidence === null) return null;
 
   const tier =
     confidence >= 85
@@ -246,7 +246,7 @@ function ConfidenceBadge({ confidence }: { confidence?: number }) {
   return (
     <span
       className={`rounded-full px-1.5 py-0.5 text-[10px] font-normal normal-case ${tier.classes}`}
-      title={`OCR confidence: ${confidence.toFixed(0)}%`}
+      title={`Read confidence: ${confidence.toFixed(0)}%`}
     >
       {tier.label}
     </span>

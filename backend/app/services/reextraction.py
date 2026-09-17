@@ -216,7 +216,27 @@ def _resolve_folder(project: Project, projects_root: Path | None, report: Reextr
     return matches[0]
 
 
-def _compare_drf(project: Project, folder: Path, report: ReextractionReport) -> None:
+def _drf_reading(db, project: Project, drf: Path):
+    """(fields by the DRF's names -> (value, confidence), scope of work, other
+    information, systems by name -> brand, warnings). `extract_drf_fields` is
+    the seam the tests stub; the real read is the model's."""
+    from app.services import drf_extractor
+
+    if extract_drf_fields is not drf_extractor.extract_drf_fields:
+        extraction = extract_drf_fields(drf)
+        return ({name: (f.value, f.confidence) for name, f in extraction.fields.items()},
+                extraction.scope_of_work, extraction.other_information,
+                {s.name: s.brand for s in extraction.systems}, list(extraction.warnings))
+    from app.ai import verification as ai_verification
+
+    fields, systems, run = ai_verification.read_drf(db, drf, project=project)
+    return ({ai_verification.DRF_NAME.get(name, name): (value, None) for name, value in fields.items()
+             if value and name not in ("scope_of_work", "other_information")},
+            fields.get("scope_of_work") or None, fields.get("other_information") or None,
+            {name: entry.get("brand") for name, entry in (systems or {}).items()}, list(run.notes))
+
+
+def _compare_drf(project: Project, folder: Path, report: ReextractionReport, db=None) -> None:
     stored_drf = Path(project.drf_document_path) if project.drf_document_path else None
     if stored_drf is not None and stored_drf.is_file():
         drf = stored_drf
@@ -234,39 +254,35 @@ def _compare_drf(project: Project, folder: Path, report: ReextractionReport) -> 
     report.drf_path = str(drf)
 
     try:
-        extraction = extract_drf_fields(drf)
+        fields, scope_of_work, _other, systems, warnings = _drf_reading(db, project, drf)
     except Exception as exc:  # noqa: BLE001
-        # Best-effort, as in `resolve`: an unreadable DRF or a missing OCR
-        # install must not lose the Design Sheet comparison below it.
+        # Best-effort, as in `resolve`: a form the model did not read must
+        # not lose the Design Sheet comparison below it.
         report.errors.append(f"DRF field extraction failed ({drf.name}): {exc}")
         return
 
-    report.warnings.extend(extraction.warnings)
+    report.warnings.extend(warnings)
 
     for drf_field, column in DRF_FIELD_TO_COLUMN.items():
-        found = extraction.fields.get(drf_field)
+        found = fields.get(drf_field)
         report.fields.append(
             _compare_value(
                 column,
                 getattr(project, column, None),
-                found.value if found else None,
-                found.confidence if found else None,
+                found[0] if found else None,
+                found[1] if found else None,
             )
         )
 
-    report.scope_of_work = _compare_value(
-        "scope_of_work", project.scope_of_work, extraction.scope_of_work
-    )
+    report.scope_of_work = _compare_value("scope_of_work", project.scope_of_work, scope_of_work)
 
     stored_systems = {s.name: s for s in project.systems}
-    extracted_systems = {s.name: s for s in extraction.systems}
-    for name in sorted(stored_systems | extracted_systems):
+    for name in sorted(set(stored_systems) | set(systems)):
         stored = stored_systems.get(name)
-        found = extracted_systems.get(name)
         comparison = _compare_value(
             name,
             stored.brand if stored else None,
-            found.brand if found else None,
+            systems.get(name),
         )
         report.systems.append(
             SystemComparison(
@@ -278,9 +294,28 @@ def _compare_drf(project: Project, folder: Path, report: ReextractionReport) -> 
         )
 
 
-def _compare_sheets(project: Project, folder: Path, report: ReextractionReport) -> None:
+def _read_sheet(db, project: Project, candidate) -> list:
+    """The lines of one sheet as the platform reads it now. `extract_boq_lines`
+    is the seam the tests stub: when it is the real function the model's read
+    is used, and a sheet the model did not read raises with the reason."""
+    from app.services import design_sheet_extractor
+
+    if extract_boq_lines is not design_sheet_extractor.extract_boq_lines:
+        return list(extract_boq_lines(candidate.path))
+    from app.models import ProjectDesignSheet
+    from app.routers import projects as projects_router
+
+    sheet = ProjectDesignSheet(system_code=candidate.system_guess, document_path=str(candidate.path))
+    result = projects_router._read_design_sheet(db, project, sheet)
+    if result.failure:
+        raise DesignSheetExtractionError(result.failure)
+    return list(result.lines)
+
+
+def _compare_sheets(project: Project, folder: Path, report: ReextractionReport, db=None) -> None:
     """Re-read every Design Sheet in the folder and diff the result against
-    the stored BOQ.
+    the stored BOQ. The sheets are read the way the BOQ is: by the model
+    (app.ai.sheet_reader), through the same seam the test suite stubs.
 
     Sheets come from the folder, not from `project.design_sheets`, so one
     filed after creation is read too -- that sheet's lines are missing from
@@ -300,7 +335,7 @@ def _compare_sheets(project: Project, folder: Path, report: ReextractionReport) 
             status="known" if candidate.path in stored_paths else "new",
         )
         try:
-            lines = extract_boq_lines(candidate.path)
+            lines = _read_sheet(db, project, candidate)
         except DesignSheetExtractionError as exc:
             comparison.error = str(exc)
             report.warnings.append(f"{candidate.path.name}: {exc}")
@@ -347,7 +382,7 @@ def _compare_sheets(project: Project, folder: Path, report: ReextractionReport) 
     report.boq_changes = compare_boq(stored_lines, extracted)
 
 
-def reextract_project(project: Project, projects_root: Path | None) -> ReextractionReport:
+def reextract_project(project: Project, projects_root: Path | None, db=None) -> ReextractionReport:
     """Re-read the project's documents and report the differences.
 
     Never writes: see the module docstring.
@@ -361,6 +396,6 @@ def reextract_project(project: Project, projects_root: Path | None) -> Reextract
     report.folder_found = True
     report.folder_path = str(folder)
 
-    _compare_drf(project, folder, report)
-    _compare_sheets(project, folder, report)
+    _compare_drf(project, folder, report, db)
+    _compare_sheets(project, folder, report, db)
     return report

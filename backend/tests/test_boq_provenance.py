@@ -4,8 +4,7 @@ from app.core.config import get_settings
 from app.models import ProjectBoqItem
 
 from .conftest import login
-from .test_ai_assist import GOOD_ROWS, _project_with_sheet
-from .test_design_sheet_extractor import requires_tesseract
+from .test_ai_assist import GOOD_ROWS, _project_with_sheet, scripted_sheet_read  # noqa: F401 -- the scripted sheet read applies here too
 
 settings = get_settings()
 
@@ -21,7 +20,6 @@ def _editable(item: dict) -> dict:
     return {key: item.get(key) for key in keys}
 
 
-@requires_tesseract
 def test_extracted_lines_carry_where_they_were_read_and_keep_it_through_saves(client, db_session, tmp_path):
     project, sheet = _project_with_sheet(db_session, tmp_path, GOOD_ROWS)
     login(client, settings.default_admin_email, settings.default_admin_password)

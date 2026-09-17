@@ -94,7 +94,7 @@ def record_design_sheet_run(
         failure=result.failure,
         trigger=trigger,
         # Who read the lines and, for the model, from which stored reading.
-        reader=getattr(result, "reader", "ocr") or "ocr",
+        reader=getattr(result, "reader", "ai") or "ai",
         reading_id=getattr(result, "reading_id", None),
         finished_at=utc_now(),
     )
@@ -132,35 +132,27 @@ def _as_issue(row: ExtractionIssue) -> Issue:
 
 
 def independent_readings(pdf_path: Path, issue: Issue, render_dpi: int) -> set[str]:
-    """What Tesseract reads off the same crop in its other modes. A
-    proposal that agrees with one of these is `validated`; one that agrees
-    with none is shown to the engineer as unconfirmed."""
-    if issue.page is None or issue.region is None:
-        return set()
-    try:
-        import io
-
-        import pytesseract
-        from PIL import Image
-
-        png = evidence_builder.render_region(pdf_path, issue.page, issue.region, render_dpi)
-        image = Image.open(io.BytesIO(png))
-        readings: set[str] = set()
-        for psm in (7, 11, 6):
-            text = pytesseract.image_to_string(image, config=f"--psm {psm}")
-            for token in re.findall(r"[A-Za-z0-9]+", text):
-                readings.add(token)
-                cleaned = design_sheet_extractor._clean_quantity(token)
-                if cleaned:
-                    readings.add(cleaned)
-        raw = (issue.detail.get("raw_quantity") or "").strip()
-        if raw:
-            cleaned = design_sheet_extractor._clean_quantity(raw)
-            if cleaned:
-                readings.add(cleaned)
-        return readings
-    except Exception:  # noqa: BLE001 -- no Tesseract, or an unreadable crop: nothing independent to say
-        return set()
+    """What the sheet read's other readings gave for the same row: the
+    second reading and the close-up the model made (kept on the issue by
+    app.ai.sheet_reader._review_issue as `alternates`), and the quantity as
+    first read. A proposal that agrees with one of these is `validated`;
+    one that agrees with none is shown to the engineer as unconfirmed.
+    Tesseract read the cell in its other modes for this before 2026-09-17;
+    extraction is the model's alone now."""
+    readings: set[str] = set()
+    detail = issue.detail or {}
+    texts = [alt.get("text") for alt in detail.get("alternates") or [] if isinstance(alt, dict)]
+    texts.append(detail.get("raw_quantity"))
+    for text in texts:
+        raw = str(text or "").strip()
+        if not raw:
+            continue
+        for token in re.findall(r"[A-Za-z0-9]+", raw):
+            readings.add(token)
+        cleaned = design_sheet_extractor._clean_quantity(raw)
+        if cleaned:
+            readings.add(cleaned)
+    return readings
 
 
 # --- G: one call, cached, budgeted, de-duplicated -------------------------------

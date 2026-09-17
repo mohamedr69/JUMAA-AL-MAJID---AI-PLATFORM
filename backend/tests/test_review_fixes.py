@@ -207,8 +207,10 @@ def test_fx04_resolve_labels_a_generic_sheet_from_a_single_system_drf(client, mo
     scan.mkdir(parents=True)
     (scan / "EP-30387 - Design.pdf").write_bytes(b"%PDF")
     monkeypatch.setattr(projects_router.settings, "projects_root", str(tmp_path))
-    # A DRF whose extraction marks the public-address row only.
-    monkeypatch.setattr(projects_router, "extract_drf_fields", lambda _path: _fake_extraction([("PA/VA & BGM", "TOA")]))
+    # A DRF whose reading marks the public-address row only.
+    from app.ai import verification as ai_verification
+
+    monkeypatch.setattr(ai_verification, "read_drf", lambda db, drf, **kwargs: _fake_reading([("PA/VA & BGM", "TOA")]))
     (scan / "EP-30387 - DRF.pdf").write_bytes(b"%PDF")
     _admin(client)
 
@@ -220,12 +222,13 @@ def test_fx04_resolve_labels_a_generic_sheet_from_a_single_system_drf(client, mo
     assert body["extracted_other_information"] == "1. Testing and Commissioning Support Only"
 
 
-def _fake_extraction(systems):
-    result = drf_extractor.DrfExtractionResult()
-    result.other_information = "1. Testing and Commissioning Support Only"
-    for name, brand in systems:
-        result.systems.append(drf_extractor.ExtractedSystem(name=name, brand=brand, method_statement=True, drawing=True))
-    return result
+def _fake_reading(systems):
+    """What app.ai.verification.read_drf returns: fields, systems, the run."""
+    import types
+
+    fields = {"other_information": "1. Testing and Commissioning Support Only"}
+    marked = {name: {"brand": brand, "method_statement": True, "drawing": True} for name, brand in systems}
+    return fields, marked, types.SimpleNamespace(notes=[], calls=1, reused=0)
 
 
 @pytest.mark.parametrize(

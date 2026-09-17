@@ -44,7 +44,7 @@ export const DESIGN_SHEET_SYSTEM_CODES = ["FAS", "VES", "PAVA", "ELS"] as const;
 
 export interface ExtractedField {
   value: string;
-  confidence: number;
+  confidence: number | null;
   raw_label: string;
 }
 
@@ -1470,7 +1470,7 @@ export interface ExtractionRun {
   ai_cost: number;
   budget_exhausted: string | null;
   trigger: string;
-  /** Who read the lines: the OCR alone, or the AI with the OCR read as witness. */
+  /** Who read the lines: the AI; "ocr" only on runs recorded before 2026-09-17. */
   reader: "ocr" | "ai";
   /** What the reader noted about the read. */
   notes: string[];

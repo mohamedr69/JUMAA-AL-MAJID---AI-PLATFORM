@@ -60,7 +60,6 @@ from app.services.design_sheet_extractor import (
 )
 from app.services.boq_export import boq_workbook
 from app.services.boq_revisions import compare_boq
-from app.services.drf_extractor import extract_drf_fields
 from app.services.ep_resolver import canonical_system_code, infer_single_system, mark_superseded, resolve_project
 from app.services.reextraction import reextract_project
 from app.services import system_rules
@@ -126,30 +125,35 @@ def resolve(
     extraction_warnings: list[str] = []
     extraction_issues: list = []
     if result.drf_candidates:
-        # Best-effort: a broken/unreadable DRF or a missing OCR install
-        # shouldn't fail the whole resolve -- the engineer can still fill
-        # the review form in manually.
+        # The model reads the form (app.ai.verification.read_drf): stored by
+        # its content, so the same form costs nothing a second time. Where
+        # the model cannot be used the form comes back blank, with the reason,
+        # for the engineer to fill in -- or for the AI check to fill after.
+        from app.ai import verification as ai_verification
+        from app.services import details_check
+
+        drf_path = result.drf_candidates[0].path
         try:
-            extraction = extract_drf_fields(result.drf_candidates[0].path)
-            extracted_fields = {
-                name: ExtractedFieldOut(value=f.value, confidence=f.confidence, raw_label=f.raw_label)
-                for name, f in extraction.fields.items()
-            }
-            extracted_scope_of_work = extraction.scope_of_work
-            extracted_other_information = extraction.other_information
-            extraction_issues = list(extraction.issues)
+            fields, systems, run = ai_verification.read_drf(db_for_ai(), Path(drf_path), project=None,
+                                                            user_id=_current_user.id)
+        except Exception as exc:  # noqa: BLE001 -- a form the model did not read: said, not invented
+            extraction_warnings = [f"The DRF was not read: {exc}"]
+        else:
+            for name, value in fields.items():
+                if name in ("scope_of_work", "other_information") or not value:
+                    continue
+                extracted_fields[ai_verification.DRF_NAME.get(name, name)] = ExtractedFieldOut(
+                    value=value, confidence=None, raw_label=details_check.FIELDS[name])
+            extracted_scope_of_work = fields.get("scope_of_work") or None
+            extracted_other_information = fields.get("other_information") or None
             extracted_systems = [
-                ProjectSystemIn(
-                    name=s.name,
-                    brand=s.brand,
-                    method_statement=s.method_statement,
-                    drawing=s.drawing,
-                )
-                for s in extraction.systems
+                ProjectSystemIn(name=name, brand=entry.get("brand"), method_statement=bool(entry.get("method_statement")),
+                                drawing=bool(entry.get("drawing")))
+                for name, entry in (systems or {}).items()
             ]
-            extraction_warnings = extraction.warnings
-        except Exception as exc:  # noqa: BLE001
-            extraction_warnings = [f"DRF field extraction failed: {exc}"]
+            extraction_warnings = list(run.notes)
+            if not fields and systems is None:
+                extraction_warnings.append("The DRF was not read: the model gave no reading of the form")
 
     # A sheet named "Design.pdf", on a DRF that marks one system: it is that
     # system's sheet, and saying so is what puts its lines under a system
@@ -807,7 +811,7 @@ def _extract_boq(db: Session, project: Project, *, user_id: int | None, ctx=None
 def _read_design_sheet(db: Session, project: Project, sheet: ProjectDesignSheet, on_page=None, ctx=None,
                        user_id: int | None = None) -> DesignSheetExtraction:
     """One sheet's read, with its coverage and issues: the model's reading
-    witnessed by the OCR read (app.ai.sheet_reader), or the OCR read alone
+    (app.ai.sheet_reader), or a sheet recorded as not read, with the reason,
     where the model cannot be used.
 
     `extract_boq_lines` is the seam the test suite stubs -- a fake that
@@ -1062,7 +1066,7 @@ def reextract(
     project = _get_project_or_404(db, project_id)
     root = Path(settings.projects_root) if settings.projects_root else None
 
-    report = reextract_project(project, root)
+    report = reextract_project(project, root, db=db)
 
     return ReextractionReportOut(
         ep_number=report.ep_number,

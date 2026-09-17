@@ -1,5 +1,7 @@
-"""The model reads the Design Sheets on a project's first open, the OCR read
-is the witness, and the reading is stored so no document is read twice."""
+"""The model reads the Design Sheets on a project's first open, a second
+reading settles each row, and the reading is stored so no document is read
+twice. Nothing else reads a sheet: where the model cannot, the sheet is
+recorded as not read, with the reason."""
 
 from __future__ import annotations
 
@@ -12,7 +14,6 @@ from app.ai import sheet_reader
 from app.ai.provider import RecordingProvider
 from app.core.config import get_settings
 from app.models import DocumentReading, ExtractionIssue, ExtractionRun, Project, ProjectDesignSheet, RoleEnum, User
-from app.services.design_sheet_extractor import DesignSheetExtraction, ExtractedBoqLine
 
 from .conftest import login, make_user
 
@@ -47,27 +48,15 @@ def _close_up(qty, catalog, description):
     return {"rows": [{"label": "R1", "quantity": qty, "catalog_no": catalog, "description": description, "readable": True}]}
 
 
-def _ocr_line(catalog, description, quantity, y):
-    return ExtractedBoqLine(catalog_no=catalog, description=description, quantity=quantity, group_heading=None,
-                            confidence=80.0, page=1, y_px=y, table_span=(50, 950), row_bounds=(y - 9, y + 11),
-                            quantity_span=(50, 150))
+def _second(rows):
+    """The second reading of the readable rows, in page order."""
+    return {"rows": [{"label": f"R{index}", "quantity": qty, "catalog_no": catalog, "description": description, "readable": True}
+                     for index, (qty, catalog, description) in enumerate(rows, start=1)]}
 
 
-def _witness(lines, failure=None):
-    def read(path, on_page=None):
-        result = DesignSheetExtraction(lines=list(lines), failure=failure)
-        return result
-    return read
-
-
-# The OCR read of the same page: agrees on 4-CPU and SIGA-CT1, reads SIGA-PS
-# as 126 where the model read 120, misses SIGA-HFS, and finds SIGA-CC1 alone.
-OCR_LINES = [
-    _ocr_line("4-CPU", "Central Processor Module", "1", 69),
-    _ocr_line("SIGA-PS", "Photoelectric smoke detector", "126", 93),
-    _ocr_line("SIGA-CT1", "Single input module", "14", 117),
-    _ocr_line("SIGA-CC1", "Synchronised output module", "6", 400),
-]
+# The second reading of PAGE_ANSWER's readable rows, agreeing with the first.
+SECOND = _second([("1", "4-CPU", "Central Processor Module"), ("120", "SIGA-PS", "Photoelectric smoke detector"),
+                  ("14", "SIGA-CT1", "Single input module")])
 
 
 @pytest.fixture()
@@ -112,16 +101,12 @@ def test_bands_partition_a_page_and_overlap():
     assert sheet_reader.bands(600) == [(0, 600, 0, 600)]
 
 
-def test_the_model_reads_the_sheet_and_the_ocr_read_witnesses_it(client, db_session, tmp_path, ai, recording, monkeypatch):
+def test_the_model_reads_the_sheet_and_a_second_reading_settles_it(client, db_session, tmp_path, ai, recording):
     sheet = tmp_path / "EP-70001 FAS Design.pdf"
     sheet.write_bytes(b"%PDF-1.4 one sheet")
-    monkeypatch.setattr(sheet_reader, "ocr_read", _witness(OCR_LINES))
-    # The page, then the close-ups: the disputed SIGA-PS, the unreadable
-    # SIGA-HFS, and the row only the OCR found.
-    recording.answers = [PAGE_ANSWER,
-                         _close_up("120", "SIGA-PS", "Photoelectric smoke detector"),
-                         _close_up("30", "SIGA-HFS", "Heat detector"),
-                         _close_up("6", "SIGA-CC1", "Synchronised output module")]
+    # The page, the second reading of its readable rows, then a close-up of
+    # the row the model could not read.
+    recording.answers = [PAGE_ANSWER, SECOND, _close_up("30", "SIGA-HFS", "Heat detector")]
     project = _project(db_session, sheet)
     _login(client)
 
@@ -129,12 +114,11 @@ def test_the_model_reads_the_sheet_and_the_ocr_read_witnesses_it(client, db_sess
 
     assert body["extracted"] and body["reading"] is None
     by_catalog = {item["catalog_no"]: item for item in body["items"]}
-    assert set(by_catalog) == {"4-CPU", "SIGA-PS", "SIGA-CT1", "SIGA-CC1"}
-    assert by_catalog["SIGA-PS"]["quantity"] == "120", "the close-up sided with the model over the OCR read"
+    assert set(by_catalog) == {"4-CPU", "SIGA-PS", "SIGA-CT1"}
+    assert by_catalog["SIGA-PS"]["quantity"] == "120", "two readings agree"
     assert by_catalog["4-CPU"]["group_heading"] == "B1 BUILDING"
-    assert recording.calls == 4
-    assert recording.requests[0].task == "read_sheet_page"
-    assert [r.task for r in recording.requests[1:]] == ["read_sheet_row_close_up"] * 3
+    assert recording.calls == 3
+    assert [r.task for r in recording.requests] == ["read_sheet_page", "read_sheet_rows_second", "read_sheet_row_close_up"]
 
     run = db_session.query(ExtractionRun).filter(ExtractionRun.project_id == project.id).one()
     assert run.reader == "ai" and run.reading_id is not None and run.failure is None
@@ -155,35 +139,29 @@ def test_the_model_reads_the_sheet_and_the_ocr_read_witnesses_it(client, db_sess
 def test_a_sheet_read_before_is_not_read_by_the_model_again(client, db_session, tmp_path, ai, recording, monkeypatch):
     sheet = tmp_path / "EP-70002 FAS Design.pdf"
     sheet.write_bytes(b"%PDF-1.4 shared sheet")
-    monkeypatch.setattr(sheet_reader, "ocr_read", _witness(OCR_LINES))
-    recording.answers = [PAGE_ANSWER,
-                         _close_up("120", "SIGA-PS", "Photoelectric smoke detector"),
-                         _close_up("30", "SIGA-HFS", "Heat detector"),
-                         _close_up("6", "SIGA-CC1", "Synchronised output module")]
+    recording.answers = [PAGE_ANSWER, SECOND, _close_up("30", "SIGA-HFS", "Heat detector")]
     first = _project(db_session, sheet, ep="70002")
     _login(client)
-    assert len(client.post(f"/projects/{first.id}/boq/ensure").json()["items"]) == 4
-    assert recording.calls == 4
+    assert len(client.post(f"/projects/{first.id}/boq/ensure").json()["items"]) == 3
+    assert recording.calls == 3
 
     # Another project filed with the same sheet: the same content, the same
     # reading, read out of the database in the request itself.
     second = _project(db_session, sheet, ep="70003")
     body = client.post(f"/projects/{second.id}/boq/ensure").json()
 
-    assert body["extracted"] and body["reading"] is None and len(body["items"]) == 4
-    assert recording.calls == 4, "no model call for a document already read"
+    assert body["extracted"] and body["reading"] is None and len(body["items"]) == 3
+    assert recording.calls == 3, "no model call for a document already read"
     assert db_session.query(DocumentReading).count() == 1
     runs = db_session.query(ExtractionRun).filter(ExtractionRun.project_id == second.id).all()
     assert runs[0].reader == "ai" and runs[0].reading_id == db_session.query(DocumentReading).one().id
 
 
-def test_a_sheet_the_ocr_cannot_read_is_read_by_two_ai_readings(client, db_session, tmp_path, ai, recording, monkeypatch):
-    """The ELS case: no rule layout the extractor knows, so the OCR read has
-    no lines to witness with. Every readable row gets a second, independent
-    AI reading; the two agreeing make the line."""
+def test_a_row_the_two_readings_dispute_goes_to_a_close_up(client, db_session, tmp_path, ai, recording):
+    """Every readable row gets a second, independent AI reading; the two
+    agreeing make the line, and a close-up settles the rows they dispute."""
     sheet = tmp_path / "EP-70004 ELS Design.pdf"
     sheet.write_bytes(b"%PDF-1.4 unruled sheet")
-    monkeypatch.setattr(sheet_reader, "ocr_read", _witness([], failure="Could not find a line-item table"))
     second = {"rows": [
         {"label": "R1", "quantity": "1", "catalog_no": "4-CPU", "description": "Central Processor Module", "readable": True},
         {"label": "R2", "quantity": "120", "catalog_no": "SIGA-PS", "description": "Photoelectric smoke detector", "readable": True},
@@ -197,28 +175,47 @@ def test_a_sheet_the_ocr_cannot_read_is_read_by_two_ai_readings(client, db_sessi
 
     body = client.post(f"/projects/{project.id}/boq/ensure").json()
 
-    assert body["warnings"] == [], "the sheet the OCR could not read is read"
+    assert body["warnings"] == []
     assert {i["catalog_no"]: i["quantity"] for i in body["items"]} == {"4-CPU": "1", "SIGA-PS": "120", "SIGA-CT1": "14"}
     assert [r.task for r in recording.requests] == ["read_sheet_page", "read_sheet_rows_second",
                                                     "read_sheet_row_close_up", "read_sheet_row_close_up"]
     run = db_session.query(ExtractionRun).filter(ExtractionRun.project_id == project.id).one()
     assert run.reader == "ai" and run.failure is None
-    assert any("could not witness" in n for n in run.coverage["notes"])
 
 
-def test_without_the_model_the_ocr_read_stands_as_before(client, db_session, tmp_path, monkeypatch):
+def test_without_the_model_the_sheet_is_recorded_as_not_read(client, db_session, tmp_path):
+    """No OCR stands in (platform owner, 2026-09-17): the sheet is not read,
+    the reason is on the BOQ page, and readiness says the sheet is unread."""
     sheet = tmp_path / "EP-70005 FAS Design.pdf"
     sheet.write_bytes(b"%PDF-1.4 sheet")
-    monkeypatch.setattr(sheet_reader, "ocr_read", _witness(OCR_LINES))
     project = _project(db_session, sheet, ep="70005")
     _login(client)
 
     body = client.post(f"/projects/{project.id}/boq/ensure").json()
 
-    assert body["extracted"] and len(body["items"]) == 4 and body["reading"] is None
+    assert body["extracted"] and body["items"] == [] and body["reading"] is None
+    assert body["warnings"] and "Not read: AI assistance is disabled" in body["warnings"][0], body["warnings"]
     run = db_session.query(ExtractionRun).filter(ExtractionRun.project_id == project.id).one()
-    assert run.reader == "ocr" and run.reading_id is None
+    assert run.reader == "ai" and run.reading_id is None and run.failure.startswith("Not read")
     assert db_session.query(DocumentReading).count() == 0
+    checks = {c["key"]: c for c in client.get(f"/projects/{project.id}/readiness").json()["checks"]}
+    assert checks["coverage"]["status"] == "blocked" and checks["unresolved_rows"]["count"] == 0
+    assert client.get(f"/projects/{project.id}/extraction").json()["open_issues"] == 0
+
+
+def test_a_read_the_model_fails_is_recorded_as_not_read(client, db_session, tmp_path, ai, recording):
+    sheet = tmp_path / "EP-70007 FAS Design.pdf"
+    sheet.write_bytes(b"%PDF-1.4 sheet")
+    recording.answers = [{"rows": [], "has_line_items": False}]
+    project = _project(db_session, sheet, ep="70007")
+    _login(client)
+
+    body = client.post(f"/projects/{project.id}/boq/ensure").json()
+
+    assert body["items"] == []
+    assert body["warnings"] and "The AI found no table of quoted items" in body["warnings"][0], body["warnings"]
+    run = db_session.query(ExtractionRun).filter(ExtractionRun.project_id == project.id).one()
+    assert run.reader == "ai" and run.reading_id is not None
 
 
 def test_the_first_read_runs_as_a_job_the_page_follows(client, db_session, tmp_path, ai, recording, monkeypatch):
@@ -227,11 +224,7 @@ def test_the_first_read_runs_as_a_job_the_page_follows(client, db_session, tmp_p
     monkeypatch.setattr(jobs_router, "RUN_INLINE", False)
     sheet = tmp_path / "EP-70006 FAS Design.pdf"
     sheet.write_bytes(b"%PDF-1.4 sheet")
-    monkeypatch.setattr(sheet_reader, "ocr_read", _witness(OCR_LINES))
-    recording.answers = [PAGE_ANSWER,
-                         _close_up("120", "SIGA-PS", "Photoelectric smoke detector"),
-                         _close_up("30", "SIGA-HFS", "Heat detector"),
-                         _close_up("6", "SIGA-CC1", "Synchronised output module")]
+    recording.answers = [PAGE_ANSWER, SECOND, _close_up("30", "SIGA-HFS", "Heat detector")]
     project = _project(db_session, sheet, ep="70006")
     _login(client)
 
@@ -250,6 +243,6 @@ def test_the_first_read_runs_as_a_job_the_page_follows(client, db_session, tmp_p
             break
         time.sleep(0.05)
     assert job["status"] == "succeeded", job
-    assert job["result"]["lines"] == 4
+    assert job["result"]["lines"] == 3
     done = client.post(f"/projects/{project.id}/boq/ensure").json()
-    assert done["reading"] is None and len(done["items"]) == 4
+    assert done["reading"] is None and len(done["items"]) == 3
