@@ -235,9 +235,13 @@ def test_the_first_read_runs_as_a_job_the_page_follows(client, db_session, tmp_p
     assert again["reading"] is None or again["reading"]["id"] == body["reading"]["id"]
     import time
 
-    for _ in range(100):
+    # A wall-clock deadline, not a poll count: under the load of the full
+    # suite the job's page rendering can take longer than the five seconds
+    # a hundred polls allowed, and the test then failed for timing alone.
+    deadline = time.monotonic() + 30
+    while True:
         job = client.get(f"/jobs/{body['reading']['id']}").json()
-        if job["status"] not in ("queued", "running"):
+        if job["status"] not in ("queued", "running") or time.monotonic() > deadline:
             break
         time.sleep(0.05)
     assert job["status"] == "succeeded", job
