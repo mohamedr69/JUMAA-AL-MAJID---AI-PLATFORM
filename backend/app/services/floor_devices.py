@@ -36,6 +36,17 @@ import re
 from pathlib import Path
 from typing import Iterable
 
+from app.services.device_symbols import (
+    Classification,
+    Geometry,
+    LegendEntry,
+    SymbolLibrary,
+    classify,
+    device_in,
+    geometry_of,
+    legend_entries,
+)
+
 # --- what a block is ---------------------------------------------------------------------
 
 # (device, the block or layer names that mean it). The first match wins, so
@@ -75,6 +86,16 @@ FURNITURE_RE = re.compile(
 
 # The legend's own title, and the words a legend column is described by.
 LEGEND_TITLE_RE = re.compile(r"\b(LEGEND|SYMBOLS?|KEY\s*PLAN\s*LEGEND|SYMBOL\s*(?:LIST|TABLE)|GENERAL\s*NOTES?)\b", re.IGNORECASE)
+# What is drawn on a sheet beside the plans and repeats their symbols: a
+# riser diagram carries every device in the building, a key plan every
+# floor of it, and a typical detail the same few devices again. Counting
+# them counts the building twice.
+DIAGRAM_TITLE_RE = re.compile(
+    r"\b(RISER|SCHEMATIC|BLOCK\s*DIAGRAM|SINGLE\s*LINE|ONE\s*LINE|WIRING\s*DIAGRAM|"
+    r"TYPICAL\s*DETAIL|TYPICAL\s*INSTALLATION|DETAIL\s*[A-Z0-9]?\b|KEY\s*PLAN|LOCATION\s*PLAN|"
+    r"SITE\s*PLAN|MOUNTING\s*HEIGHT)\b",
+    re.IGNORECASE,
+)
 # The layers the architecture is drawn on: the plan's own extent.
 ARCHITECTURE_RE = re.compile(r"^(A[-_]|ARC|ARCH|WALL|DOOR|WIND|PART|COL|GRID|ROOM|FLOOR|SLAB|STAIR|XREF)", re.IGNORECASE)
 
@@ -89,13 +110,12 @@ _ORDINALS = {
 
 
 def device_of(block: str, layer: str = "") -> str:
-    """The device a block reference stands for, by its block name and then
-    its layer; the block's own name when nothing matches."""
-    for text in (block or "", layer or ""):
-        for device, pattern in DEVICE_RULES:
-            if re.search(pattern, text, re.IGNORECASE):
-                return device
-    return (block or layer or "Unnamed block").strip()
+    """The device a block reference stands for, by its name and then its
+    layer -- the weakest evidence there is, kept for the places that have
+    nothing else. app.services.device_symbols.classify weighs it against
+    the geometry, the legend and the attributes, which is what decides.
+    """
+    return device_in(block) or device_in(layer) or (block or layer or "Unnamed block").strip()
 
 
 # --- floors -------------------------------------------------------------------------------
@@ -201,6 +221,19 @@ class Insert:
     x: float
     y: float
     space: str
+    # What the block reference itself carries: the device's address, and
+    # on one real drawing the only thing saying an anonymous block is an
+    # exit sign (TYP=EXIT).
+    attributes: dict = dataclasses.field(default_factory=dict)
+    rotation: float = 0.0
+
+    @property
+    def address(self) -> str:
+        """The loop address written on the device, when it carries one."""
+        for tag, value in self.attributes.items():
+            if re.search(r"ADDR|LOOP|DEVICE|TAG|NO\b", str(tag), re.IGNORECASE) and str(value).strip():
+                return str(value).strip()
+        return ""
 
 
 @dataclasses.dataclass
@@ -241,6 +274,9 @@ class DrawingRead:
     architecture: dict[str, Box] = dataclasses.field(default_factory=dict)
     layouts: list[str] = dataclasses.field(default_factory=list)
     warnings: list[str] = dataclasses.field(default_factory=list)
+    # The geometry of every block the drawing defines: what the symbol is
+    # actually drawn as, which is the evidence that counts.
+    geometries: dict[str, Geometry] = dataclasses.field(default_factory=dict)
 
 
 def read_dxf(path: Path) -> DrawingRead:
@@ -254,6 +290,12 @@ def read_dxf(path: Path) -> DrawingRead:
     except Exception as exc:  # noqa: BLE001 -- a file that is not a DXF, or a broken one
         read.warnings.append(f"{path.name} could not be read as a DXF ({exc}).")
         return read
+
+    for block in doc.blocks:
+        name = str(block.name)
+        if name.lower().startswith(("*model_space", "*paper_space")):
+            continue
+        read.geometries[name] = geometry_of(block)
 
     spaces = [("model", doc.modelspace())]
     for layout in doc.layouts:
@@ -269,7 +311,15 @@ def read_dxf(path: Path) -> DrawingRead:
             layer = str(getattr(entity.dxf, "layer", "") or "")
             if kind == "INSERT":
                 point = entity.dxf.insert
-                read.inserts.append(Insert(block=str(entity.dxf.name), layer=layer, x=float(point.x), y=float(point.y), space=name))
+                attributes = {}
+                for attribute in getattr(entity, "attribs", ()) or ():
+                    try:
+                        attributes[str(attribute.dxf.tag)] = str(attribute.dxf.text)
+                    except Exception:  # noqa: BLE001 -- an attribute that cannot be read is not evidence
+                        continue
+                read.inserts.append(Insert(block=str(entity.dxf.name), layer=layer, x=float(point.x), y=float(point.y),
+                                           space=name, attributes=attributes,
+                                           rotation=float(getattr(entity.dxf, "rotation", 0) or 0)))
             elif kind in ("TEXT", "MTEXT"):
                 text = entity.plain_text() if kind == "MTEXT" else str(entity.dxf.text)
                 point = entity.dxf.insert if kind == "MTEXT" else entity.dxf.insert
@@ -426,8 +476,21 @@ class Extraction:
     legend_excluded: int = 0
     outside_plan_excluded: int = 0
     furniture_excluded: int = 0
+    # The riser diagram, the key plan, the typical details: the same
+    # devices drawn again beside the plans.
+    diagram_excluded: int = 0
     files: list[dict] = dataclasses.field(default_factory=list)
     warnings: list[str] = dataclasses.field(default_factory=list)
+    # One row per symbol the drawings use -- what it was taken for, how
+    # sure the platform is and on what evidence. A tower has thousands of
+    # devices and a couple of dozen symbols; this is what an engineer
+    # checks, not the devices.
+    symbols: list[dict] = dataclasses.field(default_factory=list)
+    # One row per device found: where it is, what it is, and how it was
+    # recognised, so a quantity can be looked into.
+    instances: list[dict] = dataclasses.field(default_factory=list)
+    # What the drawings' legends taught, for the library to keep.
+    learned: list[dict] = dataclasses.field(default_factory=list)
 
     def as_dict(self) -> dict:
         rows = []
@@ -447,8 +510,12 @@ class Extraction:
             "legend_excluded": self.legend_excluded,
             "outside_plan_excluded": self.outside_plan_excluded,
             "furniture_excluded": self.furniture_excluded,
+            "diagram_excluded": self.diagram_excluded,
             "files": self.files,
             "warnings": self.warnings,
+            "symbols": self.symbols,
+            "instances": self.instances,
+            "learned": self.learned,
         }
 
 
@@ -461,7 +528,8 @@ def floor_labels(read: DrawingRead, space: str) -> list[Label]:
         # A plan is titled "GROUND FLOOR PLAN" or "LEVEL 3", not "ROOF":
         # a bare floor word is a room label, and every roof plan has one.
         if label.space == space and FLOOR_TEXT_RE.search(label.text) and _TITLE_WORDS_RE.search(label.text)
-        and not LEGEND_TITLE_RE.search(label.text) and len(label.text) <= 60
+        and not LEGEND_TITLE_RE.search(label.text) and not DIAGRAM_TITLE_RE.search(label.text)
+        and len(label.text) <= 60
     ]
     return sorted(found, key=lambda label: (-label.height, label.text))
 
@@ -564,6 +632,16 @@ def main_area(plans: list[list[Insert]]) -> tuple[list[list[Insert]], list[list[
     return kept, away
 
 
+def diagram_labels(read: DrawingRead, space: str) -> list[Label]:
+    """The titles of what is drawn beside the plans and repeats their
+    symbols: the riser diagram, the key plan, the typical details."""
+    return [
+        label
+        for label in read.labels
+        if label.space == space and DIAGRAM_TITLE_RE.search(label.text) and len(label.text) <= 60
+    ]
+
+
 def assign(inserts: list[Insert], labels: list[Label]) -> dict[str, list[Insert]]:
     """Which floor each device belongs to: the floor whose title is nearest
     it. One title means one floor and everything on it."""
@@ -578,11 +656,22 @@ def assign(inserts: list[Insert], labels: list[Label]) -> dict[str, list[Insert]
     return groups
 
 
-def extract(paths: list[Path], names: dict[Path, str] | None = None) -> Extraction:
-    """The floor-wise schedule of every drawing handed in."""
+MAX_INSTANCES = 20_000
+
+
+def extract(paths: list[Path], names: dict[Path, str] | None = None, library: SymbolLibrary | None = None) -> Extraction:
+    """The floor-wise schedule of every drawing handed in.
+
+    The symbols are recognised once each -- from their geometry, the
+    drawing's own legend, what they carry and, last and least, what they
+    are called -- and the devices are then counted by arithmetic
+    (app.services.device_symbols).
+    """
     result = Extraction()
     counted: dict[str, FloorCount] = {}
     devices: set[str] = set()
+    library = library if library is not None else SymbolLibrary()
+    symbols: dict[str, dict] = {}
 
     for path in paths:
         shown = (names or {}).get(path, path.name)
@@ -597,15 +686,50 @@ def extract(paths: list[Path], names: dict[Path, str] | None = None) -> Extracti
             inserts = [i for i in read.inserts if i.space == space]
             if not inserts:
                 continue
-            furniture = [i for i in inserts if FURNITURE_RE.search(i.block)]
-            result.furniture_excluded += len(furniture)
-            inserts = [i for i in inserts if i not in furniture]
 
             # The plan first: it is what the legend's own size is measured
             # against, and it is read from the architecture, which the
             # legend does not touch.
             plan = plan_box(read, space)
             legend = legend_box(read, space, plan)
+
+            # The legend is this drawing's own dictionary: symbol, then
+            # what it is. It is read before anything is counted, and what
+            # it teaches is kept for the next project.
+            entries = legend_entries([i for i in read.inserts if i.space == space],
+                                     [l for l in read.labels if l.space == space], legend, read.geometries)
+            spoken = {entry.block.upper(): entry.description for entry in entries}
+            for entry in entries:
+                device = device_in(entry.description) or entry.description.title()
+                library.learn(device, geometry=read.geometries.get(entry.block), block=entry.block)
+                result.learned.append({"device": device, "block": entry.block, "fingerprint": entry.fingerprint,
+                                       "shape": (read.geometries.get(entry.block) or Geometry("", "", {})).shape,
+                                       "description": entry.description, "file": shown})
+
+            # Each symbol is recognised once, however many times it is used.
+            found: dict[str, Classification] = {}
+            for insert in inserts:
+                if insert.block in found:
+                    continue
+                found[insert.block] = classify(
+                    block=insert.block, layer=insert.layer, geometry=read.geometries.get(insert.block),
+                    legend=spoken, library=library, attributes=insert.attributes,
+                )
+
+            # Drawing furniture: the sheet's own parts and the architecture
+            # brought in as a reference. An anonymous block that any
+            # evidence speaks for -- the exit signs of one real drawing are
+            # called *U29 and say TYP=EXIT -- is a device, not furniture.
+            # The test is whether something named it, not how sure that
+            # left the platform: a device recognised from one weak source
+            # is counted, and shown for review.
+            furniture = [
+                insert for insert in inserts
+                if FURNITURE_RE.search(insert.block) and not found[insert.block].evidence
+            ]
+            result.furniture_excluded += len(furniture)
+            inserts = [i for i in inserts if i not in furniture]
+
             if legend is not None:
                 inside = [i for i in inserts if legend.holds(i.x, i.y)]
                 result.legend_excluded += len(inside)
@@ -619,7 +743,24 @@ def extract(paths: list[Path], names: dict[Path, str] | None = None) -> Extracti
 
             labels = floor_labels(read, space)
             if labels:
-                groups = assign(inserts, labels)
+                # The riser diagram and the key plan are titled like a plan
+                # and are not one: the devices nearest their titles belong
+                # to them, and are left out rather than counted again.
+                diagrams = diagram_labels(read, space)
+                grouped = assign(inserts, labels + diagrams)
+                repeated = [
+                    insert
+                    for label in diagrams
+                    for insert in grouped.get(label.text, [])
+                ]
+                if repeated:
+                    result.diagram_excluded += len(repeated)
+                    result.warnings.append(
+                        f"{shown}: {len(repeated)} symbol{'s' if len(repeated) != 1 else ''} are drawn on the "
+                        f"{', '.join(sorted({label.text.strip() for label in diagrams}))}; they are the same devices "
+                        "shown again, and are not counted."
+                    )
+                groups = {label.text: grouped.get(label.text, []) for label in labels}
             else:
                 # No plan is titled: the plans are where the devices are,
                 # and the sheet title says which floors they are.
@@ -668,9 +809,27 @@ def extract(paths: list[Path], names: dict[Path, str] | None = None) -> Extracti
                             source=shown,
                         )
                     for insert in group:
-                        device = device_of(insert.block, insert.layer)
+                        recognised = found.get(insert.block) or classify(block=insert.block, layer=insert.layer)
+                        device = recognised.device
                         count.devices[device] = count.devices.get(device, 0) + 1
                         devices.add(device)
+                        entry = symbols.setdefault(f"{shown}:{insert.block}", {
+                            "file": shown, "block": insert.block, "layer": insert.layer,
+                            "fingerprint": (read.geometries.get(insert.block) or Geometry("", "", {})).fingerprint,
+                            "shape": (read.geometries.get(insert.block) or Geometry("", "", {})).shape,
+                            "features": (read.geometries.get(insert.block) or Geometry("", "", {})).features,
+                            "instances": 0, "floors": [], **recognised.as_dict(),
+                        })
+                        entry["instances"] += 1
+                        if member not in entry["floors"]:
+                            entry["floors"].append(member)
+                        if len(result.instances) < MAX_INSTANCES:
+                            result.instances.append({
+                                "floor": member, "device": device, "block": insert.block,
+                                "address": insert.address, "x": round(insert.x, 1), "y": round(insert.y, 1),
+                                "confidence": round(recognised.confidence, 1), "method": recognised.method,
+                                "file": shown,
+                            })
                     file_devices += len(group)
                     if member not in file_floors:
                         file_floors.append(member)
@@ -679,4 +838,15 @@ def extract(paths: list[Path], names: dict[Path, str] | None = None) -> Extracti
 
     result.floors = sorted(counted.values(), key=lambda count: (count.floor.order, count.floor.name))
     result.devices = sorted(devices)
+    result.symbols = sorted(symbols.values(), key=lambda symbol: (-symbol["instances"], symbol["block"]))
+    for symbol in result.symbols:
+        if symbol["conflict"]:
+            result.warnings.append(f"{symbol['file']}: {symbol['conflict']}")
+    unsure = [symbol for symbol in result.symbols if symbol["state"] in ("review", "unresolved")]
+    if unsure:
+        result.warnings.append(
+            f"{len(unsure)} symbol{'s' if len(unsure) != 1 else ''} could not be recognised with confidence "
+            f"({', '.join(symbol['block'] for symbol in unsure[:6])}"
+            f"{', ...' if len(unsure) > 6 else ''}): check them against the drawing's legend."
+        )
     return result

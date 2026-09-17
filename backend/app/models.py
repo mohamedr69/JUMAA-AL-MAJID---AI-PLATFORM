@@ -496,6 +496,35 @@ class ProjectFrcCables(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
 
 
+class DeviceSymbol(Base):
+    """A symbol the platform has been taught, kept for every project.
+
+    The geometry is what identifies a device on a drawing; the block names
+    are only what draughtsmen have called it so far. A row is written when
+    a drawing's legend explains a symbol, and when an engineer confirms
+    one -- so the next project recognises it with no legend at all
+    (app.services.device_symbols)."""
+
+    __tablename__ = "device_symbols"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # The device as the platform names it ("Smoke detector with sounder base").
+    device: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    system_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    part_numbers: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Every way the symbol has been drawn, and every name it has been given.
+    fingerprints: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    shapes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    block_names: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    layers: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # "legend" (a drawing explained it), "engineer" (someone confirmed it).
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="legend")
+    learned_from: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class ProjectFloorBoq(Base):
     """The floor-wise device count read off a project's drawings: the
     schedule as it was last extracted, kept so the tab shows it again

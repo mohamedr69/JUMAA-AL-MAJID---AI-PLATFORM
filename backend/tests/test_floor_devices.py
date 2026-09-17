@@ -62,7 +62,8 @@ def test_a_block_is_the_device_it_stands_for():
     assert device_of("MCP") == "Manual call point"
     assert device_of("SIGA-SD") == "Duct smoke detector"
     assert device_of("757-7A-SS70") == "Speaker/strobe"
-    assert device_of("SIGA-CT2") == "Monitor/control module"
+    assert device_of("SIGA-CT2") == "Monitor module"
+    assert device_of("SIGA-CR") == "Control module"
     assert device_of("WIDGET-9", layer="FA-SOUNDER") == "Sounder"
     # Nothing is dropped for being unknown: the block speaks for itself.
     assert device_of("XYZ-1") == "XYZ-1"
@@ -212,3 +213,40 @@ def test_the_floors_a_sheet_title_lists():
     assert floor_names_in("BASEMENT 2, BASEMENT 1 AND GROUND FLOOR PLAN") == ["Basement 2", "Basement 1", "Ground"]
     assert floor_names_in("RECEPTION AREA") == []              # a room label is not a sheet title
     assert floor_names_in("") == []
+
+
+def test_the_riser_and_the_key_plan_are_the_same_devices_drawn_again(tmp_path):
+    """A fire alarm sheet carries the plans and, beside them, a riser
+    diagram showing every device in the building again. Counting the riser
+    counts the building twice.
+
+    This sheet brings its architecture in as an external reference, so
+    there is no plan rectangle to fall outside of: the riser is left out
+    because of what it is titled, which is all the drawing says about it.
+    """
+    doc = ezdxf.new(setup=True)
+    _blocks(doc, DEVICES)
+    space = doc.modelspace()
+    space.add_text("GROUND FLOOR PLAN", dxfattribs={"height": 400}).set_placement((1500, -400))
+    _devices(space, 0, 0, ["SD", "SD", "MCP"])
+    # The riser: the same three devices again, in a column of its own.
+    space.add_text("FIRE ALARM RISER DIAGRAM", dxfattribs={"height": 400}).set_placement((12000, -400))
+    _devices(space, 12000, 0, ["SD", "SD", "MCP"])
+    drawing = _save(doc, tmp_path / "GF & RISER.dxf")
+
+    result = extract([drawing])
+
+    assert [floor.floor.name for floor in result.floors] == ["GROUND FLOOR PLAN"]
+    assert result.floors[0].devices == {"Smoke detector": 2, "Manual call point": 1}
+    assert result.diagram_excluded == 3
+    assert any("RISER" in warning and "not counted" in warning for warning in result.warnings)
+
+
+def test_a_key_plan_is_not_a_floor():
+    from app.services.floor_devices import DIAGRAM_TITLE_RE
+
+    assert DIAGRAM_TITLE_RE.search("KEY PLAN")
+    assert DIAGRAM_TITLE_RE.search("TYPICAL DETAIL OF DETECTOR MOUNTING")
+    assert DIAGRAM_TITLE_RE.search("FIRE ALARM SCHEMATIC")
+    assert not DIAGRAM_TITLE_RE.search("GROUND FLOOR PLAN")
+    assert not DIAGRAM_TITLE_RE.search("TYPICAL 2ND TO 14TH FLOOR PLAN")

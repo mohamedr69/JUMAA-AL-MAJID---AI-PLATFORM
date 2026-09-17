@@ -23,7 +23,7 @@ from app.database import get_db
 from app.deps import get_current_user, require_role
 from app.models import ProjectFloorBoq, User
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404
-from app.services import activity, dwg_convert, floor_devices
+from app.services import activity, device_symbols, dwg_convert, floor_devices
 
 router = APIRouter(prefix="/projects", tags=["floor boq"])
 
@@ -94,9 +94,13 @@ def read_drawings(
             raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=warnings[0] if warnings else "No drawing was handed in")
 
         ready, names, failed = dwg_convert.ensure_dxf(drawings)
-        extraction = floor_devices.extract(ready, names)
+        # What the platform already knows about these symbols, before the
+        # drawings are read; what their legends teach is kept afterwards.
+        library = device_symbols.load_library(db)
+        extraction = floor_devices.extract(ready, names, library=library)
         extraction.warnings = warnings + failed + extraction.warnings
         result = extraction.as_dict()
+        device_symbols.remember(db, extraction.learned, source="legend", user_id=current_user.id)
     finally:
         shutil.rmtree(staged, ignore_errors=True)
 
@@ -114,6 +118,92 @@ def read_drawings(
                     project=project, entity_type="floor_boq",
                     detail={"files": [f["file"] for f in result["files"]], "devices": result["devices"]})
     return _out(row)
+
+
+class ConfirmSymbolIn(BaseModel):
+    """An engineer settling what a symbol is."""
+
+    block: str
+    device: str
+
+
+@router.post("/{project_id}/floor-boq/symbols/confirm", response_model=FloorBoqOut)
+def confirm_symbol(
+    project_id: int,
+    payload: ConfirmSymbolIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> FloorBoqOut:
+    """Settle what a symbol is: the schedule is counted again with it, and
+    the platform keeps the symbol's geometry so the next project knows it
+    without being told."""
+    project = _get_project_or_404(db, project_id)
+    row = db.query(ProjectFloorBoq).filter(ProjectFloorBoq.project_id == project.id).first()
+    if row is None or not row.result:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No drawing has been read yet")
+    device = payload.device.strip()
+    if not device:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail="Name the device the symbol stands for")
+
+    result = dict(row.result)
+    symbols = [dict(symbol) for symbol in result.get("symbols", [])]
+    wanted = [symbol for symbol in symbols if symbol["block"] == payload.block]
+    if not wanted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"No symbol {payload.block!r} in this schedule")
+    for symbol in wanted:
+        symbol.update(device=device, confidence=100.0, state="accepted", method="engineer", conflict=None,
+                      evidence=[{"source": "engineer", "device": device, "weight": 100,
+                                 "detail": f"confirmed by {current_user.full_name}"}])
+    result["symbols"] = symbols
+    result = _recount(result)
+    row.result, row.created_by_id = result, current_user.id
+    db.commit()
+    db.refresh(row)
+
+    device_symbols.remember(
+        db,
+        [{"device": device, "block": symbol["block"], "fingerprint": symbol.get("fingerprint"),
+          "shape": symbol.get("shape"), "file": symbol.get("file")} for symbol in wanted],
+        source="engineer", user_id=current_user.id,
+    )
+    activity.record(db, current_user, "floor_boq.symbol_confirmed",
+                    f"Confirmed the symbol {payload.block} as {device}", project=project, entity_type="floor_boq",
+                    detail={"block": payload.block, "device": device})
+    return _out(row)
+
+
+def _recount(result: dict) -> dict:
+    """The schedule counted again from the devices themselves, after a
+    symbol has been settled. The instances carry the block they were drawn
+    from, so nothing is read again."""
+    by_block = {(symbol["file"], symbol["block"]): symbol["device"] for symbol in result.get("symbols", [])}
+    instances = [dict(instance) for instance in result.get("instances", [])]
+    counted = sum(floor.get("total", 0) for floor in result.get("floors", []))
+    if not instances or len(instances) < counted:
+        # Only the first 20,000 devices are kept one by one, so on a very
+        # large job the instances are not the whole schedule. The symbol is
+        # still settled and kept; the floors are counted again when the
+        # drawings are next read.
+        result.setdefault("warnings", []).append(
+            "The symbol was confirmed. This job has more devices than are stored one by one, "
+            "so the floor totals are counted again the next time the drawings are read."
+        )
+        return result
+    for instance in instances:
+        instance["device"] = by_block.get((instance["file"], instance["block"]), instance["device"])
+    floors: dict[str, dict] = {}
+    for row in result.get("floors", []):
+        floors[row["floor"]] = {**row, "devices": {}, "total": 0}
+    for instance in instances:
+        floor = floors.get(instance["floor"])
+        if floor is None:
+            continue
+        floor["devices"][instance["device"]] = floor["devices"].get(instance["device"], 0) + 1
+        floor["total"] += 1
+    result["instances"] = instances
+    result["floors"] = [floors[row["floor"]] for row in result.get("floors", []) if row["floor"] in floors]
+    result["devices"] = sorted({instance["device"] for instance in instances})
+    return result
 
 
 @router.delete("/{project_id}/floor-boq", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)

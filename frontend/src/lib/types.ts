@@ -1749,6 +1749,50 @@ export interface FloorBoqFloor {
   total: number;
 }
 
+/** One piece of evidence for what a symbol is: which source spoke, what
+ * it said, and what that source is worth. */
+export interface FloorBoqEvidence {
+  source: string;
+  device: string;
+  weight: number;
+  detail: string;
+}
+
+/** A symbol on the drawings, recognised once however many times it is
+ * used. `state` is the band an engineer works by: `accepted` (95% and
+ * above), `accepted_flagged` (80-95%), `review` (60-80%) or `unresolved`
+ * (below 60%). */
+export interface FloorBoqSymbol {
+  file: string;
+  block: string;
+  layer: string;
+  fingerprint: string;
+  shape: string;
+  features: Record<string, unknown>;
+  instances: number;
+  floors: string[];
+  device: string;
+  confidence: number;
+  state: "accepted" | "accepted_flagged" | "review" | "unresolved";
+  method: string;
+  conflict: string | null;
+  evidence: FloorBoqEvidence[];
+}
+
+/** One device where it was drawn: for the engineer who wants to see the
+ * count on the drawing itself. */
+export interface FloorBoqInstance {
+  floor: string;
+  device: string;
+  block: string;
+  address: string | null;
+  x: number;
+  y: number;
+  confidence: number;
+  method: string;
+  file: string;
+}
+
 export interface FloorBoqResult {
   floors: FloorBoqFloor[];
   /** Every device kind found, in the order the columns are shown. */
@@ -1756,8 +1800,17 @@ export interface FloorBoqResult {
   legend_excluded: number;
   outside_plan_excluded: number;
   furniture_excluded: number;
+  /** The riser diagram, the key plan, the typical details: the same
+   * devices drawn again beside the plans. */
+  diagram_excluded: number;
   files: { file: string; floors: string[]; devices: number; layouts: string[] }[];
   warnings: string[];
+  /** What each symbol was taken to be, and on what evidence. */
+  symbols: FloorBoqSymbol[];
+  /** Every device where it was drawn (up to 20,000). */
+  instances: FloorBoqInstance[];
+  /** What the drawings' legends taught the platform. */
+  learned: { device: string; block: string; description: string; file: string }[];
 }
 
 /** GET/POST /projects/{id}/floor-boq. `converter` says why a DWG cannot be

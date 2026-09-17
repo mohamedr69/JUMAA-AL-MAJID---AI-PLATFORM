@@ -520,6 +520,10 @@ Counting is more than counting the blocks:
 - **what is outside the plan is not installed** -- the plan's extent comes
   from the architectural layers, so the symbols in the title block and the
   notes are left out;
+- **the riser and the key plan are the building drawn again** -- a riser
+  diagram carries every device in the building and a typical detail the
+  same few once more, so what is titled as a riser, a schematic, a key
+  plan or a detail is left out rather than counted twice;
 - **the architecture and AutoCAD's own blocks are not devices** -- an
   external reference (`01-XREF_GF`) and the anonymous blocks (`*U29`,
   `A$C...`) are drawing furniture;
@@ -534,6 +538,53 @@ Counting is more than counting the blocks:
 The schedule is a row per floor from the lowest to the highest and a
 column per device, stored per project (`project_floor_boq`) so the tab
 opens from the database.
+
+#### What each symbol is
+
+Counting the blocks is the easy half. The hard half is knowing what each
+symbol stands for, and a block name is no answer: the same smoke detector
+arrives as `SD`, `SD01`, `SMOKE`, `FAS_DEVICE` or `BLOCK_123`, and on one
+real layout the exit signs are anonymous blocks called `*U29`. The
+geometry inside the block, on the other hand, is the symbol itself -- one
+circle and an S is a smoke detector, the same circle inside a second one
+is a sounder base.
+
+So the drawing is counted by geometry and each symbol is recognised
+**once**, however many times it is drawn: a job with 4,827 devices is
+twenty-odd symbols to settle, not 4,827 decisions
+(`app/services/device_symbols.py`). Every source that can speak votes for
+a device, weighted by what it deserves to be believed:
+
+| Evidence | Weight | What it is |
+| --- | --- | --- |
+| Geometry | 40 | The fingerprint of the block's own entities: the counts, the letters inside, the proportions |
+| Visual | 30 | A classifier's reading of the rendered symbol (not built yet) |
+| Legend | 15 | What this drawing's own legend calls the symbol |
+| Attributes | 5 | What the block carries: an address, `TYP=EXIT` |
+| Block name | 5 | What a draughtsman typed |
+| Layer | 5 | What layer it sits on |
+
+The confidence is the share of the evidence that agreed, over at least 50
+-- so nothing is ever accepted on a name alone, and a drawing with no
+legend is not punished for having none. That puts each symbol in the band
+an engineer works by: **95% and above** accepted, **80-95%** accepted and
+flagged, **60-80%** for review, **below 60%** unresolved. A symbol whose
+name says one device and whose evidence says another is reported as a
+conflict rather than silently resolved, and a symbol nothing speaks for
+is counted under its own block name instead of being guessed at.
+
+Two things make the platform better at this over time:
+
+- **the legend is read as a dictionary** -- each symbol paired with the
+  text beside it -- so a drawing that explains itself is recognised at
+  100%;
+- **what a legend explains, and what an engineer confirms on the page, is
+  kept** in `device_symbols` by geometry and by name, so the next
+  project's drawing is recognised with no legend and no AI call.
+
+Every device is also stored where it was drawn -- floor, block, address,
+X and Y, confidence, and which evidence agreed -- so a count can be
+followed back to the drawing.
 
 ### The AI reads the material submittals
 
