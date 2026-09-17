@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api, apiUrl } from "../lib/api";
-import { PROJECT_EDITOR_ROLES, type DatasheetFile, type PartSuggestion, type ProposedMaterial, type ProposedMaterials } from "../lib/types";
+import { PROJECT_EDITOR_ROLES, type DatasheetFile, type FrcCables, type PartSuggestion, type ProposedMaterial, type ProposedMaterials } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
 /** The materials proposed for each system: the BOQ's parts as they are,
@@ -109,6 +109,10 @@ export function ProjectProposedMaterialsPage() {
         />
       )}
 
+      {currentSystem?.code === "FRC" && (
+        <FrcCablesPanel projectId={project.id} canEdit={canEdit} onSaved={() => void load()} />
+      )}
+
       {adding && currentSystem && (
         <AddMaterialForm
           projectId={project.id}
@@ -147,10 +151,10 @@ export function ProjectProposedMaterialsPage() {
                 <td className="px-3 py-2 text-gray-600">{item.quantity ?? "—"}</td>
                 <td className="px-3 py-2">
                   <span
-                    className={`rounded-md px-2 py-0.5 text-xs font-semibold ${item.source === "boq" ? "bg-blue-50 text-brand-700" : item.source === "battery" ? "bg-amber-50 text-amber-800" : "bg-green-50 text-green-700"}`}
-                    title={item.source === "battery" ? item.groups.join("; ") : undefined}
+                    className={`rounded-md px-2 py-0.5 text-xs font-semibold ${item.source === "boq" ? "bg-blue-50 text-brand-700" : item.source === "battery" ? "bg-amber-50 text-amber-800" : item.source === "cable" ? "bg-purple-50 text-purple-800" : "bg-green-50 text-green-700"}`}
+                    title={item.source === "battery" || item.source === "cable" ? item.groups.join("; ") : undefined}
                   >
-                    {item.source === "boq" ? "BOQ" : item.source === "battery" ? "Battery calculation" : "Added"}
+                    {item.source === "boq" ? "BOQ" : item.source === "battery" ? "Battery calculation" : item.source === "cable" ? "FRC cable" : "Added"}
                   </span>
                 </td>
                 <td className="px-3 py-2">
@@ -178,6 +182,110 @@ export function ProjectProposedMaterialsPage() {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+/** The fire-rated cables: the brand, then the size of each system's
+ * cable. A size against the company's standard is not refused; the
+ * warning the platform raises for it is shown beside it. */
+function FrcCablesPanel({ projectId, canEdit, onSaved }: { projectId: number; canEdit: boolean; onSaved: () => void }) {
+  const [data, setData] = useState<FrcCables | null>(null);
+  const [brandQuery, setBrandQuery] = useState("");
+  const [brandOpen, setBrandOpen] = useState(false);
+  const [draft, setDraft] = useState<Record<string, string | null>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const got = await api.get<FrcCables>(`/projects/${projectId}/frc-cables`);
+      setData(got);
+      setBrandQuery(got.brand ?? "");
+      setDraft(Object.fromEntries(got.cables.map((c) => [c.field, c.size])));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not load the cables");
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function save(next: { brand?: string | null; sizes?: Record<string, string | null> }) {
+    if (!data) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const sizes = next.sizes ?? draft;
+      const saved = await api.put<FrcCables>(`/projects/${projectId}/frc-cables`, { brand: next.brand === undefined ? data.brand : next.brand, ...sizes });
+      setData(saved);
+      setBrandQuery(saved.brand ?? "");
+      setDraft(Object.fromEntries(saved.cables.map((c) => [c.field, c.size])));
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not save the cables");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!data) return error ? <div className="mt-4 text-sm text-red-700">{error}</div> : null;
+  const brands = data.brands.filter((b) => !brandQuery || b.toLowerCase().includes(brandQuery.toLowerCase()));
+  const sizeLabel = (s: string) => s.replace("Cx", "C × ").replace("mm", " mm²");
+  return (
+    <div className="mt-5 rounded-xl border border-purple-200 bg-purple-50/30 p-4">
+      <div className="text-sm font-semibold text-navy-900">Fire-rated cables</div>
+      <p className="mt-1 text-xs text-gray-600">Identify the cables: the brand first, then the size of each system's cable. A size against the standard is warned about, not refused.</p>
+      <label className="relative mt-3 block max-w-sm text-xs font-semibold text-gray-600">
+        Brand
+        <input
+          className="input mt-1 w-full"
+          value={brandQuery}
+          disabled={!canEdit}
+          placeholder="Search the brands: FIREGUARD, SOLARTI, FRONTIER, TIANJIE"
+          onChange={(e) => { setBrandQuery(e.target.value); setBrandOpen(true); }}
+          onFocus={() => setBrandOpen(true)}
+          onBlur={() => window.setTimeout(() => setBrandOpen(false), 150)}
+        />
+        {brandOpen && canEdit && brands.length > 0 && (
+          <ul className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+            {brands.map((b) => (
+              <li key={b}>
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { setBrandOpen(false); void save({ brand: b }); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-brand-50">
+                  {b}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </label>
+      {data.brand && (
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {data.cables.map((cable) => (
+            <div key={cable.field} className={`rounded-lg border bg-white p-3 ${cable.warning ? "border-amber-300" : "border-gray-200"}`}>
+              <div className="text-sm font-semibold text-navy-900">{cable.name}</div>
+              <div className="mt-1 text-xs text-gray-500">Standard: {sizeLabel(cable.standard)}</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {data.sizes.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    disabled={!canEdit || busy}
+                    onClick={() => { const sizes = { ...draft, [cable.field]: size }; setDraft(sizes); void save({ sizes }); }}
+                    className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${draft[cable.field] === size ? "border-brand-600 bg-brand-600 text-white" : "border-gray-300 bg-white text-navy-900 hover:border-brand-300"}`}
+                  >
+                    {sizeLabel(size)}
+                  </button>
+                ))}
+              </div>
+              {cable.warning && <div className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">{cable.warning}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {!data.brand && <div className="mt-3 text-xs text-gray-500">Choose the brand to set the cable sizes.</div>}
+      {error && <div className="mt-2 text-sm text-red-700">{error}</div>}
     </div>
   );
 }

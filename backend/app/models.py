@@ -473,6 +473,25 @@ class DocumentDependency(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
+class ProjectFrcCables(Base):
+    """The fire-rated cables a full-package project proposes: the brand,
+    and the size of each system's cable (2C x 1.5 or 2C x 2.5 mm2). The
+    warnings the choices raise are computed, not stored
+    (app.services.frc_cables)."""
+
+    __tablename__ = "project_frc_cables"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, unique=True)
+    brand: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    fire_alarm_loop: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    voice_evacuation: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    power_24vdc: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    fire_telephone: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class PartDatasheetLink(Base):
     """Which datasheet in the company library documents a part whose number
     the library's file names do not carry -- a variant (NEXI300-3H-CGL-IPM

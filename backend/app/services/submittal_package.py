@@ -693,6 +693,7 @@ ELS_PANEL_BLOCK = "Emergency Light Panel"
 ELS_LIGHT_BLOCK = "Emergency Light"
 ELS_EXIT_BLOCK = "Exit Light"
 ELS_BLOCKS = (ELS_PANEL_BLOCK, ELS_LIGHT_BLOCK, ELS_EXIT_BLOCK)
+FRC_BLOCK = "Fire Rated Cables"
 _ELS_RULES: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
     (ELS_PANEL_BLOCK, ("CTR",), ("controller", "panel", "web compact", "monitoring unit", "gateway")),
     (ELS_EXIT_BLOCK, (), ("exit",)),
@@ -798,6 +799,19 @@ def schedule_blocks(project: Project, system_code: str | None = None) -> list[tu
     cabinets = [key for key in order if classify_group(None if key == UNGROUPED_BLOCK else key) in rank]
     cabinets.sort(key=lambda key: rank[classify_group(None if key == UNGROUPED_BLOCK else key)])
     field: dict[str, list] = {}
+    if wanted == "FRC":
+        # The fire-rated cables the engineer chose, one block.
+        from app.services import frc_cables
+
+        cables = frc_cables.lines(session, project) if session is not None else []
+        order, grouped = [], {}
+        if cables:
+            order.append(FRC_BLOCK)
+            grouped[FRC_BLOCK] = cables
+        if added:
+            order.append(ADDED_BLOCK)
+            grouped[ADDED_BLOCK] = added
+        return _lettered(order, grouped)
     if wanted == "ELS":
         # A monitored self-contained emergency light system: the panel
         # (controllers), the emergency lights, the exit lights.
@@ -929,13 +943,19 @@ def build_schedule(project: Project, system_code: str | None = None) -> pymupdf.
             room(20)
             page.draw_rect(pymupdf.Rect(left, y, right, y + 18), color=(0.87, 0.87, 0.87), width=0.4)
             cells = [
-                (f"{letter}{number}", 42),
-                ((item.catalog_no or "-")[:18], 82),
-                ((item.description or "")[:104], 200),
-                ((item.manufacturer or "-")[:24], 640),
+                (f"{letter}{number}", 42, 36),
+                ((item.catalog_no or "-"), 82, 114),
+                ((item.description or "")[:104], 200, 436),
+                ((item.manufacturer or "-")[:24], 640, 160),
             ]
-            for text, x in cells:
-                page.insert_text((x, y + 12), text, fontname="helv", fontsize=7.5)
+            for text, x, width in cells:
+                # The whole part number, never cut ("SL2-42D3D-CGL-M+SL23I"
+                # is not "SL2-42D3D-CGL-M+SL"): a long one is set smaller to
+                # fit its column.
+                size = 7.5
+                while size > 4.5 and pymupdf.get_text_length(text, fontname="helv", fontsize=size) > width:
+                    size -= 0.25
+                page.insert_text((x, y + 12), text, fontname="helv", fontsize=size)
             y += 18
         y += 8   # air between blocks, as the design sheet has
     return doc

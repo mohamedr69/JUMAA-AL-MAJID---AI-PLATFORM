@@ -57,6 +57,75 @@ class ProposedMaterialIn(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
 
 
+class FrcCableOut(BaseModel):
+    field: str
+    name: str
+    size: str | None
+    standard: str
+    warning: str | None
+
+
+class FrcCablesOut(BaseModel):
+    brand: str | None
+    brands: list[str]
+    sizes: list[str]
+    cables: list[FrcCableOut]
+    updated_at: datetime | None
+
+
+class FrcCablesIn(BaseModel):
+    brand: str | None = Field(default=None, max_length=64)
+    fire_alarm_loop: str | None = Field(default=None, max_length=16)
+    voice_evacuation: str | None = Field(default=None, max_length=16)
+    power_24vdc: str | None = Field(default=None, max_length=16)
+    fire_telephone: str | None = Field(default=None, max_length=16)
+
+
+def _frc_out(row) -> FrcCablesOut:
+    from app.services import frc_cables
+
+    warnings = frc_cables.warnings_for(row)
+    return FrcCablesOut(
+        brand=row.brand if row else None, brands=list(frc_cables.BRANDS), sizes=list(frc_cables.SIZES),
+        cables=[FrcCableOut(field=field, name=name, size=getattr(row, field, None) if row else None, standard=standard,
+                            warning=warnings[field]) for field, name, standard, _w, _t in frc_cables.CABLES],
+        updated_at=row.updated_at if row else None)
+
+
+@router.get("/projects/{project_id}/frc-cables", response_model=FrcCablesOut)
+def get_frc_cables(
+    project_id: int,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FrcCablesOut:
+    """The fire-rated cables proposed: the brand, each cable's size, and
+    the warning a size against the standard raises."""
+    from app.services import frc_cables
+
+    project = _get_project_or_404(db, project_id)
+    return _frc_out(frc_cables.get(db, project))
+
+
+@router.put("/projects/{project_id}/frc-cables", response_model=FrcCablesOut)
+def save_frc_cables(
+    project_id: int,
+    payload: FrcCablesIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> FrcCablesOut:
+    from app.services import frc_cables
+
+    project = _get_project_or_404(db, project_id)
+    sizes = {k: v for k, v in payload.model_dump().items() if k != "brand"}
+    try:
+        row = frc_cables.save(db, project, current_user.id, brand=payload.brand, sizes=sizes)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    activity.record(db, current_user, "material.frc_cables", f"Set the fire-rated cables: {row.brand or 'no brand'}",
+                    project=project, entity_type="material", detail={k: v for k, v in payload.model_dump().items()})
+    return _frc_out(row)
+
+
 class PartSuggestionOut(BaseModel):
     part_no: str
     description: str
@@ -90,6 +159,13 @@ def list_proposed(
                                  id=row.id, note=row.note, added_at=row.created_at) for row in added]
     _attach_datasheets(extra, get_libraries(), db)
     items.extend(extra)
+    # The fire-rated cables, as the FRC system's materials.
+    from app.services import frc_cables
+
+    for cable in frc_cables.lines(db, project):
+        items.append(ProposedMaterialOut(system_code="FRC", part_no=cable.catalog_no, description=cable.description,
+                                         manufacturer=cable.manufacturer, quantity=None, groups=[cable.name], source="cable",
+                                         note=cable.warning))
     # The batteries the fire alarm's battery calculation selects.
     from app.services import battery_materials
 

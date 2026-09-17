@@ -1680,7 +1680,7 @@ export interface ProposedSystem {
 
 /** A proposed material: a part the BOQ quotes ("boq") or one added on the tab ("added"). */
 export interface ProposedMaterial extends MaterialItem {
-  source: "boq" | "added" | "battery";
+  source: "boq" | "added" | "battery" | "cable";
   id?: number | null;
   note?: string | null;
   added_at?: string | null;
@@ -1696,4 +1696,22 @@ export interface PartSuggestion {
   part_no: string;
   description: string;
   sources: string[];
+}
+
+
+/** The fire-rated cables of a full-package project (GET/PUT /projects/{id}/frc-cables). */
+export interface FrcCable {
+  field: string;
+  name: string;
+  size: string | null;
+  standard: string;
+  warning: string | null;
+}
+
+export interface FrcCables {
+  brand: string | null;
+  brands: string[];
+  sizes: string[];
+  cables: FrcCable[];
+  updated_at: string | null;
 }

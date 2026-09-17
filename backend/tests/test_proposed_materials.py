@@ -376,3 +376,48 @@ def test_a_full_package_project_has_fire_rated_cables_as_a_system_with_nothing_i
     other = client.post("/projects", json={"ep_number": "30800", "project_name": "Other", "design_sheets": [], "scope_of_work": "Supply Only",
                                           "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True}]}).json()["id"]
     assert system_rules.project_codes(db_session.get(Project, other)) == ["FAS"]
+
+
+def test_the_frc_cables_are_chosen_by_brand_and_size_and_a_size_against_the_standard_is_warned(client, db_session):
+    from app.models import Project
+    from app.services.submittal_package import schedule_blocks
+
+    _login(client)
+    project_id = client.post("/projects", json={"ep_number": "30801", "project_name": "Titania", "design_sheets": [], "scope_of_work": "Full Package",
+                                               "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True}]}).json()["id"]
+    empty = client.get(f"/projects/{project_id}/frc-cables").json()
+    assert empty["brand"] is None and empty["brands"] == ["FIREGUARD", "SOLARTI", "FRONTIER", "TIANJIE"] and empty["sizes"] == ["2Cx1.5mm", "2Cx2.5mm"]
+    assert [c["name"] for c in empty["cables"]] == ["Fire alarm loop cable", "Voice evacuation cable", "24 VDC power cable", "Fire telephone power cable"]
+
+    saved = client.put(f"/projects/{project_id}/frc-cables", json={"brand": "fireguard", "fire_alarm_loop": "2Cx2.5mm", "voice_evacuation": "2Cx1.5mm",
+                                                                    "power_24vdc": "2Cx1.5mm", "fire_telephone": "2Cx2.5mm"}).json()
+    assert saved["brand"] == "FIREGUARD"
+    warnings = {c["field"]: c["warning"] for c in saved["cables"]}
+    assert "1.5 mm2 shall be used" in warnings["fire_alarm_loop"]
+    assert "voltage drop" in warnings["voice_evacuation"] and "voltage drop" in warnings["power_24vdc"]
+    assert "1.5 mm2 shall be used" in warnings["fire_telephone"]
+
+    standard = client.put(f"/projects/{project_id}/frc-cables", json={"brand": "FIREGUARD", "fire_alarm_loop": "2Cx1.5mm", "voice_evacuation": "2Cx2.5mm",
+                                                                       "power_24vdc": "2Cx2.5mm", "fire_telephone": "2Cx1.5mm"}).json()
+    assert all(c["warning"] is None for c in standard["cables"])
+    assert client.put(f"/projects/{project_id}/frc-cables", json={"brand": "ACME"}).status_code == 400
+    assert client.put(f"/projects/{project_id}/frc-cables", json={"brand": "SOLARTI", "fire_alarm_loop": "4Cx1.5mm"}).status_code == 400
+
+    # The cables are the FRC system's materials, on the tab and on its schedule.
+    items = [i for i in client.get(f"/projects/{project_id}/materials").json()["items"] if i["system_code"] == "FRC"]
+    assert [(i["part_no"], i["manufacturer"], i["source"]) for i in items] == [
+        ("FR 2C x 1.5 mm2", "FIREGUARD", "cable"), ("FR 2C x 2.5 mm2", "FIREGUARD", "cable"),
+        ("FR 2C x 2.5 mm2", "FIREGUARD", "cable"), ("FR 2C x 1.5 mm2", "FIREGUARD", "cable")]
+    blocks = {title: [(l.catalog_no, l.manufacturer) for l in lines] for _l, title, lines in schedule_blocks(db_session.get(Project, project_id), "FRC")}
+    assert list(blocks) == ["Fire Rated Cables"] and blocks["Fire Rated Cables"][0] == ("FR 2C x 1.5 mm2", "FIREGUARD")
+
+
+def test_the_schedule_prints_the_whole_part_number(client, db_session):
+    _login(client)
+    project_id = client.post("/projects", json={"ep_number": "30802", "project_name": "Titania", "design_sheets": [],
+                                               "systems": [{"name": "Emergency Light Monitoring", "brand": "MENVIER", "method_statement": True, "drawing": True}]}).json()["id"]
+    client.put(f"/projects/{project_id}/boq", json=[{"system_code": "ELS", "group_heading": "Lights", "catalog_no": "SL2-65D3D-CGL-M +SL2CD +SL2DC3I",
+                                                     "description": "Exit Directional, Hanging", "quantity": "36", "manufacturer": "MENVIER"}])
+    pdf = client.get(f"/projects/{project_id}/materials/schedule.pdf?system_code=ELS").content
+    text = "\n".join(page.get_text() for page in pymupdf.open(stream=pdf, filetype="pdf"))
+    assert "SL2-65D3D-CGL-M +SL2CD +SL2DC3I" in text
