@@ -1,10 +1,12 @@
 import { Fragment, useEffect, useState } from "react";
 import { ApiError, api, apiUrl } from "../lib/api";
 import type { ProjectLogs, SubmittalRegister } from "../lib/types";
-import { directoryRevision, registerRevision, groupRevisions, type LogRevision } from "../lib/projectLog";
+import { directoryRevision, registerRevision, groupRevisions, type LogDocument, type LogRevision } from "../lib/projectLog";
 import { useAuth } from "../context/AuthContext";
 import { PROJECT_EDITOR_ROLES } from "../lib/types";
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
+import { DeleteSubmittalDialog } from "../components/DeleteSubmittalDialog";
+import type { SubmittalDeleted } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
 const ALL = "__all__";
@@ -103,6 +105,27 @@ export function ProjectLogsPage() {
   const rows = activeChild === "submittals" ? [...items.map(registerRevision), ...materials.map(directoryRevision)]
     : (activeChild === "samples" ? samples : drawings.filter((file) => group(file.system_code) !== "FRC")).map(directoryRevision);
   const documents = groupRevisions(rows);
+  // The material submittals the log lists, by reference: these can be
+  // deleted for good from here (the files included), after the warning.
+  const materialReferences = new Set((logs?.material_submittals ?? []).map((item) => (item.reference ?? "").toUpperCase()));
+  const [deleting, setDeleting] = useState<LogDocument | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await api.post<SubmittalDeleted>(`/projects/${project.id}/submittals/delete`, { reference: deleting.reference });
+      setDeleting(null);
+      setRefresh((v) => v + 1);
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.message : "Could not delete the submittal");
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
   const visible = documents.filter((doc) => `${doc.title} ${doc.reference}`.toLowerCase().includes(search.toLowerCase()) && (!statusFilter || doc.revisions[0].status === statusFilter));
   const revisionColumns = [...new Set(["R0", ...documents.flatMap((doc) => doc.revisions.map((r) => r.revision))])].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   const view = (row: LogRevision) => row.path ? <a className="font-medium text-brand-600 hover:underline" href={apiUrl(`/projects/${project.id}/logs/file?path=${encodeURIComponent(row.path)}#page=${row.page ?? 1}`)} target="_blank" rel="noreferrer">{row.source === "drawing schedule" ? "View schedule" : "View file"}</a> : <span className="text-gray-400">No file</span>;
@@ -134,6 +157,18 @@ export function ProjectLogsPage() {
       <div className="mt-4">
         <SyncDocumentsCard projectId={project.id} canEdit={canEdit} compact onSynced={() => setRefresh((v) => v + 1)} />
       </div>
+      {deleting && (
+        <DeleteSubmittalDialog
+          title={deleting.title}
+          reference={deleting.reference}
+          revision={deleting.revisions[0]?.revision ?? null}
+          files={deleting.revisions.map((r) => r.path).filter((p): p is string => Boolean(p))}
+          busy={deleteBusy}
+          error={deleteError}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
       {error && <div role="alert" className="mt-4 rounded-lg bg-red-50 p-3 text-red-700">{error}</div>}
       {/* Scan warnings are deliberately not shown. They are notes about the
           read itself -- a file still in the cloud, a long document only
@@ -175,7 +210,7 @@ export function ProjectLogsPage() {
           return <div className="overflow-x-auto rounded-lg border border-gray-200"><table className="w-full text-left text-sm">
           <thead className="bg-gray-50"><tr>{columns.map((label) => <th key={label} className="whitespace-nowrap border-b border-gray-200 px-4 py-4 font-semibold">{label}</th>)}</tr></thead>
           <tbody>{visible.map((doc) => { const latest = doc.revisions[0]; return <Fragment key={doc.key}>
-            <tr className="border-b border-gray-100"><td className="min-w-60 px-4 py-4"><button aria-expanded={expanded.has(doc.key)} onClick={() => setExpanded((prev) => { const next = new Set(prev); if (next.has(doc.key)) next.delete(doc.key); else next.add(doc.key); return next; })} className="flex gap-3 text-left font-medium"><span aria-hidden="true">{expanded.has(doc.key) ? "⌄" : "›"}</span>{doc.title}</button></td><td className="px-4 py-4">{doc.reference}</td>
+            <tr className="border-b border-gray-100"><td className="min-w-60 px-4 py-4"><button aria-expanded={expanded.has(doc.key)} onClick={() => setExpanded((prev) => { const next = new Set(prev); if (next.has(doc.key)) next.delete(doc.key); else next.add(doc.key); return next; })} className="flex gap-3 text-left font-medium"><span aria-hidden="true">{expanded.has(doc.key) ? "⌄" : "›"}</span>{doc.title}</button></td><td className="px-4 py-4">{doc.reference}{canEdit && materialReferences.has(doc.reference.toUpperCase()) && <button onClick={() => { setDeleteError(null); setDeleting(doc); }} title="Delete this material submittal permanently" className="ml-3 text-xs font-semibold text-red-600 hover:underline">Delete</button>}</td>
             {activeChild === "drawings" ? <>
               <td className="px-4 py-4">{latest.floor}</td>
               {revisionColumns.map((rev) => <td key={rev} className="px-4 py-4">{doc.revisions.some((r) => r.revision === rev) ? doc.revisions.filter((r) => r.revision === rev).map((r, i) => <div key={i} title={r.evidence ?? "No consultant decision recorded"}>{badge(r.status)}<div className="mt-1 text-xs">{view(r)}</div></div>) : <span className="text-gray-400">&mdash;</span>}</td>)}

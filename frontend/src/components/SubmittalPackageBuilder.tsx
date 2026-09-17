@@ -41,6 +41,9 @@ export function SubmittalPackageBuilder({
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ url: string; name: string; pages: string; missing: string; filed: string | null } | null>(null);
+  // A revision already filed for this system: the window that offers the
+  // next revision, or replacing what is filed.
+  const [prepared, setPrepared] = useState<{ reference: string; revision: string; filed: string; filed_at: string | null; next_revision: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // The blob outlives the fetch, so it has to be released by hand.
@@ -94,7 +97,10 @@ export function SubmittalPackageBuilder({
     }
   }
 
-  async function create() {
+  async function create(options: { revision?: string; replace?: boolean } = {}) {
+    const wanted = options.revision ?? revision;
+    if (options.revision) setRevision(options.revision);
+    setPrepared(null);
     setBuilding(true);
     setError(null);
     if (result) URL.revokeObjectURL(result.url);
@@ -104,16 +110,20 @@ export function SubmittalPackageBuilder({
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sections: [...chosen].sort((a, b) => a - b), system_code: system, revision }),
+        body: JSON.stringify({ sections: [...chosen].sort((a, b) => a - b), system_code: system, revision: wanted, replace: Boolean(options.replace) }),
       });
       if (!res.ok) {
-        let detail = res.statusText;
+        let detail: unknown = res.statusText;
         try { detail = (await res.json()).detail ?? detail; } catch { /* no JSON body */ }
-        throw new ApiError(res.status, detail);
+        if (res.status === 409 && typeof detail === "object" && detail !== null && (detail as { code?: string }).code === "already_prepared") {
+          setPrepared(detail as { reference: string; revision: string; filed: string; filed_at: string | null; next_revision: string });
+          return;
+        }
+        throw new ApiError(res.status, typeof detail === "string" ? detail : JSON.stringify(detail));
       }
       setResult({
         url: URL.createObjectURL(await res.blob()),
-        name: `EP-${project.ep_number} - Material Submittal - ${revision}.pdf`,
+        name: `EP-${project.ep_number} - Material Submittal - ${wanted}.pdf`,
         pages: res.headers.get("X-Package-Pages") ?? "?",
         missing: res.headers.get("X-Package-Warnings") ?? "0",
         filed: res.headers.get("X-Package-Filed") ? decodeURIComponent(res.headers.get("X-Package-Filed") ?? "") : null,
@@ -263,6 +273,25 @@ export function SubmittalPackageBuilder({
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {prepared && (
+              <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4" role="alertdialog" aria-labelledby="already-prepared-title">
+                <h3 id="already-prepared-title" className="text-sm font-bold text-amber-900">Material submittal is already prepared</h3>
+                <p className="mt-1 text-sm text-amber-900">
+                  {prepared.reference} {prepared.revision} is filed as <span className="break-all font-medium">{prepared.filed}</span>
+                  {prepared.filed_at ? ` (${new Date(prepared.filed_at).toLocaleString()})` : ""}. Create the next revision, or replace what is filed.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button onClick={() => void create({ revision: prepared.next_revision })} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white">
+                    Create {prepared.next_revision}
+                  </button>
+                  <button onClick={() => void create({ revision: prepared.revision, replace: true })} className="rounded-lg border border-amber-400 px-4 py-2 text-sm font-semibold text-amber-900">
+                    Replace {prepared.revision}
+                  </button>
+                  <button onClick={() => setPrepared(null)} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-navy-900">Cancel</button>
+                </div>
               </div>
             )}
 

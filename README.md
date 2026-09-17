@@ -451,8 +451,17 @@ entered in the same step in the document index, as a stored form reading
 (reference `EP-xxxxx-MAS-<system>`, revision n, under review), in the
 register and in the log -- so the Material Submittal tab, the map and the
 log show it at once with nothing scanned and no model asked. A rebuild of
-the same revision replaces the file; `file: false` on the build request
-gives the download only.
+the same revision is refused (`409 already_prepared`) and the page shows
+"Material submittal is already prepared" with the choice of the next
+revision or replacing what is filed (`replace: true`); `file: false` on
+the build request gives the download only. Deleting a submittal -- from
+the Material Submittal tab or the Logs tab -- warns that it is permanent
+and, on confirmation, deletes its filed forms from the project folder on
+OneDrive as well as its index rows, its register row and its history, and
+redraws the map (`DELETE /projects/{id}/submittals/{sid}`, or `POST
+/projects/{id}/submittals/delete` by reference). A form that disappears
+from the folder on its own is marked removed by the sync, left off the
+map, and its register row goes with it.
 
 ### The AI reads the material submittals
 

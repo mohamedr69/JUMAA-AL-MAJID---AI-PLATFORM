@@ -608,5 +608,14 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
                 updated += 1
             else:
                 unchanged += 1
+    # A reference the map no longer has -- its forms gone from the folder --
+    # leaves the register too: the register says what the folder holds. A
+    # row the engineer typed in by hand (no reference) is not the map's to remove.
+    on_map = {row["reference"].upper() for system in submittal_map["systems"] for row in system["rows"]}
+    removed = 0
+    for reference, submittal in list(by_reference.items()):
+        if reference not in on_map:
+            db.delete(submittal)
+            removed += 1
     db.commit()
-    return {"created": created, "updated": updated, "unchanged": unchanged}
+    return {"created": created, "updated": updated, "unchanged": unchanged, "removed": removed}

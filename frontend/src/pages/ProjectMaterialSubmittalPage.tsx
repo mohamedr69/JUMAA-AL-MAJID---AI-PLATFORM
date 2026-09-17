@@ -2,21 +2,11 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api, apiUrl } from "../lib/api";
-import {
-  PROJECT_EDITOR_ROLES,
-  type MaterialItem,
-  type MaterialSubmittal,
-  type StorageFolder,
-  type Submittal,
-  type SubmittalRegister,
-  type SubmittalCellStatus,
-  type SubmittalMap,
-  type SubmittalStatus,
-  type SubmittalSuggestion,
-} from "../lib/types";
+import { PROJECT_EDITOR_ROLES, type MaterialItem, type MaterialSubmittal, type StorageFolder, type Submittal, type SubmittalRegister, type SubmittalCellStatus, type SubmittalMap, type SubmittalStatus, type SubmittalSuggestion, type SubmittalDeleted } from "../lib/types";
 import { SubmittalPackageBuilder } from "../components/SubmittalPackageBuilder";
 import { JobProgress } from "../components/JobProgress";
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
+import { DeleteSubmittalDialog } from "../components/DeleteSubmittalDialog";
 import { useJob } from "../lib/useJob";
 import { useProject } from "./ProjectWorkspace";
 
@@ -114,14 +104,26 @@ export function ProjectMaterialSubmittalPage() {
     }
   }
 
-  async function remove(item: Submittal) {
-    if (!window.confirm(`Remove "${item.title}" from the register? Its history goes with it.`)) return;
+  const [deleting, setDeleting] = useState<Submittal | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // The warning window first; the deletion -- the register row, the log
+  // entry and the filed forms in the project folder -- only on its confirmation.
+  function remove(item: Submittal) {
+    setDeleteError(null);
+    setDeleting(item);
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
     setBusy(true);
     try {
-      await api.delete(`/projects/${project.id}/submittals/${item.id}`);
+      await api.delete<SubmittalDeleted>(`/projects/${project.id}/submittals/${deleting.id}`);
+      setDeleting(null);
       await load();
+      await loadMap();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not remove the submittal");
+      setDeleteError(err instanceof ApiError ? err.message : "Could not delete the submittal");
     } finally {
       setBusy(false);
     }
@@ -174,6 +176,18 @@ export function ProjectMaterialSubmittalPage() {
       </div>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+      {deleting && (
+        <DeleteSubmittalDialog
+          title={deleting.title}
+          reference={deleting.reference}
+          revision={deleting.revision}
+          files={deleting.document_path ? [deleting.document_path] : []}
+          busy={busy}
+          error={deleteError}
+          onConfirm={() => void confirmDelete()}
+          onCancel={() => setDeleting(null)}
+        />
+      )}
       <div className="mt-4">
         <SyncDocumentsCard
           projectId={project.id}

@@ -33,6 +33,116 @@ class FiledPackage:
     replaced: bool
 
 
+def prepared(db: Session, project: Project, system_code: str | None) -> dict | None:
+    """What is already prepared for this system: the filed revisions of the
+    platform's reference, or None. {"reference", "revisions": [{"revision",
+    "path", "filed_at"}], "latest", "next_revision"}."""
+    reference = reference_for(project, system_code)
+    rows = (db.query(ProjectDocument)
+            .filter(ProjectDocument.project_id == project.id, ProjectDocument.role == document_sync.ROLE_SUBMITTAL,
+                    ProjectDocument.reference == reference, ProjectDocument.state != document_sync.REMOVED)
+            .order_by(ProjectDocument.id).all())
+    if not rows:
+        return None
+    revisions = sorted(({"revision": r.revision or "R0", "path": r.relative_path,
+                         "filed_at": (r.last_processed_at or r.first_seen_at).isoformat() if (r.last_processed_at or r.first_seen_at) else None}
+                        for r in rows), key=lambda r: _revision_number(r["revision"]))
+    highest = max(_revision_number(r["revision"]) for r in revisions)
+    return {"reference": reference, "revisions": revisions, "latest": f"R{highest}", "next_revision": f"R{highest + 1}"}
+
+
+class AlreadyPrepared(Exception):
+    """A package of this system and revision is already filed."""
+
+    def __init__(self, detail: dict):
+        super().__init__(f"{detail['reference']} {detail['revision']} is already prepared")
+        self.detail = detail
+
+
+def _inside(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def _drop_from_map(db: Session, project: Project, reference: str) -> None:
+    """Take a reference off the stored map without drawing it again (when
+    the model is not available to draw it)."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.ai import submittal_reader
+
+    row = (db.query(DocumentReading)
+           .filter(DocumentReading.project_id == project.id, DocumentReading.kind == submittal_reader.MAP_KIND)
+           .order_by(DocumentReading.id.desc()).first())
+    if row is None:
+        return
+    reading = dict(row.reading or {})
+    systems = []
+    for system in reading.get("systems") or []:
+        rows = [r for r in system.get("rows", []) if (r.get("reference") or "").upper() != reference.upper()]
+        if rows:
+            systems.append({**system, "rows": rows})
+    reading["systems"] = systems
+    reading["submittals"] = sum(len(s["rows"]) for s in systems)
+    reading["actions"] = [a for a in reading.get("actions") or [] if reference.upper() not in a.upper()]
+    row.reading = reading
+    flag_modified(row, "reading")
+
+
+def delete_submittal(db: Session, project: Project, user: User | None, *, reference: str) -> dict:
+    """Delete a material submittal for good: every filed form of this
+    reference in the project folder (the file itself, on OneDrive), their
+    index rows (marked removed), the register row and its history; then the
+    map without it. The confirmation is the caller's (the page asks).
+    Returns {"reference", "files": [relative paths deleted], "missing":
+    [paths already gone], "register_rows", "map_rebuilt"}."""
+    from app.ai import submittal_reader
+
+    root = Path(project.source_folder_path) if project.source_folder_path else None
+    rows = (db.query(ProjectDocument)
+            .filter(ProjectDocument.project_id == project.id, ProjectDocument.role == document_sync.ROLE_SUBMITTAL,
+                    ProjectDocument.reference == reference, ProjectDocument.state != document_sync.REMOVED).all())
+    deleted: list[str] = []
+    missing: list[str] = []
+    now = utc_now()
+    for row in rows:
+        path = Path(row.path)
+        if root is not None and _inside(path, root):
+            os_path = document_control._os_path(path)
+            if os.path.isfile(os_path):
+                os.remove(os_path)
+                deleted.append(row.relative_path or path.name)
+            else:
+                missing.append(row.relative_path or path.name)
+        row.state, row.last_seen_at = document_sync.REMOVED, now
+        document_sync.mark_stale(db, row, f"{row.filename} deleted by {user.full_name if user else 'the platform'}")
+    register_rows = 0
+    for submittal in list(project.submittals):
+        if (submittal.reference or "").upper() == reference.upper():
+            db.delete(submittal)
+            register_rows += 1
+    db.flush()
+    map_rebuilt = False
+    if submittal_reader.available(project) is None and root is not None and root.is_dir():
+        forms = [Path(r.path) for r in db.query(ProjectDocument)
+                 .filter(ProjectDocument.project_id == project.id, ProjectDocument.role == document_sync.ROLE_SUBMITTAL,
+                         ProjectDocument.state != document_sync.REMOVED)]
+        try:
+            db.commit()
+            submittal_reader.check(db, project, user, files=forms)
+            map_rebuilt = True
+        except Exception:  # noqa: BLE001 -- the deletion stands; the map is pruned instead
+            db.rollback()
+    if not map_rebuilt:
+        _drop_from_map(db, project, reference)
+    db.commit()
+    return {"reference": reference, "files": deleted, "missing": missing, "register_rows": register_rows,
+            "map_rebuilt": map_rebuilt}
+
+
 def reference_for(project: Project, system_code: str | None) -> str:
     """The reference the platform's own package goes by, one per system, so
     its revisions line up in the map: EP-30880-MAS-FA."""
@@ -45,16 +155,25 @@ def _revision_number(revision: str) -> int:
 
 
 def file_package(db: Session, project: Project, user: User | None, *, pdf: bytes, system_code: str | None,
-                 revision: str, title: str, pages: int, manufacturer: str | None = None) -> FiledPackage | None:
+                 revision: str, title: str, pages: int, manufacturer: str | None = None,
+                 replace: bool = False) -> FiledPackage | None:
     """Write the package into the project folder and enter it in the
     database. None when the project has no reachable folder or the system
-    has no folder of its own (the download is then all there is)."""
+    has no folder of its own (the download is then all there is). Raises
+    AlreadyPrepared when this revision is filed already and `replace` is
+    not asked for -- the page then offers the next revision, or replacing."""
     from app.ai import submittal_reader
 
     folder = project_folders.submittal_folder(project, system_code, revision)
     if folder is None:
         return None
     revision = revision.strip().upper()
+    existing = prepared(db, project, system_code)
+    if existing and not replace and any(_revision_number(r["revision"]) == _revision_number(revision) for r in existing["revisions"]):
+        filed = next(r for r in existing["revisions"] if _revision_number(r["revision"]) == _revision_number(revision))
+        raise AlreadyPrepared({"code": "already_prepared", "reference": existing["reference"], "revision": f"R{_revision_number(revision)}",
+                               "filed": filed["path"], "filed_at": filed["filed_at"], "latest": existing["latest"],
+                               "next_revision": existing["next_revision"]})
     code = system_rules.canonical(system_code)
     os.makedirs(document_control._os_path(folder), exist_ok=True)
     name = f"EP-{project.ep_number} - Material Submittal - {project_folders.system_folder(system_code)} - {revision}.pdf"

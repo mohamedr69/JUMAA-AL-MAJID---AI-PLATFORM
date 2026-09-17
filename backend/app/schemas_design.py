@@ -985,6 +985,9 @@ class PackageBuildIn(BaseModel):
     # File the package into the project folder (02- Material Submittals/<system>/<revision>)
     # and enter it in the register, the index and the log. Off: the download only.
     file: bool = True
+    # Replace a revision already filed (the page asks first); otherwise a
+    # revision already prepared is refused with 409 already_prepared.
+    replace: bool = False
 
 
 class ChecklistReadOut(BaseModel):

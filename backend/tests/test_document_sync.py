@@ -202,3 +202,5 @@ def test_a_form_deleted_from_the_folder_leaves_the_map_not_the_sync(client, db_s
     submittal_map = client.get(f"/projects/{project_id}/submittals/map").json()
     assert submittal_map["submittals"] == 1
     assert [r["reference"] for s in submittal_map["systems"] for r in s["rows"]] == ["BBY006-GME-MAS-EL-FA-0001"]
+    # The register follows: the reference with no form left is removed from it.
+    assert [s["reference"] for s in client.get(f"/projects/{project_id}/submittals").json()["items"]] == ["BBY006-GME-MAS-EL-FA-0001"]

@@ -110,6 +110,16 @@ export interface ProjectLogDrawing {
 /** The project's document index (`GET /projects/{id}/documents/status`):
  * when the folder was last synced, what is stale because a source changed,
  * and what could not be read. */
+/** What a permanent deletion of a material submittal did (DELETE
+ * /projects/{id}/submittals/{sid}, POST /projects/{id}/submittals/delete). */
+export interface SubmittalDeleted {
+  reference: string | null;
+  files: string[];
+  missing: string[];
+  register_rows: number;
+  map_rebuilt: boolean;
+}
+
 export interface DocumentStatus {
   synced_at: string | null;
   documents: number;

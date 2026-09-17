@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import quote
 
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status as http_status
 from sqlalchemy.orm import Session
 
@@ -354,19 +355,73 @@ def update_submittal(
     return _out(submittal, _by_system(_materials(project)))
 
 
-@router.delete("/{project_id}/submittals/{submittal_id}", status_code=http_status.HTTP_204_NO_CONTENT)
+class SubmittalDeletedOut(BaseModel):
+    reference: str | None
+    files: list[str]
+    missing: list[str]
+    register_rows: int
+    map_rebuilt: bool
+
+
+class SubmittalDeleteIn(BaseModel):
+    reference: str
+
+
+def _delete_for_good(db: Session, project: Project, user: User, *, reference: str | None, submittal: ProjectSubmittal | None) -> SubmittalDeletedOut:
+    """Delete a material submittal permanently -- its files in the project
+    folder (OneDrive), its index rows, its register row -- after the page
+    has had the engineer confirm it (app.services.submittal_filing)."""
+    from app.services import submittal_filing
+
+    title = submittal.title if submittal else reference
+    revision = submittal.revision if submittal else ""
+    if reference:
+        result = submittal_filing.delete_submittal(db, project, user, reference=reference)
+    else:
+        db.delete(submittal)
+        db.commit()
+        result = {"reference": None, "files": [], "missing": [], "register_rows": 1, "map_rebuilt": False}
+    activity.record(db, user, "submittal.deleted",
+                    f"Deleted submittal \"{title}\" {revision}".rstrip()
+                    + (f" and {len(result['files'])} file{'s' if len(result['files']) != 1 else ''} from the project folder" if result["files"] else ""),
+                    project=project, entity_type="submittal", detail=result)
+    return SubmittalDeletedOut(**result)
+
+
+@router.delete("/{project_id}/submittals/{submittal_id}", response_model=SubmittalDeletedOut)
 def delete_submittal(
     project_id: int,
     submittal_id: int,
     current_user: User = Depends(require_role(*DELETER_ROLES)),
     db: Session = Depends(get_db),
-) -> None:
+) -> SubmittalDeletedOut:
+    """Delete a register row for good. A row with a reference takes its
+    filed forms with it: the files in the project folder, their index
+    rows, and the map's row -- the page warns and asks first."""
     project = _get_project_or_404(db, project_id)
     submittal = _get_submittal(project, submittal_id)
-    activity.record(db, current_user, "submittal.deleted", f"Deleted submittal \"{submittal.title}\" {submittal.revision}",
-                    project=project, entity_type="submittal", entity_id=submittal.id, commit=False)
-    db.delete(submittal)
-    db.commit()
+    return _delete_for_good(db, project, current_user, reference=submittal.reference, submittal=submittal)
+
+
+@router.post("/{project_id}/submittals/delete", response_model=SubmittalDeletedOut)
+def delete_submittal_by_reference(
+    project_id: int,
+    payload: SubmittalDeleteIn,
+    current_user: User = Depends(require_role(*DELETER_ROLES)),
+    db: Session = Depends(get_db),
+) -> SubmittalDeletedOut:
+    """The same deletion, by reference (from the Logs tab, which lists the
+    forms by their reference)."""
+    project = _get_project_or_404(db, project_id)
+    reference = payload.reference.strip().upper()
+    submittal = next((s for s in project.submittals if (s.reference or "").upper() == reference), None)
+    from app.models import ProjectDocument
+
+    known = db.query(ProjectDocument).filter(ProjectDocument.project_id == project.id, ProjectDocument.reference == reference,
+                                            ProjectDocument.state != "removed").count()
+    if submittal is None and not known:
+        raise HTTPException(http_status.HTTP_404_NOT_FOUND, detail="No material submittal with this reference")
+    return _delete_for_good(db, project, current_user, reference=reference, submittal=submittal)
 
 
 @router.post("/{project_id}/submittals/scan", status_code=http_status.HTTP_202_ACCEPTED)
@@ -674,7 +729,9 @@ def build_submittal_package(
             filed = submittal_filing.file_package(
                 db, project, current_user, pdf=built.pdf, system_code=payload.system_code,
                 revision=payload.revision or "R0", title=payload.title or _system_title(project, payload.system_code),
-                pages=built.pages, manufacturer=_brand_of(project, payload.system_code))
+                pages=built.pages, manufacturer=_brand_of(project, payload.system_code), replace=payload.replace)
+        except submittal_filing.AlreadyPrepared as exc:
+            raise HTTPException(status_code=http_status.HTTP_409_CONFLICT, detail=exc.detail)
         except OSError as exc:
             db.rollback()
             filed = None

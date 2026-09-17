@@ -1207,3 +1207,59 @@ def test_a_scanned_spelling_of_a_part_finds_its_origin_under_the_catalogue_s(cli
 
     assert "MEXICO" in text and "CANADA" in text
     assert "to be completed before issue" in text      # 4-XYZ, still unknown
+
+
+def test_a_revision_already_prepared_is_refused_unless_replaced_and_deleting_takes_the_file_with_it(client, db_session, tmp_path, monkeypatch):
+    import app.routers.submittal as submittal_router
+    from app.models import ProjectDocument, ProjectSubmittal
+
+    library = _library(tmp_path)
+    monkeypatch.setattr(submittal_router, "_submittal_library", lambda: library)
+    monkeypatch.setattr(submittal_router, "get_libraries", lambda *_: {"EDWARDS": _datasheets(tmp_path)})
+    _login_admin(client)
+    root = tmp_path / "EP-30786"
+    root.mkdir()
+    project_id = client.post("/projects", json={
+        "ep_number": "30786", "project_name": "Titania", "source_folder_path": str(root), "design_sheets": [],
+    }).json()["id"]
+    client.put(f"/projects/{project_id}/boq", json=[{"system_code": "FAS", "group_heading": PANEL, "catalog_no": "4-CPU",
+                                                     "description": "Central Processor Module", "quantity": "1", "manufacturer": "EDWARDS"}])
+    body = {"sections": [1, 8], "system_code": "FAS", "revision": "R0"}
+    assert client.post(f"/projects/{project_id}/submittal/package", json=body).status_code == 200
+    filed = root / "02- Material Submittals" / "FA" / "R0" / "EP-30786 - Material Submittal - FA - R0.pdf"
+    assert filed.is_file()
+
+    # R0 again: refused, with the way out.
+    again = client.post(f"/projects/{project_id}/submittal/package", json=body)
+    assert again.status_code == 409
+    detail = again.json()["detail"]
+    assert (detail["code"], detail["reference"], detail["revision"], detail["next_revision"]) == ("already_prepared", "EP-30786-MAS-FA", "R0", "R1")
+    assert detail["filed"].endswith("EP-30786 - Material Submittal - FA - R0.pdf")
+
+    # Replacing: the same file, written again; still one index row.
+    before = filed.stat().st_mtime_ns
+    assert client.post(f"/projects/{project_id}/submittal/package", json={**body, "replace": True}).status_code == 200
+    assert filed.is_file() and filed.stat().st_mtime_ns >= before
+    assert db_session.query(ProjectDocument).filter(ProjectDocument.project_id == project_id, ProjectDocument.state != "removed").count() == 1
+
+    # The next revision is welcome.
+    assert client.post(f"/projects/{project_id}/submittal/package", json={**body, "revision": "R1"}).status_code == 200
+    assert (root / "02- Material Submittals" / "FA" / "R1" / "EP-30786 - Material Submittal - FA - R1.pdf").is_file()
+
+    # Deleting the submittal from the register: both filed revisions go from the folder, the index says removed, the register is empty.
+    register = client.get(f"/projects/{project_id}/submittals").json()["items"]
+    assert len(register) == 1 and register[0]["revision"] == "R1"
+    gone = client.delete(f"/projects/{project_id}/submittals/{register[0]['id']}")
+    assert gone.status_code == 200, gone.text
+    result = gone.json()
+    assert result["reference"] == "EP-30786-MAS-FA" and result["register_rows"] == 1 and len(result["files"]) == 2
+    assert not filed.exists() and not (root / "02- Material Submittals" / "FA" / "R1" / "EP-30786 - Material Submittal - FA - R1.pdf").exists()
+    assert {r.state for r in db_session.query(ProjectDocument).filter(ProjectDocument.project_id == project_id)} == {"removed"}
+    assert db_session.query(ProjectSubmittal).filter(ProjectSubmittal.project_id == project_id).count() == 0
+    assert client.get(f"/projects/{project_id}/logs").json()["material_submittals"] == []
+    assert client.get(f"/projects/{project_id}/submittals/map").json()["submittals"] == 0
+
+    # By reference, from the Logs tab: nothing left under it now.
+    assert client.post(f"/projects/{project_id}/submittals/delete", json={"reference": "EP-30786-MAS-FA"}).status_code == 404
+    # R0 can be prepared again after the deletion.
+    assert client.post(f"/projects/{project_id}/submittal/package", json=body).status_code == 200
