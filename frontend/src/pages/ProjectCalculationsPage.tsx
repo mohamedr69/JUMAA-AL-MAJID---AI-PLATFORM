@@ -5,7 +5,7 @@ import { useProject } from "./ProjectWorkspace";
  * own route, so a calculation can be linked to; what is not built yet is
  * listed here too and says so when opened. */
 const CALCULATIONS = [
-  { to: "battery", label: "Battery" },
+  { to: "battery", label: "Fire Alarm Battery Calculation" },
   { to: "amplifier", label: "Amplifier", soon: true },
   { to: "power", label: "Power", soon: true },
 ];

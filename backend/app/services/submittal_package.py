@@ -1007,32 +1007,24 @@ WARRANTY_YEARS = 1
 _YEAR_WORDS = {1: "ONE YEAR", 2: "TWO YEARS", 3: "THREE YEARS", 5: "FIVE YEARS"}
 
 
-def read_origins(library_root: Path | None, brand: str | None = None) -> dict[str, tuple[str, str]]:
-    """Where each model is made and shipped from, out of the COO template.
-
-    The country of origin of a part is a fact about the part, not about the
-    project, so the company's filled-in sheet is read as the reference for
-    every project. Nothing is inferred: a model the sheet does not list comes
-    back blank for an engineer to complete, because inventing a country on a
-    customs declaration is not something software should do.
-    """
+def read_origin_rows(library_root: Path | None, brand: str | None = None) -> list[tuple[str, str, str, str]]:
+    """The rows of the company's country-of-origin sheet: (model,
+    description, made in, shipped from), header and blanks left out. The
+    sheet is the manufacturer's: under the brand's folder of the submittal
+    builder, else COMMON, else the older layout."""
     if library_root is None:
-        return {}
+        return []
     from app.services import company_library
 
-    # The country-of-origin sheet is the manufacturer's: under the brand's
-    # folder of the submittal builder, else COMMON, else the older layout.
     template = company_library.submittal_path(library_root, brand, COO_TEMPLATE) or library_root / COO_TEMPLATE
     if not template.is_file():
-        return {}
+        return []
     try:
         import openpyxl
-
         sheet = openpyxl.load_workbook(template, data_only=True).worksheets[0]
     except Exception:  # noqa: BLE001
-        return {}
-
-    origins: dict[str, tuple[str, str]] = {}
+        return []
+    rows: list[tuple[str, str, str, str]] = []
     for row in sheet.iter_rows(min_row=1, max_row=sheet.max_row):
         cells = [c.value for c in row]
         if len(cells) < 6:
@@ -1042,9 +1034,22 @@ def read_origins(library_root: Path | None, brand: str | None = None) -> dict[st
             continue
         if str(made_in).strip().upper() == "MADE IN":
             continue  # the header row
-        where = (str(made_in or "").strip(), str(shipped or "").strip())
+        rows.append((str(model), str(description or ""), str(made_in or "").strip(), str(shipped or "").strip()))
+    return rows
 
-        model_text = str(model).strip().upper()
+
+def read_origins(library_root: Path | None, brand: str | None = None) -> dict[str, tuple[str, str]]:
+    """Where each model is made and shipped from, out of the COO template.
+    The country of origin of a part is a fact about the part, not about the
+    project, so the company's filled-in sheet is read as the reference for
+    every project. Nothing is inferred: a model the sheet does not list comes
+    back blank for an engineer to complete, because inventing a country on a
+    customs declaration is not something software should do.
+    """
+    origins: dict[str, tuple[str, str]] = {}
+    for model, description, made_in, shipped in read_origin_rows(library_root, brand):
+        where = (made_in, shipped)
+        model_text = model.strip().upper()
         # The model as written is a key before it is split: "APS6A/230" is
         # the one part number the BOQ quotes, as well as the pair a slash
         # would make of it. And a model written with a wildcard digit --
@@ -1053,7 +1058,7 @@ def read_origins(library_root: Path | None, brand: str | None = None) -> dict[st
         keys = [re.sub(r"[^A-Z0-9]", "", model_text)]
         if re.search(r"-X[A-Z]?-", model_text):
             keys += [re.sub(r"[^A-Z0-9]", "", model_text.replace("X", digit, 1)) for digit in "0123456789"]
-        keys += [re.sub(r"[^A-Z0-9]", "", part.upper()) for part in re.split(r"[\n,/]+", str(model))]
+        keys += [re.sub(r"[^A-Z0-9]", "", part.upper()) for part in re.split(r"[\n,/]+", model)]
         # A row can cover a whole set rather than one model: "PANEL
         # ACCESSORIES" declares one origin for the parts named in its
         # description. Those are the part numbers a BOQ actually quotes, so
@@ -1061,7 +1066,7 @@ def read_origins(library_root: Path | None, brand: str | None = None) -> dict[st
         if description:
             keys += [
                 re.sub(r"[^A-Z0-9]", "", token.upper())
-                for token in re.split(r"[,\n]+", str(description))
+                for token in re.split(r"[,\n]+", description)
                 # A catalogue number, not prose: short, carrying a digit, and
                 # made only of the characters a part number uses. Spaces are
                 # allowed because the sheet wraps them ("4- FWAL4", "4-NET- TP")

@@ -239,6 +239,11 @@ export function SubmittalPackageBuilder({
                     </tr>
                   </thead>
                   <tbody>
+                    {plan.battery_calculation && !plan.battery_calculation.applies && (
+                      <p className="col-span-full rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                        No battery calculation section for this system: {plan.battery_calculation.reason}
+                      </p>
+                    )}
                     {plan.sections.map((section) => (
                       <tr key={section.number} className="border-b border-gray-100 last:border-0">
                         <td className="px-3 py-2.5">

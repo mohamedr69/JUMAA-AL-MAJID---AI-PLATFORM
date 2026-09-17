@@ -180,6 +180,10 @@ from app.routers import documents as documents_router  # noqa: E402
 
 app.include_router(documents_router.router)
 
+from app.routers import materials as materials_router  # noqa: E402
+
+app.include_router(materials_router.router)
+
 
 @app.get("/health")
 def health() -> dict:

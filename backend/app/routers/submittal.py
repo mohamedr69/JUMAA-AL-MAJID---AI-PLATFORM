@@ -124,7 +124,13 @@ def _materials(project: Project) -> list[MaterialItemOut]:
             # "Lot" and the like: the quantity is the BOQ's business.
             item.quantity = None if item.quantity in (0, None) else item.quantity
 
-    for item in items.values():
+    _attach_datasheets(list(items.values()), libraries)
+    return sorted(items.values(), key=lambda i: ((i.system_code or "~"), i.part_no))
+
+
+def _attach_datasheets(items: list[MaterialItemOut], libraries: dict) -> None:
+    """The datasheet each material has in its manufacturer's library."""
+    for item in items:
         for library in libraries_for(item.manufacturer, libraries):
             match = next(iter(library.find(item.part_no)), None)
             if match:
@@ -134,7 +140,6 @@ def _materials(project: Project) -> list[MaterialItemOut]:
                 item.document_no = match.document_no
                 item.datasheet_named_for_part = match.matched_on in ("filename", "family")
                 break
-    return sorted(items.values(), key=lambda i: ((i.system_code or "~"), i.part_no))
 
 
 @router.get("/{project_id}/submittal/materials", response_model=MaterialSubmittalOut)
@@ -608,13 +613,22 @@ def _plan_for(project: Project, sections: set[int], system_code: str | None, db:
     # so neither is done unless a chosen section actually needs it.
     libraries = get_libraries() if DATASHEET_SECTION in sections else {}
     specs = _specs_for(project, system_code) if SPEC_SECTION in sections else []
+    # The battery calculation is the fire alarm's: a system without one (a
+    # monitored self-contained emergency light system; a central battery
+    # system until its own is built) has no such section to tick.
+    applies, _why = system_rules.battery_calculation_applies(project, system_code)
+    if not applies:
+        sections = set(sections) - {BATTERY_SECTION}
     panels = _battery_panels(db, project, sections) if db is not None else []
     links = equipment_currents.index(db) if db is not None and DATASHEET_SECTION in sections else {}
-    return plan_package(
+    plan = plan_package(
         project, sections, library, folder, libraries,
         spec_documents=specs, system_code=system_code, battery_panels=panels,
         brand=_brand_of(project, system_code), datasheet_links=links,
     )
+    if not applies:
+        plan.sections = [s for s in plan.sections if s.number != BATTERY_SECTION]
+    return plan
 
 
 def _brand_of(project: Project, system_code: str | None) -> str | None:
@@ -652,6 +666,7 @@ def _plan_out(project: Project, plan: PackagePlan, system_code: str | None) -> P
         library_path=plan.library_path,
         system_code=system_code,
         warnings=plan.warnings,
+        battery_calculation=dict(zip(("applies", "reason"), system_rules.battery_calculation_applies(project, system_code))),
     )
 
 
@@ -703,6 +718,8 @@ def build_submittal_package(
     """
     project = _get_project_or_404(db, project_id)
     chosen = {n for n in payload.sections if n in SECTION_NAMES}
+    if not system_rules.battery_calculation_applies(project, payload.system_code)[0]:
+        chosen.discard(BATTERY_SECTION)
     if not chosen:
         raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="Choose at least one section")
 

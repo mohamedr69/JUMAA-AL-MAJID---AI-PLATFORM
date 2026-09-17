@@ -973,6 +973,9 @@ class PackagePlanOut(BaseModel):
     library_path: str | None
     system_code: str | None
     warnings: list[str]
+    # Whether this system's submittal encloses a battery calculation (the
+    # section is left out of `sections` when it does not), and why not.
+    battery_calculation: dict | None = None
 
 
 class PackageBuildIn(BaseModel):

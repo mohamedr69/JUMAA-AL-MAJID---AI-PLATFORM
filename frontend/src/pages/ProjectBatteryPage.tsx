@@ -205,8 +205,8 @@ export function ProjectBatteryPage() {
     <div>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h1 className="text-3xl font-bold text-navy-900">Battery Calculations</h1>
-          <p className="mt-1 text-sm text-gray-500">Select a panel to view its complete battery calculation.</p>
+          <h1 className="text-3xl font-bold text-navy-900">Fire Alarm Battery Calculation</h1>
+          <p className="mt-1 text-sm text-gray-500">The fire alarm panels, APS and BPS batteries, enclosed in the fire alarm submittal only. Select a panel to view its complete calculation.</p>
         </div>
       </div>
 

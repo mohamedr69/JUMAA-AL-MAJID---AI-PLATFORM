@@ -34,7 +34,17 @@ FAS_FAMILY_ROWS = (FIRE_ALARM, VOICE_EVACUATION, FIRE_TELEPHONE)
 
 # The platform's order, and the DRF rows each code stands for when nothing is integrated.
 CODE_ORDER = ("FAS", "VES", "PAVA", "ELS")
-EMERGENCY_LIGHTING_ROWS = ("Central Battery System", "Emergency Light Monitoring")
+# The two kinds of emergency lighting, one system (ELS) but not one product:
+# the DRF's "Emergency Light Monitoring" row is a monitored self-contained
+# system (every luminaire carries its own battery -- Menvier -- so there is
+# no battery calculation to make), and "Central Battery System" is a central
+# battery unit feeding the luminaires, which will have one.
+SELF_CONTAINED_ROW = "Emergency Light Monitoring"
+CENTRAL_BATTERY_ROW = "Central Battery System"
+EMERGENCY_LIGHTING_ROWS = (CENTRAL_BATTERY_ROW, SELF_CONTAINED_ROW)
+SELF_CONTAINED, CENTRAL_BATTERY = "self_contained", "central_battery"
+ELS_KIND_NAMES = {SELF_CONTAINED: "Monitored Self-Contained Emergency Light System",
+                  CENTRAL_BATTERY: "Central Battery System"}
 BASE_ROWS: dict[str, tuple[str, ...]] = {
     "FAS": (FIRE_ALARM, FIRE_TELEPHONE),
     "VES": (VOICE_EVACUATION,),
@@ -127,6 +137,47 @@ def codes_for_rows(systems, *, separate_panel: bool = False) -> list[str]:
     if integrated and _marked(systems, VOICE_EVACUATION):
         found.add("FAS")
     return [code for code in CODE_ORDER if code in found]
+
+
+def emergency_lighting_kinds(systems) -> set[str]:
+    """Which kinds of emergency lighting the DRF marks: {"self_contained",
+    "central_battery"}, either, both or neither."""
+    kinds = set()
+    if _marked(systems, SELF_CONTAINED_ROW):
+        kinds.add(SELF_CONTAINED)
+    if _marked(systems, CENTRAL_BATTERY_ROW):
+        kinds.add(CENTRAL_BATTERY)
+    return kinds
+
+
+def battery_calculation_applies(project, system_code: str | None) -> tuple[bool, str | None]:
+    """Whether a system's submittal encloses a battery calculation, and why
+    not. The fire alarm's does (the panel, APS and BPS batteries). A
+    monitored self-contained emergency light system has none: each
+    luminaire carries its own battery. A central battery system will have
+    one of its own when it is built; until then none is enclosed."""
+    code = effective_code(system_code, project)
+    if code == "FAS":
+        return True, None
+    if code == "ELS":
+        kinds = emergency_lighting_kinds(getattr(project, "systems", None) or ())
+        if kinds == {SELF_CONTAINED}:
+            return False, "A monitored self-contained emergency light system has no battery calculation: every luminaire carries its own battery."
+        if CENTRAL_BATTERY in kinds:
+            return False, "The central battery system's battery calculation is not built yet."
+        return False, "Emergency lighting has no battery calculation on this project."
+    return False, f"{CODE_NAMES.get(code or '', code or 'This system')} has no battery calculation."
+
+
+def system_display_name(project, system_code: str | None) -> str:
+    """The system's name as the project has it: emergency lighting by its
+    kind (monitored self-contained / central battery), the rest by code."""
+    code = effective_code(system_code, project) or ""
+    if code == "ELS":
+        kinds = emergency_lighting_kinds(getattr(project, "systems", None) or ())
+        if kinds:
+            return " & ".join(ELS_KIND_NAMES[k] for k in (SELF_CONTAINED, CENTRAL_BATTERY) if k in kinds)
+    return CODE_NAMES.get(code, code or "Unassigned")
 
 
 def project_codes(project) -> list[str]:

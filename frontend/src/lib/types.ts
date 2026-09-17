@@ -1319,6 +1319,8 @@ export interface PackageSection {
 }
 
 export interface PackagePlan {
+  /** Whether this system's submittal encloses a battery calculation (the section is left out when not), and why not. */
+  battery_calculation?: { applies: boolean; reason: string | null } | null;
   sections: PackageSection[];
   library_found: boolean;
   library_path: string | null;
@@ -1664,4 +1666,32 @@ export interface DatasheetFile {
   size: number;
   reads_as_datasheet: boolean;
   unreadable: boolean;
+}
+
+
+/** A system on the Proposed Materials tab, with the brand its materials are for. */
+export interface ProposedSystem {
+  code: string;
+  title: string;
+  brand: string | null;
+}
+
+/** A proposed material: a part the BOQ quotes ("boq") or one added on the tab ("added"). */
+export interface ProposedMaterial extends MaterialItem {
+  source: "boq" | "added";
+  id?: number | null;
+  note?: string | null;
+  added_at?: string | null;
+}
+
+export interface ProposedMaterials {
+  systems: ProposedSystem[];
+  items: ProposedMaterial[];
+}
+
+/** A part number on file for a brand (GET /parts/search). */
+export interface PartSuggestion {
+  part_no: string;
+  description: string;
+  sources: string[];
 }

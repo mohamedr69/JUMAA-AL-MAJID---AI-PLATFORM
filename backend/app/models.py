@@ -473,6 +473,26 @@ class DocumentDependency(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
+class ProjectProposedMaterial(Base):
+    """A material proposed for the project beyond what its BOQ quotes --
+    added by an engineer on the Proposed Materials tab, with no quantity
+    needed. The BOQ's own parts are proposed materials too, but they are
+    read from the BOQ, not copied here."""
+
+    __tablename__ = "project_proposed_materials"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    system_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    manufacturer: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    catalog_no: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    quantity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
 class BatteryPanelResult(Base):
     """One panel's battery calculation as last made, under the hash of
     everything it was made from: its BOQ lines, its settings, the currents

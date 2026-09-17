@@ -463,6 +463,29 @@ redraws the map (`DELETE /projects/{id}/submittals/{sid}`, or `POST
 from the folder on its own is marked removed by the sync, left off the
 map, and its register row goes with it.
 
+### Emergency lighting by its kind, and the proposed materials
+
+Emergency lighting is one system (ELS) but two products, told apart by
+the DRF's rows (`system_rules.emergency_lighting_kinds`): "Emergency
+Light Monitoring" is a **monitored self-contained** system (Menvier: every
+luminaire carries its own battery, so there is no battery calculation),
+"Central Battery System" a central battery unit (its calculation is not
+built yet). The battery calculation is the fire alarm's
+(`battery_calculation_applies`): the Calculations tab names it "Fire Alarm
+Battery Calculation", and the submittal package offers its section (6)
+only for a fire alarm submittal -- for an emergency lighting one the
+section is not in the plan, so there is no box to tick.
+
+**Proposed Materials** (`/projects/{id}/materials`) lists, per system,
+the BOQ's parts as they are and the materials an engineer adds on the tab
+(`project_proposed_materials`; no quantity needed). Adding one in a
+system's tab takes the system's brand from the DRF and completes the part
+number from everything on file for that brand (`app/services/part_catalog.py`:
+the brand's datasheet library file names, the equipment current table,
+the country-of-origin sheet, and every BOQ line of every project naming
+the brand -- `GET /parts/search?brand=EDWARDS&q=sig`), filling the
+description from it when the part is known.
+
 ### The AI reads the material submittals
 
 The consultant's reply on a material submittal form is a stamp or a
