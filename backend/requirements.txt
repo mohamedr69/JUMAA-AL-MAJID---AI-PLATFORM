@@ -26,3 +26,7 @@ openai==3.13.0
 # the company letterhead rather than a redrawn page. Windows only, and the
 # import is optional: without it the warranty falls back to a drawn page.
 pywin32==312; sys_platform == "win32"
+
+# Reads a DXF: the floor-wise device count is arithmetic over the block
+# references a drawing holds (app.services.floor_devices).
+ezdxf==1.4.4

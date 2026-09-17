@@ -496,6 +496,21 @@ class ProjectFrcCables(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
 
 
+class ProjectFloorBoq(Base):
+    """The floor-wise device count read off a project's drawings: the
+    schedule as it was last extracted, kept so the tab shows it again
+    without the drawings being read a second time. One row per project."""
+
+    __tablename__ = "project_floor_boq"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, unique=True)
+    # app.services.floor_devices.Extraction, as JSON.
+    result: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class BrandSupplier(Base):
     """Who supplies a brand to the company -- the trading company, its
     contacts, its address -- one row per brand, for every project: shown

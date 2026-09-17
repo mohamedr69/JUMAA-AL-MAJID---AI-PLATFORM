@@ -190,6 +190,10 @@ from app.routers import materials as materials_router  # noqa: E402
 
 app.include_router(materials_router.router)
 
+from app.routers import floor_boq as floor_boq_router  # noqa: E402
+
+app.include_router(floor_boq_router.router)
+
 
 @app.get("/health")
 def health() -> dict:

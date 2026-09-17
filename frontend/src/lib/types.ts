@@ -1735,3 +1735,35 @@ export interface FrcCables {
   supplier?: Supplier | null;
   updated_at: string | null;
 }
+
+
+/** One floor of the floor-wise BOQ: the devices counted on it, and the
+ * floors a typical layout covers (app/services/floor_devices.py). */
+export interface FloorBoqFloor {
+  floor: string;
+  order: number;
+  typical: boolean;
+  covers: string[];
+  source: string;
+  devices: Record<string, number>;
+  total: number;
+}
+
+export interface FloorBoqResult {
+  floors: FloorBoqFloor[];
+  /** Every device kind found, in the order the columns are shown. */
+  devices: string[];
+  legend_excluded: number;
+  outside_plan_excluded: number;
+  furniture_excluded: number;
+  files: { file: string; floors: string[]; devices: number; layouts: string[] }[];
+  warnings: string[];
+}
+
+/** GET/POST /projects/{id}/floor-boq. `converter` says why a DWG cannot be
+ * converted on this server, when it cannot. */
+export interface FloorBoq {
+  result: FloorBoqResult | null;
+  updated_at: string | null;
+  converter: string | null;
+}

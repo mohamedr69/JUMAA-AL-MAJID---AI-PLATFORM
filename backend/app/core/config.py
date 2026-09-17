@@ -105,6 +105,10 @@ class Settings(BaseSettings):
     # own folder under here. Never the archive itself -- the platform reads
     # the archive, it does not write to it.
     uploads_root: str = "uploads"
+    # The ODA File Converter (or the folder holding it), which turns a DWG
+    # into the DXF the floor-wise device count is read from. Found on the
+    # PATH and in Program Files when this is left empty.
+    dwg_converter: str = ""
 
     # Path to tesseract.exe. Unset: found on the PATH or where the Windows
     # installer puts it, so a new machine needs no setting.
