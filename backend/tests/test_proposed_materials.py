@@ -270,3 +270,52 @@ def test_the_field_devices_are_scheduled_by_kind(client, db_session):
     assert blocks["Modules"] == ["SIGA-CT2", "SIGA-UM"]
     assert blocks["Back Boxes"] == ["TP606", "27193-11", "GRSW-10", "757A-WB"]
     assert blocks["Other Field Devices"] == ["MYSTERY-1"]
+
+
+def test_a_file_name_with_a_stray_space_still_documents_its_part(tmp_path):
+    from app.services.datasheet_library import DatasheetLibrary
+
+    root = tmp_path / "EST4"
+    root.mkdir()
+    doc = pymupdf.open()
+    doc.new_page().insert_text((40, 50), "Universal Class A/B Module", fontsize=9)
+    doc.save(root / "SIGA -UM.pdf")
+    doc.close()
+    match = DatasheetLibrary("EDWARDS", root).find("SIGA-UM")
+    assert match and match[0].filename == "SIGA -UM.pdf" and match[0].matched_on == "filename"
+
+
+def test_the_batteries_the_calculation_selects_are_materials_and_on_the_schedule(client, db_session):
+    """The BOQ quotes 12V10A; the calculation selects the ROCKET unit that
+    covers the panel: that unit is proposed, on the tab and on the schedule."""
+    from app.models import Project
+    from app.services.submittal_package import schedule_blocks
+    from .test_battery_api import _current
+
+    _login(client)
+    project_id = client.post("/projects", json={"ep_number": "30797", "project_name": "Titania", "design_sheets": [],
+                                               "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True}]}).json()["id"]
+    heading = "EST4 Main Fire Alarm Control Panel"
+    client.put(f"/projects/{project_id}/boq", json=[
+        {"system_code": "FAS", "group_heading": heading, "catalog_no": "4-CPU", "description": "CPU", "quantity": "1", "manufacturer": "EDWARDS"},
+        {"system_code": "FAS", "group_heading": heading, "catalog_no": "12V10A", "description": "Battery, 12 V @ 10 AH", "quantity": "2", "manufacturer": "EDWARDS"},
+        {"system_code": "FAS", "group_heading": "Field Devices", "catalog_no": "SIGA-PS", "description": "Smoke detector", "quantity": "10", "manufacturer": "EDWARDS"},
+    ])
+    assert _current(client, "4-CPU", 211, 211).status_code == 200
+    assert _current(client, "SIGA-PS", 0.045, 0.045).status_code == 200
+    for part, ah in (("ES7-12", 7), ("ES18-12", 18), ("ES26-12", 26)):
+        assert client.post("/design-rules/battery-units", json={"part_no": part, "capacity_ah": ah, "voltage": 12, "brand": "ROCKET",
+                                                                 "source": "ROCKET datasheet"}).status_code == 200
+    calculation = client.get(f"/projects/{project_id}/design/battery").json()
+    panel = next(p for p in calculation["panels"] if p["kind"] == "panel")
+    assert panel["selected"], panel["status"]
+    chosen = panel["selected"][0]["part_no"]
+
+    items = client.get(f"/projects/{project_id}/materials").json()["items"]
+    battery = next(i for i in items if i["source"] == "battery")
+    assert battery["part_no"] == chosen and battery["system_code"] == "FAS" and battery["quantity"] == panel["selected"][0]["units"]
+    assert battery["groups"][0].startswith("Battery calculation: ")
+
+    blocks = {title: [i.catalog_no for i in lines] for _l, title, lines in schedule_blocks(db_session.get(Project, project_id), "FAS")}
+    assert list(blocks) == [heading, "Batteries (from the battery calculation)", "Initiating Devices"]
+    assert blocks["Batteries (from the battery calculation)"] == [chosen]

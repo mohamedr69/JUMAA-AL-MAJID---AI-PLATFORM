@@ -397,7 +397,9 @@ class DatasheetLibrary:
         for path, entry in self._refresh().items():
             if entry.error:
                 continue
-            name = path.stem.upper()
+            # "SIGA -UM.pdf" is the SIGA-UM sheet: a stray space in a file
+            # name is not a different part.
+            name = path.stem.upper().replace(" ", "")
             by_name = bool(token.search(name) or base_token.search(name))
             # A datasheet named for the part's family: 4-NET-TP is in
             # "4-NET.pdf", 4-AUDTELS in "4-AUDTEL.pdf" -- ahead of the CPU

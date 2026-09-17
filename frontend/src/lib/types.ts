@@ -1680,7 +1680,7 @@ export interface ProposedSystem {
 
 /** A proposed material: a part the BOQ quotes ("boq") or one added on the tab ("added"). */
 export interface ProposedMaterial extends MaterialItem {
-  source: "boq" | "added";
+  source: "boq" | "added" | "battery";
   id?: number | null;
   note?: string | null;
   added_at?: string | null;

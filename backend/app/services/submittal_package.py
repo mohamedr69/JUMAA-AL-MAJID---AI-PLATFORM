@@ -686,6 +686,7 @@ MODULES_BLOCK = "Modules"
 BACK_BOXES_BLOCK = "Back Boxes"
 OTHER_FIELD_BLOCK = "Other Field Devices"
 FIELD_BLOCKS = (INITIATING_BLOCK, NOTIFICATION_BLOCK, TELEPHONE_BLOCK, BMS_BLOCK, MODULES_BLOCK, BACK_BOXES_BLOCK, OTHER_FIELD_BLOCK)
+BATTERIES_BLOCK = "Batteries (from the battery calculation)"
 
 # (block, part-number prefixes, description words) -- the part number first, the wording when it has none.
 _FIELD_RULES: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
@@ -796,6 +797,15 @@ def schedule_blocks(project: Project, system_code: str | None = None) -> list[tu
             field.setdefault(field_category(item), []).append(item)
     order = cabinets + [name for name in FIELD_BLOCKS if name in field]
     grouped.update(field)
+    # The batteries the calculation selects for the panels and cabinets,
+    # after the cabinets they serve and before the field devices.
+    if session is not None:
+        from app.services import battery_materials
+
+        batteries = battery_materials.selected_batteries(session, project)
+        if batteries:
+            order.insert(len(cabinets), BATTERIES_BLOCK)
+            grouped[BATTERIES_BLOCK] = batteries
     if added:
         order.append(ADDED_BLOCK)
         grouped[ADDED_BLOCK] = added

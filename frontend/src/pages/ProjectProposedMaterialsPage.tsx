@@ -146,8 +146,11 @@ export function ProjectProposedMaterialsPage() {
                 <td className="px-3 py-2 text-gray-600">{item.manufacturer ?? "—"}</td>
                 <td className="px-3 py-2 text-gray-600">{item.quantity ?? "—"}</td>
                 <td className="px-3 py-2">
-                  <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${item.source === "boq" ? "bg-blue-50 text-brand-700" : "bg-green-50 text-green-700"}`}>
-                    {item.source === "boq" ? "BOQ" : "Added"}
+                  <span
+                    className={`rounded-md px-2 py-0.5 text-xs font-semibold ${item.source === "boq" ? "bg-blue-50 text-brand-700" : item.source === "battery" ? "bg-amber-50 text-amber-800" : "bg-green-50 text-green-700"}`}
+                    title={item.source === "battery" ? item.groups.join("; ") : undefined}
+                  >
+                    {item.source === "boq" ? "BOQ" : item.source === "battery" ? "Battery calculation" : "Added"}
                   </span>
                 </td>
                 <td className="px-3 py-2">

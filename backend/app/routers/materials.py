@@ -35,7 +35,8 @@ class ProposedSystemOut(BaseModel):
 
 
 class ProposedMaterialOut(MaterialItemOut):
-    # "boq" for a part the BOQ quotes; "added" for one proposed here (with its id).
+    # "boq" for a part the BOQ quotes; "added" for one proposed here (with its
+    # id); "battery" for a battery the battery calculation selected.
     source: str = "boq"
     id: int | None = None
     note: str | None = None
@@ -89,6 +90,21 @@ def list_proposed(
                                  id=row.id, note=row.note, added_at=row.created_at) for row in added]
     _attach_datasheets(extra, get_libraries(), db)
     items.extend(extra)
+    # The batteries the fire alarm's battery calculation selects.
+    from app.services import battery_materials
+
+    libraries = get_libraries()
+    for battery in battery_materials.selected_batteries(db, project):
+        item = ProposedMaterialOut(system_code="FAS", part_no=battery.catalog_no, description=battery.description,
+                                   manufacturer=battery.manufacturer, quantity=battery.quantity or None,
+                                   groups=[f"Battery calculation: {', '.join(battery.panels)}"], source="battery",
+                                   datasheet_library=battery.datasheet_library, datasheet_path=battery.datasheet_path)
+        if item.datasheet_path:
+            item.datasheet_filename = item.datasheet_path.rsplit("/", 1)[-1]
+            item.datasheet_named_for_part = True
+        else:
+            _attach_datasheets([item], libraries, db)
+        items.append(item)
     return ProposedMaterialsOut(systems=_systems(project), items=items)
 
 
