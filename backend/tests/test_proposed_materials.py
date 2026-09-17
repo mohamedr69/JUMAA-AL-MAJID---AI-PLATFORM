@@ -403,13 +403,20 @@ def test_the_frc_cables_are_chosen_by_brand_and_size_and_a_size_against_the_stan
     assert client.put(f"/projects/{project_id}/frc-cables", json={"brand": "ACME"}).status_code == 400
     assert client.put(f"/projects/{project_id}/frc-cables", json={"brand": "SOLARTI", "fire_alarm_loop": "4Cx1.5mm"}).status_code == 400
 
-    # The cables are the FRC system's materials, on the tab and on its schedule.
+    # The cables are the FRC system's materials, on the tab and on its schedule:
+    # the sizes as chosen, one line per size naming the systems it serves, no prefix.
     items = [i for i in client.get(f"/projects/{project_id}/materials").json()["items"] if i["system_code"] == "FRC"]
-    assert [(i["part_no"], i["manufacturer"], i["source"]) for i in items] == [
-        ("FR 2C x 1.5 mm2", "FIREGUARD", "cable"), ("FR 2C x 2.5 mm2", "FIREGUARD", "cable"),
-        ("FR 2C x 2.5 mm2", "FIREGUARD", "cable"), ("FR 2C x 1.5 mm2", "FIREGUARD", "cable")]
+    assert [(i["part_no"], i["manufacturer"], i["source"]) for i in items] == [("2Cx1.5mm", "FIREGUARD", "cable"), ("2Cx2.5mm", "FIREGUARD", "cable")]
+    assert items[0]["description"] == "Fire rated cable, 2C x 1.5 mm2, for the fire alarm & fire telephone systems"
+    assert items[1]["description"] == "Fire rated cable, 2C x 2.5 mm2, for the voice evacuation & 24 VDC power systems"
     blocks = {title: [(l.catalog_no, l.manufacturer) for l in lines] for _l, title, lines in schedule_blocks(db_session.get(Project, project_id), "FRC")}
-    assert list(blocks) == ["Fire Rated Cables"] and blocks["Fire Rated Cables"][0] == ("FR 2C x 1.5 mm2", "FIREGUARD")
+    assert list(blocks) == ["Fire Rated Cables"] and blocks["Fire Rated Cables"] == [("2Cx1.5mm", "FIREGUARD"), ("2Cx2.5mm", "FIREGUARD")]
+    # One size for all four: one line.
+    client.put(f"/projects/{project_id}/frc-cables", json={"brand": "FIREGUARD", "fire_alarm_loop": "2Cx1.5mm", "voice_evacuation": "2Cx1.5mm",
+                                                            "power_24vdc": "2Cx1.5mm", "fire_telephone": "2Cx1.5mm"})
+    items = [i for i in client.get(f"/projects/{project_id}/materials").json()["items"] if i["system_code"] == "FRC"]
+    assert [i["part_no"] for i in items] == ["2Cx1.5mm"]
+    assert items[0]["description"] == "Fire rated cable, 2C x 1.5 mm2, for the fire alarm, voice evacuation, 24 VDC power & fire telephone systems"
 
 
 def test_the_schedule_prints_the_whole_part_number(client, db_session):
@@ -437,9 +444,9 @@ def test_a_monitored_self_contained_system_has_its_monitoring_cable_taken_as_giv
         True, "Emergency light monitoring cable", "RAMCRO", ["RAMCRO"], "2Cx1.5mm")
     # Nothing chosen yet, and the monitoring cable is already a material of the FRC system.
     items = [i for i in client.get(f"/projects/{project_id}/materials").json()["items"] if i["system_code"] == "FRC"]
-    assert [(i["part_no"], i["manufacturer"], i["groups"][0]) for i in items] == [("FR 2C x 1.5 mm2", "RAMCRO", "Emergency light monitoring cable")]
+    assert [(i["part_no"], i["manufacturer"], i["groups"][0]) for i in items] == [("2Cx1.5mm", "RAMCRO", "Emergency light monitoring cable")]
     blocks = {title: [(l.catalog_no, l.manufacturer) for l in lines] for _l, title, lines in schedule_blocks(db_session.get(Project, project_id), "FRC")}
-    assert blocks == {"Fire Rated Cables": [("FR 2C x 1.5 mm2", "RAMCRO")]}
+    assert blocks == {"Fire Rated Cables": [("2Cx1.5mm", "RAMCRO")]}
     # Another brand or size is refused: there is one of each.
     assert client.put(f"/projects/{project_id}/frc-cables", json={"monitoring_brand": "ACME"}).status_code == 400
     assert client.put(f"/projects/{project_id}/frc-cables", json={"monitoring_size": "2Cx2.5mm"}).status_code == 400
@@ -477,3 +484,79 @@ def test_the_supplier_of_a_brand_is_on_file_for_every_project_and_shown_beside_t
     assert suppliers.seed(db_session) == 0
     assert client.get("/suppliers?brand=fireguard").json()[0]["phone"] == "+971 4 000 0000"
     assert client.put("/suppliers/ACME", json={"supplier": "  "}).status_code == 422 or client.put("/suppliers/ACME", json={"supplier": "  "}).status_code == 400
+
+
+def _frc_library(tmp_path):
+    """A submittal builder with the COMMON documents and FIREGUARD's own folder."""
+    from .test_submittal_package import _pdf
+
+    root = tmp_path / "submittal builder"
+    _pdf(root / "COMMON" / "Company Profile" / "Company Profile.pdf", ["Company Profile"])
+    _pdf(root / "COMMON" / "Trade License" / "Trade Licence.pdf", ["Trade Licence"])
+    _pdf(root / "COMMON" / "ISO Certificates" / "ISO 9001.pdf", ["ISO 9001"])
+    _pdf(root / "FIREGUARD" / "ISO" / "ALRAYAN ISO.pdf", ["Manufacturer ISO"])
+    _pdf(root / "FIREGUARD" / "Civil defence certificate" / "Dubai" / "DCD.pdf", ["Civil Defence"])
+    _pdf(root / "FIREGUARD" / "TEST CERTIFICATES" / "FIREGUARD_TEST_CERTIFICATE.pdf", ["Test Certificate"])
+    _pdf(root / "FIREGUARD" / "AUTH" / "FIREGUARD_AUTH.pdf", ["Authorization"])
+    _pdf(root / "FIREGUARD" / "PREVIOUS APPROVAL" / "FIREGUARD_PREVIOUS_APPROVAL.pdf", ["Previous Approval"])
+    return root
+
+
+def test_the_fire_rated_cable_submittal_follows_its_own_index_from_the_brands_folder(client, db_session, tmp_path, monkeypatch):
+    import app.routers.submittal as submittal_router
+    from app.models import Project
+    from app.services.datasheet_library import DatasheetLibrary
+    from app.services.submittal_package import FRC_SECTIONS, index_for, warranty_replacements
+
+    assert [n for n, _ in FRC_SECTIONS] == list(range(1, 12))
+    library = _frc_library(tmp_path)
+    sheets = tmp_path / "FIREGUARD datasheets"
+    sheets.mkdir()
+    doc = pymupdf.open()
+    doc.new_page().insert_text((40, 50), "FIREGUARD fire rated cable", fontsize=9)
+    doc.save(sheets / "FIREGUARD.pdf")
+    doc.close()
+    monkeypatch.setattr(submittal_router, "_submittal_library", lambda: library)
+    monkeypatch.setattr(submittal_router, "get_libraries", lambda *_: {"FIREGUARD": DatasheetLibrary("FIREGUARD", sheets)})
+    _login(client)
+    project_id = client.post("/projects", json={"ep_number": "30806", "project_name": "Titania", "design_sheets": [], "scope_of_work": "Full Package",
+                                               "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True},
+                                                           {"name": "Emergency Light Monitoring", "brand": "MENVIER", "method_statement": True, "drawing": True}]}).json()["id"]
+
+    # No brand yet: the plan says what to do first.
+    plan = client.get(f"/projects/{project_id}/submittal/package/plan?system_code=FRC").json()
+    assert [(s["number"], s["name"]) for s in plan["sections"]] == FRC_SECTIONS
+    assert any("Choose the cable brand" in w for w in plan["warnings"])
+
+    client.put(f"/projects/{project_id}/frc-cables", json={"brand": "FIREGUARD", "fire_alarm_loop": "2Cx1.5mm", "voice_evacuation": "2Cx1.5mm",
+                                                            "power_24vdc": "2Cx1.5mm", "fire_telephone": "2Cx1.5mm"})
+    plan = client.get(f"/projects/{project_id}/submittal/package/plan?system_code=FRC").json()
+    by_number = {s["number"]: s for s in plan["sections"]}
+    assert [d["name"] for d in by_number[1]["documents"]] == ["Company Profile.pdf"]          # COMMON
+    assert [d["name"] for d in by_number[3]["documents"]] == ["ISO 9001.pdf"]                 # COMMON
+    assert [d["name"] for d in by_number[4]["documents"]] == ["ALRAYAN ISO.pdf"]              # FIREGUARD/ISO
+    assert [d["name"] for d in by_number[5]["documents"]] == ["Schedule of Material"]
+    assert [d["name"] for d in by_number[6]["documents"]] == ["FIREGUARD.pdf"]                # the brand's datasheet library
+    assert [d["name"] for d in by_number[7]["documents"]] == ["DCD.pdf"]
+    assert [d["name"] for d in by_number[8]["documents"]] == ["FIREGUARD_TEST_CERTIFICATE.pdf"]
+    assert [d["name"] for d in by_number[9]["documents"]] == ["FIREGUARD_AUTH.pdf"]
+    assert [d["name"] for d in by_number[10]["documents"]] == ["FIREGUARD_PREVIOUS_APPROVAL.pdf"]
+    assert [d["name"] for d in by_number[11]["documents"]] == ["Warranty Certificate"]
+    assert plan["battery_calculation"]["applies"] is False and 6 in by_number    # 6 is the datasheets here, never a battery section
+
+    # The warranty is worded for the cable, its brands the cable's.
+    project = db_session.get(Project, project_id)
+    replace = warranty_replacements(project, 1, "FRC")
+    assert replace("DRAFT WARRANTY FOR FIRE ALARM & VOICE EVACUATION SYSTEM") == "DRAFT WARRANTY FOR FIRE RATED CABLE"
+    assert replace("all fire alarm system materials manufactured & supplied by M/s. EDWARDS are warranted for a period of TWO YEARS") == \
+        "all fire rated cable materials manufactured & supplied by M/s. Fireguard & M/s. Ramcro are warranted for a period of ONE YEAR"
+    assert submittal_router._system_title(project, "FRC") == "Fire Rated Cable (M/s. Fireguard & M/s. Ramcro)"
+    assert index_for("FAS") is not index_for("FRC")
+
+    # Built: a PDF, the schedule on one line, the warranty in it.
+    built = client.post(f"/projects/{project_id}/submittal/package", json={"sections": list(range(1, 12)), "system_code": "FRC", "revision": "R0", "file": False})
+    assert built.status_code == 200, built.text
+    text = "\n".join(page.get_text() for page in pymupdf.open(stream=built.content, filetype="pdf"))
+    assert "2Cx1.5mm" in text and "FR 2C" not in text
+    assert "FIRE RATED CABLE" in text.upper()
+    assert "Manufacturer ISO Certificate".upper() in text.upper() or "MANUFACTURER ISO" in text.upper()

@@ -53,6 +53,8 @@ class CableLine:
     catalog_no: str
     description: str
     manufacturer: str | None
+    # The systems the line covers (the fire alarm's cables of one size are one line).
+    systems: list[str] = dataclasses.field(default_factory=list)
 
 
 def get(db: Session, project: Project) -> ProjectFrcCables | None:
@@ -89,29 +91,56 @@ def warnings_for(row: ProjectFrcCables | None) -> dict[str, str | None]:
     return out
 
 
+# What each cable is called on the schedule, when lines of one size are joined.
+_SYSTEM_WORDS = {
+    "fire_alarm_loop": "fire alarm",
+    "voice_evacuation": "voice evacuation",
+    "power_24vdc": "24 VDC power",
+    "fire_telephone": "fire telephone",
+}
+
+
+def _join(words: list[str]) -> str:
+    return words[0] if len(words) == 1 else ", ".join(words[:-1]) + " & " + words[-1]
+
+
 def lines(db: Session, project: Project) -> list[CableLine]:
-    """The cables as materials: one per cable whose size is chosen."""
+    """The cables as materials, as the schedule lists them: the fire alarm
+    system's cables of one size are one line ("2Cx1.5mm -- fire alarm,
+    voice evacuation & fire telephone"), two sizes two lines, each naming
+    the systems it serves; the monitoring cable its own line. The part
+    number is the size itself, never prefixed."""
     row = get(db, project)
     warnings = warnings_for(row)
     found: list[CableLine] = []
+    if row is not None and row.brand:
+        by_size: dict[str, list[str]] = {}
+        warned: dict[str, list[str]] = {}
+        for field, _name, _standard, _w, _t in CABLES:
+            size = getattr(row, field, None)
+            if not size:
+                continue
+            by_size.setdefault(size, []).append(field)
+            if warnings[field]:
+                warned.setdefault(size, []).append(warnings[field])
+        for size in SIZES:
+            fields = by_size.get(size)
+            if not fields:
+                continue
+            label = SIZE_LABELS.get(size, size)
+            systems = [_SYSTEM_WORDS[f] for f in fields]
+            found.append(CableLine(
+                field="+".join(fields), name=f"Fire alarm system cable ({_join(systems)})", size=size, standard=size,
+                warning=" ".join(dict.fromkeys(warned.get(size, []))) or None,
+                catalog_no=size, description=f"Fire rated cable, {label}, for the {_join(systems)} system{'s' if len(systems) > 1 else ''}",
+                manufacturer=row.brand, systems=systems))
     monitoring = monitoring_for(row, project)
     if monitoring is not None:
         brand, size = monitoring
         label = SIZE_LABELS.get(size, size)
         found.append(CableLine(field="monitoring", name=MONITORING_NAME, size=size, standard=MONITORING_SIZE, warning=None,
-                               catalog_no=f"FR {label}", description=f"{MONITORING_NAME}, fire-rated, {label} ({brand})",
-                               manufacturer=brand))
-    if row is None:
-        return found
-    for field, name, standard, _warned, _warning in CABLES:
-        size = getattr(row, field, None)
-        if not size:
-            continue
-        label = SIZE_LABELS.get(size, size)
-        found.append(CableLine(
-            field=field, name=name, size=size, standard=standard, warning=warnings[field],
-            catalog_no=f"FR {label}", description=f"{name}, fire-rated, {label}" + (f" ({row.brand})" if row.brand else ""),
-            manufacturer=row.brand))
+                               catalog_no=size, description=f"Emergency light monitoring cable, fire-rated, {label}",
+                               manufacturer=brand, systems=["emergency light monitoring"]))
     return found
 
 

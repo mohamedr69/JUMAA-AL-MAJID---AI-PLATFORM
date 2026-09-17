@@ -621,37 +621,49 @@ def _battery_panels(db: Session, project: Project, sections: set[int]):
 
 
 def _plan_for(project: Project, sections: set[int], system_code: str | None, db: Session | None = None) -> PackagePlan:
+    from app.services.submittal_package import index_for
+
+    index = index_for(system_code)
     library = _submittal_library()
     # The project's own folder, not the archive root: see _search_archive.
     folder = Path(project.source_folder_path) if project.source_folder_path else None
     # Both of these are expensive against a synced archive -- indexing the
     # datasheet library, and walking the project folder for a specification --
     # so neither is done unless a chosen section actually needs it.
-    libraries = get_libraries() if DATASHEET_SECTION in sections else {}
-    specs = _specs_for(project, system_code) if SPEC_SECTION in sections else []
+    libraries = get_libraries() if index.datasheet in sections else {}
+    specs = _specs_for(project, system_code) if index.spec is not None and index.spec in sections else []
     # The battery calculation is the fire alarm's: a system without one (a
     # monitored self-contained emergency light system; a central battery
     # system until its own is built) has no such section to tick.
     applies, _why = system_rules.battery_calculation_applies(project, system_code)
-    if not applies:
-        sections = set(sections) - {BATTERY_SECTION}
-    panels = _battery_panels(db, project, sections) if db is not None else []
-    links = equipment_currents.index(db) if db is not None and DATASHEET_SECTION in sections else {}
+    if index.battery is not None and not applies:
+        sections = set(sections) - {index.battery}
+    panels = _battery_panels(db, project, sections) if db is not None and index.battery is not None else []
+    links = equipment_currents.index(db) if db is not None and index.datasheet in sections and not index.library_datasheets else {}
     plan = plan_package(
         project, sections, library, folder, libraries,
         spec_documents=specs, system_code=system_code, battery_panels=panels,
         brand=_brand_of(project, system_code), datasheet_links=links,
     )
-    if not applies:
-        plan.sections = [s for s in plan.sections if s.number != BATTERY_SECTION]
+    if index.battery is not None and not applies:
+        plan.sections = [s for s in plan.sections if s.number != index.battery]
     return plan
 
 
 def _brand_of(project: Project, system_code: str | None) -> str | None:
     """The manufacturer a system's submittal is for: the brand the DRF gives
-    the system, else the one its BOQ lines carry."""
+    the system, else the one its BOQ lines carry -- and for the fire-rated
+    cables, the cable brand chosen on the Proposed Materials tab."""
     from app.routers.projects import _brand_for
 
+    if system_rules.canonical(system_code) == "FRC":
+        from sqlalchemy.orm import Session as _Session
+
+        from app.services import frc_cables
+
+        session = _Session.object_session(project)
+        row = frc_cables.get(session, project) if session is not None else None
+        return row.brand if row and row.brand else None
     brand = _brand_for(system_code, project.systems, project.separate_ve_panel) if system_code else None
     if brand:
         return brand.strip().upper()
@@ -702,19 +714,22 @@ def package_plan(
     not found in it afterwards.
     """
     project = _get_project_or_404(db, project_id)
-    chosen = _parse_sections(sections)
+    chosen = _parse_sections(sections, system_code)
     plan = _plan_for(project, chosen, system_code, db)
     return _plan_out(project, plan, system_code)
 
 
-def _parse_sections(sections: str | None) -> set[int]:
-    """"1,5,7" -> {1, 5, 7}. Everything, when nothing is named."""
+def _parse_sections(sections: str | None, system_code: str | None = None) -> set[int]:
+    """"1,5,7" -> {1, 5, 7}. Everything in the system's index, when nothing is named."""
+    from app.services.submittal_package import index_for
+
+    names = index_for(system_code).names
     if sections is None or not sections.strip():
-        return {number for number, _ in SECTIONS}
+        return set(names)
     chosen = set()
     for part in sections.split(","):
         part = part.strip()
-        if part.isdigit() and int(part) in SECTION_NAMES:
+        if part.isdigit() and int(part) in names:
             chosen.add(int(part))
     return chosen
 
@@ -733,9 +748,12 @@ def build_submittal_package(
     so the tab shows it at once with nothing scanned and no model asked.
     """
     project = _get_project_or_404(db, project_id)
-    chosen = {n for n in payload.sections if n in SECTION_NAMES}
-    if not system_rules.battery_calculation_applies(project, payload.system_code)[0]:
-        chosen.discard(BATTERY_SECTION)
+    from app.services.submittal_package import index_for
+
+    index = index_for(payload.system_code)
+    chosen = {n for n in payload.sections if n in index.names}
+    if index.battery is not None and not system_rules.battery_calculation_applies(project, payload.system_code)[0]:
+        chosen.discard(index.battery)
     if not chosen:
         raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail="Choose at least one section")
 
@@ -773,7 +791,7 @@ def build_submittal_package(
                     f"Built the material submittal package {payload.revision or 'R0'} ({built.pages} pages)"
                     + (f" and filed it as {filed.relative}" if filed else ""),
                     project=project, entity_type="submittal",
-                    detail={"system": payload.system_code, "sections": ", ".join(str(SECTION_NAMES[n]) for n in sorted(chosen)),
+                    detail={"system": payload.system_code, "sections": ", ".join(str(index.names[n]) for n in sorted(chosen)),
                             "pages": built.pages, "warnings": len(built.warnings),
                             "filed": filed.relative if filed else None, "reference": filed.reference if filed else None})
     headers = {
@@ -789,8 +807,19 @@ def build_submittal_package(
 
 def _system_title(project: Project, system_code: str | None) -> str:
     """What the cover calls the systems, from the DRF's own wording -- and
-    only the systems this package is for."""
+    only the systems this package is for. The fire-rated cables name their
+    brands: "Fire Rated Cable (M/s. Fireguard & M/s. Ramcro)"."""
     code = system_rules.effective_code(system_code, project) or ""
+    if code == "FRC":
+        from sqlalchemy.orm import Session as _Session
+
+        from app.services import frc_cables
+
+        session = _Session.object_session(project)
+        row = frc_cables.get(session, project) if session is not None else None
+        brands = [b for b in [row.brand if row else None, (frc_cables.monitoring_for(row, project) or (None,))[0]] if b]
+        named = " & ".join(f"M/s. {b.title()}" for b in dict.fromkeys(brands))
+        return f"Fire Rated Cable ({named})" if named else "Fire Rated Cable"
     if code in ("FAS", "ELS"):
         rows = system_rules.drf_rows(code, project)
         covered = [s.name for s in project.systems if s.name in rows]

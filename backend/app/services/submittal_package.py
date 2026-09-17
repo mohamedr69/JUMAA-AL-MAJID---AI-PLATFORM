@@ -97,6 +97,72 @@ LIBRARY_FOLDERS: dict[int, tuple[str, ...]] = {
     18: ("templates/not_applicable.pdf",),
 }
 
+# --- the fire-rated cables' index ---------------------------------------------------------
+#
+# A fire-rated cable submittal is a different package: eleven sections, the
+# company's documents from COMMON and the cable brand's own folder of the
+# submittal builder, the brand's whole datasheet library, and a warranty
+# worded for the cable. Only when the cable brand was chosen on the Proposed
+# Materials tab (the platform owner's instruction, 18 Sep 2026).
+FRC_SECTIONS: list[tuple[int, str]] = [
+    (1, "Company Profile"),
+    (2, "Trade License"),
+    (3, "ISO Certificate"),
+    (4, "Manufacturer ISO Certificate"),
+    (5, "Schedule of Material"),
+    (6, "Product Data Sheet"),
+    (7, "Authority Certificate"),
+    (8, "Test Certificate"),
+    (9, "Authorization Letter"),
+    (10, "Previous Approvals"),
+    (11, "Draft Warranty"),
+]
+# The submittal-builder folder of each section: looked for under the brand's
+# folder first, then COMMON (app.services.company_library.submittal_path).
+FRC_LIBRARY_FOLDERS: dict[int, tuple[str, ...]] = {
+    1: ("Company Profile",),
+    2: ("Trade License",),
+    3: ("ISO Certificates",),
+    4: ("ISO",),
+    7: ("Civil defence certificate",),
+    8: ("TEST CERTIFICATES",),
+    9: ("AUTH",),
+    10: ("PREVIOUS APPROVAL",),
+}
+
+
+@dataclass(frozen=True)
+class PackageIndex:
+    """The section list a package follows, and which numbers the platform
+    fills from the project (None: that section is not in this index)."""
+
+    sections: tuple[tuple[int, str], ...]
+    folders: dict[int, tuple[str, ...]]
+    spec: int | None = None
+    schedule: int | None = None
+    battery: int | None = None
+    datasheet: int | None = None
+    coo: int | None = None
+    warranty: int | None = None
+    # The datasheet section is the brand's whole library (the cables), not
+    # the sheets of the BOQ's parts.
+    library_datasheets: bool = False
+
+    @property
+    def names(self) -> dict[int, str]:
+        return dict(self.sections)
+
+
+def index_for(system_code: str | None) -> "PackageIndex":
+    """The index a system's submittal follows: the fire-rated cables their
+    own, everything else the company's seventeen-plus-one."""
+    from app.services import system_rules
+
+    if system_rules.canonical(system_code) == "FRC":
+        return FRC_INDEX
+    return FA_INDEX
+
+
 # Sections the platform fills from the project itself.
 SPEC_SECTION = 2
 COMPLIANCE_SECTION = 4
@@ -154,6 +220,9 @@ class PackageSection:
     selected: bool
     documents: list[PackageDocument] = field(default_factory=list)
     note: str | None = None
+    # What the platform draws for this section rather than merges:
+    # "schedule", "battery", "coo" or "warranty" -- None for a merged one.
+    producer: str | None = None
 
     @property
     def found(self) -> int:
@@ -214,11 +283,12 @@ def _non_pdf_originals(folder: Path) -> list[Path]:
     )
 
 
-def _library_documents(library: Path, section: int, brand: str | None = None) -> list[PackageDocument]:
+def _library_documents(library: Path, section: int, brand: str | None = None,
+                       folders: dict[int, tuple[str, ...]] | None = None) -> list[PackageDocument]:
     from app.services import company_library
 
     found: list[PackageDocument] = []
-    for entry in LIBRARY_FOLDERS.get(section, ()):
+    for entry in (folders if folders is not None else LIBRARY_FOLDERS).get(section, ()):
         # The brand's own folder first, then COMMON, then the older flat layout.
         target = company_library.submittal_path(library, brand, entry) or library / entry
         if target.is_file():
@@ -384,9 +454,13 @@ def plan_package(
 ) -> PackagePlan:
     """What would go into the package, section by section, without building it.
     `brand` is the manufacturer the submittal's system is for, which decides
-    whose folder of the submittal builder the company documents come from."""
+    whose folder of the submittal builder the company documents come from.
+    The section list is the system's (index_for)."""
+    index = index_for(system_code)
     plan = PackagePlan()
     plan.brand = brand
+    if index is FRC_INDEX and not brand:
+        plan.warnings.append("Choose the cable brand on the Proposed Materials tab (Fire Rated Cables): the package draws on the brand's folder of the submittal builder.")
     if library_root is None or not library_root.is_dir():
         plan.warnings.append(
             "The submittal builder folder was not found; company documents cannot be collected. "
@@ -396,42 +470,59 @@ def plan_package(
         plan.library_found = True
         plan.library_path = str(library_root)
 
-    for number, name in SECTIONS:
+    for number, name in index.sections:
         section = PackageSection(number=number, name=name, selected=number in selected)
         if not section.selected:
             plan.sections.append(section)
             continue
 
-        if number in NOT_BUILT:
+        if index is FA_INDEX and number in NOT_BUILT:
             section.note = NOT_BUILT[number]
-        elif number == SPEC_SECTION:
+        elif number == index.spec:
             for label, path in spec_documents or []:
                 section.documents.append(PackageDocument(name=label, path=path, source="project archive"))
             if not section.documents:
                 section.note = "No specification was found for this project."
-        elif number == SCHEDULE_SECTION:
-            if project.boq_items:
+        elif number == index.schedule:
+            section.producer = "schedule"
+            if index is FRC_INDEX:
+                if schedule_blocks(project, system_code):
+                    section.documents.append(PackageDocument(name="Schedule of Material", source="generated"))
+                else:
+                    section.note = "No cable is chosen on the Proposed Materials tab, so there is nothing to schedule."
+            elif project.boq_items:
                 section.documents.append(PackageDocument(name="Schedule of Material", source="generated"))
             else:
                 section.note = "The BOQ is empty, so there is nothing to schedule."
-        elif number == BATTERY_SECTION:
+        elif number == index.battery:
             # Sized from the saved BOQ, so it is the same calculation the
             # Battery page shows -- computed by the caller, which has the
             # database the part currents live in.
+            section.producer = "battery"
             if battery_panels:
                 section.documents.append(PackageDocument(name="Battery Calculation", source="generated"))
             else:
                 section.note = "No panel could be sized from the BOQ, so there is no calculation to enclose."
-        elif number == COO_SECTION:
+        elif number == index.coo:
             # Built from the BOQ like the schedule, with the countries taken
             # from the company's own reference sheet.
+            section.producer = "coo"
             if project.boq_items:
                 section.documents.append(PackageDocument(name="Country of Origin", source="generated"))
             else:
                 section.note = "The BOQ is empty, so there is nothing to declare."
-        elif number == WARRANTY_SECTION:
+        elif number == index.warranty:
+            section.producer = "warranty"
             section.documents.append(PackageDocument(name="Warranty Certificate", source="generated"))
-        elif number == DATASHEET_SECTION:
+        elif number == index.datasheet and index.library_datasheets:
+            # The cable brand's whole datasheet library.
+            library = next((lib for name_, lib in (datasheet_libraries or {}).items() if brand and name_.upper() == brand.upper()), None)
+            if library is not None:
+                for pdf in _pdfs_in(library.folder):
+                    section.documents.append(PackageDocument(name=pdf.name, path=str(pdf), source="datasheet library"))
+            if not section.documents:
+                section.note = f"No datasheet library is on file for {brand}." if brand else "Choose the cable brand first."
+        elif number == index.datasheet:
             section.documents = datasheet_documents(project, datasheet_libraries or {}, system_code, datasheet_links)
             if not section.documents:
                 section.note = (
@@ -439,7 +530,7 @@ def plan_package(
                     if system_code else "The BOQ quotes no part numbers to find datasheets for."
                 )
         elif plan.library_found and library_root is not None:
-            section.documents = _library_documents(library_root, number, brand)
+            section.documents = _library_documents(library_root, number, brand, index.folders)
             # Anything the builder does not hold is looked for in the archive.
             for document in section.documents:
                 if document.path is None and document.missing_reason == "Not in the submittal builder.":
@@ -610,7 +701,7 @@ def _centre(page, bbox, text: str, size: float, colour, font: str = "hebo") -> N
                      fontname=font, fontsize=size, color=colour)
 
 
-def build_divider(library_root: Path, number: int, project: Project) -> pymupdf.Document | None:
+def build_divider(library_root: Path, number: int, project: Project, name: str | None = None) -> pymupdf.Document | None:
     """The section divider, on the company's divider artwork.
 
     The template holds one divider per section after its index page, found by
@@ -628,7 +719,7 @@ def build_divider(library_root: Path, number: int, project: Project) -> pymupdf.
     template = _template(library_root, INDEX_TEMPLATE)
     if not template.is_file():
         return None
-    name = SECTION_NAMES[number]
+    name = name or SECTION_NAMES[number]
     wanted = name.split("(")[0].strip().lower()
 
     with pymupdf.open(template) as source:
@@ -1052,22 +1143,25 @@ def build_package(
     for section in plan.selected_sections:
         label = f"{section.number:02d} {section.name}"
         if library_root is not None and library_root.is_dir():
-            divider = attempt(f"The divider for {label}", lambda: build_divider(library_root, section.number, project))
+            divider = attempt(f"The divider for {label}", lambda: build_divider(library_root, section.number, project, section.name))
             if divider is not None:
                 append(f"{label} -- divider", "divider", divider)
                 divider.close()
 
-        # The three sections the platform draws rather than merges.
+        # The sections the platform draws rather than merges.
         generated = any(d.source == "generated" for d in section.documents)
-        if generated and section.number in (SCHEDULE_SECTION, BATTERY_SECTION, COO_SECTION, WARRANTY_SECTION):
+        # A plan made by hand (without `producer`) is the fire alarm's index.
+        producer = section.producer or {FA_INDEX.schedule: "schedule", FA_INDEX.battery: "battery",
+                                        FA_INDEX.coo: "coo", FA_INDEX.warranty: "warranty"}.get(section.number)
+        if generated and producer:
             builder = {
-                SCHEDULE_SECTION: lambda: build_schedule(project, system_code),
-                BATTERY_SECTION: lambda: _battery_sheet(project, battery_panels, systems),
-                COO_SECTION: lambda: build_country_of_origin(project, library_root, system_code, plan.brand),
-                WARRANTY_SECTION: lambda: build_warranty(project, library_root, system_code),
-            }[section.number]
+                "schedule": lambda: build_schedule(project, system_code),
+                "battery": lambda: _battery_sheet(project, battery_panels, systems),
+                "coo": lambda: build_country_of_origin(project, library_root, system_code, plan.brand),
+                "warranty": lambda: build_warranty(project, library_root, system_code),
+            }[producer]
             page = attempt(f"{label} (generated)", builder)
-            append(label, SECTION_NAMES[section.number], page)
+            append(label, section.name, page)
             page.close()
             continue
 
@@ -1174,6 +1268,11 @@ def read_checklist(data: bytes) -> tuple[dict[int, str], list[str]]:
 
 COO_SECTION = 15
 WARRANTY_SECTION = 16
+
+FA_INDEX = PackageIndex(sections=tuple(SECTIONS), folders=LIBRARY_FOLDERS, spec=SPEC_SECTION, schedule=SCHEDULE_SECTION,
+                        battery=BATTERY_SECTION, datasheet=DATASHEET_SECTION, coo=COO_SECTION, warranty=WARRANTY_SECTION)
+FRC_INDEX = PackageIndex(sections=tuple(FRC_SECTIONS), folders=FRC_LIBRARY_FOLDERS, schedule=5, datasheet=6, warranty=11,
+                         library_datasheets=True)
 
 COO_TEMPLATE = "Country Of Origin/COO.xlsx"
 WARRANTY_TEMPLATE = "templates/Draft Warranty.docx"
@@ -1512,14 +1611,29 @@ def docx_to_pdf(data: bytes) -> bytes | None:
         shutil.rmtree(folder, ignore_errors=True)
 
 
-def warranty_replacements(project: Project, years: int = WARRANTY_YEARS):
+def warranty_replacements(project: Project, years: int = WARRANTY_YEARS, system_code: str | None = None):
     """How a line of the draft is rewritten for this project.
 
     Only two kinds of change: the parties, and the period. Every other word
-    is the company's and is left alone.
+    is the company's and is left alone -- except for a fire-rated cable
+    warranty, where the system the draft names (fire alarm & voice
+    evacuation) becomes the cable, and the manufacturer the cable brands
+    (M/s. Fireguard & M/s. Ramcro).
     """
+    from app.services import system_rules
+
     period = _YEAR_WORDS.get(years, f"{years} YEARS")
     brand = next((s.brand for s in project.systems if s.brand), None)
+    cable = system_rules.canonical(system_code) == "FRC"
+    if cable:
+        from sqlalchemy.orm import Session as _Session
+
+        from app.services import frc_cables
+
+        session = _Session.object_session(project)
+        row = frc_cables.get(session, project) if session is not None else None
+        brands = [b for b in [row.brand if row else None, (frc_cables.monitoring_for(row, project) or (None,))[0]] if b]
+        brand = " & ".join(f"M/s. {b.title()}" for b in dict.fromkeys(brands)) if brands else None
     party = lambda value: (value or "").strip() or "-"  # noqa: E731
     fields = {
         "DATE": date.today().strftime("%d/%m/%Y"),
@@ -1541,7 +1655,12 @@ def warranty_replacements(project: Project, years: int = WARRANTY_YEARS):
         if re.match(r"^REF\s*NO", stripped, re.I):
             return re.sub(r"(:\s*).*$", rf"\g<1>EP-{project.ep_number}", stripped)
         new = re.sub(r"\b(ONE|TWO|THREE|FOUR|FIVE)\s+YEARS?\b", period, text, flags=re.I)
-        if brand:
+        if cable:
+            new = re.sub(r"FIRE ALARM\s*&\s*VOICE EVACUATION SYSTEM", "FIRE RATED CABLE", new, flags=re.I)
+            new = re.sub(r"fire alarm system materials", "fire rated cable materials", new, flags=re.I)
+            if brand:
+                new = re.sub(r"M/s\.\s*EDWARDS", brand, new, flags=re.I)
+        elif brand:
             new = re.sub(r"M/s\.\s*EDWARDS", f"M/s. {brand}", new, flags=re.I)
         return new
 
@@ -1562,16 +1681,16 @@ def build_warranty(
 
     template = (company_library.submittal_path(library_root, None, WARRANTY_TEMPLATE) or library_root / WARRANTY_TEMPLATE)         if library_root else None
     if template is not None and template.is_file():
-        filled = _fill_docx(template, warranty_replacements(project, years))
+        filled = _fill_docx(template, warranty_replacements(project, years, system_code))
         if filled is not None:
             pdf = docx_to_pdf(filled)
             if pdf:
                 return pymupdf.open(stream=pdf, filetype="pdf")
 
-    return _drawn_warranty(project, template, years)
+    return _drawn_warranty(project, template, years, system_code)
 
 
-def _drawn_warranty(project: Project, template: Path | None, years: int) -> pymupdf.Document:
+def _drawn_warranty(project: Project, template: Path | None, years: int, system_code: str | None = None) -> pymupdf.Document:
     """A plain rendering, for when Word is not available to convert the draft.
 
     It says so on the page. A warranty that silently did not look like the
@@ -1579,7 +1698,7 @@ def _drawn_warranty(project: Project, template: Path | None, years: int) -> pymu
     """
     period = _YEAR_WORDS.get(years, f"{years} YEARS")
     paragraphs = _docx_paragraphs(template) if template and template.is_file() else []
-    replace = warranty_replacements(project, years)
+    replace = warranty_replacements(project, years, system_code)
     body = [(replace(text), bool(re.match(r"^[A-Z ]+\s*:", text))) for text in paragraphs]
 
     if not body:
