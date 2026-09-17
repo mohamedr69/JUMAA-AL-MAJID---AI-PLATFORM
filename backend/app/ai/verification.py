@@ -49,7 +49,7 @@ from app.core.config import get_settings
 from app.core.timeutils import utc_now
 from app.extraction import pipeline, values
 from app.models import AiVerification, BoqCandidate, ExtractionIssue, ExtractionRun, Project, User
-from app.services import boq_candidates, boq_provenance, design_sheet_extractor, system_rules
+from app.services import boq_candidates, boq_provenance, design_sheet_extractor, jobs, system_rules
 
 PROMPT_VERSION = "verify-2026-09-15.3"
 ROWS_PER_CALL = 16
@@ -682,6 +682,40 @@ def verify_boq(db: Session, project: Project, user: User, *, ctx=None, provider:
         raise
 
 
+# How long a check waits for a running read of the Design Sheets into the
+# BOQ before giving up (a read of a large sheet takes minutes, not hours).
+BOQ_READ_WAIT_SECONDS = 1800
+BOQ_READ_POLL_SECONDS = 5
+
+
+def _wait_for_boq_read(db: Session, project: Project, ctx, *, sleep=None, deadline: float = BOQ_READ_WAIT_SECONDS) -> bool:
+    """Wait while the AI is reading the Design Sheets into the BOQ.
+
+    On a new project the two start together -- the first open of the BOQ
+    starts the read, and the same open starts this check -- and a check
+    built against the empty BOQ of that moment can only fail at the end
+    against the BOQ the read then saves (EP-30880, 2026-09-17: seven
+    minutes of comparison, then CandidateStale). So the comparison is
+    built after the read. False when the read is still running at the
+    deadline."""
+    import time
+
+    from app.routers.projects import BOQ_READ_JOB
+
+    sleep = sleep or time.sleep
+    waited = 0.0
+    while jobs.active_job(db, project.id, BOQ_READ_JOB) is not None:
+        if waited >= deadline:
+            return False
+        if ctx is not None:
+            ctx.progress(0, 100, "Waiting for the AI read of the Design Sheets into the BOQ to finish")
+            ctx.check()
+        sleep(BOQ_READ_POLL_SECONDS)
+        waited += BOQ_READ_POLL_SECONDS
+        db.expire_all()
+    return True
+
+
 def _verify_boq(db: Session, project: Project, user: User, record: AiVerification, *, ctx, provider) -> AiVerification:
     run = _Run(db=db, project=project, provider=provider, budget=_budget(db, project.id), record=record)
 
@@ -696,6 +730,8 @@ def _verify_boq(db: Session, project: Project, user: User, record: AiVerificatio
             if ctx is not None:
                 ctx.check()
 
+    if not _wait_for_boq_read(db, project, ctx):
+        raise RuntimeError("The AI read of the Design Sheets into the BOQ is still running; run the check again once it has finished.")
     candidate: BoqCandidate = boq_candidates.build(db, project, user, ctx=_Scaled())
     runs = {r.id: r for r in db.query(ExtractionRun).filter(ExtractionRun.id.in_(candidate.run_ids or []))}
     failed = {s["document_name"] for s in candidate.summary.get("sheets", []) if s.get("failure")}

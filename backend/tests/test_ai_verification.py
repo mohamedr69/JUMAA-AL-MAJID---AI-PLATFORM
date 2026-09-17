@@ -413,3 +413,45 @@ def test_two_page_opens_at_once_start_one_check(client, db_session, sheets, reco
     assert results == [200, 200]
     assert db_session.query(BackgroundJob).filter(BackgroundJob.project_id == pid, BackgroundJob.kind == "ai_verify").count() == 1
     assert len(started) == 1
+
+
+def test_a_check_waits_for_the_read_of_the_sheets_into_the_boq(client, db_session, sheets, monkeypatch):
+    """A check started while the sheets are still being read into the BOQ
+    (a new project: both start on the first open) builds its comparison
+    after the read, against the BOQ the read saves -- not before it,
+    against an empty one it would then fail against."""
+    from app.ai import verification
+    from app.models import BackgroundJob
+    from app.routers.projects import BOQ_READ_JOB
+
+    pid = _project(client, sheets, ep="62040")
+    project = db_session.get(Project, pid)
+    read = BackgroundJob(project_id=pid, kind=BOQ_READ_JOB, status="running", progress={}, created_by_id=1)
+    db_session.add(read)
+    db_session.commit()
+    polls = []
+
+    def sleep(seconds):
+        polls.append(seconds)
+        if len(polls) == 2:   # the read finishes while the check waits
+            read.status = "completed"
+            db_session.commit()
+
+    class Ctx:
+        messages = []
+
+        def progress(self, done, total, message):
+            self.messages.append(message)
+
+        def check(self):
+            pass
+
+    ctx = Ctx()
+    assert verification._wait_for_boq_read(db_session, project, ctx, sleep=sleep) is True
+    assert polls == [verification.BOQ_READ_POLL_SECONDS] * 2
+    assert any("Waiting for the AI read" in m for m in ctx.messages)
+
+    # A read that never finishes: the check gives up at the deadline, and says so.
+    read.status = "running"
+    db_session.commit()
+    assert verification._wait_for_boq_read(db_session, project, None, sleep=lambda s: None, deadline=10) is False
