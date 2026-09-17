@@ -59,7 +59,7 @@ export function ProjectProposedMaterialsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
-          {currentSystem && (
+          {currentSystem && currentSystem.code !== "FRC" && (
             <a
               href={apiUrl(`/projects/${project.id}/materials/schedule.pdf?system_code=${encodeURIComponent(currentSystem.code)}`)}
               target="_blank"
@@ -70,7 +70,7 @@ export function ProjectProposedMaterialsPage() {
               Export PDF
             </a>
           )}
-          {canEdit && currentSystem && (
+          {canEdit && currentSystem && currentSystem.code !== "FRC" && (
             <button onClick={() => setAdding(true)} className="rounded-lg bg-brand-600 px-5 py-2 font-semibold text-white">
               Add material
             </button>
@@ -81,18 +81,21 @@ export function ProjectProposedMaterialsPage() {
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
       {systems.length > 0 && (
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap gap-3">
           {systems.map((s) => (
             <button
               key={s.code}
               onClick={() => setSystem(s.code)}
-              className={`rounded-xl border px-5 py-2.5 text-sm font-semibold ${
-                s.code === current ? "border-brand-600 bg-brand-600 text-white" : "border-gray-200 bg-white text-navy-900 hover:border-brand-300"
+              className={`flex items-center gap-3 rounded-xl border-2 bg-white px-4 py-2.5 text-left ${
+                s.code === current ? "border-brand-600 shadow-sm" : "border-gray-200 hover:border-brand-300"
               }`}
               title={s.title}
             >
-              {s.title}
-              {s.brand && <span className={`ml-2 text-xs ${s.code === current ? "text-white/80" : "text-gray-500"}`}>{s.brand}</span>}
+              <SystemIcon code={s.code} />
+              <span>
+                <span className={`block text-sm font-semibold ${s.code === current ? "text-brand-700" : "text-navy-900"}`}>{s.title}</span>
+                {s.brand && <span className="block text-xs text-gray-500">{s.brand}</span>}
+              </span>
             </button>
           ))}
         </div>
@@ -110,7 +113,14 @@ export function ProjectProposedMaterialsPage() {
       )}
 
       {currentSystem?.code === "FRC" && (
-        <FrcCablesPanel projectId={project.id} canEdit={canEdit} onSaved={() => void load()} />
+        <FrcCablesPanel
+          projectId={project.id}
+          canEdit={canEdit}
+          onSaved={() => void load()}
+          items={items}
+          systems={systems}
+          onWithdraw={(item) => void withdraw(item)}
+        />
       )}
 
       {adding && currentSystem && (
@@ -127,6 +137,7 @@ export function ProjectProposedMaterialsPage() {
         />
       )}
 
+      {currentSystem?.code !== "FRC" && (
       <div className="mt-5 overflow-x-auto rounded-xl border border-gray-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
@@ -182,6 +193,7 @@ export function ProjectProposedMaterialsPage() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }
@@ -261,22 +273,103 @@ function SupplierCard({ brand, supplier, canEdit, onSaved, title }: { brand: str
   );
 }
 
-/** The fire-rated cables: the brand, then the size of each system's
- * cable. A size against the company's standard is not refused; the
- * warning the platform raises for it is shown beside it. */
-function FrcCablesPanel({ projectId, canEdit, onSaved }: { projectId: number; canEdit: boolean; onSaved: () => void }) {
+/** A small icon per system, as the tabs and the cable panels show it. */
+function SystemIcon({ code, size = 22 }: { code: string; size?: number }) {
+  const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+  if (code === "FAS" || code === "VES") {
+    return (
+      <span className="rounded-lg bg-red-50 p-1.5 text-red-600" aria-hidden="true">
+        <svg {...common}><path d="M12 3c1 3 4 4.5 4 8.5a4 4 0 0 1-8 0c0-1.5.5-2.5 1.5-3.5.5 1.5 1.5 2 2.5 2 0-2-1-3.5 0-7Z" /><path d="M8 18a6 6 0 0 0 8 0" /></svg>
+      </span>
+    );
+  }
+  if (code === "ELS") {
+    return (
+      <span className="rounded-lg bg-green-50 p-1.5 text-green-700" aria-hidden="true">
+        <svg {...common}><circle cx="14" cy="4" r="1.5" /><path d="M9 21l2-6 3 2v4" /><path d="M6 13l3-5 4 1 3 3" /><path d="M11 8l-2 5" /></svg>
+      </span>
+    );
+  }
+  if (code === "FRC") {
+    return (
+      <span className="rounded-lg bg-blue-50 p-1.5 text-brand-700" aria-hidden="true">
+        <svg {...common}><path d="M4 7h12a3 3 0 0 1 0 6H8a3 3 0 0 0 0 6h12" /><circle cx="4" cy="7" r="1.5" /><circle cx="20" cy="19" r="1.5" /></svg>
+      </span>
+    );
+  }
+  return (
+    <span className="rounded-lg bg-gray-100 p-1.5 text-gray-600" aria-hidden="true">
+      <svg {...common}><rect x="4" y="4" width="16" height="16" rx="3" /></svg>
+    </span>
+  );
+}
+
+const SIZE_LABEL = (s: string) => s.replace("Cx", "C × ").replace("mm", " mm²");
+
+/** The two sizes a cable comes in, the chosen one filled. */
+function SizeButtons({ sizes, fields, value, disabled, onChoose }: { sizes: string[]; fields: string[]; value: string | null; disabled?: boolean; onChoose: (fields: string[], size: string) => void }) {
+  return (
+    <div className="mt-2 grid grid-cols-2 gap-2">
+      {sizes.map((size) => (
+        <button
+          key={size}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChoose(fields, size)}
+          className={`rounded-lg border px-3 py-2 text-sm font-semibold ${
+            value === size ? "border-brand-600 bg-brand-600 text-white" : "border-gray-300 bg-white text-navy-900 hover:border-brand-300 disabled:opacity-50"
+          }`}
+        >
+          {SIZE_LABEL(size)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The warning a size against the standard raises. */
+function Warning({ text }: { text: string | null }) {
+  if (!text) return null;
+  return (
+    <div className="mt-2 flex items-start gap-2 rounded-md bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+      <span aria-hidden="true" className="mt-0.5 inline-block h-3.5 w-3.5 rounded-sm bg-amber-500 text-center text-[10px] font-bold leading-[14px] text-white">!</span>
+      <span>{text}</span>
+    </div>
+  );
+}
+
+/** The fire-rated cables, as the engineers lay them out: the fire alarm
+ * system's cables (the loop, voice evacuation & 24 VDC power, the fire
+ * telephone) with the cable brand's supplier under them; the monitored
+ * self-contained system's monitoring cable with its supplier beside; and
+ * the cable list -- the material schedule -- below. A size against the
+ * standard is warned about, not refused. */
+function FrcCablesPanel({
+  projectId,
+  canEdit,
+  onSaved,
+  items,
+  systems,
+  onWithdraw,
+}: {
+  projectId: number;
+  canEdit: boolean;
+  onSaved: () => void;
+  items: ProposedMaterial[];
+  systems: { code: string; title: string; brand: string | null }[];
+  onWithdraw: (item: ProposedMaterial) => void;
+}) {
   const [data, setData] = useState<FrcCables | null>(null);
-  const [brandQuery, setBrandQuery] = useState("");
   const [brandOpen, setBrandOpen] = useState(false);
   const [draft, setDraft] = useState<Record<string, string | null>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
 
   const load = useCallback(async () => {
     try {
       const got = await api.get<FrcCables>(`/projects/${projectId}/frc-cables`);
       setData(got);
-      setBrandQuery(got.brand ?? "");
       setDraft(Object.fromEntries(got.cables.map((c) => [c.field, c.size])));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not load the cables");
@@ -295,7 +388,6 @@ function FrcCablesPanel({ projectId, canEdit, onSaved }: { projectId: number; ca
       const sizes = next.sizes ?? draft;
       const saved = await api.put<FrcCables>(`/projects/${projectId}/frc-cables`, { brand: next.brand === undefined ? data.brand : next.brand, ...sizes });
       setData(saved);
-      setBrandQuery(saved.brand ?? "");
       setDraft(Object.fromEntries(saved.cables.map((c) => [c.field, c.size])));
       onSaved();
     } catch (err) {
@@ -306,82 +398,195 @@ function FrcCablesPanel({ projectId, canEdit, onSaved }: { projectId: number; ca
   }
 
   if (!data) return error ? <div className="mt-4 text-sm text-red-700">{error}</div> : null;
-  const brands = data.brands.filter((b) => !brandQuery || b.toLowerCase().includes(brandQuery.toLowerCase()));
-  const sizeLabel = (s: string) => s.replace("Cx", "C × ").replace("mm", " mm²");
+  const fire = systems.find((s) => s.code === "FAS");
+  const lighting = systems.find((s) => s.code === "ELS");
+  const byField = Object.fromEntries(data.cables.map((c) => [c.field, c]));
+  const loop = byField.fire_alarm_loop;
+  const voice = byField.voice_evacuation;
+  const power = byField.power_24vdc;
+  const telephone = byField.fire_telephone;
+  const choose = (fields: string[], size: string) => {
+    const sizes = { ...draft };
+    for (const f of fields) sizes[f] = size;
+    setDraft(sizes);
+    void save({ sizes });
+  };
+  const shown = items.filter((i) => !filter || `${i.part_no} ${i.description} ${i.manufacturer ?? ""}`.toLowerCase().includes(filter.toLowerCase()));
+  const systemName = (item: ProposedMaterial) =>
+    item.groups[0]?.startsWith("Emergency light") ? "Emergency Light (Monitored)" : "Fire Alarm";
+
   return (
-    <div className="mt-5 rounded-xl border border-purple-200 bg-purple-50/30 p-4">
-      <div className="text-sm font-semibold text-navy-900">Fire-rated cables</div>
-      <p className="mt-1 text-xs text-gray-600">Identify the cables: the brand first, then the size of each system's cable. A size against the standard is warned about, not refused.</p>
-      <div className="mt-3 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      <div>
-      <label className="relative block max-w-sm text-xs font-semibold text-gray-600">
-        Brand
-        <input
-          className="input mt-1 w-full"
-          value={brandQuery}
-          disabled={!canEdit}
-          placeholder="Search the brands: FIREGUARD, SOLARTI, FRONTIER, TIANJIE"
-          onChange={(e) => { setBrandQuery(e.target.value); setBrandOpen(true); }}
-          onFocus={() => setBrandOpen(true)}
-          onBlur={() => window.setTimeout(() => setBrandOpen(false), 150)}
-        />
-        {brandOpen && canEdit && brands.length > 0 && (
-          <ul className="absolute z-20 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
-            {brands.map((b) => (
-              <li key={b}>
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { setBrandOpen(false); void save({ brand: b }); }} className="block w-full px-3 py-2 text-left text-sm hover:bg-brand-50">
-                  {b}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </label>
-      {data.brand && (
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {data.cables.map((cable) => (
-            <div key={cable.field} className={`rounded-lg border bg-white p-3 ${cable.warning ? "border-amber-300" : "border-gray-200"}`}>
-              <div className="text-sm font-semibold text-navy-900">{cable.name}</div>
-              <div className="mt-1 text-xs text-gray-500">Standard: {sizeLabel(cable.standard)}</div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {data.sizes.map((size) => (
-                  <button
-                    key={size}
-                    type="button"
-                    disabled={!canEdit || busy}
-                    onClick={() => { const sizes = { ...draft, [cable.field]: size }; setDraft(sizes); void save({ sizes }); }}
-                    className={`rounded-lg border px-3 py-1.5 text-sm font-semibold ${draft[cable.field] === size ? "border-brand-600 bg-brand-600 text-white" : "border-gray-300 bg-white text-navy-900 hover:border-brand-300"}`}
-                  >
-                    {sizeLabel(size)}
-                  </button>
-                ))}
-              </div>
-              {cable.warning && <div className="mt-2 rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900">{cable.warning}</div>}
-            </div>
-          ))}
-        </div>
-      )}
-      {!data.brand && <div className="mt-3 text-xs text-gray-500">Choose the brand to set the cable sizes.</div>}
-      </div>
-      <div className="space-y-3">
-        {data.brand && <SupplierCard brand={data.brand} supplier={data.supplier ?? null} canEdit={canEdit} onSaved={() => void load()} />}
-        {data.monitoring.applies && data.monitoring.brand && (
-          <SupplierCard brand={data.monitoring.brand} supplier={data.monitoring.supplier ?? null} canEdit={canEdit} onSaved={() => void load()} title={`${data.monitoring.name}: supplier`} />
-        )}
-      </div>
-      </div>
-      {data.monitoring.applies && (
-        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
-          <div className="text-sm font-semibold text-navy-900">{data.monitoring.name}</div>
-          <div className="mt-1 text-xs text-gray-500">For the monitored self-contained emergency light system. One brand and one size for now, taken as given.</div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-            <span className="rounded-lg border border-brand-600 bg-brand-600 px-3 py-1.5 font-semibold text-white">{data.monitoring.brand}</span>
-            <span className="rounded-lg border border-brand-600 bg-brand-600 px-3 py-1.5 font-semibold text-white">{sizeLabel(data.monitoring.size ?? "")}</span>
-            <span className="text-xs text-gray-500">selected automatically</span>
+    <div className="mt-5">
+      <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex items-center gap-3">
+          <SystemIcon code="FRC" size={26} />
+          <div>
+            <div className="text-lg font-bold text-navy-900">Fire-rated cables</div>
+            <div className="text-xs text-gray-500">Identify the cables: select the brand first, then the size of each system's cable. A size against the standard is warned about, not refused.</div>
           </div>
         </div>
-      )}
-      {error && <div className="mt-2 text-sm text-red-700">{error}</div>}
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+          {/* The fire alarm system's cables. */}
+          <div className="rounded-xl border border-red-100 bg-red-50/40 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <SystemIcon code="FAS" size={26} />
+                <div>
+                  <div className="text-base font-bold text-red-700">
+                    Fire Alarm System{fire?.brand ? <span className="font-semibold text-navy-900"> ({fire.brand})</span> : null}
+                  </div>
+                  <div className="text-xs text-gray-600">Includes: fire alarm loop, voice evacuation, 24 VDC power and fire telephone.</div>
+                </div>
+              </div>
+              <div className="relative">
+                <button
+                  type="button"
+                  disabled={!canEdit}
+                  onClick={() => setBrandOpen((v) => !v)}
+                  onBlur={() => window.setTimeout(() => setBrandOpen(false), 150)}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-navy-900"
+                  title="The cable brand"
+                >
+                  {data.brand ?? "Choose the cable brand"} <span aria-hidden="true">▾</span>
+                </button>
+                {brandOpen && canEdit && (
+                  <ul className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-gray-200 bg-white shadow-lg">
+                    {data.brands.map((b) => (
+                      <li key={b}>
+                        <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { setBrandOpen(false); void save({ brand: b }); }} className={`block w-full px-3 py-2 text-left text-sm hover:bg-brand-50 ${b === data.brand ? "font-semibold text-brand-700" : ""}`}>
+                          {b}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            {!data.brand && <div className="mt-3 text-sm text-gray-600">Choose the cable brand to set the sizes.</div>}
+            {data.brand && (
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="rounded-lg border border-gray-200 bg-white p-3">
+                  <div className="text-sm font-semibold text-navy-900">Fire alarm loop cable</div>
+                  <div className="text-xs text-gray-500">Standard: {SIZE_LABEL(loop.standard)}</div>
+                  <SizeButtons sizes={data.sizes} fields={["fire_alarm_loop"]} value={draft.fire_alarm_loop ?? null} disabled={!canEdit || busy} onChoose={choose} />
+                  <Warning text={loop.warning} />
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white p-3">
+                  <div className="text-sm font-semibold text-navy-900">Voice evacuation & 24 VDC power cable</div>
+                  <div className="text-xs text-gray-500">Standard: {SIZE_LABEL(voice.standard)}</div>
+                  <SizeButtons sizes={data.sizes} fields={["voice_evacuation", "power_24vdc"]} value={draft.voice_evacuation === draft.power_24vdc ? draft.voice_evacuation ?? null : null} disabled={!canEdit || busy} onChoose={choose} />
+                  <Warning text={voice.warning ?? power.warning ? "Voice evacuation / 24 VDC power on 2C × 1.5 mm² is subject to the voltage drop calculation." : null} />
+                </div>
+                <div className="rounded-lg border border-gray-200 bg-white p-3 md:col-span-2">
+                  <div className="text-sm font-semibold text-navy-900">Fire telephone power cable</div>
+                  <div className="text-xs text-gray-500">Standard: {SIZE_LABEL(telephone.standard)}</div>
+                  <div className="md:w-1/2"><SizeButtons sizes={data.sizes} fields={["fire_telephone"]} value={draft.fire_telephone ?? null} disabled={!canEdit || busy} onChoose={choose} /></div>
+                  <Warning text={telephone.warning} />
+                </div>
+              </div>
+            )}
+            {data.brand && (
+              <div className="mt-3">
+                <SupplierCard brand={data.brand} supplier={data.supplier ?? null} canEdit={canEdit} onSaved={() => void load()} title={`${data.brand}: supplier`} />
+              </div>
+            )}
+          </div>
+
+          {/* The monitored self-contained system's monitoring cable. */}
+          {data.monitoring.applies ? (
+            <div className="rounded-xl border border-green-100 bg-green-50/40 p-4">
+              <div className="flex items-center gap-3">
+                <SystemIcon code="ELS" size={26} />
+                <div>
+                  <div className="text-base font-bold text-navy-900">{lighting?.title ?? "Monitored Self-Contained Emergency Light System"}</div>
+                  <div className="text-xs text-gray-600">Emergency light monitoring cable only.{lighting?.brand ? ` ${lighting.brand}.` : ""}</div>
+                </div>
+              </div>
+              <div className="mt-3 rounded-lg border border-gray-200 bg-white p-3">
+                <div className="text-sm font-semibold text-navy-900">{data.monitoring.name}</div>
+                <div className="text-xs text-gray-500">Standard: {SIZE_LABEL(data.monitoring.size ?? "2Cx1.5mm")} · brand {data.monitoring.brand} · selected automatically (one brand, one size for now)</div>
+                <SizeButtons sizes={data.sizes} fields={[]} value={data.monitoring.size} disabled onChoose={choose} />
+              </div>
+              {data.monitoring.brand && (
+                <div className="mt-3">
+                  <SupplierCard brand={data.monitoring.brand} supplier={data.monitoring.supplier ?? null} canEdit={canEdit} onSaved={() => void load()} title={`${data.monitoring.name}: supplier`} />
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-gray-200 p-4 text-sm text-gray-500">
+              No monitored self-contained emergency light system on this project: no monitoring cable.
+            </div>
+          )}
+        </div>
+        {error && <div className="mt-3 text-sm text-red-700">{error}</div>}
+      </div>
+
+      {/* The cable list: the material schedule of the FRC system. */}
+      <div className="mt-5 rounded-xl border border-gray-200 bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
+          <div className="text-base font-bold text-navy-900">Cable List / Material Schedule</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input className="input w-56 py-1.5" placeholder="Search cable..." value={filter} onChange={(e) => setFilter(e.target.value)} />
+            <a
+              href={apiUrl(`/projects/${projectId}/materials/schedule.pdf?system_code=FRC`)}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-lg bg-brand-600 px-4 py-1.5 text-sm font-semibold text-white"
+            >
+              Export PDF
+            </a>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                {["Part number", "Description", "System", "Manufacturer", "Supplier", "Quantity", "Source", "Datasheet", ""].map((label) => (
+                  <th key={label} className="px-3 py-2 font-semibold">{label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {shown.length === 0 && (
+                <tr><td colSpan={9} className="px-3 py-6 text-center text-gray-400">{items.length === 0 ? "Choose the cable brand and sizes above; the cables are listed here." : "No cable matches."}</td></tr>
+              )}
+              {shown.map((item) => {
+                const supplier = item.source === "cable" && item.manufacturer === data.monitoring.brand ? data.monitoring.supplier : item.manufacturer === data.brand ? data.supplier : null;
+                return (
+                  <tr key={`${item.source}:${item.id ?? ""}:${item.part_no}:${item.groups[0] ?? ""}`} className="border-t border-gray-100">
+                    <td className="px-3 py-2 font-medium text-navy-900">{item.part_no}</td>
+                    <td className="px-3 py-2 text-gray-700">{item.description}{item.note ? <span className="block text-xs text-amber-800">{item.note}</span> : null}</td>
+                    <td className="px-3 py-2 text-gray-600">{item.source === "cable" ? systemName(item) : "Fire Rated Cables"}</td>
+                    <td className="px-3 py-2 text-gray-600">{item.manufacturer ?? "—"}</td>
+                    <td className="px-3 py-2 text-gray-600">{supplier?.supplier ?? "—"}</td>
+                    <td className="px-3 py-2 text-gray-600">{item.quantity ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${item.source === "cable" ? "bg-purple-50 text-purple-800" : item.source === "boq" ? "bg-blue-50 text-brand-700" : "bg-green-50 text-green-700"}`}>
+                        {item.source === "cable" ? "FRC cable" : item.source === "boq" ? "BOQ" : "Added"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {item.datasheet_path ? (
+                        <a className="text-brand-600 hover:underline" href={datasheetHref(item)} target="_blank" rel="noreferrer">{item.datasheet_filename}</a>
+                      ) : (
+                        <span className="text-orange-700">Not in the library</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {canEdit && item.source === "added" && (
+                        <button onClick={() => onWithdraw(item)} className="text-xs font-semibold text-red-600 hover:underline">Withdraw</button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
