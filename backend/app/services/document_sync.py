@@ -40,7 +40,7 @@ from app.core.timeutils import utc_now
 from app.models import DocumentDependency, Project, ProjectDocument, User
 from app.services import document_control, spec_finder, submittal_scanner
 
-INDEX_VERSION = "index-2026-09-17.1"
+INDEX_VERSION = "index-2026-09-18.1"   # the reference codes MAR and SD: every document is read again
 MAX_FILES = 2000
 # The intake gate's rows (the DRF and the Design Sheets): indexed by it, watched here.
 INTAKE_ROLES = ("drf", "design_sheet")

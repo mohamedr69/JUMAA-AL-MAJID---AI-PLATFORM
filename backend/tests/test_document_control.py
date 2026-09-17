@@ -222,3 +222,22 @@ Consultant status: Approved as Noted
     assert row.status == "ANN"          # from the form page
     assert row.name == "GROUND FLOOR PLAN"   # from the sheet
     assert row.floor == "GROUND FLOOR"       # from the sheet
+
+
+def test_a_material_approval_request_and_a_shop_drawing_are_controlled_documents():
+    """A contractor numbers a material submittal -MAR- (material approval
+    request) and a shop drawing -SD- as readily as -MAS- and -SDW-
+    (EP-29495): both belong in the log, a method statement quoting its own
+    number does not."""
+    form = "\n".join(["MATERIAL SUBMITTAL", "Submittal No. ICC-DLRC-SIG2-MAR-MEP-0060", "Rev. 02",
+                         "Material Submittal for Central Battery System"])
+    sheet = "\n".join(["SHOP DRAWING SUBMITTAL", "Submittal No. ICC-DLRC-SIG2-SD-MEP-0081", "Rev. 00",
+                          "EMERGENCY LIGHTING LAYOUT GROUND FLOOR"])
+    statement = "\n".join(["METHOD STATEMENT", "Submittal No. ICC-DLRC-SIG2-MAR-MEP-0027", "Rev. 00",
+                              "Material Submittal for the installation of the fire alarm system"])
+
+    submittal = parse_page(form, "mar.pdf", NOW, 1)
+    assert [(r.reference, r.revision, r.category) for r in submittal] == [("ICC-DLRC-SIG2-MAR-MEP-0060", "R2", "submittals")]
+    drawing = parse_page(sheet, "sd.pdf", NOW, 1)
+    assert [(r.reference, r.category) for r in drawing] == [("ICC-DLRC-SIG2-SD-MEP-0081", "drawings")]
+    assert parse_page(statement, "ms.pdf", NOW, 1) == []

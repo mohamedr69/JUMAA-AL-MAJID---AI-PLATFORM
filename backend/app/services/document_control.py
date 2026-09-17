@@ -48,12 +48,16 @@ def _ocr_page(page):
     return pytesseract.image_to_string(image, timeout=25)
 
 
-REF = re.compile(r"\b[A-Z0-9]+(?:-[A-Z0-9]+)*-(MAS|SDW|DWG|SAR)-[A-Z0-9-]+", re.I)
+# The codes a controlled document's reference carries. Contractors number
+# them their own way: MAS and MAR are both a material submittal (material
+# approval request), SDW, DWG and SD a shop drawing, SAR a sample. MS is a
+# method statement and is not one of these.
+REF = re.compile(r"\b[A-Z0-9]+(?:-[A-Z0-9]+)*-(MAS|MAR|SDW|DWG|SD|SAR)-[A-Z0-9-]+", re.I)
 # The trailing guard rejects a numbered list item. A CAD title block keeps
 # labels and values in separate text runs, so the line after the "REV" label
 # is whatever the export put next -- on every EP-30784 shop drawing that is
 # the general notes, whose "1.)" was read as revision 1.
-REV = re.compile(r"\b(?:MAS\s+|SDW\s+|DWG\s+|SAR\s+)?REV(?:ISION)?\.?\s*[:.-]?\s*\n?\s*R?\s*(\d{1,3})\b(?!\s*\.?\))", re.I)
+REV = re.compile(r"\b(?:MAS\s+|MAR\s+|SDW\s+|DWG\s+|SD\s+|SAR\s+)?REV(?:ISION)?\.?\s*[:.-]?\s*\n?\s*R?\s*(\d{1,3})\b(?!\s*\.?\))", re.I)
 
 # Shop drawings are filed one folder per submission (.../1.FAVE/R1/05. Ground
 # Floor/...). The sheet's own title block carries the *drawing's* revision,
@@ -199,9 +203,13 @@ def parse_page(text: str, path: str, modified: datetime, page: int) -> list[Cont
             decision, None, evidence, page, source="reply", category="reply")]
     if match:
         reference = match.group().rstrip("-.")
-        category = {"MAS": "submittals", "SAR": "samples", "SDW": "drawings", "DWG": "drawings"}[match.group(1).upper()]
+        category = {"MAS": "submittals", "MAR": "submittals", "SAR": "samples",
+                    "SDW": "drawings", "DWG": "drawings", "SD": "drawings"}[match.group(1).upper()]
         # A catalogue quoting a submittal number is not a submission form.
         required = r"material[s]?\s+submittal|MAS\s+Reference" if category == "submittals" else r"sample\s+approval|SAR\s+Reference" if category == "samples" else r"drawing\s*(?:title|no|number|submittal)|shop\s*drawing"
+        # A method statement transmittal names its material submittal's
+        # number; it is not one (EP-29495 files both under -MS- and -MAR-).
+        if category == "submittals" and re.search(r"method\s+statement|risk\s+assessment", text, re.I): return []
         if not re.search(required, text, re.I) and not re.search(r"consultant.*(?:reply|comment|status)|review\s*status", text, re.I): return []
     elif drawing_match and re.search(r"FIRE\s*ALARM|EMERGENCY\s*LIGHT|VOICE\s*EVACUATION", text, re.I):
         reference, category = drawing_match.group(1).strip(), "drawings"

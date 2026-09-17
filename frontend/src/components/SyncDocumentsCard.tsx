@@ -23,23 +23,35 @@ export function SyncDocumentsCard({
   canEdit,
   autoStart = false,
   onSynced,
+  onStatus,
   compact = false,
+  header = false,
 }: {
   projectId: number;
   canEdit: boolean;
   autoStart?: boolean;
   onSynced?: () => void;
+  /** The index as it stands, for a page that shows the stale and failed
+   * documents in its own words (the project board does). */
+  onStatus?: (status: DocumentStatus) => void;
   compact?: boolean;
+  /** In a page header: the last sync and the button on one line, the
+   * lists left to the page. */
+  header?: boolean;
 }) {
   const [status, setStatus] = useState<DocumentStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const onSyncedRef = useRef(onSynced);
   onSyncedRef.current = onSynced;
+  const onStatusRef = useRef(onStatus);
+  onStatusRef.current = onStatus;
   const started = useRef<number | null>(null);
 
   const load = useCallback(async () => {
     try {
-      setStatus(await api.get<DocumentStatus>(`/projects/${projectId}/documents/status`));
+      const got = await api.get<DocumentStatus>(`/projects/${projectId}/documents/status`);
+      setStatus(got);
+      onStatusRef.current?.(got);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not read the document index");
     }
@@ -70,6 +82,38 @@ export function SyncDocumentsCard({
 
   if (!status) return error ? <div className="text-xs text-red-700">{error}</div> : null;
   const stale = status.stale;
+
+  if (header) {
+    return (
+      <div className="text-right">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <span className="text-xs text-gray-500">
+            {status.synced_at
+              ? `Last sync ${formatApiDate(status.synced_at, "short")}`
+              : status.folder_reachable
+                ? "Not synced yet"
+                : "The project folder is not reachable on this PC"}
+          </span>
+          {canEdit && (
+            <button
+              onClick={() => void start()}
+              disabled={active || !status.folder_reachable}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+              title="Check every file's size and time against the index; read only new or changed files"
+            >
+              {active ? "Syncing..." : "Sync documents"}
+            </button>
+          )}
+        </div>
+        {sync.job && (active || sync.job.status === "failed") && (
+          <div className="mt-2 text-left">
+            <JobProgress job={sync.job} onCancel={sync.cancel} what="the document sync" />
+          </div>
+        )}
+        {sync.error && <div className="mt-1 text-xs text-red-700">{sync.error}</div>}
+      </div>
+    );
+  }
   return (
     <section aria-label="Documents" className={`rounded-xl border bg-white ${compact ? "p-3" : "p-4"} ${stale.length || status.failed.length ? "border-amber-200" : "border-gray-200"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
