@@ -124,13 +124,28 @@ def _materials(project: Project) -> list[MaterialItemOut]:
             # "Lot" and the like: the quantity is the BOQ's business.
             item.quantity = None if item.quantity in (0, None) else item.quantity
 
-    _attach_datasheets(list(items.values()), libraries)
+    from sqlalchemy.orm import Session as _Session
+
+    _attach_datasheets(list(items.values()), libraries, _Session.object_session(project))
     return sorted(items.values(), key=lambda i: ((i.system_code or "~"), i.part_no))
 
 
-def _attach_datasheets(items: list[MaterialItemOut], libraries: dict) -> None:
-    """The datasheet each material has in its manufacturer's library."""
+def _attach_datasheets(items: list[MaterialItemOut], libraries: dict, db: Session | None = None) -> None:
+    """The datasheet each material has in its manufacturer's library: the
+    one linked to the part by hand first (app.services.datasheet_links),
+    else the one the library finds by file name and text."""
+    from app.services import datasheet_links
+
     for item in items:
+        linked = datasheet_links.lookup(db, item.manufacturer, item.part_no) if db is not None else None
+        if linked is not None:
+            library = libraries.get(linked.library) or next((lib for name, lib in libraries.items() if name.upper() == linked.library.upper()), None)
+            if library is not None:
+                path = library.folder / linked.path
+                item.datasheet_library, item.datasheet_path = linked.library, linked.path
+                item.datasheet_filename, item.datasheet_linked = path.name, True
+                item.datasheet_named_for_part = True
+                continue
         for library in libraries_for(item.manufacturer, libraries):
             match = next(iter(library.find(item.part_no)), None)
             if match:

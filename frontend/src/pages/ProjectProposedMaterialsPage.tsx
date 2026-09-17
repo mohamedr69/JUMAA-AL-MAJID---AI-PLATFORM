@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api, apiUrl } from "../lib/api";
-import { PROJECT_EDITOR_ROLES, type PartSuggestion, type ProposedMaterial, type ProposedMaterials } from "../lib/types";
+import { PROJECT_EDITOR_ROLES, type DatasheetFile, type PartSuggestion, type ProposedMaterial, type ProposedMaterials } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
 /** The materials proposed for each system: the BOQ's parts as they are,
@@ -16,6 +16,7 @@ export function ProjectProposedMaterialsPage() {
   const [error, setError] = useState<string | null>(null);
   const [system, setSystem] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [linking, setLinking] = useState<ProposedMaterial | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -84,6 +85,17 @@ export function ProjectProposedMaterialsPage() {
         </div>
       )}
 
+      {linking && (
+        <LinkDatasheetDialog
+          item={linking}
+          onDone={() => {
+            setLinking(null);
+            void load();
+          }}
+          onCancel={() => setLinking(null)}
+        />
+      )}
+
       {adding && currentSystem && (
         <AddMaterialForm
           projectId={project.id}
@@ -127,9 +139,17 @@ export function ProjectProposedMaterialsPage() {
                 </td>
                 <td className="px-3 py-2">
                   {item.datasheet_path ? (
-                    <a className="text-brand-600 hover:underline" href={datasheetHref(item)} target="_blank" rel="noreferrer">{item.datasheet_filename}</a>
+                    <>
+                      <a className="text-brand-600 hover:underline" href={datasheetHref(item)} target="_blank" rel="noreferrer">{item.datasheet_filename}</a>
+                      {item.datasheet_linked && <span className="ml-2 rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-600" title="Linked to this datasheet by hand, for every project">linked</span>}
+                    </>
                   ) : (
                     <span className="text-orange-700">Not in the library</span>
+                  )}
+                  {canEdit && item.manufacturer && (
+                    <button onClick={() => setLinking(item)} className="ml-2 text-xs font-semibold text-brand-600 hover:underline">
+                      {item.datasheet_path ? "Change link" : "Link datasheet"}
+                    </button>
                   )}
                 </td>
                 <td className="px-3 py-2 text-right">
@@ -141,6 +161,79 @@ export function ProjectProposedMaterialsPage() {
             ))}
           </tbody>
         </table>
+      </div>
+    </div>
+  );
+}
+
+/** Link a part to the datasheet that documents it -- for every project,
+ * since the library's file names do not carry that number. The choice is
+ * from the manufacturer's library listing. */
+function LinkDatasheetDialog({ item, onDone, onCancel }: { item: ProposedMaterial; onDone: () => void; onCancel: () => void }) {
+  const [files, setFiles] = useState<DatasheetFile[] | null>(null);
+  const [filter, setFilter] = useState("");
+  const [chosen, setChosen] = useState<DatasheetFile | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get<DatasheetFile[]>(`/design-rules/datasheets/all?manufacturer=${encodeURIComponent(item.manufacturer ?? "")}`)
+      .then(setFiles)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Could not list the library"));
+  }, [item.manufacturer]);
+
+  const shown = (files ?? []).filter((f) => !filter || `${f.folder}/${f.filename}`.toLowerCase().includes(filter.toLowerCase())).slice(0, 60);
+
+  async function save() {
+    if (!chosen) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.put("/materials/datasheet-link", {
+        manufacturer: item.manufacturer,
+        part_no: item.part_no,
+        library: chosen.library,
+        path: chosen.path,
+      });
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not save the link");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-navy-950/40 p-6" role="dialog" aria-modal="true">
+      <div className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl">
+        <h2 className="text-lg font-bold text-navy-900">Link a datasheet to {item.part_no}</h2>
+        <p className="mt-1 text-sm text-gray-600">
+          The {item.manufacturer} library's file names do not carry this number. Choose the sheet that documents it; the link holds for every project.
+        </p>
+        <input className="input mt-3 w-full" placeholder="Filter the library" value={filter} onChange={(e) => setFilter(e.target.value)} autoFocus />
+        <div className="mt-2 max-h-72 overflow-y-auto rounded-lg border border-gray-200">
+          {files === null && !error && <div className="p-3 text-sm text-gray-400">Loading the library...</div>}
+          {files !== null && shown.length === 0 && <div className="p-3 text-sm text-gray-400">No datasheet matches.</div>}
+          {shown.map((f) => (
+            <button
+              key={`${f.library}:${f.path}`}
+              type="button"
+              onClick={() => setChosen(f)}
+              className={`block w-full border-b border-gray-100 px-3 py-2 text-left text-sm ${chosen?.path === f.path ? "bg-brand-50 font-semibold text-brand-800" : "hover:bg-gray-50"}`}
+            >
+              {f.filename}
+              {f.folder && <span className="ml-2 text-xs text-gray-500">{f.folder}</span>}
+            </button>
+          ))}
+        </div>
+        {error && <div className="mt-2 text-sm text-red-700">{error}</div>}
+        <div className="mt-4 flex justify-end gap-3">
+          <button onClick={onCancel} disabled={busy} className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-navy-900">Cancel</button>
+          <button onClick={() => void save()} disabled={busy || !chosen} className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+            {busy ? "Saving..." : "Link"}
+          </button>
+        </div>
       </div>
     </div>
   );

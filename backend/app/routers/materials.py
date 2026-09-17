@@ -85,9 +85,69 @@ def list_proposed(
     extra = [ProposedMaterialOut(system_code=row.system_code, part_no=row.catalog_no, description=row.description or "",
                                  manufacturer=row.manufacturer, quantity=_number(row.quantity), groups=[], source="added",
                                  id=row.id, note=row.note, added_at=row.created_at) for row in added]
-    _attach_datasheets(extra, get_libraries())
+    _attach_datasheets(extra, get_libraries(), db)
     items.extend(extra)
     return ProposedMaterialsOut(systems=_systems(project), items=items)
+
+
+class DatasheetLinkIn(BaseModel):
+    manufacturer: str = Field(min_length=1, max_length=64)
+    part_no: str = Field(min_length=1, max_length=120)
+    library: str = Field(min_length=1, max_length=64)
+    path: str = Field(min_length=1, max_length=500)
+    note: str | None = Field(default=None, max_length=500)
+
+
+class DatasheetLinkOut(BaseModel):
+    manufacturer: str
+    part_no: str
+    library: str
+    path: str
+    filename: str
+    note: str | None
+    source: str
+
+
+@router.put("/materials/datasheet-link", response_model=DatasheetLinkOut)
+def link_datasheet(
+    payload: DatasheetLinkIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> DatasheetLinkOut:
+    """Link a part to the datasheet that documents it, for every project:
+    the file names of the library do not carry its number, so the search
+    cannot find it; this settles it once."""
+    from app.services import datasheet_links
+
+    libraries = get_libraries()
+    library = libraries.get(payload.library) or next((lib for name, lib in libraries.items() if name.upper() == payload.library.upper()), None)
+    if library is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"No datasheet library named {payload.library}")
+    target = library.folder / payload.path
+    if not target.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"{payload.path} is not in the {library.name} library")
+    row = datasheet_links.link(db, manufacturer=payload.manufacturer, part_no=payload.part_no, library=library.name,
+                               path=payload.path, note=payload.note, user_id=current_user.id)
+    activity.record(db, current_user, "material.datasheet_linked",
+                    f"Linked {row.part_no} ({row.manufacturer}) to the datasheet {target.name}",
+                    entity_type="material", detail={"library": row.library, "path": row.path})
+    return DatasheetLinkOut(manufacturer=row.manufacturer, part_no=row.part_no, library=row.library, path=row.path,
+                            filename=target.name, note=row.note, source=row.source)
+
+
+@router.delete("/materials/datasheet-link", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def unlink_datasheet(
+    manufacturer: str = Query(max_length=64),
+    part_no: str = Query(max_length=120),
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+):
+    from app.services import datasheet_links
+
+    if not datasheet_links.unlink(db, manufacturer=manufacturer, part_no=part_no):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such link")
+    activity.record(db, current_user, "material.datasheet_unlinked", f"Unlinked {part_no} ({manufacturer}) from its datasheet",
+                    entity_type="material")
 
 
 def _number(text: str | None) -> float | None:
@@ -128,7 +188,7 @@ def propose(
     out = ProposedMaterialOut(system_code=row.system_code, part_no=row.catalog_no, description=row.description or "",
                               manufacturer=row.manufacturer, quantity=_number(row.quantity), groups=[], source="added",
                               id=row.id, note=row.note, added_at=row.created_at)
-    _attach_datasheets([out], get_libraries())
+    _attach_datasheets([out], get_libraries(), db)
     return out
 
 

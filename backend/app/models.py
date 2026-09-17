@@ -473,6 +473,30 @@ class DocumentDependency(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
+class PartDatasheetLink(Base):
+    """Which datasheet in the company library documents a part whose number
+    the library's file names do not carry -- a variant (NEXI300-3H-CGL-IPM
+    is on NEXI300-3H-CGL.pdf), an assembly (SL2-42D3D-CGL-M+SL23I), a
+    controller in another size. One link per part per manufacturer, kept
+    for every project: set once, found everywhere."""
+
+    __tablename__ = "part_datasheet_links"
+    __table_args__ = (UniqueConstraint("manufacturer", "key", name="uq_part_datasheet_link"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    manufacturer: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # part_key(part_no): how BOQ part numbers are matched.
+    key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    part_no: Mapped[str] = mapped_column(String(120), nullable=False)
+    library: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Relative to the library folder, as the datasheet listing gives it.
+    path: Mapped[str] = mapped_column(String(500), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="engineer", server_default="engineer")
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
 class ProjectProposedMaterial(Base):
     """A material proposed for the project beyond what its BOQ quotes --
     added by an engineer on the Proposed Materials tab, with no quantity

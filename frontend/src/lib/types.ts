@@ -844,6 +844,8 @@ export interface MaterialItem {
   datasheet_filename: string | null;
   document_no: string | null;
   datasheet_named_for_part: boolean;
+  /** The datasheet was linked to the part by hand, for every project. */
+  datasheet_linked?: boolean;
 }
 
 export interface MaterialSubmittal {

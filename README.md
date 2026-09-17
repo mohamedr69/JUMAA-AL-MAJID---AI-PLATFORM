@@ -484,7 +484,14 @@ number from everything on file for that brand (`app/services/part_catalog.py`:
 the brand's datasheet library file names, the equipment current table,
 the country-of-origin sheet, and every BOQ line of every project naming
 the brand -- `GET /parts/search?brand=EDWARDS&q=sig`), filling the
-description from it when the part is known.
+description from it when the part is known. A part the library's file
+names do not carry -- a variant or an assembly (NEXI300-3H-CGL-IPM is on
+NEXI300-3H-CGL.pdf; every SL2 exit sign on SL2-42D3D-CGL-M.pdf) -- is
+**linked** to its datasheet once, for every project
+(`part_datasheet_links`, `app/services/datasheet_links.py`: the
+engineers' Menvier links are seeded, "Link datasheet" on the tab adds
+more), and every place a material gets its datasheet reads the link
+before searching the library.
 
 ### The AI reads the material submittals
 

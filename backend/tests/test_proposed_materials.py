@@ -122,3 +122,58 @@ def test_the_part_catalogue_knows_every_number_on_file_for_a_brand_and_completes
     # Withdrawn again.
     assert client.delete(f"/projects/{project_id}/materials/{added.json()['id']}").status_code == 204
     assert all(i["source"] == "boq" for i in client.get(f"/projects/{project_id}/materials").json()["items"])
+
+
+def test_a_part_the_file_names_do_not_carry_is_documented_by_the_datasheet_linked_to_it(client, db_session, tmp_path, monkeypatch):
+    """NEXI300-3H-CGL-IPM is on NEXI300-3H-CGL.pdf and every SL2 exit sign
+    on SL2-42D3D-CGL-M.pdf: linked once, found on every project, and a
+    link set from the tab holds the same way."""
+    import app.routers.materials as materials_router
+    import app.routers.submittal as submittal_router
+    from app.models import PartDatasheetLink
+    from app.services import datasheet_links
+    from app.services.datasheet_library import DatasheetLibrary
+
+    menvier = tmp_path / "MENVIER"
+    for name in ("NEXI300-3H-CGL.pdf", "SL2-42D3D-CGL-M.pdf", "CTR160CGL2KS-M.pdf"):
+        doc = pymupdf.open()
+        doc.new_page().insert_text((40, 50), name, fontsize=9)
+        menvier.mkdir(parents=True, exist_ok=True)
+        doc.save(menvier / name)
+        doc.close()
+    libraries = {"MENVIER": DatasheetLibrary("MENVIER", menvier)}
+    monkeypatch.setattr(materials_router, "get_libraries", lambda: libraries)
+    monkeypatch.setattr(submittal_router, "get_libraries", lambda *_: libraries)
+    assert datasheet_links.seed(db_session) >= 0                      # the seeds (startup ran them already, or not)
+    _login(client)
+    project_id = client.post("/projects", json={
+        "ep_number": "30792", "project_name": "Titania", "design_sheets": [],
+        "systems": [{"name": "Emergency Light Monitoring", "brand": "MENVIER", "method_statement": True, "drawing": True}],
+    }).json()["id"]
+    client.put(f"/projects/{project_id}/boq", json=[
+        {"system_code": "ELS", "group_heading": "Lights", "catalog_no": "NEXI300-3H-CGL-IPM", "description": "Nexi IP65", "quantity": "377", "manufacturer": "MENVIER"},
+        {"system_code": "ELS", "group_heading": "Lights", "catalog_no": "SL2-65D3D-CGL-M+SL23I", "description": "Wall exit", "quantity": "33", "manufacturer": "MENVIER"},
+        {"system_code": "ELS", "group_heading": "Lights", "catalog_no": "SL2NM65D3-M", "description": "Self contained", "quantity": "6", "manufacturer": "MENVIER"},
+        {"system_code": "ELS", "group_heading": "Lights", "catalog_no": "XYZ-999", "description": "Unknown", "quantity": "1", "manufacturer": "MENVIER"},
+    ])
+
+    by_part = {i["part_no"]: i for i in client.get(f"/projects/{project_id}/materials").json()["items"]}
+    assert by_part["NEXI300-3H-CGL-IPM"]["datasheet_filename"] == "NEXI300-3H-CGL.pdf" and by_part["NEXI300-3H-CGL-IPM"]["datasheet_linked"] is True
+    assert by_part["SL2-65D3D-CGL-M+SL23I"]["datasheet_filename"] == "SL2-42D3D-CGL-M.pdf"
+    assert by_part["SL2NM65D3-M"]["datasheet_filename"] == "SL2-42D3D-CGL-M.pdf"
+    assert by_part["XYZ-999"]["datasheet_path"] is None
+    # The material submittal's own list reads the same link.
+    materials = {i["part_no"]: i for i in client.get(f"/projects/{project_id}/submittal/materials").json()["items"]}
+    assert materials["SL2NM65D3-M"]["datasheet_filename"] == "SL2-42D3D-CGL-M.pdf"
+
+    # A link set from the tab: for every project from then on.
+    linked = client.put("/materials/datasheet-link", json={"manufacturer": "MENVIER", "part_no": "XYZ-999", "library": "MENVIER", "path": "CTR160CGL2KS-M.pdf"})
+    assert linked.status_code == 200, linked.text
+    assert client.get(f"/projects/{project_id}/materials").json()["items"][-1]["datasheet_filename"] == "CTR160CGL2KS-M.pdf"
+    other = client.post("/projects", json={"ep_number": "30793", "project_name": "Other", "design_sheets": []}).json()["id"]
+    client.put(f"/projects/{other}/boq", json=[{"system_code": "ELS", "group_heading": "L", "catalog_no": "xyz 999", "description": "u", "quantity": "1", "manufacturer": "Menvier Brand"}])
+    assert client.get(f"/projects/{other}/materials").json()["items"][0]["datasheet_filename"] == "CTR160CGL2KS-M.pdf"
+    # A file not in the library is refused; unlinking is for good.
+    assert client.put("/materials/datasheet-link", json={"manufacturer": "MENVIER", "part_no": "XYZ-999", "library": "MENVIER", "path": "nope.pdf"}).status_code == 404
+    assert client.delete("/materials/datasheet-link?manufacturer=MENVIER&part_no=XYZ-999").status_code == 204
+    assert db_session.query(PartDatasheetLink).filter(PartDatasheetLink.key == "XYZ999").count() == 0

@@ -556,6 +556,9 @@ class MaterialItemOut(BaseModel):
     document_no: str | None = None
     # The datasheet is named for the part (rather than only mentioning it).
     datasheet_named_for_part: bool = False
+    # The datasheet was linked to the part by hand (app.services.datasheet_links),
+    # the file names not carrying its number.
+    datasheet_linked: bool = False
 
 
 class MaterialSubmittalOut(BaseModel):
