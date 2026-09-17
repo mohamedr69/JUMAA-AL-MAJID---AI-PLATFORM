@@ -982,6 +982,9 @@ class PackageBuildIn(BaseModel):
     system_code: str | None = None
     revision: str = "R0"
     title: str | None = None
+    # File the package into the project folder (02- Material Submittals/<system>/<revision>)
+    # and enter it in the register, the index and the log. Off: the download only.
+    file: bool = True
 
 
 class ChecklistReadOut(BaseModel):

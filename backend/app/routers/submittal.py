@@ -640,11 +640,11 @@ def build_submittal_package(
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ):
-    """Assemble the package and return it as one PDF.
-
-    Nothing is stored: the package is the documents it was built from, and
-    keeping a copy would be a second version of them to go stale. Issue it by
-    saving the download into the project folder.
+    """Assemble the package and return it as one PDF -- and, unless
+    `file` is off, file it: written to 02- Material Submittals/<system>/
+    <revision>/ in the project folder and entered in the register, the
+    document index and the log in the same step (app.services.submittal_filing),
+    so the tab shows it at once with nothing scanned and no model asked.
     """
     project = _get_project_or_404(db, project_id)
     chosen = {n for n in payload.sections if n in SECTION_NAMES}
@@ -666,20 +666,35 @@ def build_submittal_package(
             raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc))
 
     name = f"EP-{project.ep_number} - Material Submittal - {payload.revision or 'R0'}.pdf"
+    filed = None
+    if payload.file:
+        from app.services import submittal_filing
+
+        try:
+            filed = submittal_filing.file_package(
+                db, project, current_user, pdf=built.pdf, system_code=payload.system_code,
+                revision=payload.revision or "R0", title=payload.title or _system_title(project, payload.system_code),
+                pages=built.pages, manufacturer=_brand_of(project, payload.system_code))
+        except OSError as exc:
+            db.rollback()
+            filed = None
+            built.warnings.append(f"The package could not be filed in the project folder ({exc}); save the download there.")
     activity.record(db, current_user, "submittal.package_built",
-                    f"Built the material submittal package {payload.revision or 'R0'} ({built.pages} pages)",
+                    f"Built the material submittal package {payload.revision or 'R0'} ({built.pages} pages)"
+                    + (f" and filed it as {filed.relative}" if filed else ""),
                     project=project, entity_type="submittal",
                     detail={"system": payload.system_code, "sections": ", ".join(str(SECTION_NAMES[n]) for n in sorted(chosen)),
-                            "pages": built.pages, "warnings": len(built.warnings)})
-    return Response(
-        built.pdf,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f"attachment; filename=\"{name}\"; filename*=UTF-8''{quote(name)}",
-            "X-Package-Pages": str(built.pages),
-            "X-Package-Warnings": str(len(built.warnings)),
-        },
-    )
+                            "pages": built.pages, "warnings": len(built.warnings),
+                            "filed": filed.relative if filed else None, "reference": filed.reference if filed else None})
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{name}\"; filename*=UTF-8''{quote(name)}",
+        "X-Package-Pages": str(built.pages),
+        "X-Package-Warnings": str(len(built.warnings)),
+    }
+    if filed:
+        headers["X-Package-Filed"] = quote(filed.relative)
+        headers["X-Package-Reference"] = filed.reference
+    return Response(built.pdf, media_type="application/pdf", headers=headers)
 
 
 def _system_title(project: Project, system_code: str | None) -> str:

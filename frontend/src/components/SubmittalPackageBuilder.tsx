@@ -40,7 +40,7 @@ export function SubmittalPackageBuilder({
   const [loading, setLoading] = useState(false);
   const [building, setBuilding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ url: string; name: string; pages: string; missing: string } | null>(null);
+  const [result, setResult] = useState<{ url: string; name: string; pages: string; missing: string; filed: string | null } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
   // The blob outlives the fetch, so it has to be released by hand.
@@ -116,6 +116,7 @@ export function SubmittalPackageBuilder({
         name: `EP-${project.ep_number} - Material Submittal - ${revision}.pdf`,
         pages: res.headers.get("X-Package-Pages") ?? "?",
         missing: res.headers.get("X-Package-Warnings") ?? "0",
+        filed: res.headers.get("X-Package-Filed") ? decodeURIComponent(res.headers.get("X-Package-Filed") ?? "") : null,
       });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "The package could not be built");
@@ -270,6 +271,11 @@ export function SubmittalPackageBuilder({
                 <p className="text-sm font-semibold text-green-800">
                   {result.pages} pages assembled
                   {result.missing !== "0" && ` · ${result.missing} document${result.missing === "1" ? "" : "s"} still to add`}
+                </p>
+                <p className="mt-1 text-xs text-green-800">
+                  {result.filed
+                    ? `Filed in the project folder as ${result.filed} and entered in the register and the log.`
+                    : "Not filed: the project folder is not reachable on this PC, or the system has no folder. Save the download into it."}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-3">
                   <a

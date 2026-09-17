@@ -1109,3 +1109,54 @@ def test_a_recorded_datasheet_is_taken_before_the_library_is_searched(client, db
     documents = datasheet_documents(project, libraries, "ELS", links=equipment_currents.index(db_session))
     assert documents[0].name == "SL2-42D3D-CGL-M.pdf" and documents[0].covers == ["SL2-65D3D-CGL-M"]
     assert documents[1].missing_reason == "No datasheet in the manufacturer's library."
+
+
+def test_a_built_package_is_filed_in_the_project_folder_and_entered_in_the_register_and_the_log(client, db_session, tmp_path, monkeypatch):
+    """The package goes to 02- Material Submittals/FA/R0/, and the tab, the
+    index and the log know it at once -- no scan, no model."""
+    import app.routers.submittal as submittal_router
+    from app.models import DocumentReading, ProjectDocument, ProjectSubmittal
+
+    library = _library(tmp_path)
+    monkeypatch.setattr(submittal_router, "_submittal_library", lambda: library)
+    monkeypatch.setattr(submittal_router, "get_libraries", lambda *_: {"EDWARDS": _datasheets(tmp_path)})
+    _login_admin(client)
+    root = tmp_path / "EP-30785"
+    root.mkdir()
+    project_id = client.post("/projects", json={
+        "ep_number": "30785", "project_name": "Binghatti Titania", "source_folder_path": str(root), "design_sheets": [],
+    }).json()["id"]
+    client.put(f"/projects/{project_id}/boq", json=[{"system_code": "FAS", "group_heading": PANEL, "catalog_no": "4-CPU",
+                                                     "description": "Central Processor Module", "quantity": "1", "manufacturer": "EDWARDS"}])
+
+    resp = client.post(f"/projects/{project_id}/submittal/package",
+                       json={"sections": [1, 8], "system_code": "FAS", "revision": "R0"})
+    assert resp.status_code == 200 and resp.content.startswith(b"%PDF")
+    filed = root / "02- Material Submittals" / "FA" / "R0" / "EP-30785 - Material Submittal - FA - R0.pdf"
+    assert filed.is_file() and filed.read_bytes() == resp.content
+    assert resp.headers["X-Package-Filed"].replace("%20", " ") == "02- Material Submittals/FA/R0/EP-30785 - Material Submittal - FA - R0.pdf"
+    assert resp.headers["X-Package-Reference"] == "EP-30785-MAS-FA"
+
+    row = db_session.query(ProjectDocument).filter(ProjectDocument.project_id == project_id).one()
+    assert (row.role, row.reference, row.revision, row.status, row.system_code, row.state) == ("submittal_form", "EP-30785-MAS-FA", "R0", "UR", "FAS", "fresh")
+    reading = db_session.get(DocumentReading, row.reading_id)
+    assert reading.kind == "submittal_form" and reading.reading["reference"] == "EP-30785-MAS-FA" and reading.calls == 0
+    register = db_session.query(ProjectSubmittal).filter(ProjectSubmittal.project_id == project_id).one()
+    assert (register.reference, register.revision, register.status.value, register.system_code) == ("EP-30785-MAS-FA", "R0", "under_review", "FAS")
+    logs = client.get(f"/projects/{project_id}/logs").json()
+    assert [(m["reference"], m["revision"]) for m in logs["material_submittals"]] == [("EP-30785-MAS-FA", "R0")]
+
+    # R1 of the same submittal: its own folder, the register moves to R1, the index holds both.
+    resp = client.post(f"/projects/{project_id}/submittal/package",
+                       json={"sections": [1, 8], "system_code": "FAS", "revision": "R1"})
+    assert resp.status_code == 200
+    assert (root / "02- Material Submittals" / "FA" / "R1" / "EP-30785 - Material Submittal - FA - R1.pdf").is_file()
+    db_session.refresh(register)
+    assert register.revision == "R1"
+    assert db_session.query(ProjectDocument).filter(ProjectDocument.project_id == project_id).count() == 2
+
+    # file=false: the download only, nothing written.
+    resp = client.post(f"/projects/{project_id}/submittal/package",
+                       json={"sections": [1, 8], "system_code": "FAS", "revision": "R2", "file": False})
+    assert resp.status_code == 200 and "X-Package-Filed" not in resp.headers
+    assert not (root / "02- Material Submittals" / "FA" / "R2").exists()

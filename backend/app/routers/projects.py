@@ -90,6 +90,22 @@ _boq_read_start_lock = threading.Lock()
 BOQ_READ_JOB = "boq_read"
 
 
+def _ensure_project_folders(db: Session, user: User, project: Project) -> None:
+    """The project's folder structure on OneDrive (app.services.project_folders),
+    made on open and on creation. A folder that is not reachable, or cannot
+    be written, never fails the open."""
+    from app.services import project_folders
+
+    try:
+        created = project_folders.ensure(project)
+    except OSError:
+        return
+    if created:
+        activity.record(db, user, "project.folders_created",
+                        f"Made {len(created)} folder{'s' if len(created) != 1 else ''} in the project folder",
+                        project=project, entity_type="project", entity_id=project.id, detail={"folders": created})
+
+
 def _get_project_or_404(db: Session, project_id: int) -> Project:
     project = db.get(Project, project_id)
     if project is None:
@@ -339,6 +355,7 @@ def create_project(
         db.rollback()
         raise conflict
     db.refresh(project)
+    _ensure_project_folders(db, current_user, project)
     activity.record(db, current_user, "project.created", f"Created {activity.project_label(project)}",
                     project=project, entity_type="project", entity_id=project.id,
                     detail={"design_sheets": len(project.design_sheets)})
@@ -383,6 +400,7 @@ def get_project(
 ) -> ProjectOut:
     project = _get_project_or_404(db, project_id)
     activity.record_open(db, current_user, project)
+    _ensure_project_folders(db, current_user, project)
     return _for(current_user, project)
 
 

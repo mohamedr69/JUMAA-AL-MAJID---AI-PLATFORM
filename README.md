@@ -428,6 +428,32 @@ request.
   specification moves, only the rows answered from the knowledge base or
   the model are flagged for recheck; the engineer's answers stand.
 
+### The project folder structure, and filing a built submittal
+
+Opening (or creating) a project makes the folders every project keeps under
+its archive path (`app/services/project_folders.py`) -- only the missing
+ones; nothing that exists is moved or renamed:
+
+    01- Scan\                                   (only when no scan / commercial folder exists)
+    02- Material Submittals\{FA, ELS}\R0\        a folder per system, a folder per revision
+    02- Material Submittals\Approved\{FA, ELS}\  the stamped copies the consultant returns
+    03- Drawings\IFC\Electrical\{ACS, FA, Light, Power}\
+    03- Drawings\IFC\Mechanical\{FF, SM}\
+    03- Drawings\IFC\{RCP, Builder Work}\
+    03- Drawings\SD\{FA, ELS, Approved}\
+
+Every folder is indexed by "Sync documents", so the logs list what arrives
+in them. A material submittal package the platform builds is filed as it is
+built (`app/services/submittal_filing.py`): written to
+`02- Material Submittals\<system>\<revision>\EP-xxxxx - Material Submittal -
+<system> - R<n>.pdf` and, because the platform knows exactly what it made,
+entered in the same step in the document index, as a stored form reading
+(reference `EP-xxxxx-MAS-<system>`, revision n, under review), in the
+register and in the log -- so the Material Submittal tab, the map and the
+log show it at once with nothing scanned and no model asked. A rebuild of
+the same revision replaces the file; `file: false` on the build request
+gives the download only.
+
 ### The AI reads the material submittals
 
 The consultant's reply on a material submittal form is a stamp or a
