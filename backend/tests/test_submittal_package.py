@@ -593,7 +593,7 @@ def test_the_schedule_is_one_block_per_assembly(client, db_session, tmp_path):
         ("A", "EST4 Main Fire Alarm Control Panel", 2),
         ("B", "Amplifier (50 Watt)", 1),
         ("C", "Booster Power Supply", 1),
-        ("D", "Field Devices", 2),
+        ("D", "Initiating Devices", 2),
     ]
 
 

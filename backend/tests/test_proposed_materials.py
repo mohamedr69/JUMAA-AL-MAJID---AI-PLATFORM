@@ -225,5 +225,48 @@ def test_the_schedule_reads_panel_then_repeaters_then_aps_and_bps_then_field_dev
     project = db_session.get(Project, project_id)
     titles = [title for _letter, title, _items in schedule_blocks(project, "FAS")]
     assert titles == ["EST4 Main Fire Alarm Control Panel", "Repeater Panel", "Auxiliary Power Supply", "Booster Power Supply",
-                      "Field Devices", "Notification Appliances", "Proposed materials (added beyond the BOQ)"]
+                      "Initiating Devices", "Notification Appliances", "Proposed materials (added beyond the BOQ)"]
     assert [letter for letter, _t, _i in schedule_blocks(project, "FAS")] == list("ABCDEFG")
+
+
+def test_the_field_devices_are_scheduled_by_kind(client, db_session):
+    """The sheet's one "Field Devices" block is scheduled as initiating
+    devices, notification appliances, fire telephone, BMS gateway, modules
+    and back boxes -- and a gateway quoted with the panel is the gateway's."""
+    from app.models import Project
+    from app.services.submittal_package import schedule_blocks
+
+    _login(client)
+    project_id = client.post("/projects", json={"ep_number": "30796", "project_name": "Titania", "design_sheets": []}).json()["id"]
+    line = lambda heading, part, desc: {"system_code": "FAS", "group_heading": heading, "catalog_no": part, "description": desc,  # noqa: E731
+                                        "quantity": "1", "manufacturer": "EDWARDS"}
+    client.put(f"/projects/{project_id}/boq", json=[
+        line("EST4 Main Fire Alarm Control Panel", "4-CPU", "Central Processor Module"),
+        line("EST4 Main Fire Alarm Control Panel", "FSB-PC4", "EST4 to BMS Communications Bridge"),
+        line("Super Duct", "SIGA-SD", "SuperDuct"),
+        line("Field Devices", "SIGA-OSD-FCN", "Intelligent Photoelectric Smoke Detector"),
+        line("Field Devices", "SIGA-278", "Manual Pull Station"),
+        line("Field Devices", "STI-3002", "Weatherresistant Gasket"),
+        line("Field Devices", "G4SRN", "Wall Speaker, Red"),
+        line("Field Devices", "757-7A-T", "15/75 cd Temporal Horn/Strobe"),
+        line("Field Devices", "SIGA-LED", "Remote Alarm LED"),
+        line("Field Devices", "6830-3", "Portable Telephone Handset"),
+        line("Field Devices", "TCS-6", "Storage Enclosure for handsets"),
+        line("Field Devices", "SIGA-CT2", "Dual Input Module"),
+        line("Field Devices", "SIGA-UM", "Universal Class A/B Module"),
+        line("Field Devices", "TP606", "GI Concealed Back Box"),
+        line("Field Devices", "27193-11", "Surface Mount Box"),
+        line("Field Devices", "GRSW-10", "Universal Wiring Plate"),
+        line("Field Devices", "757A-WB", "Weatherproof Box, Cast"),
+        line("Field Devices", "MYSTERY-1", "Something new"),
+    ])
+    blocks = {title: [i.catalog_no for i in items] for _l, title, items in schedule_blocks(db_session.get(Project, project_id), "FAS")}
+    assert list(blocks) == ["EST4 Main Fire Alarm Control Panel", "Initiating Devices", "Notification Appliances", "Fire Telephone",
+                            "BMS Gateway", "Modules", "Back Boxes", "Other Field Devices"]
+    assert blocks["EST4 Main Fire Alarm Control Panel"] == ["4-CPU"] and blocks["BMS Gateway"] == ["FSB-PC4"]
+    assert blocks["Initiating Devices"] == ["SIGA-SD", "SIGA-OSD-FCN", "SIGA-278", "STI-3002"]
+    assert blocks["Notification Appliances"] == ["G4SRN", "757-7A-T", "SIGA-LED"]
+    assert blocks["Fire Telephone"] == ["6830-3", "TCS-6"]
+    assert blocks["Modules"] == ["SIGA-CT2", "SIGA-UM"]
+    assert blocks["Back Boxes"] == ["TP606", "27193-11", "GRSW-10", "757A-WB"]
+    assert blocks["Other Field Devices"] == ["MYSTERY-1"]

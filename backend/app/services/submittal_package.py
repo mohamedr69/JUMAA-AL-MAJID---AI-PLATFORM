@@ -677,6 +677,41 @@ _RED = (0.75, 0.1, 0.15)
 
 ADDED_BLOCK = "Proposed materials (added beyond the BOQ)"
 
+# The field-device blocks of a Schedule of Material, in the engineers' order.
+INITIATING_BLOCK = "Initiating Devices"
+NOTIFICATION_BLOCK = "Notification Appliances"
+TELEPHONE_BLOCK = "Fire Telephone"
+BMS_BLOCK = "BMS Gateway"
+MODULES_BLOCK = "Modules"
+BACK_BOXES_BLOCK = "Back Boxes"
+OTHER_FIELD_BLOCK = "Other Field Devices"
+FIELD_BLOCKS = (INITIATING_BLOCK, NOTIFICATION_BLOCK, TELEPHONE_BLOCK, BMS_BLOCK, MODULES_BLOCK, BACK_BOXES_BLOCK, OTHER_FIELD_BLOCK)
+
+# (block, part-number prefixes, description words) -- the part number first, the wording when it has none.
+_FIELD_RULES: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
+    (BMS_BLOCK, ("FSB",), ("bms", "gateway", "communication bridge", "field server")),
+    (BACK_BOXES_BLOCK, ("TP434", "TP606", "27193", "GRSW", "757AWB"), ("back box", "backbox", "surface mount box", "electrical box", "wiring plate", "weatherproof box")),
+    (MODULES_BLOCK, ("SIGACT", "SIGACC", "SIGACR", "SIGAUM", "SIGAIO", "SIGAMCT", "SIGAMCR", "SIGAMM", "SIGAREL", "SIGARM", "SIGAUIO", "SIGAMAB"), ("module", "relay")),
+    (TELEPHONE_BLOCK, ("6830", "6833", "TCS"), ("telephone", "handset")),
+    (NOTIFICATION_BLOCK, ("G1", "G4", "GC", "757", "202", "WSTIA", "ESTS186", "SIGALED"), ("horn", "strobe", "speaker", "sounder", "bell", "remote alarm led", "beacon")),
+    (INITIATING_BLOCK, ("SIGAOSD", "SIGAHRD", "SIGAOSHD", "SIGAPS", "SIGAHFS", "SIGASB", "SIGAIB", "SIGALPS", "SIGA278", "SIGASD", "SDT", "STI", "EC3000", "SIGACO", "SIGAPHS"),
+     ("detector", "base", "pull station", "call point", "beam", "duct", "sampling", "stopper", "gasket", "heat", "smoke")),
+)
+
+
+def field_category(item) -> str:
+    """Which field-device block a BOQ line belongs to (FIELD_BLOCKS), by
+    its part number, else by its wording, else Other Field Devices."""
+    key = re.sub(r"[^A-Z0-9]", "", (item.catalog_no or "").upper())
+    text = (item.description or "").lower()
+    for block, prefixes, _words in _FIELD_RULES:
+        if key and any(key.startswith(prefix) for prefix in prefixes):
+            return block
+    for block, _prefixes, words in _FIELD_RULES:
+        if any(word in text for word in words):
+            return block
+    return OTHER_FIELD_BLOCK
+
 
 def schedule_blocks(project: Project, system_code: str | None = None) -> list[tuple[str, str, list]]:
     """The BOQ as the design sheet lays it out: a lettered block per assembly.
@@ -727,22 +762,55 @@ def schedule_blocks(project: Project, system_code: str | None = None) -> list[tu
             added.append(row)
     # The engineers' order, whatever the sheet's: the panel and its
     # equipment first, then the repeater panels, then the APS and BPS
-    # cabinets, and the field devices last -- the BOQ's own order within
-    # each; the materials added on the tab at the end.
+    # cabinets -- the BOQ's own order within each -- then the field devices
+    # by kind: initiating devices, notification appliances, fire telephone,
+    # BMS gateway, modules, back boxes (FIELD_BLOCKS), and the materials
+    # added on the tab at the end. The sheet's own field-device headings
+    # ("Field Devices", "Super Duct") are replaced by those kinds.
     from app.services.battery_calculation import classify_group
 
     rank = {"panel": 0, "repeater": 1, "aps": 2, "bps": 3}
-    order.sort(key=lambda key: rank.get(classify_group(None if key == UNGROUPED_BLOCK else key), 4))
+    cabinets = [key for key in order if classify_group(None if key == UNGROUPED_BLOCK else key) in rank]
+    cabinets.sort(key=lambda key: rank[classify_group(None if key == UNGROUPED_BLOCK else key)])
+    field: dict[str, list] = {}
+    if wanted != "FAS":
+        # The kinds are the fire alarm's; another system keeps the sheet's
+        # own blocks, cabinets first.
+        order = cabinets + [key for key in order if key not in cabinets]
+        if added:
+            order.append(ADDED_BLOCK)
+            grouped[ADDED_BLOCK] = added
+        return _lettered(order, grouped)
+    for key in list(order):
+        block_items = grouped[key]
+        if key in cabinets:
+            # A BMS gateway quoted with the panel is still the gateway's block.
+            grouped[key] = [i for i in block_items if field_category(i) != BMS_BLOCK]
+            for item in block_items:
+                if field_category(item) == BMS_BLOCK:
+                    field.setdefault(BMS_BLOCK, []).append(item)
+            continue
+        for item in block_items:
+            if not (item.catalog_no or "").strip():
+                continue   # the heading line of a field block names nothing to schedule
+            field.setdefault(field_category(item), []).append(item)
+    order = cabinets + [name for name in FIELD_BLOCKS if name in field]
+    grouped.update(field)
     if added:
         order.append(ADDED_BLOCK)
         grouped[ADDED_BLOCK] = added
+    return _lettered(order, grouped)
 
+
+def _lettered(order: list[str], grouped: dict[str, list]) -> list[tuple[str, str, list]]:
     blocks: list[tuple[str, str, list]] = []
     for index, key in enumerate(order):
         items = grouped[key]
+        if not items:
+            continue
         # The heading line describes the assembly; it is not one of its parts.
         parts = [i for i in items if (i.catalog_no or "").strip()]
-        letter = chr(ord("A") + index) if index < 26 else f"A{index}"
+        letter = chr(ord("A") + len(blocks)) if len(blocks) < 26 else f"A{len(blocks)}"
         blocks.append((letter, key, parts or items))
     return blocks
 
