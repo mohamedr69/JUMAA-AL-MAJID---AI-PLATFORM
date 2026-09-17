@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api, apiUrl } from "../lib/api";
-import { PROJECT_EDITOR_ROLES, type DatasheetFile, type FrcCables, type PartSuggestion, type ProposedMaterial, type ProposedMaterials } from "../lib/types";
+import { PROJECT_EDITOR_ROLES, type DatasheetFile, type FrcCables, type PartSuggestion, type ProposedMaterial, type ProposedMaterials, type Supplier } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
 /** The materials proposed for each system: the BOQ's parts as they are,
@@ -186,6 +186,81 @@ export function ProjectProposedMaterialsPage() {
   );
 }
 
+/** Who supplies a brand, from the database, beside the brand wherever it
+ * is chosen; an editor can correct it, for every project at once. */
+function SupplierCard({ brand, supplier, canEdit, onSaved, title }: { brand: string; supplier: Supplier | null; canEdit: boolean; onSaved: () => void; title?: string }) {
+  const [editing, setEditing] = useState(false);
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function startEdit() {
+    setValues({
+      supplier: supplier?.supplier ?? "", contact: supplier?.contact ?? "", phone: supplier?.phone ?? "", emails: supplier?.emails ?? "",
+      address: supplier?.address ?? "", map_url: supplier?.map_url ?? "", website: supplier?.website ?? "", notes: supplier?.notes ?? "",
+    });
+    setEditing(true);
+  }
+
+  async function save() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.put(`/suppliers/${encodeURIComponent(brand)}`, values);
+      setEditing(false);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not save the supplier");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const website = supplier?.website ? (supplier.website.startsWith("http") ? supplier.website : `https://${supplier.website}`) : null;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="text-sm font-semibold text-navy-900">{title ?? `${brand}: supplier`}</div>
+        {canEdit && !editing && <button onClick={startEdit} className="text-xs font-semibold text-brand-600 hover:underline">{supplier ? "Edit" : "Add supplier"}</button>}
+      </div>
+      {!editing && supplier && (
+        <div className="mt-2 space-y-1 text-sm text-gray-700">
+          <div className="font-semibold">{supplier.supplier}</div>
+          {supplier.contact && <div>{supplier.contact}</div>}
+          {supplier.phone && <div>m: <a className="text-brand-600 hover:underline" href={`tel:${supplier.phone.replace(/\s+/g, "")}`}>{supplier.phone}</a></div>}
+          {supplier.emails && (
+            <div>
+              e:{" "}
+              {supplier.emails.split(/[,;]\s*/).map((e, i) => (
+                <span key={e}>{i > 0 && ", "}<a className="text-brand-600 hover:underline" href={`mailto:${e}`}>{e}</a></span>
+              ))}
+            </div>
+          )}
+          {supplier.address && <div>{supplier.address}{supplier.map_url && <> · <a className="text-brand-600 hover:underline" href={supplier.map_url} target="_blank" rel="noreferrer">Map</a></>}</div>}
+          {website && <div>w: <a className="text-brand-600 hover:underline" href={website} target="_blank" rel="noreferrer">{supplier.website}</a></div>}
+          {supplier.notes && <div className="text-xs text-gray-500">{supplier.notes}</div>}
+        </div>
+      )}
+      {!editing && !supplier && <div className="mt-2 text-xs text-gray-500">No supplier on file for {brand} yet.</div>}
+      {editing && (
+        <div className="mt-2 grid gap-2">
+          {[["supplier", "Supplier"], ["contact", "Contact"], ["phone", "Phone"], ["emails", "Emails (comma separated)"], ["address", "Address"], ["map_url", "Map link"], ["website", "Website"], ["notes", "Notes"]].map(([key, label]) => (
+            <label key={key} className="block text-xs font-semibold text-gray-600">
+              {label}
+              <input className="input mt-1 w-full" value={values[key] ?? ""} onChange={(e) => setValues({ ...values, [key]: e.target.value })} />
+            </label>
+          ))}
+          {error && <div className="text-sm text-red-700">{error}</div>}
+          <div className="flex gap-2">
+            <button onClick={() => void save()} disabled={busy || !values.supplier?.trim()} className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-60">Save</button>
+            <button onClick={() => setEditing(false)} disabled={busy} className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-navy-900">Cancel</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** The fire-rated cables: the brand, then the size of each system's
  * cable. A size against the company's standard is not refused; the
  * warning the platform raises for it is shown beside it. */
@@ -237,7 +312,9 @@ function FrcCablesPanel({ projectId, canEdit, onSaved }: { projectId: number; ca
     <div className="mt-5 rounded-xl border border-purple-200 bg-purple-50/30 p-4">
       <div className="text-sm font-semibold text-navy-900">Fire-rated cables</div>
       <p className="mt-1 text-xs text-gray-600">Identify the cables: the brand first, then the size of each system's cable. A size against the standard is warned about, not refused.</p>
-      <label className="relative mt-3 block max-w-sm text-xs font-semibold text-gray-600">
+      <div className="mt-3 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+      <div>
+      <label className="relative block max-w-sm text-xs font-semibold text-gray-600">
         Brand
         <input
           className="input mt-1 w-full"
@@ -285,6 +362,14 @@ function FrcCablesPanel({ projectId, canEdit, onSaved }: { projectId: number; ca
         </div>
       )}
       {!data.brand && <div className="mt-3 text-xs text-gray-500">Choose the brand to set the cable sizes.</div>}
+      </div>
+      <div className="space-y-3">
+        {data.brand && <SupplierCard brand={data.brand} supplier={data.supplier ?? null} canEdit={canEdit} onSaved={() => void load()} />}
+        {data.monitoring.applies && data.monitoring.brand && (
+          <SupplierCard brand={data.monitoring.brand} supplier={data.monitoring.supplier ?? null} canEdit={canEdit} onSaved={() => void load()} title={`${data.monitoring.name}: supplier`} />
+        )}
+      </div>
+      </div>
       {data.monitoring.applies && (
         <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
           <div className="text-sm font-semibold text-navy-900">{data.monitoring.name}</div>

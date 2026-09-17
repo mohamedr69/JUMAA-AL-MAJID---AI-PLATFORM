@@ -432,7 +432,9 @@ def test_a_monitored_self_contained_system_has_its_monitoring_cable_taken_as_giv
                                                "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True},
                                                            {"name": "Emergency Light Monitoring", "brand": "MENVIER", "method_statement": True, "drawing": True}]}).json()["id"]
     cables = client.get(f"/projects/{project_id}/frc-cables").json()
-    assert cables["monitoring"] == {"applies": True, "name": "Emergency light monitoring cable", "brand": "RAMCRO", "brands": ["RAMCRO"], "size": "2Cx1.5mm"}
+    monitoring = cables["monitoring"]
+    assert (monitoring["applies"], monitoring["name"], monitoring["brand"], monitoring["brands"], monitoring["size"]) == (
+        True, "Emergency light monitoring cable", "RAMCRO", ["RAMCRO"], "2Cx1.5mm")
     # Nothing chosen yet, and the monitoring cable is already a material of the FRC system.
     items = [i for i in client.get(f"/projects/{project_id}/materials").json()["items"] if i["system_code"] == "FRC"]
     assert [(i["part_no"], i["manufacturer"], i["groups"][0]) for i in items] == [("FR 2C x 1.5 mm2", "RAMCRO", "Emergency light monitoring cable")]
@@ -448,3 +450,30 @@ def test_a_monitored_self_contained_system_has_its_monitoring_cable_taken_as_giv
                                           "systems": [{"name": "Central Battery System", "brand": "MENVIER", "method_statement": True, "drawing": True}]}).json()["id"]
     assert client.get(f"/projects/{other}/frc-cables").json()["monitoring"]["applies"] is False
     assert [i for i in client.get(f"/projects/{other}/materials").json()["items"] if i["system_code"] == "FRC"] == []
+
+
+def test_the_supplier_of_a_brand_is_on_file_for_every_project_and_shown_beside_the_brand(client, db_session):
+    from app.services import suppliers
+
+    suppliers.seed(db_session)
+    _login(client)
+    listed = {s["brand"]: s for s in client.get("/suppliers").json()}
+    assert listed["FIREGUARD"]["supplier"] == "AL RAYAN SECURITY AND SAFETY TRADING" and "sales1@alrayandxb.com" in listed["FIREGUARD"]["emails"]
+    assert listed["RAMCRO"]["contact"] == "Suresh K.S, Marketing Manager" and listed["RAMCRO"]["phone"] == "+971 55 5792971"
+
+    project_id = client.post("/projects", json={"ep_number": "30805", "project_name": "Titania", "design_sheets": [], "scope_of_work": "Full Package",
+                                               "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True},
+                                                           {"name": "Emergency Light Monitoring", "brand": "MENVIER", "method_statement": True, "drawing": True}]}).json()["id"]
+    cables = client.put(f"/projects/{project_id}/frc-cables", json={"brand": "FIREGUARD"}).json()
+    assert cables["supplier"]["supplier"] == "AL RAYAN SECURITY AND SAFETY TRADING" and cables["supplier"]["website"] == "alrayandxb.com"
+    assert cables["monitoring"]["supplier"]["supplier"] == "ubemirates" and cables["monitoring"]["supplier"]["emails"] == "suresh@ubemirates.com"
+    assert client.put(f"/projects/{project_id}/frc-cables", json={"brand": "SOLARTI"}).json()["supplier"] is None   # none on file yet
+
+    # An engineer's edit holds for every project; a seed never overwrites it.
+    changed = client.put("/suppliers/solarti", json={"supplier": "Some Trading LLC", "emails": "info@some.ae"})
+    assert changed.status_code == 200 and changed.json()["brand"] == "SOLARTI"
+    assert client.get(f"/projects/{project_id}/frc-cables").json()["supplier"]["supplier"] == "Some Trading LLC"
+    assert client.put("/suppliers/FIREGUARD", json={"supplier": "AL RAYAN SECURITY AND SAFETY TRADING", "phone": "+971 4 000 0000"}).json()["phone"] == "+971 4 000 0000"
+    assert suppliers.seed(db_session) == 0
+    assert client.get("/suppliers?brand=fireguard").json()[0]["phone"] == "+971 4 000 0000"
+    assert client.put("/suppliers/ACME", json={"supplier": "  "}).status_code == 422 or client.put("/suppliers/ACME", json={"supplier": "  "}).status_code == 400

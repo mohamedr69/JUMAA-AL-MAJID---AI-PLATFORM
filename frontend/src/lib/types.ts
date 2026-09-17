@@ -1708,12 +1708,28 @@ export interface FrcCable {
   warning: string | null;
 }
 
+/** Who supplies a brand (brand_suppliers), for every project. */
+export interface Supplier {
+  brand: string;
+  supplier: string;
+  contact?: string | null;
+  phone?: string | null;
+  emails?: string | null;
+  address?: string | null;
+  map_url?: string | null;
+  website?: string | null;
+  notes?: string | null;
+  updated_at?: string | null;
+}
+
 export interface FrcCables {
   brand: string | null;
   brands: string[];
   sizes: string[];
   cables: FrcCable[];
   /** The emergency light monitoring cable: only on a monitored self-contained system, brand and size given. */
-  monitoring: { applies: boolean; name: string; brand: string | null; brands: string[]; size: string | null };
+  monitoring: { applies: boolean; name: string; brand: string | null; brands: string[]; size: string | null; supplier?: Supplier | null };
+  /** Who supplies the chosen brand. */
+  supplier?: Supplier | null;
   updated_at: string | null;
 }

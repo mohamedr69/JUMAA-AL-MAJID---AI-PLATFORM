@@ -496,6 +496,28 @@ class ProjectFrcCables(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
 
 
+class BrandSupplier(Base):
+    """Who supplies a brand to the company -- the trading company, its
+    contacts, its address -- one row per brand, for every project: shown
+    beside the brand wherever it is chosen (the FRC cables), kept up to
+    date by the engineers."""
+
+    __tablename__ = "brand_suppliers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    brand: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    supplier: Mapped[str] = mapped_column(String(200), nullable=False)
+    contact: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    emails: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    map_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    website: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class PartDatasheetLink(Base):
     """Which datasheet in the company library documents a part whose number
     the library's file names do not carry -- a variant (NEXI300-3H-CGL-IPM

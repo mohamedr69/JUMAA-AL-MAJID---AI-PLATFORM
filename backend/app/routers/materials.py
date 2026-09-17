@@ -65,6 +65,71 @@ class FrcCableOut(BaseModel):
     warning: str | None
 
 
+class SupplierOut(BaseModel):
+    brand: str
+    supplier: str
+    contact: str | None = None
+    phone: str | None = None
+    emails: str | None = None
+    address: str | None = None
+    map_url: str | None = None
+    website: str | None = None
+    notes: str | None = None
+    updated_at: datetime | None = None
+
+
+class SupplierIn(BaseModel):
+    supplier: str = Field(min_length=1, max_length=200)
+    contact: str | None = Field(default=None, max_length=200)
+    phone: str | None = Field(default=None, max_length=64)
+    emails: str | None = Field(default=None, max_length=300)
+    address: str | None = Field(default=None, max_length=2000)
+    map_url: str | None = Field(default=None, max_length=500)
+    website: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=2000)
+
+
+def _supplier_out(row) -> SupplierOut | None:
+    if row is None:
+        return None
+    return SupplierOut(brand=row.brand, supplier=row.supplier, contact=row.contact, phone=row.phone, emails=row.emails,
+                       address=row.address, map_url=row.map_url, website=row.website, notes=row.notes, updated_at=row.updated_at)
+
+
+@router.get("/suppliers", response_model=list[SupplierOut])
+def list_suppliers(
+    brand: str | None = Query(default=None, max_length=64),
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[SupplierOut]:
+    """Who supplies each brand -- all of them, or the one asked for."""
+    from app.services import suppliers
+
+    if brand:
+        row = suppliers.get(db, brand)
+        return [_supplier_out(row)] if row else []
+    return [_supplier_out(r) for r in suppliers.all_rows(db)]
+
+
+@router.put("/suppliers/{brand}", response_model=SupplierOut)
+def save_supplier(
+    brand: str,
+    payload: SupplierIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> SupplierOut:
+    """Set a brand's supplier details, for every project."""
+    from app.services import suppliers
+
+    try:
+        row = suppliers.save(db, brand, payload.model_dump(), current_user.id)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    activity.record(db, current_user, "supplier.updated", f"Updated the supplier of {row.brand}: {row.supplier}",
+                    entity_type="supplier", detail=payload.model_dump())
+    return _supplier_out(row)
+
+
 class MonitoringCableOut(BaseModel):
     # Only on a monitored self-contained emergency light system.
     applies: bool
@@ -72,6 +137,7 @@ class MonitoringCableOut(BaseModel):
     brand: str | None
     brands: list[str]
     size: str | None
+    supplier: SupplierOut | None = None
 
 
 class FrcCablesOut(BaseModel):
@@ -80,6 +146,8 @@ class FrcCablesOut(BaseModel):
     sizes: list[str]
     cables: list[FrcCableOut]
     monitoring: MonitoringCableOut
+    # Who supplies the chosen brand (brand_suppliers), shown beside it.
+    supplier: SupplierOut | None = None
     updated_at: datetime | None
 
 
@@ -93,18 +161,21 @@ class FrcCablesIn(BaseModel):
     fire_telephone: str | None = Field(default=None, max_length=16)
 
 
-def _frc_out(row, project: Project) -> FrcCablesOut:
-    from app.services import frc_cables
+def _frc_out(row, project: Project, db: Session | None = None) -> FrcCablesOut:
+    from app.services import frc_cables, suppliers
 
     warnings = frc_cables.warnings_for(row)
     monitoring = frc_cables.monitoring_for(row, project)
+    supplier = _supplier_out(suppliers.get(db, row.brand)) if db is not None and row is not None and row.brand else None
+    monitoring_supplier = _supplier_out(suppliers.get(db, monitoring[0])) if db is not None and monitoring else None
     return FrcCablesOut(
         brand=row.brand if row else None, brands=list(frc_cables.BRANDS), sizes=list(frc_cables.SIZES),
         cables=[FrcCableOut(field=field, name=name, size=getattr(row, field, None) if row else None, standard=standard,
                             warning=warnings[field]) for field, name, standard, _w, _t in frc_cables.CABLES],
         monitoring=MonitoringCableOut(applies=monitoring is not None, name=frc_cables.MONITORING_NAME,
                                       brand=monitoring[0] if monitoring else None, brands=list(frc_cables.MONITORING_BRANDS),
-                                      size=monitoring[1] if monitoring else None),
+                                      size=monitoring[1] if monitoring else None, supplier=monitoring_supplier),
+        supplier=supplier,
         updated_at=row.updated_at if row else None)
 
 
@@ -119,7 +190,7 @@ def get_frc_cables(
     from app.services import frc_cables
 
     project = _get_project_or_404(db, project_id)
-    return _frc_out(frc_cables.get(db, project), project)
+    return _frc_out(frc_cables.get(db, project), project, db)
 
 
 @router.put("/projects/{project_id}/frc-cables", response_model=FrcCablesOut)
@@ -140,7 +211,7 @@ def save_frc_cables(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
     activity.record(db, current_user, "material.frc_cables", f"Set the fire-rated cables: {row.brand or 'no brand'}",
                     project=project, entity_type="material", detail={k: v for k, v in payload.model_dump().items()})
-    return _frc_out(row, project)
+    return _frc_out(row, project, db)
 
 
 class PartSuggestionOut(BaseModel):
