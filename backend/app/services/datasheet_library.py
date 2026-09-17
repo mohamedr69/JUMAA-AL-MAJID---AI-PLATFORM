@@ -397,10 +397,12 @@ class DatasheetLibrary:
         for path, entry in self._refresh().items():
             if entry.error:
                 continue
+            name = path.stem.upper()
             # "SIGA -UM.pdf" is the SIGA-UM sheet: a stray space in a file
-            # name is not a different part.
-            name = path.stem.upper().replace(" ", "")
-            by_name = bool(token.search(name) or base_token.search(name))
+            # name is not a different part -- but only the name test reads
+            # it closed up; the family test keeps "06- 4-NET" as written.
+            compact = name.replace(" ", "")
+            by_name = bool(token.search(name) or base_token.search(name) or token.search(compact) or base_token.search(compact))
             # A datasheet named for the part's family: 4-NET-TP is in
             # "4-NET.pdf", 4-AUDTELS in "4-AUDTEL.pdf" -- ahead of the CPU
             # datasheet that merely lists them among its accessories.

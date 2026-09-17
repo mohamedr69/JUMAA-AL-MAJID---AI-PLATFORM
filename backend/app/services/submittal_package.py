@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import io
 import os
+import dataclasses
 import re
 import shutil
 import tempfile
@@ -686,7 +687,30 @@ MODULES_BLOCK = "Modules"
 BACK_BOXES_BLOCK = "Back Boxes"
 OTHER_FIELD_BLOCK = "Other Field Devices"
 FIELD_BLOCKS = (INITIATING_BLOCK, NOTIFICATION_BLOCK, TELEPHONE_BLOCK, BMS_BLOCK, MODULES_BLOCK, BACK_BOXES_BLOCK, OTHER_FIELD_BLOCK)
-BATTERIES_BLOCK = "Batteries (from the battery calculation)"
+
+# The blocks of a monitored self-contained emergency light system's schedule.
+ELS_PANEL_BLOCK = "Emergency Light Panel"
+ELS_LIGHT_BLOCK = "Emergency Light"
+ELS_EXIT_BLOCK = "Exit Light"
+ELS_BLOCKS = (ELS_PANEL_BLOCK, ELS_LIGHT_BLOCK, ELS_EXIT_BLOCK)
+_ELS_RULES: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
+    (ELS_PANEL_BLOCK, ("CTR",), ("controller", "panel", "web compact", "monitoring unit", "gateway")),
+    (ELS_EXIT_BLOCK, (), ("exit",)),
+)
+
+
+def els_category(item) -> str:
+    """Which block of the emergency lighting schedule a line belongs to:
+    the controllers, the exit signs, else the luminaires."""
+    key = re.sub(r"[^A-Z0-9]", "", (item.catalog_no or "").upper())
+    text = (item.description or "").lower()
+    for block, prefixes, _words in _ELS_RULES:
+        if key and any(key.startswith(prefix) for prefix in prefixes):
+            return block
+    for block, _prefixes, words in _ELS_RULES:
+        if any(word in text for word in words):
+            return block
+    return ELS_LIGHT_BLOCK
 
 # (block, part-number prefixes, description words) -- the part number first, the wording when it has none.
 _FIELD_RULES: tuple[tuple[str, tuple[str, ...], tuple[str, ...]], ...] = (
@@ -774,9 +798,23 @@ def schedule_blocks(project: Project, system_code: str | None = None) -> list[tu
     cabinets = [key for key in order if classify_group(None if key == UNGROUPED_BLOCK else key) in rank]
     cabinets.sort(key=lambda key: rank[classify_group(None if key == UNGROUPED_BLOCK else key)])
     field: dict[str, list] = {}
+    if wanted == "ELS":
+        # A monitored self-contained emergency light system: the panel
+        # (controllers), the emergency lights, the exit lights.
+        lit: dict[str, list] = {}
+        for key in order:
+            for item in grouped[key]:
+                if (item.catalog_no or "").strip():
+                    lit.setdefault(els_category(item), []).append(item)
+        order = [name for name in ELS_BLOCKS if name in lit]
+        grouped = dict(lit)
+        if added:
+            order.append(ADDED_BLOCK)
+            grouped[ADDED_BLOCK] = added
+        return _lettered(order, grouped)
     if wanted != "FAS":
-        # The kinds are the fire alarm's; another system keeps the sheet's
-        # own blocks, cabinets first.
+        # The fire alarm's kinds do not apply; another system keeps the
+        # sheet's own blocks, cabinets first.
         order = cabinets + [key for key in order if key not in cabinets]
         if added:
             order.append(ADDED_BLOCK)
@@ -797,15 +835,28 @@ def schedule_blocks(project: Project, system_code: str | None = None) -> list[tu
             field.setdefault(field_category(item), []).append(item)
     order = cabinets + [name for name in FIELD_BLOCKS if name in field]
     grouped.update(field)
-    # The batteries the calculation selects for the panels and cabinets,
-    # after the cabinets they serve and before the field devices.
+    # The batteries the calculation selects take the place, in each
+    # cabinet's block, of the battery the BOQ quoted by capacity: panel
+    # one's "12V65A" is scheduled as ES65-12.
     if session is not None:
         from app.services import battery_materials
 
-        batteries = battery_materials.selected_batteries(session, project)
+        batteries = battery_materials.selected_batteries(session, project, per_panel=True)
         if batteries:
-            order.insert(len(cabinets), BATTERIES_BLOCK)
-            grouped[BATTERIES_BLOCK] = batteries
+            for key in cabinets:
+                chosen = [b for b in batteries if key in b.headings]
+                if not chosen:
+                    continue
+                kept = [i for i in grouped[key] if not battery_materials.is_battery_line(i)]
+                merged: dict[str, battery_materials.SelectedBattery] = {}
+                for battery in chosen:
+                    entry = merged.get(battery.catalog_no.upper())
+                    if entry is None:
+                        merged[battery.catalog_no.upper()] = dataclasses.replace(battery, panels=list(battery.panels), headings=[key])
+                    else:
+                        entry.quantity += battery.quantity
+                        entry.panels += [p for p in battery.panels if p not in entry.panels]
+                grouped[key] = kept + list(merged.values())
     if added:
         order.append(ADDED_BLOCK)
         grouped[ADDED_BLOCK] = added

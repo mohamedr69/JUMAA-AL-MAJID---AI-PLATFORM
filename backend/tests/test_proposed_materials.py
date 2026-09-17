@@ -315,7 +315,32 @@ def test_the_batteries_the_calculation_selects_are_materials_and_on_the_schedule
     battery = next(i for i in items if i["source"] == "battery")
     assert battery["part_no"] == chosen and battery["system_code"] == "FAS" and battery["quantity"] == panel["selected"][0]["units"]
     assert battery["groups"][0].startswith("Battery calculation: ")
+    assert "12V10A" not in [i["part_no"] for i in items]          # the BOQ's battery gave way to the selection
 
+    # On the schedule the selection stands where the BOQ's battery was: in the panel's own block.
     blocks = {title: [i.catalog_no for i in lines] for _l, title, lines in schedule_blocks(db_session.get(Project, project_id), "FAS")}
-    assert list(blocks) == [heading, "Batteries (from the battery calculation)", "Initiating Devices"]
-    assert blocks["Batteries (from the battery calculation)"] == [chosen]
+    assert list(blocks) == [heading, "Initiating Devices"]
+    assert blocks[heading] == ["4-CPU", chosen]
+
+
+def test_a_self_contained_emergency_light_schedule_is_panel_lights_and_exit_lights(client, db_session):
+    from app.models import Project
+    from app.services.submittal_package import schedule_blocks
+
+    _login(client)
+    project_id = client.post("/projects", json={"ep_number": "30798", "project_name": "Titania", "design_sheets": [],
+                                               "systems": [{"name": "Emergency Light Monitoring", "brand": "MENVIER", "method_statement": True, "drawing": True}]}).json()["id"]
+    line = lambda part, desc: {"system_code": "ELS", "group_heading": "Emergency Lighting", "catalog_no": part, "description": desc,  # noqa: E731
+                               "quantity": "1", "manufacturer": "MENVIER"}
+    client.put(f"/projects/{project_id}/boq", json=[
+        line("SL2-42D3D-CGL-M+SL23I", "Wall Mounted Exit, 20 metre viewing distance"),
+        line("NEXI300-3H-CGL-IPM", "Surface mounted Nexi Emergency Light, IP65"),
+        line("CTR400CGL2KS-M", "Menvier Brand CGLine+ Web Compact Controller"),
+        line("RT2RHEO200CGL3HIPM", "RTECH MR HEO CGL+ 200 MNM 3H IP65"),
+        line("SL2NM65D3-M", "Surface Emergency Light - SELF CONTAINED"),
+    ])
+    blocks = {title: [i.catalog_no for i in lines] for _l, title, lines in schedule_blocks(db_session.get(Project, project_id), "ELS")}
+    assert list(blocks) == ["Emergency Light Panel", "Emergency Light", "Exit Light"]
+    assert blocks["Emergency Light Panel"] == ["CTR400CGL2KS-M"]
+    assert blocks["Emergency Light"] == ["NEXI300-3H-CGL-IPM", "RT2RHEO200CGL3HIPM", "SL2NM65D3-M"]
+    assert blocks["Exit Light"] == ["SL2-42D3D-CGL-M+SL23I"]

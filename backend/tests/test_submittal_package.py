@@ -632,7 +632,7 @@ def test_only_the_submittal_s_system_is_scheduled(client, db_session, tmp_path):
     project = _db_project(db_session, project_id)
 
     assert [t for _l, t, _i in schedule_blocks(project, "FAS")] == ["Panel"]
-    assert [t for _l, t, _i in schedule_blocks(project, "EML")] == ["Luminaires"]
+    assert [t for _l, t, _i in schedule_blocks(project, "EML")] == ["Emergency Light"]   # a self-contained system's luminaires block
 
 
 def test_the_schedule_page_carries_the_blocks_and_part_numbers(client, db_session, tmp_path):

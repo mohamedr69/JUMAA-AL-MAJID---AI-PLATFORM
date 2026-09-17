@@ -94,7 +94,12 @@ def list_proposed(
     from app.services import battery_materials
 
     libraries = get_libraries()
-    for battery in battery_materials.selected_batteries(db, project):
+    selected = battery_materials.selected_batteries(db, project)
+    if selected:
+        # The calculation's selection replaces the batteries the BOQ quoted
+        # by capacity: panel one's "12V65A" is ES65-12 now.
+        items = [i for i in items if not (i.source == "boq" and (i.system_code or "") == "FAS" and battery_materials.is_battery_line(i))]
+    for battery in selected:
         item = ProposedMaterialOut(system_code="FAS", part_no=battery.catalog_no, description=battery.description,
                                    manufacturer=battery.manufacturer, quantity=battery.quantity or None,
                                    groups=[f"Battery calculation: {', '.join(battery.panels)}"], source="battery",
