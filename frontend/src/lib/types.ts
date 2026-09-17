@@ -1713,5 +1713,7 @@ export interface FrcCables {
   brands: string[];
   sizes: string[];
   cables: FrcCable[];
+  /** The emergency light monitoring cable: only on a monitored self-contained system, brand and size given. */
+  monitoring: { applies: boolean; name: string; brand: string | null; brands: string[]; size: string | null };
   updated_at: string | null;
 }

@@ -65,30 +65,46 @@ class FrcCableOut(BaseModel):
     warning: str | None
 
 
+class MonitoringCableOut(BaseModel):
+    # Only on a monitored self-contained emergency light system.
+    applies: bool
+    name: str
+    brand: str | None
+    brands: list[str]
+    size: str | None
+
+
 class FrcCablesOut(BaseModel):
     brand: str | None
     brands: list[str]
     sizes: list[str]
     cables: list[FrcCableOut]
+    monitoring: MonitoringCableOut
     updated_at: datetime | None
 
 
 class FrcCablesIn(BaseModel):
     brand: str | None = Field(default=None, max_length=64)
+    monitoring_brand: str | None = Field(default=None, max_length=64)
+    monitoring_size: str | None = Field(default=None, max_length=16)
     fire_alarm_loop: str | None = Field(default=None, max_length=16)
     voice_evacuation: str | None = Field(default=None, max_length=16)
     power_24vdc: str | None = Field(default=None, max_length=16)
     fire_telephone: str | None = Field(default=None, max_length=16)
 
 
-def _frc_out(row) -> FrcCablesOut:
+def _frc_out(row, project: Project) -> FrcCablesOut:
     from app.services import frc_cables
 
     warnings = frc_cables.warnings_for(row)
+    monitoring = frc_cables.monitoring_for(row, project)
     return FrcCablesOut(
         brand=row.brand if row else None, brands=list(frc_cables.BRANDS), sizes=list(frc_cables.SIZES),
         cables=[FrcCableOut(field=field, name=name, size=getattr(row, field, None) if row else None, standard=standard,
                             warning=warnings[field]) for field, name, standard, _w, _t in frc_cables.CABLES],
+        monitoring=MonitoringCableOut(applies=monitoring is not None, name=frc_cables.MONITORING_NAME,
+                                      brand=monitoring[0] if monitoring else None, brands=list(frc_cables.MONITORING_BRANDS),
+                                      size=monitoring[1] if monitoring else None),
         updated_at=row.updated_at if row else None)
 
 
@@ -103,7 +119,7 @@ def get_frc_cables(
     from app.services import frc_cables
 
     project = _get_project_or_404(db, project_id)
-    return _frc_out(frc_cables.get(db, project))
+    return _frc_out(frc_cables.get(db, project), project)
 
 
 @router.put("/projects/{project_id}/frc-cables", response_model=FrcCablesOut)
@@ -116,14 +132,15 @@ def save_frc_cables(
     from app.services import frc_cables
 
     project = _get_project_or_404(db, project_id)
-    sizes = {k: v for k, v in payload.model_dump().items() if k != "brand"}
+    sizes = {k: v for k, v in payload.model_dump().items() if k not in ("brand", "monitoring_brand", "monitoring_size")}
     try:
-        row = frc_cables.save(db, project, current_user.id, brand=payload.brand, sizes=sizes)
+        row = frc_cables.save(db, project, current_user.id, brand=payload.brand, sizes=sizes,
+                              monitoring_brand=payload.monitoring_brand, monitoring_size=payload.monitoring_size)
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(exc))
     activity.record(db, current_user, "material.frc_cables", f"Set the fire-rated cables: {row.brand or 'no brand'}",
                     project=project, entity_type="material", detail={k: v for k, v in payload.model_dump().items()})
-    return _frc_out(row)
+    return _frc_out(row, project)
 
 
 class PartSuggestionOut(BaseModel):

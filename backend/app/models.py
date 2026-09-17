@@ -488,6 +488,10 @@ class ProjectFrcCables(Base):
     voice_evacuation: Mapped[str | None] = mapped_column(String(16), nullable=True)
     power_24vdc: Mapped[str | None] = mapped_column(String(16), nullable=True)
     fire_telephone: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # The emergency light monitoring cable, on a monitored self-contained
+    # system: its brand (RAMCRO, the only one for now) and size (one size).
+    monitoring_brand: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    monitoring_size: Mapped[str | None] = mapped_column(String(16), nullable=True)
     updated_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
 

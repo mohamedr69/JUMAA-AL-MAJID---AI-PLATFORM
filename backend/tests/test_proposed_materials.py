@@ -421,3 +421,30 @@ def test_the_schedule_prints_the_whole_part_number(client, db_session):
     pdf = client.get(f"/projects/{project_id}/materials/schedule.pdf?system_code=ELS").content
     text = "\n".join(page.get_text() for page in pymupdf.open(stream=pdf, filetype="pdf"))
     assert "SL2-65D3D-CGL-M +SL2CD +SL2DC3I" in text
+
+
+def test_a_monitored_self_contained_system_has_its_monitoring_cable_taken_as_given(client, db_session):
+    from app.models import Project
+    from app.services.submittal_package import schedule_blocks
+
+    _login(client)
+    project_id = client.post("/projects", json={"ep_number": "30803", "project_name": "Titania", "design_sheets": [], "scope_of_work": "Full Package",
+                                               "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": True},
+                                                           {"name": "Emergency Light Monitoring", "brand": "MENVIER", "method_statement": True, "drawing": True}]}).json()["id"]
+    cables = client.get(f"/projects/{project_id}/frc-cables").json()
+    assert cables["monitoring"] == {"applies": True, "name": "Emergency light monitoring cable", "brand": "RAMCRO", "brands": ["RAMCRO"], "size": "2Cx1.5mm"}
+    # Nothing chosen yet, and the monitoring cable is already a material of the FRC system.
+    items = [i for i in client.get(f"/projects/{project_id}/materials").json()["items"] if i["system_code"] == "FRC"]
+    assert [(i["part_no"], i["manufacturer"], i["groups"][0]) for i in items] == [("FR 2C x 1.5 mm2", "RAMCRO", "Emergency light monitoring cable")]
+    blocks = {title: [(l.catalog_no, l.manufacturer) for l in lines] for _l, title, lines in schedule_blocks(db_session.get(Project, project_id), "FRC")}
+    assert blocks == {"Fire Rated Cables": [("FR 2C x 1.5 mm2", "RAMCRO")]}
+    # Another brand or size is refused: there is one of each.
+    assert client.put(f"/projects/{project_id}/frc-cables", json={"monitoring_brand": "ACME"}).status_code == 400
+    assert client.put(f"/projects/{project_id}/frc-cables", json={"monitoring_size": "2Cx2.5mm"}).status_code == 400
+    assert client.put(f"/projects/{project_id}/frc-cables", json={"brand": "SOLARTI", "monitoring_brand": "ramcro"}).json()["monitoring"]["brand"] == "RAMCRO"
+
+    # A project with a central battery system, or none, has no monitoring cable.
+    other = client.post("/projects", json={"ep_number": "30804", "project_name": "Other", "design_sheets": [], "scope_of_work": "Full Package",
+                                          "systems": [{"name": "Central Battery System", "brand": "MENVIER", "method_statement": True, "drawing": True}]}).json()["id"]
+    assert client.get(f"/projects/{other}/frc-cables").json()["monitoring"]["applies"] is False
+    assert [i for i in client.get(f"/projects/{other}/materials").json()["items"] if i["system_code"] == "FRC"] == []

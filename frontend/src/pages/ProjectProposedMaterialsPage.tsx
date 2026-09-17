@@ -285,6 +285,17 @@ function FrcCablesPanel({ projectId, canEdit, onSaved }: { projectId: number; ca
         </div>
       )}
       {!data.brand && <div className="mt-3 text-xs text-gray-500">Choose the brand to set the cable sizes.</div>}
+      {data.monitoring.applies && (
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white p-3">
+          <div className="text-sm font-semibold text-navy-900">{data.monitoring.name}</div>
+          <div className="mt-1 text-xs text-gray-500">For the monitored self-contained emergency light system. One brand and one size for now, taken as given.</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+            <span className="rounded-lg border border-brand-600 bg-brand-600 px-3 py-1.5 font-semibold text-white">{data.monitoring.brand}</span>
+            <span className="rounded-lg border border-brand-600 bg-brand-600 px-3 py-1.5 font-semibold text-white">{sizeLabel(data.monitoring.size ?? "")}</span>
+            <span className="text-xs text-gray-500">selected automatically</span>
+          </div>
+        </div>
+      )}
       {error && <div className="mt-2 text-sm text-red-700">{error}</div>}
     </div>
   );
