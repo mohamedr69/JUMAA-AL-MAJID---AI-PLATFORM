@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ApiError, api } from "../lib/api";
-import { ROLE_LABELS, type Account, type ActivityEvent, type ActivityPage } from "../lib/types";
+import { ROLE_LABELS, type Account, type ActivityEvent, type ActivityPage, type DataLocation } from "../lib/types";
 
 /** The API sends naive UTC; without a zone the browser would read it as
  * local time. */
@@ -190,7 +190,53 @@ function Overview({ account }: { account: Account }) {
           <EventTable events={account.activity.slice(0, 10)} />
         </Card>
       </div>
+      <div className="mt-6">
+        <h2 className="mb-2 text-sm font-semibold text-navy-900">This PC&apos;s data</h2>
+        <DataLocationCard />
+      </div>
     </div>
+  );
+}
+
+/** Which database this PC is working from. Two PCs each keeping their own
+ * show two different lists of projects, and this is where that is seen. */
+function DataLocationCard() {
+  const [data, setData] = useState<DataLocation | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get<DataLocation>("/data-location")
+      .then(setData)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Could not read the data location"));
+  }, []);
+
+  if (error) return <Card><p className="text-sm text-red-700">{error}</p></Card>;
+  if (!data) return <Card><p className="text-sm text-gray-400">Reading...</p></Card>;
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={`rounded-md px-2 py-0.5 text-xs font-semibold ${data.shared ? "bg-green-50 text-green-700" : "bg-amber-50 text-amber-800"}`}>
+          {data.shared ? "Shared folder" : "This PC only"}
+        </span>
+        <span className="text-sm text-navy-900">
+          {data.projects} project{data.projects === 1 ? "" : "s"} · {data.users} user{data.users === 1 ? "" : "s"} · {data.machine}
+        </span>
+      </div>
+      <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-[auto_1fr]">
+        <dt className="text-gray-500">Database</dt>
+        <dd className="break-all text-navy-900">{data.database}</dd>
+        {data.data_root && (
+          <>
+            <dt className="text-gray-500">Data folder</dt>
+            <dd className="break-all text-navy-900">{data.data_root}</dd>
+          </>
+        )}
+        <dt className="text-gray-500">Uploads</dt>
+        <dd className="break-all text-gray-700">{data.uploads}</dd>
+      </dl>
+      <p className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">{data.advice}</p>
+    </Card>
   );
 }
 

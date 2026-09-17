@@ -1767,3 +1767,19 @@ export interface FloorBoq {
   updated_at: string | null;
   converter: string | null;
 }
+
+
+/** Where this PC keeps the platform's data (GET /data-location): the
+ * database in use, whether it is a folder shared between PCs, and what it
+ * holds. */
+export interface DataLocation {
+  machine: string;
+  database: string;
+  shared: boolean;
+  data_root: string | null;
+  uploads: string;
+  backups: string | null;
+  projects: number;
+  users: number;
+  advice: string;
+}

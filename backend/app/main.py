@@ -194,6 +194,10 @@ from app.routers import floor_boq as floor_boq_router  # noqa: E402
 
 app.include_router(floor_boq_router.router)
 
+from app.routers import data_location as data_location_router  # noqa: E402
+
+app.include_router(data_location_router.router)
+
 
 @app.get("/health")
 def health() -> dict:
