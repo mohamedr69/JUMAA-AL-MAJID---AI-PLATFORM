@@ -62,7 +62,16 @@ DESIGN_SHEET_EXTENSIONS = (".pdf", ".xlsx", ".xls")
 # new real filenames turn up. "Design.pdf" with no code at all is left
 # unlabelled here; the caller may settle it from the DRF (see
 # `infer_single_system`).
-SYSTEM_CODE_RE = re.compile(r"\b(FAS|ELS|EML|PAVA|PA|VA|VAS|CBS|VES|VE|NAC)\b", re.IGNORECASE)
+# Every code the platform keys on and every spelling it knows for one
+# (app.services.system_rules.ALIASES: EML, ELM, CBS, EL for emergency
+# lighting; FA, FT for the fire alarm; PA, VA for PAVA ...), longest first
+# so "PAVA" is not read as "PA". One table, so a spelling added there is
+# recognised on a filename too -- EP-30880's "ELM Design.pdf" was left
+# unassigned by a list written here by hand that lacked ELM.
+SYSTEM_CODE_RE = re.compile(
+    r"\b(" + "|".join(sorted({*system_rules.CODE_ORDER, *system_rules.ALIASES, "NAC"}, key=lambda c: (-len(c), c))) + r")\b",
+    re.IGNORECASE,
+)
 
 SYSTEM_CODE_ALIASES: dict[str, str] = system_rules.ALIASES
 

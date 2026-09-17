@@ -266,3 +266,24 @@ def test_walk_permission_error_is_collected_not_raised(tmp_path, monkeypatch):
     assert matches == []
     assert len(errors) == 1
     assert "Permission denied" in errors[0]
+
+
+def test_every_spelling_of_a_system_the_platform_knows_is_read_off_a_design_sheet_name():
+    """EP-30880 files "EP-30880 ELM Design.pdf": ELM (emergency light
+    monitoring) is ELS, as the shared alias table says, so the sheet is not
+    left unassigned."""
+    from app.services.ep_resolver import SYSTEM_CODE_RE, canonical_system_code
+
+    def guess(name):
+        match = SYSTEM_CODE_RE.search(name)
+        return canonical_system_code(match.group(1)) if match else None
+
+    assert guess("EP-30880 ELM Design.pdf") == "ELS"
+    assert guess("EP-30880 EML Design.pdf") == "ELS"
+    assert guess("EP-30880 CBS Design.pdf") == "ELS"
+    assert guess("EP-30880 EL Design.pdf") == "ELS"
+    assert guess("EP-30880 FAS Design.pdf") == "FAS"
+    assert guess("EP-30880 FA Design.pdf") == "FAS"
+    assert guess("EP-30880 PAVA Design.pdf") == "PAVA"
+    assert guess("EP-30880 VE Design.pdf") == "VES"
+    assert guess("EP-30880 Design.pdf") is None
