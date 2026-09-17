@@ -673,6 +673,16 @@ def _brand_of(project: Project, system_code: str | None) -> str | None:
     return carried.pop() if len(carried) == 1 else None
 
 
+def _battery_calculation_out(project: Project, system_code: str | None) -> dict:
+    """Whether this system's submittal encloses a battery calculation, why
+    not, and -- only when one is coming -- the note the page shows. A system
+    that has none by nature says nothing: its section is not in the index,
+    so there is nothing for the engineer to do about it."""
+    applies, reason = system_rules.battery_calculation_applies(project, system_code)
+    return {"applies": applies, "reason": reason,
+            "note": reason if reason == system_rules.CENTRAL_BATTERY_PENDING else None}
+
+
 def _plan_out(project: Project, plan: PackagePlan, system_code: str | None) -> PackagePlanOut:
     return PackagePlanOut(
         sections=[
@@ -694,7 +704,7 @@ def _plan_out(project: Project, plan: PackagePlan, system_code: str | None) -> P
         library_path=plan.library_path,
         system_code=system_code,
         warnings=plan.warnings,
-        battery_calculation=dict(zip(("applies", "reason"), system_rules.battery_calculation_applies(project, system_code))),
+        battery_calculation=_battery_calculation_out(project, system_code),
     )
 
 

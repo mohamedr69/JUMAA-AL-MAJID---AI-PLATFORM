@@ -48,6 +48,11 @@ SELF_CONTAINED_ROW = "Emergency Light Monitoring"
 CENTRAL_BATTERY_ROW = "Central Battery System"
 EMERGENCY_LIGHTING_ROWS = (CENTRAL_BATTERY_ROW, SELF_CONTAINED_ROW)
 SELF_CONTAINED, CENTRAL_BATTERY = "self_contained", "central_battery"
+# The one reason worth telling the engineer: the calculation is coming.
+# A system that never has one (the fire-rated cables, a monitored
+# self-contained emergency light system) says nothing; its section is
+# simply not in the index.
+CENTRAL_BATTERY_PENDING = "The central battery system's battery calculation is not built yet."
 ELS_KIND_NAMES = {SELF_CONTAINED: "Monitored Self-Contained Emergency Light System",
                   CENTRAL_BATTERY: "Central Battery System"}
 BASE_ROWS: dict[str, tuple[str, ...]] = {
@@ -170,7 +175,7 @@ def battery_calculation_applies(project, system_code: str | None) -> tuple[bool,
         if kinds == {SELF_CONTAINED}:
             return False, "A monitored self-contained emergency light system has no battery calculation: every luminaire carries its own battery."
         if CENTRAL_BATTERY in kinds:
-            return False, "The central battery system's battery calculation is not built yet."
+            return False, CENTRAL_BATTERY_PENDING
         return False, "Emergency lighting has no battery calculation on this project."
     return False, f"{CODE_NAMES.get(code or '', code or 'This system')} has no battery calculation."
 

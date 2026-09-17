@@ -58,6 +58,16 @@ def test_the_package_plan_offers_no_battery_section_for_a_self_contained_system(
     lighting = client.get(f"/projects/{project_id}/submittal/package/plan?system_code=ELS").json()
     assert lighting["battery_calculation"]["applies"] is False and "self-contained" in lighting["battery_calculation"]["reason"]
     assert all(s["number"] != 6 for s in lighting["sections"])          # no checkbox to tick
+    # A system that never has a battery calculation says nothing on the page.
+    assert lighting["battery_calculation"]["note"] is None and fire["battery_calculation"]["note"] is None
+
+    # A central battery system's calculation is coming: that one is worth saying.
+    central = client.post("/projects", json={
+        "ep_number": "30807", "project_name": "Other", "design_sheets": [],
+        "systems": [{"name": "Central Battery System", "brand": "MENVIER", "method_statement": True, "drawing": True}],
+    }).json()["id"]
+    note = client.get(f"/projects/{central}/submittal/package/plan?system_code=ELS").json()["battery_calculation"]
+    assert note["applies"] is False and note["note"] == "The central battery system's battery calculation is not built yet."
 
 
 def test_the_part_catalogue_knows_every_number_on_file_for_a_brand_and_completes_it(client, db_session, tmp_path, monkeypatch):
@@ -542,7 +552,8 @@ def test_the_fire_rated_cable_submittal_follows_its_own_index_from_the_brands_fo
     assert [d["name"] for d in by_number[9]["documents"]] == ["FIREGUARD_AUTH.pdf"]
     assert [d["name"] for d in by_number[10]["documents"]] == ["FIREGUARD_PREVIOUS_APPROVAL.pdf"]
     assert [d["name"] for d in by_number[11]["documents"]] == ["Warranty Certificate"]
-    assert plan["battery_calculation"]["applies"] is False and 6 in by_number    # 6 is the datasheets here, never a battery section
+    assert plan["battery_calculation"]["applies"] is False and plan["battery_calculation"]["note"] is None
+    assert 6 in by_number    # 6 is the datasheets here, never a battery section
 
     # The warranty is worded for the cable, its brands the cable's.
     project = db_session.get(Project, project_id)

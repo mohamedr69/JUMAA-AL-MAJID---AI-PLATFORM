@@ -228,6 +228,10 @@ export function SubmittalPackageBuilder({
               </p>
             )}
 
+            {!loading && plan?.battery_calculation?.note && (
+              <p className="mb-4 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">{plan.battery_calculation.note}</p>
+            )}
+
             {!loading && plan && (
               <div className="max-h-[42vh] overflow-y-auto rounded-lg border border-gray-200">
                 <table className="w-full text-left text-sm">
@@ -239,11 +243,6 @@ export function SubmittalPackageBuilder({
                     </tr>
                   </thead>
                   <tbody>
-                    {plan.battery_calculation && !plan.battery_calculation.applies && (
-                      <p className="col-span-full rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                        No battery calculation section for this system: {plan.battery_calculation.reason}
-                      </p>
-                    )}
                     {plan.sections.map((section) => (
                       <tr key={section.number} className="border-b border-gray-100 last:border-0">
                         <td className="px-3 py-2.5">

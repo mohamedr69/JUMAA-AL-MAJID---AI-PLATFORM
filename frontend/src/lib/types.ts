@@ -1322,7 +1322,9 @@ export interface PackageSection {
 
 export interface PackagePlan {
   /** Whether this system's submittal encloses a battery calculation (the section is left out when not), and why not. */
-  battery_calculation?: { applies: boolean; reason: string | null } | null;
+  /** `note` is set only when a battery calculation is coming for this system (the central battery
+   *  system); a system that never has one says nothing. */
+  battery_calculation?: { applies: boolean; reason: string | null; note?: string | null } | null;
   sections: PackageSection[];
   library_found: boolean;
   library_path: string | null;
