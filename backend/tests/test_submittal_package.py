@@ -1160,3 +1160,50 @@ def test_a_built_package_is_filed_in_the_project_folder_and_entered_in_the_regis
                        json={"sections": [1, 8], "system_code": "FAS", "revision": "R2", "file": False})
     assert resp.status_code == 200 and "X-Package-Filed" not in resp.headers
     assert not (root / "02- Material Submittals" / "FA" / "R2").exists()
+
+
+def test_a_model_with_a_slash_or_a_wildcard_digit_is_the_part_the_boq_quotes(client, db_session, tmp_path):
+    """"APS6A/230" is one part number, not APS6A and 230; "757-XA-SS70" on
+    the sheet covers 757-3A-SS70 and 757-7A-SS70. Both used to come back
+    blank on the package although the sheet had them."""
+    from app.services.submittal_package import read_origins
+
+    library = _library(tmp_path)
+    _coo_sheet(tmp_path, [
+        ["", "APS6A/230", "Auxiliary power supply, 6Amps, 230V", "", "CHINA", "NETHERLAND"],
+        ["", "757-XA-SS70", "Speaker/strobe", "", "CHINA", "NETHERLAND"],
+        ["", "STI-1230/STI-3002", "Stopper/ Gasket", "", "USA", "NETHERLAND"],
+    ])
+
+    origins = read_origins(library)
+
+    assert origins["APS6A230"] == ("CHINA", "NETHERLAND")
+    assert origins["7573ASS70"] == ("CHINA", "NETHERLAND") and origins["7577ASS70"] == ("CHINA", "NETHERLAND")
+    assert origins["STI1230"] == ("USA", "NETHERLAND") and origins["STI3002"] == ("USA", "NETHERLAND")   # the pair still
+
+
+def test_a_scanned_spelling_of_a_part_finds_its_origin_under_the_catalogue_s(client, db_session, tmp_path):
+    """A BOQ line still holding the scan's "SIGA-AASO" (S for 5, O for 0)
+    gets SIGA-AA50's origin; a part the sheet does not know stays blank."""
+    from app.services.submittal_package import build_country_of_origin
+
+    _login_admin(client)
+    line = lambda part, desc: {"system_code": "FAS", "group_heading": PANEL, "catalog_no": part,  # noqa: E731
+                               "description": desc, "quantity": "1", "manufacturer": "EDWARDS"}
+    project = _db_project(db_session, _project(client, lines=[
+        line("SIGA-AASO", "Intelligent Audio Amplifier - 50 Watt"),
+        line("3-CABSB", "Backbox, black. Supports five Local Rail Modules."),
+        line("4-XYZ", "Mystery module"),
+    ]))
+    library = _library(tmp_path)
+    _coo_sheet(tmp_path, [
+        ["", "SIGA-AA50", "Intelligent Audio Amplifiers", "", "MEXICO", "NETHERLAND"],
+        ["", "3-CAB5B", "Backbox, black", "", "CANADA", "NETHERLAND"],
+    ])
+
+    doc = build_country_of_origin(project, library, "FAS")
+    text = "\n".join(page.get_text() for page in doc)
+    doc.close()
+
+    assert "MEXICO" in text and "CANADA" in text
+    assert "to be completed before issue" in text      # 4-XYZ, still unknown

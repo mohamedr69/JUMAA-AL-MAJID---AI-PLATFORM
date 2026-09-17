@@ -46,6 +46,8 @@ from pathlib import Path
 
 import pymupdf
 
+from app.services import boq_provenance
+
 from app.models import Project
 
 # The company's index, in template order. The number is the section's
@@ -1042,7 +1044,16 @@ def read_origins(library_root: Path | None, brand: str | None = None) -> dict[st
             continue  # the header row
         where = (str(made_in or "").strip(), str(shipped or "").strip())
 
-        keys = [re.sub(r"[^A-Z0-9]", "", part.upper()) for part in re.split(r"[\n,/]+", str(model))]
+        model_text = str(model).strip().upper()
+        # The model as written is a key before it is split: "APS6A/230" is
+        # the one part number the BOQ quotes, as well as the pair a slash
+        # would make of it. And a model written with a wildcard digit --
+        # "757-XA-SS70" covers 757-3A-SS70 and 757-7A-SS70 -- is every
+        # number it stands for.
+        keys = [re.sub(r"[^A-Z0-9]", "", model_text)]
+        if re.search(r"-X[A-Z]?-", model_text):
+            keys += [re.sub(r"[^A-Z0-9]", "", model_text.replace("X", digit, 1)) for digit in "0123456789"]
+        keys += [re.sub(r"[^A-Z0-9]", "", part.upper()) for part in re.split(r"[\n,/]+", str(model))]
         # A row can cover a whole set rather than one model: "PANEL
         # ACCESSORIES" declares one origin for the parts named in its
         # description. Those are the part numbers a BOQ actually quotes, so
@@ -1063,6 +1074,29 @@ def read_origins(library_root: Path | None, brand: str | None = None) -> dict[st
     return origins
 
 
+def origin_key(item, origins: dict, library: dict[str, str]) -> str:
+    """The key a BOQ line's origin is under: its own part number when the
+    sheet lists it, else the catalogue's spelling of it -- what the part
+    library settled it to when it was read (`catalog_canonical`), the
+    equipment table's alias for it, or a one-confusion match now."""
+    from app.services import equipment_currents
+
+    def k(text) -> str:
+        return re.sub(r"[^A-Z0-9]", "", str(text or "").upper())
+
+    key = k(item.catalog_no)
+    if not key or key in origins:
+        return key
+    for candidate in (getattr(item, "catalog_canonical", None), equipment_currents.canonical(item.catalog_no)):
+        if candidate and k(candidate) in origins:
+            return k(candidate)
+    if library:
+        settled, _record = boq_provenance.catalogued(item.catalog_no, library)
+        if settled and k(settled) in origins:
+            return k(settled)
+    return key
+
+
 def build_country_of_origin(
     project: Project, library_root: Path | None, system_code: str | None = None,
     brand: str | None = None,
@@ -1074,6 +1108,13 @@ def build_country_of_origin(
     place here. The two extra columns are the declaration itself.
     """
     origins = read_origins(library_root, brand)
+    # A BOQ line read off a scan may still hold the scan's spelling of a
+    # part ("SIGA-AASO" for SIGA-AA50): its origin is looked up under the
+    # catalogue's spelling when the reading itself is not on the sheet.
+    from sqlalchemy.orm import Session as _Session
+
+    session = _Session.object_session(project)
+    library = boq_provenance.part_library(session) if session is not None else {}
     doc = pymupdf.open()
     page = doc.new_page(width=841.92, height=595.32)
     columns = [("SL.", 42), ("MODEL", 82), ("DESCRIPTION", 214), ("MADE IN", 566), ("SHIPPED FROM", 688)]
@@ -1110,7 +1151,7 @@ def build_country_of_origin(
         for number, item in enumerate(items, 1):
             room(20)
             page.draw_rect(pymupdf.Rect(left, y, right, y + 18), color=(0.87, 0.87, 0.87), width=0.4)
-            key = re.sub(r"[^A-Z0-9]", "", (item.catalog_no or "").upper())
+            key = origin_key(item, origins, library)
             made_in, shipped = origins.get(key, ("", ""))
             cells = [
                 (f"{letter}{number}", 42),
