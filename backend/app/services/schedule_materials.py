@@ -212,3 +212,71 @@ def settle_unambiguous(db: Session, project, stored) -> int:
         result["items"] = items
         stored.result = result          # reassigned, so the JSON change is seen
     return settled
+
+# --- which parts a line may be settled as ----------------------------------------------
+
+# What a word on an engineer's schedule is called in a manufacturer's
+# catalogue. The schedule says "Telephone Jack"; the catalogue calls the
+# same thing a "Telephone Handset Receptacle", and neither shares a word
+# with the other.
+_SYNONYMS: dict[str, set[str]] = {
+    "MM": {"MONITOR", "INPUT"}, "MONITOR": {"INPUT"}, "CM": {"CONTROL", "RELAY"},
+    "WP": {"WEATHERPROOF", "WEATHER", "IP65", "IP66", "IP67"},
+    "FLASHER": {"STROBE"}, "FLASH": {"STROBE"},
+    "JACK": {"RECEPTACLE", "HANDSET"}, "PULL": {"MANUAL"}, "STATION": {"PULL"},
+    "SOUNDER": {"HORN", "AUDIBLE"}, "EM": {"EMERGENCY"}, "LUMINAIRE": {"LIGHT"},
+    "RECESS": {"RECESSED"}, "RECESSED": {"RECESS"},
+}
+
+# Words that say nothing about which part a line is: every schedule and
+# every datasheet is full of them.
+_NOISE = frozenset({"FOR", "THE", "AND", "WITH", "OF", "A", "AN", "TO", "EVERY",
+                    "METERS", "METRE", "MM", "CM", "RED", "NO", "MARKING", "TYPE",
+                    "MOUNTED", "MOUNT"})
+
+_WORD_RE = re.compile(r"[^A-Z0-9]+")
+
+
+def _words(text: str | None) -> set[str]:
+    """The words of a line or a datasheet, with the synonyms they are also
+    known by, and without the ones that tell nothing apart."""
+    found = {word for word in _WORD_RE.split((text or "").upper()) if word and word not in _NOISE}
+    return found | {synonym for word in found for synonym in _SYNONYMS.get(word, ())}
+
+
+def _fit(line: str | None, device: str | None, material: dict) -> tuple[int, int]:
+    """How well a proposed material answers a line, best first.
+
+    The score is the wording the two share, weighted, with the line's own
+    device counting for more than any single word. The tie-break is the
+    part carrying the fewest words the line did not ask for, so "Dual
+    Input Module" beats "Dual Input (Riser) Module - Class A" for a line
+    that mentions neither a riser nor a class.
+    """
+    asked = _words(line)
+    offered = _words(f"{material['description']} {material['part_no']}")
+    score = len(asked & offered) * 2
+    if (device_in(material["description"]) or device_in(material["part_no"])) == device:
+        score += 5
+    # "Smoke with Sounder Base" is a detector and its base ordered as one.
+    # A "Wall Sounder" is a horn and wants no detector at all, so it is the
+    # word BASE that asks for the pair, never "sounder" on its own.
+    pair = material.get("source") == "pair"
+    if "BASE" in asked:
+        if pair:
+            score += 4
+    elif pair:
+        score -= 3
+    return -score, len(offered - asked)
+
+
+def rank_for_line(item: dict, materials: list[dict]) -> list[dict]:
+    """The project's materials, ordered by how well each answers this line.
+
+    The dropdown on a line for a smoke detector should open on the smoke
+    detector, not on the first part of the project alphabetically. Nothing
+    is hidden -- a line is sometimes ordered as something its wording did
+    not predict, and the engineer settles it -- but what the line is
+    plainly asking for comes first.
+    """
+    return sorted(materials, key=lambda material: _fit(item.get("description"), item.get("device"), material))

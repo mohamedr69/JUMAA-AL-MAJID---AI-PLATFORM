@@ -262,24 +262,44 @@ function ScheduleTable({
   );
   const [system, setSystem] = useState(systems[0] ?? "");
   const [materials, setMaterials] = useState<FloorScheduleMaterial[]>([]);
+  // Each line's own order for the same parts: a smoke detector line opens
+  // on the smoke detector. Worked out by the server, once for the system.
+  const [orderByLine, setOrderByLine] = useState<Record<number, string[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
     void (async () => {
       try {
-        const list = await api.get<FloorScheduleMaterial[]>(
-          `/projects/${projectId}/floor-schedule/materials${system ? `?system=${encodeURIComponent(system)}` : ""}`,
+        const options = await api.get<{ materials: FloorScheduleMaterial[]; by_line: Record<number, string[]> }>(
+          `/projects/${projectId}/floor-schedule/materials/by-line${system ? `?system=${encodeURIComponent(system)}` : ""}`,
         );
-        if (live) setMaterials(list);
+        if (live) {
+          setMaterials(options.materials);
+          setOrderByLine(options.by_line ?? {});
+        }
       } catch {
-        if (live) setMaterials([]);
+        if (live) {
+          setMaterials([]);
+          setOrderByLine({});
+        }
       }
     })();
     return () => {
       live = false;
     };
   }, [projectId, system]);
+
+  // The parts this line may be settled as, the ones its wording asks for
+  // first. An order the server did not send leaves the list as it came.
+  const byPart = new Map(materials.map((material) => [material.part_no, material]));
+  const optionsFor = (row: number | null | undefined): FloorScheduleMaterial[] => {
+    const order = row == null ? undefined : orderByLine[row];
+    if (!order) return materials;
+    const ranked = order.map((part) => byPart.get(part)).filter((m): m is FloorScheduleMaterial => Boolean(m));
+    // Anything the ordering did not mention still belongs in the list.
+    return [...ranked, ...materials.filter((material) => !order.includes(material.part_no))];
+  };
 
   const rows = (result.items ?? []).filter((item) => (item.system ?? "") === system);
   const floors = result.floors ?? [];
@@ -394,7 +414,7 @@ function ScheduleTable({
                         className="w-44 rounded-lg border border-gray-300 px-2 py-1 text-xs"
                       >
                         <option value="">&mdash; not settled &mdash;</option>
-                        {materials.map((material) => (
+                        {optionsFor(item.row).map((material) => (
                           <option key={material.part_no} value={material.part_no}>
                             {material.part_no}
                             {material.description ? ` — ${material.description.slice(0, 40)}` : ""}

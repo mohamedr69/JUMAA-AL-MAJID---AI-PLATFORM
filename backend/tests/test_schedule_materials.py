@@ -157,3 +157,78 @@ def test_a_line_with_one_candidate_settles_itself_and_one_with_two_waits(client,
 
     # Run again: nothing is settled twice.
     assert settle_unambiguous(db_session, db_session.get(Project, project_id), stored) == 0
+
+
+# The parts one real project proposes for its fire alarm, and what each of
+# its schedule lines is ordered as. The wording is the engineer's and the
+# manufacturer's, unedited: "Telephone Jack" and "Telephone Handset
+# Receptacle" are the same thing and share no word at all.
+TITANIA_FAS = [
+    ("6833-4", "Four-state Portable Telephone Handset Receptacle"),
+    ("757-3A-SS70", "30cd Speaker/Strobe - 70V, RED."),
+    ("EST-S186C", "Ceiling speaker, ABS fire dome (diameter 17,5 cm)"),
+    ("G1ARN", "Compact Wall Horn, Red, No Marking"),
+    ("G4SRN", "Wall Speaker, Red, No Marking"),
+    ("SIGA-278", "Manual Pull Station - Double Action, 1-stage"),
+    ("SIGA-CC1", "Single Input (Riser) Module"),
+    ("SIGA-CC2A", "Dual Input (Riser) Module-Class A"),
+    ("SIGA-CR", "Control Relay Module"),
+    ("SIGA-CT2", "Dual Input Module"),
+    ("SIGA-HRD-FCN", "Intelligent Fixed Temperature / Rate-of-Rise Heat Detector"),
+    ("SIGA-IO", "Universal Input/Output Module - input with programmable output"),
+    ("SIGA-LPS", "Audible (Sounder) Base"),
+    ("SIGA-OSD-FCN", "Intelligent Photoelectric Smoke Detector"),
+    ("SIGA-OSHD-FCN", "Intelligent 3D Multisensor Detector - Photoelectric, Heat"),
+    ("SIGA-UM", "Universal Class A/B Module"),
+]
+
+TITANIA_LINES = [
+    ("Smoke for every 23 meters", "Smoke detector", "SIGA-OSD-FCN"),
+    ("Smoke Detector", "Smoke detector", "SIGA-OSD-FCN"),
+    ("Heat Detector", "Heat detector", "SIGA-HRD-FCN"),
+    ("Multisensor", "Multisensor detector", "SIGA-OSHD-FCN"),
+    ("Manual Pull Station", "Manual call point", "SIGA-278"),
+    ("Manual Pull Station WP", "Manual call point", "SIGA-278"),
+    ("Telephone Jack", "Fire telephone", "6833-4"),
+    ("Telephone Jack-Lift", "Fire telephone", "6833-4"),
+    ("Wall Speaker", "Speaker", "G4SRN"),
+    ("Ceiling Speaker", "Speaker", "EST-S186C"),
+    ("Wall Sounder", "Sounder", "G1ARN"),
+    ("MM for FM200", "Monitor module", "SIGA-CT2"),
+    ("Control Module", "Control module", "SIGA-CR"),
+]
+
+
+def test_each_line_offers_its_own_part_first(client, db_session):
+    """A line's dropdown opens on the part the line is asking for.
+
+    Nothing is hidden -- every part stays in the list, because a line is
+    sometimes ordered as something its wording did not predict -- but the
+    engineer should not have to hunt for the obvious answer on each of
+    twenty-five lines."""
+    from app.core.config import get_settings
+    from app.models import Project, ProjectProposedMaterial
+    from app.services.schedule_materials import device_materials, rank_for_line
+
+    from .conftest import login
+
+    settings = get_settings()
+    login(client, settings.default_admin_email, settings.default_admin_password)
+    project_id = client.post("/projects", json={"ep_number": "30899", "project_name": "Titania",
+                                                "design_sheets": []}).json()["id"]
+    for part, description in TITANIA_FAS:
+        db_session.add(ProjectProposedMaterial(project_id=project_id, system_code="FAS", catalog_no=part,
+                                               description=description, manufacturer="EDWARDS"))
+    db_session.commit()
+
+    offered = device_materials(db_session, db_session.get(Project, project_id), "FAS")
+    for description, device, expected in TITANIA_LINES:
+        ranked = rank_for_line({"description": description, "device": device}, offered)
+        assert ranked[0]["part_no"] == expected, f"{description}: got {ranked[0]['part_no']}"
+        # Every part is still reachable on every line.
+        assert len(ranked) == len(offered)
+
+    # "Smoke with Sounder Base" is the detector and its base ordered as one.
+    pair = rank_for_line({"description": "Smoke with Sounder Base",
+                          "device": "Smoke detector with sounder base"}, offered)
+    assert pair[0]["part_no"] == "SIGA-OSD-FCN + SIGA-LPS"

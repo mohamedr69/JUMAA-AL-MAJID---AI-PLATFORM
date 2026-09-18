@@ -39,7 +39,7 @@ from app.extraction.identity import part_key
 from app.models import ProjectBoqItem, ProjectFloorSchedule, User
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404
 from app.services import activity, document_sync, floor_schedule, project_folders
-from app.services.schedule_materials import device_materials, settle_unambiguous
+from app.services.schedule_materials import device_materials, rank_for_line, settle_unambiguous
 
 router = APIRouter(prefix="/projects", tags=["floor schedule"])
 
@@ -241,6 +241,43 @@ class MaterialOut(BaseModel):
     manufacturer: str | None
     system_code: str | None
     source: str
+
+
+class MaterialOptionsOut(BaseModel):
+    """The parts a system's lines may be settled as, and the order each
+    line should offer them in."""
+
+    materials: list[MaterialOut]
+    by_line: dict[int, list[str]]
+
+
+@router.get("/{project_id}/floor-schedule/materials/by-line", response_model=MaterialOptionsOut)
+def schedule_material_options(
+    project_id: int,
+    system: str | None = None,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MaterialOptionsOut:
+    """The same parts as `/materials`, with each line's own order.
+
+    A line for a smoke detector should open its dropdown on the smoke
+    detector rather than on whatever part sorts first, and a line for a
+    ceiling speaker on the ceiling speaker. The ordering is worked out
+    here, once for every line of the system, so the tab asks once rather
+    than once per line. Nothing is hidden from any line: a part the
+    wording did not predict is further down the same list.
+    """
+    project = _get_project_or_404(db, project_id)
+    materials = device_materials(db, project, system)
+    stored = db.query(ProjectFloorSchedule).filter(ProjectFloorSchedule.project_id == project.id).first()
+    items = (stored.result or {}).get("items", []) if stored is not None else []
+    wanted = (system or "").strip().upper()
+    by_line = {
+        item["row"]: [material["part_no"] for material in rank_for_line(item, materials)]
+        for item in items
+        if item.get("row") is not None and (not wanted or (item.get("system") or "").strip().upper() == wanted)
+    }
+    return MaterialOptionsOut(materials=[MaterialOut(**material) for material in materials], by_line=by_line)
 
 
 @router.get("/{project_id}/floor-schedule/materials", response_model=list[MaterialOut])
