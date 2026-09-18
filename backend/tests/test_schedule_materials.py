@@ -113,3 +113,47 @@ def test_a_detector_and_its_audible_base_are_offered_as_one_choice(client, db_se
 
     pair = next(material for material in offered if material["part_no"] == "SIGA-OSD-FCN + SIGA-LPS")
     assert pair["source"] == "pair" and "sounder" in pair["description"].lower()
+
+
+def test_a_line_with_one_candidate_settles_itself_and_one_with_two_waits(client, db_session):
+    """The engineer fills in what the project actually leaves open. Where
+    the project proposes one manual call point, the line is not a decision
+    and is settled; where it proposes two speakers, it is, and is left
+    blank rather than guessed. A line already settled is never moved."""
+    from app.core.config import get_settings
+    from app.models import Project, ProjectFloorSchedule, ProjectProposedMaterial
+    from app.services.schedule_materials import settle_unambiguous
+
+    from .conftest import login
+
+    settings = get_settings()
+    login(client, settings.default_admin_email, settings.default_admin_password)
+    project_id = client.post("/projects", json={"ep_number": "30898", "project_name": "T",
+                                                "design_sheets": []}).json()["id"]
+    for part, description in [("SIGA-278", "Manual Pull Station - Double Action"),
+                              ("EST-S186C", "Ceiling speaker, ABS fire dome"),
+                              ("G4SRN", "Wall Speaker, Red, No Marking"),
+                              ("G1ARN", "Compact Wall Horn, Red")]:
+        db_session.add(ProjectProposedMaterial(project_id=project_id, system_code="FAS", catalog_no=part,
+                                               description=description, manufacturer="EDWARDS"))
+    stored = ProjectFloorSchedule(project_id=project_id, result={"floors": ["L1"], "items": [
+        {"row": 1, "system": "FAS", "device": "Manual call point"},
+        {"row": 2, "system": "FAS", "device": "Speaker"},
+        {"row": 3, "system": "FAS", "device": "Sounder",
+         "material": {"part_no": "G1ARN", "description": "chosen already", "manufacturer": "EDWARDS"}},
+    ]})
+    db_session.add(stored)
+    db_session.commit()
+
+    assert settle_unambiguous(db_session, db_session.get(Project, project_id), stored) == 1
+    db_session.commit()
+    by_row = {item["row"]: item for item in stored.result["items"]}
+    # One candidate: settled, with no one asked.
+    assert by_row[1]["material"]["part_no"] == "SIGA-278"
+    # Two candidates: the engineer's to settle, so still open.
+    assert "material" not in by_row[2]
+    # Already settled: left exactly as the engineer left it.
+    assert by_row[3]["material"]["description"] == "chosen already"
+
+    # Run again: nothing is settled twice.
+    assert settle_unambiguous(db_session, db_session.get(Project, project_id), stored) == 0

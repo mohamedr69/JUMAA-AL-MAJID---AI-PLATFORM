@@ -115,6 +115,30 @@ def test_the_folder_is_read_once_and_only_changes_after(client, db_session, tmp_
     assert gone.state == "removed"
 
 
+def test_a_form_the_title_block_reader_cannot_read_still_reaches_the_log(client, db_session, tmp_path, ai):
+    """A submittal package is a scan of a form in front of a hundred
+    datasheets: the document-control reader can come back from it with
+    nothing. The model read the form, so the log lists it all the same --
+    otherwise the project reports no submittal on file while holding one."""
+    folder = tmp_path / "EP-30880"
+    form = folder / "02- Material Submittals" / "FA" / "R0" / "EP-30880 - Material Submittal - FA - R0.pdf"
+    _pdf(form, "scan")  # a scan: no text layer for the reader to work from
+    ai.answers = [_reading("EP-30880", 0, title="Fire Alarm, Voice Evacuation & Fire Telephone System")]
+    project_id = _project(client, folder, ep="30880")
+
+    assert client.post(f"/projects/{project_id}/jobs/sync-documents").status_code == 202
+    row = db_session.query(ProjectDocument).filter(ProjectDocument.project_id == project_id,
+                                                   ProjectDocument.role == "submittal_form").one()
+    db_session.refresh(row)
+    # Nothing was read off the page; what the model read stands in for it.
+    assert [r for r in row.extracted["records"] if r["source"] == "submittal form"]
+
+    logs = client.get(f"/projects/{project_id}/logs").json()
+    assert [(m["reference"], m["revision"], m["system_code"]) for m in logs["material_submittals"]] == [("EP-30880", "R0", "FAS")]
+    # The entry points at the form in the project folder, for the page to open.
+    assert logs["material_submittals"][0]["path"] == "02- Material Submittals/FA/R0/EP-30880 - Material Submittal - FA - R0.pdf"
+
+
 def test_a_changed_design_sheet_marks_the_boq_stale_and_a_new_specification_the_compliance_page(client, db_session, tmp_path, ai):
     import app.routers.projects as projects_router
     from app.services.design_sheet_extractor import ExtractedBoqLine

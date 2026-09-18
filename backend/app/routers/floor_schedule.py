@@ -39,7 +39,7 @@ from app.extraction.identity import part_key
 from app.models import ProjectBoqItem, ProjectFloorSchedule, User
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404
 from app.services import activity, document_sync, floor_schedule, project_folders
-from app.services.schedule_materials import device_materials
+from app.services.schedule_materials import device_materials, settle_unambiguous
 
 router = APIRouter(prefix="/projects", tags=["floor schedule"])
 
@@ -75,6 +75,16 @@ def _out(row: ProjectFloorSchedule | None, note: str | None = None) -> FloorSche
 
 
 def sync_from_folder(db: Session, project, user: User | None = None) -> tuple[ProjectFloorSchedule | None, str | None]:
+    """The floor-wise BOQ from the project's folder, its lines settled as
+    far as the project's own materials settle them."""
+    stored, note = _read_from_folder(db, project, user)
+    if stored is not None and settle_unambiguous(db, project, stored):
+        db.commit()
+        db.refresh(stored)
+    return stored, note
+
+
+def _read_from_folder(db: Session, project, user: User | None = None) -> tuple[ProjectFloorSchedule | None, str | None]:
     """Read the floor-wise BOQ out of the project's own folder, if it has
     moved on since last time.
 
@@ -212,6 +222,7 @@ def read_schedule(
     # What was handed in is now the source the tab keeps in step with.
     row.source_path = filed
     row.source_sha256 = hashlib.sha256(content).hexdigest()
+    settle_unambiguous(db, project, row)
     db.commit()
     db.refresh(row)
     activity.record(db, current_user, "floor_schedule.read",

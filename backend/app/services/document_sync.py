@@ -31,7 +31,7 @@ from __future__ import annotations
 import hashlib
 import os
 from dataclasses import asdict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -179,6 +179,39 @@ def _record_dict(record, root: Path) -> dict:
     return data
 
 
+def record_for_the_log(extracted: dict, reading: dict, *, relative: str, modified: datetime) -> bool:
+    """A submittal package is a scan of a form in front of a hundred
+    datasheets, and the title block reader can come back from it with
+    nothing at all. The log would then never hear of a form the model read
+    perfectly well, and the project would report no submittal on file while
+    its register held one.
+
+    What the model read is a document-control record like any other: it
+    stands for the form when nothing was read off the page, and gives way to
+    the page when something was (`combine` prefers a record read from the
+    document itself). Returns whether a record was added."""
+    from app.ai import submittal_reader
+
+    reference = reading.get("reference") or ""
+    if not reading.get("is_submittal") or not reference:
+        return False
+    revision = f"R{reading['revision']}" if reading.get("revision") is not None else "R0"
+    system = submittal_reader._system_code(reading, relative)
+    # Strictly a fallback: where the page gave a submittal record of its own
+    # -- even one whose reference it read short -- that record is the
+    # document's, and a second entry from the model would be the same
+    # submission listed twice under two spellings.
+    records = extracted.setdefault("records", [])
+    if any(record["category"] == "submittals" for record in records):
+        return False
+    records.append(_record_dict(document_control.ControlledDocument(
+        system_code=system, name=reading.get("title") or Path(relative).stem, path=relative,
+        modified=modified, reference=reference, revision=revision, status=submittal_reader._code(reading),
+        reply_text=(reading.get("reply") or {}).get("evidence") or None,
+        source="submittal form", category="submittals"), Path(relative).parent))
+    return True
+
+
 def process(db: Session, project: Project, row: ProjectDocument, path: Path, root: Path, *, run=None,
             user_id: int | None, ocr: bool) -> None:
     """Read what this document holds and keep it on its row: the
@@ -211,6 +244,8 @@ def process(db: Session, project: Project, row: ProjectDocument, path: Path, roo
             row.revision = f"R{reading['revision']}" if reading.get("revision") is not None else row.revision
             row.status = submittal_reader._code(reading)
             row.system_code = submittal_reader._system_code(reading, row.relative_path or "") or row.system_code
+            record_for_the_log(extracted, reading, relative=path.relative_to(root).as_posix(),
+                               modified=datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc))
     row.extracted = extracted
     row.last_processed_at = utc_now()
     row.index_version = INDEX_VERSION

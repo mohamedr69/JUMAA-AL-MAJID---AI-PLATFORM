@@ -173,3 +173,42 @@ def _with_sounder_base(devices: dict[str, dict], bases: dict[str, dict]) -> list
                 "source": "pair",
             })
     return pairs
+
+
+def settle_unambiguous(db: Session, project, stored) -> int:
+    """Settle every line the project's own materials leave no choice about.
+
+    A line the project proposes exactly one part for is not a decision --
+    there is nothing to choose between -- so it is settled here, once,
+    rather than asked of the engineer every time the tab is opened. Where
+    the project proposes two ceiling speakers, or five emergency light
+    fittings, the line is the engineer's to settle and is left alone: a
+    guess at which part a floor is ordered as is worse than a blank.
+
+    A line the engineer has already settled is never touched. Returns how
+    many lines were settled, and the caller commits.
+    """
+    result = dict(stored.result or {})
+    items = [dict(item) for item in result.get("items") or []]
+    if not items:
+        return 0
+    offered: dict[str | None, list[dict]] = {}
+    settled = 0
+    for item in items:
+        device = item.get("device")
+        if item.get("material") or not device:
+            continue
+        system = item.get("system")
+        if system not in offered:
+            offered[system] = device_materials(db, project, system)
+        only = [material for material in offered[system]
+                if (device_in(material["description"]) or device_in(material["part_no"])) == device]
+        if len(only) != 1:
+            continue
+        item["material"] = {"part_no": only[0]["part_no"], "description": only[0]["description"],
+                            "manufacturer": only[0]["manufacturer"]}
+        settled += 1
+    if settled:
+        result["items"] = items
+        stored.result = result          # reassigned, so the JSON change is seen
+    return settled
