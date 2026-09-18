@@ -497,95 +497,282 @@ Material** (`GET /projects/{id}/materials/schedule.pdf?system_code=FAS`)
 by assembly and then the materials added on the tab as a block of their
 own.
 
-### The BOQ floor wise, read off the drawings
+### The BOQ floor wise, read off the schedule
 
-A fire alarm layout is a CAD drawing, and every device on it is a block
-reference. The **BOQ floor wise** tab takes the layouts as they are --
-DWG or DXF -- and counts the devices floor by floor
-(`app/services/floor_devices.py`). It stands on its own: the drawings are
-handed in through the page, nothing is read from the project folder and
-nothing is written back to the BOQ.
+A floor-wise BOQ arrives two ways, and this is the one that needs no
+recognising: the Excel schedule the project is actually run from, where
+the quantities are already written down. It is the **BOQ Floor Wise** tab
+on the BOQ page (`app/services/floor_schedule.py`); the drawings route is
+below, and the two are separate things that happen to share a name.
 
-A **DWG is converted first** (`app/services/dwg_convert.py`). The
-converter is whatever the PC has: AutoCAD's headless core console
-(`accoreconsole.exe`, which comes with AutoCAD and with the free DWG
-TrueView) or the ODA File Converter; `DWG_CONVERTER` in `backend/.env`
-names one explicitly. Without one the page says so and asks for the DXF
-export instead, rather than quietly dropping the drawing.
+The workbook is handed in through the page and read as it is:
 
-Counting is more than counting the blocks:
+```
+S.No | Catalogue No | Description | Unit | B3 | B1 | GF | 1 to 13 | ROOF | Total
+```
 
-- **the legend is not the building** -- its symbols are found by the
-  legend's title and the column running down from it, and left out;
-- **what is outside the plan is not installed** -- the plan's extent comes
-  from the architectural layers, so the symbols in the title block and the
-  notes are left out;
-- **the riser and the key plan are the building drawn again** -- a riser
-  diagram carries every device in the building and a typical detail the
-  same few once more, so what is titled as a riser, a schematic, a key
-  plan or a detail is left out rather than counted twice;
-- **the architecture and AutoCAD's own blocks are not devices** -- an
-  external reference (`01-XREF_GF`) and the anonymous blocks (`*U29`,
-  `A$C...`) are drawing furniture;
-- **a floor is a region, not a file** -- one drawing per floor, several
-  plans stacked in one model space (found by where the devices are and
-  named from the sheet title: "GROUND, FIRST & ROOF FLOOR"), or one layout
-  issued for a range ("TYPICAL 2ND TO 14TH"), which the schedule shows as
-  a row per floor;
-- a drawing sharing the sheet -- the lighting layout beside the fire alarm
-  plans -- is listed apart, under "Not on a named floor", with a note.
+Three things make it more than reading a grid.
 
-The schedule is a row per floor from the lowest to the highest and a
-column per device, stored per project (`project_floor_boq`) so the tab
-opens from the database.
+**A typical column is not one floor.** A schedule does not write out
+thirteen identical columns; it writes "1 to 13" once. The platform owes
+the engineer the thirteen, so every such column becomes a floor of its
+own -- Level 1, Level 2, Level 3 -- which is what anyone ordering for a
+floor needs. The floors are named and sorted by the same code the
+drawings route uses (`floor_of`), so both agree about what "2ND TO 14TH"
+means and that a basement sits below the ground floor.
 
-#### What each symbol is
+**A typical column's quantity is per floor, and that is checked rather
+than assumed.** "1 to 13" against a quantity of 5 is five on each of
+thirteen floors -- sixty-five -- not five shared between them. It is a
+thirteenfold difference, so where the sheet totals its own rows the two
+readings are tried against that total and whichever closes is the one
+used; the page says which it was and on how many rows. Where the sheet
+totals nothing, the per-floor reading stands -- that is what a typical
+floor means -- and the page says plainly that nothing confirmed it.
 
-Counting the blocks is the easy half. The hard half is knowing what each
-symbol stands for, and a block name is no answer: the same smoke detector
-arrives as `SD`, `SD01`, `SMOKE`, `FAS_DEVICE` or `BLOCK_123`, and on one
-real layout the exit signs are anonymous blocks called `*U29`. The
-geometry inside the block, on the other hand, is the symbol itself -- one
-circle and an S is a smoke detector, the same circle inside a second one
-is a sounder base.
+**A blank is not a zero.** An empty cell means the item is not on that
+floor, and never becomes a BOQ line of zero.
 
-So the drawing is counted by geometry and each symbol is recognised
-**once**, however many times it is drawn: a job with 4,827 devices is
-twenty-odd symbols to settle, not 4,827 decisions
-(`app/services/device_symbols.py`). Every source that can speak votes for
-a device, weighted by what it deserves to be believed:
+A merged banner over the floor columns ("FLOORS", "TYPICAL FLOOR") with
+the floors named underneath is read as the two-row header it is; a header
+row followed by data is not mistaken for one.
 
-| Evidence | Weight | What it is |
-| --- | --- | --- |
-| Geometry | 40 | The fingerprint of the block's own entities: the counts, the letters inside, the proportions |
-| Visual | 30 | A classifier's reading of the rendered symbol (not built yet) |
-| Legend | 15 | What this drawing's own legend calls the symbol |
-| Attributes | 5 | What the block carries: an address, `TYP=EXIT` |
-| Nearby text | 5 | What is tagged beside it on the plan ("SD-01") |
-| Block name | 5 | What a draughtsman typed |
-| Layer | 5 | What layer it sits on |
+**The floors keep the sheet's own order**, left to right, and a range
+column is written out where it stands. A schedule is set out deepest
+basement first and roof last, and that order is the engineer's own:
+sorting it by what the platform makes of each heading put "3rd Basement"
+after "1st Basement" and the podiums among the levels, which is worse
+than reading it as written.
 
-The confidence is the share of the evidence that agreed, over at least 50
--- so nothing is ever accepted on a name alone, and a drawing with no
-legend is not punished for having none. That puts each symbol in the band
-an engineer works by: **95% and above** accepted, **80-95%** accepted and
-flagged, **60-80%** for review, **below 60%** unresolved. A symbol whose
-name says one device and whose evidence says another is reported as a
-conflict rather than silently resolved, and a symbol nothing speaks for
-is counted under its own block name instead of being guessed at.
+**A column between two floor columns is a floor**, whatever it is called.
+One real schedule runs "... Mech floor | Structural slab | 17th to 22nd
+floor ...", and a structural slab is a place devices are counted on
+however little it reads like a storey; left out, its 28 heat detectors
+were dropped silently.
 
-Two things make the platform better at this over time:
+**The description column is the one carrying the names.** A schedule
+heads it "DRG.NAME" as readily as "Description", and beside it sits a
+serial column. Picking the first unclassified column made every item on
+one real sheet read "A", "2", "3"; the column with the longest words is
+the one that means something.
 
-- **the legend is read as a dictionary** -- each symbol paired with the
-  text beside it -- so a drawing that explains itself is recognised at
-  100%;
-- **what a legend explains, and what an engineer confirms on the page, is
-  kept** in `device_symbols` by geometry and by name, so the next
-  project's drawing is recognised with no legend and no AI call.
+**A row the sheet totals is never dropped.** Where the floor cells cannot
+be read as numbers -- one schedule writes "7*2=14(Stair), 7*9=63(Lift)"
+across a merged cell and totals it 77 -- the line is kept with the total
+the sheet states and no quantity per floor, and the page says so. The
+schedule's own grand total is shown beside what could be counted floor by
+floor, so the two differ by exactly what could not.
 
-Every device is also stored where it was drawn -- floor, block, address,
-X and Y, confidence, and which evidence agreed -- so a count can be
-followed back to the drawing.
+**The sheet checks the platform's arithmetic.** A schedule that states
+its own "No. of Floors" per column is read as a check rather than an
+item: "3rd to 16th floor" should be the fourteen the platform made of it,
+and a disagreement is reported.
+
+**A tab per system.** A fire alarm job and an emergency lighting job are
+two BOQs, two submittals and two consultants' approvals, and one
+floor-wise schedule carries both -- the fire alarm block and the
+emergency lighting block, one under the other. So the tab shows a system
+at a time, FA and ELS, from the device each line names
+(`symbol_taxonomy.system_of`: the exit and emergency light family is ELS,
+everything else FAS). A line naming no device the platform knows belongs
+to neither and is shown in its own tab rather than dropped, so what the
+systems come to is always what the whole sheet comes to.
+
+**Every line says what device it is.** A schedule is a list of devices, so
+each row is read for one -- "Photoelectric smoke detector" is a *Smoke
+detector* under *Detectors* -- by the same code that reads a symbol's
+legend on a drawing (`device_in`), with the catalogue number tried after
+the wording, since a part number carries the device in it on most brands.
+A line naming nothing the platform knows keeps its quantities and leaves
+the device blank; it is never guessed at, and the page says how many
+lines were left blank.
+
+**The workbook is kept, not just read.** A schedule an engineer works
+from belongs with the project's own documents, so it is filed under
+`03- Design` in the project's OneDrive folder, beside the submittals and
+the drawings. The folder is made when the first schedule is filed into
+it, rather than for every project on opening. It is filed only after the
+read succeeds, so a file that turned out not to be a schedule is never
+left in the archive; and on a PC where the project's folder is not
+reachable the schedule is still read and shown, with the page saying why
+it was not filed. This is the one place on this route that writes to the
+archive, and only ever a new file in a folder of its own.
+
+**A quantity is stepped, never typed.** Every cell carries a minus and a
+plus; a schedule is a count of devices, and a keyboard invites a decimal
+or a pasted total. Stepping down to nothing puts the cell back to blank
+rather than to zero, because a blank means the item is not on that floor
+and a zero would read as a BOQ line of none. The line's total, the
+floor's, the system's and the whole schedule's are worked out again on
+every change (`PATCH /projects/{id}/floor-schedule/items/{row}`).
+
+**Each line says which part it is ordered as.** Beside the device is the
+project's own **proposed materials** for that system, to settle the line
+against (`app/services/schedule_materials.py`). Only devices are offered:
+a back box, a loop card, a power supply or a battery is ordered *with* a
+device or *for* a panel and never counted on a floor, and offering them
+would let a floor's smoke detectors be settled as a back box. Nothing is
+invented either -- only a part already proposed for this project can be
+chosen, and only from the line's own system.
+
+**The schedule is a document too.** `GET
+/projects/{id}/floor-schedule/export.pdf` lays it out landscape, a
+section per system, the floors split across as many pages as they need
+with the item column repeated on each (`app/services/schedule_export.py`).
+
+**The workbook in the project folder is the source, and the tab follows
+it.** A schedule is not handed in once and forgotten: the engineer keeps
+editing it in Excel for the rest of the job. So the newest workbook in
+`03- Design` is read the first time the tab is opened and again whenever
+its contents change, and nothing is ever uploaded twice. A project whose
+schedule is already filed needs no upload at all; the upload control is
+only offered when that folder holds nothing yet, and Excel's own
+`~$name.xlsx` lock file beside an open workbook is not mistaken for one.
+
+**A quantity set by hand survives a re-read.** Corrections are kept apart
+from the reading (`ProjectFloorSchedule.edits`), keyed by the line's
+description rather than its row -- a workbook edited in Excel moves its
+rows about -- and applied again over whatever the sheet now says. A
+correction whose line has gone from the sheet is reported rather than
+dropped in silence.
+
+**A schedule already read is shown as linked** -- the workbook it came
+from, where it sits, and a **Replace** button rather than a bare file
+picker.
+
+The schedule is stored per project (`project_floor_schedule`) so the tab
+opens from the database, and
+`GET /projects/{id}/floor-schedule/check` sets its totals beside the
+design sheet BOQ: the two are read from different documents and should
+agree, so what differs, what only the schedule has and what only the BOQ
+has is the first thing an engineer looks at.
+
+### The amplifier calculation, from the floor-wise BOQ
+
+What a voice evacuation job needs is worked out from what it installs.
+The floor-wise BOQ already says how many speakers sit on each floor and
+which part each line is ordered as, so the **Amplifier** tab under
+Calculations is arithmetic over that rather than a second thing to keep
+up to date (`app/services/amplifier_calculation.py`):
+
+    a speaker's load   the tapping it is set to, off its datasheet
+    a floor's load     sum over speaker types of count x tapping
+    an amplifier       as many whole floors as fit under its limit
+    a cabinet          two amplifiers
+
+Nothing about the loading is stored. The schedule is worked out each time
+the tab is opened, so a speaker added to a floor shows here without
+anything being re-imported; what the project keeps
+(`project_amplifier_design`) is only the tapping each speaker is set to.
+
+**The speaker counts are the BOQ's, and the two tabs are two views of one
+number.** They can be stepped up and down here as well as on BOQ Floor
+Wise, and either way the change is made on the BOQ -- kept as a
+correction, so re-reading the workbook does not undo it, and showing on
+both tabs at once. A part ordered for two BOQ lines is the one case the
+page cannot settle by itself: which line gained a speaker is a question
+only the engineer can answer, so it asks rather than guessing.
+
+**A floor with no speakers takes no amplifier**, and is shown saying so.
+It also breaks the run: an amplifier feeding the floors either side of it
+is ruled as two blocks rather than one, because a block drawn through a
+floor it does not feed would be a drawing of something untrue.
+
+`GET /projects/{id}/design/amplifier/export.pdf` issues the calculation:
+the summary, the loading floor by floor with each amplifier and cabinet
+ruled across its own floors, the amplifiers listed under their cabinets,
+and the basis the numbers were worked out by
+(`app/services/amplifier_export.py`).
+
+Four things are decisions rather than arithmetic, and the page says so:
+
+- **A floor is never split between amplifiers.** Floors are taken in the
+  order the schedule sets them out and added to the current amplifier
+  until the next would take it over its limit, at which point a new one
+  starts. That is what an engineer does by hand, and it is why the answer
+  depends on the order. A floor carrying more than one amplifier can feed
+  is shown alone and over its limit, for someone to split or to feed from
+  a larger amplifier -- never divided quietly.
+- **The limit is not the rating.** A 50 W SIGA-AA50 is loaded to a
+  fraction of its rating, kept as a `DesignRule`
+  (`ve.limit/amplifier_max_load`, 0.8) rather than written in code, so it
+  can be corrected without a release. At 0.8 that is 40 W.
+- **The spare capacity is shown beside the load, not folded into it.**
+  The amplifiers are assigned on the plain sum against a limit that
+  already carries its own headroom; multiplying the two would count the
+  same margin twice.
+- **Only speakers count.** A sounder, a horn or a flasher is on a
+  notification circuit, not on the amplifier, however much the schedule
+  counts of it.
+
+The **speaker database** is the `ve.speaker` design rules: what each
+speaker can be tapped at, read off its datasheet in the library. Being a
+rule it is versioned, so correcting a tapping never silently changes a
+calculation already issued, and a tapping the datasheet does not offer is
+refused rather than stored.
+
+Two things about it are worth keeping in mind, because the calculation is
+only ever as good as this table.
+
+**The figures are the 70 V line's**, which is what these systems run on.
+The same speaker taps differently on 100 V and the two are not
+interchangeable: an EST-S186 is 3 / 1.5 / 0.75 / 0.37 W on 70 V and
+6 / 3 / 1.5 / 0.75 W on 100 V. Each rule records which line it is for,
+the 100 V figures beside it, and the datasheet page the numbers came
+from, so an engineer checking a rule can see what was read.
+
+**Nothing is chosen for the engineer.** A datasheet says what a speaker
+*can* be set to, not what this company sets it to, so a rule carries no
+default tapping: the amplifier page shows the speaker as having none and
+asks, rather than loading an amplifier with a figure nobody picked. A
+speaker the platform has no datasheet for is not in the table at all --
+better a column that asks than one with a made-up number in a database
+engineers are told to trust.
+
+A speaker line that has not been settled as a part on the Proposed
+Materials tab is shown under the schedule's own wording and flagged: an
+unsettled line is a question, not an unknown speaker, and it carries no
+tapping until someone answers it.
+
+### The 24 V power calculation
+
+The other half of the same design, and the same shape. Where the
+amplifier feeds speakers off a 70 V line, the **Power** tab feeds
+everything that runs on direct current
+(`app/services/power_calculation.py`):
+
+    a sounder                 an audible on its own
+    a flasher                 a strobe on its own
+    a speaker with a flasher  the speaker is on the amplifier; the
+                              flasher is here
+    a sounder base            an audible under a detector
+
+A plain speaker draws nothing here -- it is on the amplifier's line -- and
+a speaker-flasher is counted for its flasher alone.
+
+**The current comes off the datasheet, and where there is more than one
+figure the engineer chooses.** A strobe draws differently by candela, a
+horn by volume, and every device differently on direct current than on
+full-wave rectified; a Genesis G1 horn is 13 mA on C-LOW and 23 mA on
+C-HIGH at 16 to 33 VDC, a 202 flasher 90 mA at 15/75 cd and 180 mA at
+110 cd. Each figure is offered with the condition it is for
+(`power.device` design rules), and nothing is chosen for the engineer. A
+device the platform has no datasheet figure for is shown with no current
+and asks, rather than being given one.
+
+Floors are filled into booster power supplies in the schedule's order,
+against a fraction of the supply's rating, exactly as they are filled
+into amplifiers.
+
+**The module is a SIGA-CC1, and a sounder base needs none.** A floor's
+notification circuit is driven from one single-input module. A sounder
+base sits under a Signature detector on the loop and is addressed there:
+it draws 24 V so it counts towards the power, but it is not on a
+notification circuit. A floor carrying nothing but sounder bases
+therefore needs power and no module at all.
+
+`GET /projects/{id}/design/power/export.pdf` issues it, laid out as the
+amplifier calculation is.
 
 ### The AI reads the material submittals
 
@@ -714,7 +901,7 @@ Tests are in `tests/test_reextraction.py`: the synthetic ones stub both extracto
 The page follows the platform owner's design: the project and revision at the top with Export BOQ and Add Item, then the **sources** a BOQ can come from.
 
 - **As per Design Sheet** -- what the platform reads and what the table below edits. Under it are the totals (items, quantity, systems, estimated cost from the lines' prices), the per-system tabs, and the editable table, paged at 25 lines.
-- **BOQ Floor Wise** -- planned for a future release. It will show what each system needs on each floor from the schedules engineers keep in the project folder, which is useful for shop drawings and site deliveries.
+- **BOQ Floor Wise** -- what each system needs on each floor, read off the Excel schedule the project is run from (below). A tab per system, a quantity per floor that can be stepped up or down, and the part each line is ordered as. The amplifier calculation loads from it.
 - **As per IFC Drawings** -- not built, and says so (uploading the issued-for-construction drawings, taking quantities off them and reviewing them against the design-sheet BOQ).
 
 Sections of the design still being built -- Drawings, O&M Manual, Reports, Project Team, Settings -- are in the left nav marked "soon" and open a page saying the system is under maintenance. They are listed rather than hidden because the nav is the map of the workspace; what is not built says so instead of pretending.

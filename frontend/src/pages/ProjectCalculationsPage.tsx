@@ -4,10 +4,10 @@ import { useProject } from "./ProjectWorkspace";
 /** The project's design calculations, one tab per system. Each tab is its
  * own route, so a calculation can be linked to; what is not built yet is
  * listed here too and says so when opened. */
-const CALCULATIONS = [
+const CALCULATIONS: { to: string; label: string; soon?: boolean }[] = [
   { to: "battery", label: "Fire Alarm Battery Calculation" },
-  { to: "amplifier", label: "Amplifier", soon: true },
-  { to: "power", label: "Power", soon: true },
+  { to: "amplifier", label: "Amplifier" },
+  { to: "power", label: "Power" },
 ];
 
 export function ProjectCalculationsPage() {

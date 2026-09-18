@@ -20,6 +20,7 @@ import { useJob } from "../lib/useJob";
 import { JobProgress } from "../components/JobProgress";
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { UnderMaintenance } from "../components/UnderMaintenance";
+import { FloorScheduleTab } from "../components/FloorScheduleTab";
 import { ExtractionReview } from "../components/ExtractionReview";
 import { AiCheckBadge, AiVerificationPanel } from "../components/AiVerificationPanel";
 import { StaleWriteNotice } from "../components/StaleWriteNotice";
@@ -35,7 +36,7 @@ const UNASSIGNED = " unassigned";
 type SourceKey = "design" | "floor" | "ifc";
 const SOURCES: { key: SourceKey; label: string; soon?: boolean }[] = [
   { key: "design", label: "As per Design Sheet" },
-  { key: "floor", label: "BOQ Floor Wise", soon: true },
+  { key: "floor", label: "BOQ Floor Wise" },
   { key: "ifc", label: "As per IFC Drawings", soon: true },
 ];
 
@@ -451,12 +452,7 @@ export function ProjectBoqPage() {
       </div>
 
       {source === "floor" ? (
-        <div className="mt-4">
-          <UnderMaintenance
-            title="BOQ Floor Wise"
-            note="Reading floor-wise quantities from project schedules is planned for a future release."
-          />
-        </div>
+        <FloorScheduleTab projectId={project.id} canEdit={canEdit} />
       ) : source === "ifc" ? (
         <div className="mt-4">
           <UnderMaintenance

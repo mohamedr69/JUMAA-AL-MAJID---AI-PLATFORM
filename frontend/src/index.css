@@ -3,6 +3,12 @@
 @theme {
   --color-brand-50: #eef4ff;
   --color-brand-100: #dbe6fe;
+  /* 200-400 fill the gap in the ramp. They were already being asked for --
+     hover:border-brand-300 and focus:border-brand-400 appear across the
+     app -- and with no token behind them those states did nothing. */
+  --color-brand-200: #c3d4fd;
+  --color-brand-300: #9cb8fa;
+  --color-brand-400: #6f93f0;
   --color-brand-500: #3b6fe0;
   --color-brand-600: #2563eb;
   --color-brand-700: #1d4ed8;

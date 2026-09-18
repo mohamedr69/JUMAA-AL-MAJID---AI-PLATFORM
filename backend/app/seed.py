@@ -54,6 +54,192 @@ INITIAL_DESIGN_RULES = [
             "the datasheet library."
         ),
     },
+    # --- the 24 V power calculation --------------------------------------
+    #
+    # The booster power supply the floors are fed from, and how hard it is
+    # worked. Rules rather than code, so either is corrected without a
+    # release.
+    {
+        "category": "power.supply",
+        "key": "booster",
+        "data": {"part_no": "BPS10A/230", "description": "10 Amp Booster Power Supply, 220V",
+                 "amps": 10, "fraction": 0.8},
+        "source": (
+            "Equipment current table: BPS10A/230, 10 A booster power supply. Loaded to the same "
+            "fraction of its rating as an amplifier."
+        ),
+    },
+    {
+        "category": "power.module",
+        "key": "nac",
+        "data": {"part_no": "SIGA-CC1", "description": "Single Input (Riser) Module", "per_floor": 1},
+        "source": (
+            "Decided by the platform owner: a floor's notification circuit is driven from one "
+            "SIGA-CC1. A sounder base is on the Signature loop and needs none."
+        ),
+    },
+    # What each 24 V appliance draws, read off its datasheet in the
+    # library. Where a datasheet gives more than one figure -- a strobe by
+    # candela, a horn by volume -- every one is offered and the engineer
+    # chooses; nothing is picked for them.
+    {
+        "category": "power.device",
+        "key": "G1ARN",
+        "data": {
+            "part_no": "G1ARN",
+            "description": "Genesis G1 compact wall horn",
+            "currents": [
+                {"ma": 13, "label": "C-LOW / T-LOW, 16-33 VDC"},
+                {"ma": 23, "label": "C-HIGH / T-HIGH, 16-33 VDC"},
+                {"ma": 15, "label": "C-LOW / T-LOW, 16-33 VFWR"},
+                {"ma": 29, "label": "C-HIGH / T-HIGH, 16-33 VFWR"},
+            ],
+            "datasheet": {"library": "EDWARDS", "path": "03- NAC/Horn-Strobe/02- G1 series WM.pdf",
+                          "pages": [3]},
+        },
+        "source": (
+            "Genesis G1 series datasheet, page 3, operating current: horns draw 13 mA on C-LOW or "
+            "T-LOW and 23 mA on C-HIGH or T-HIGH at 16 to 33 VDC (15 and 29 mA on VFWR). Factory "
+            "set to high dB."
+        ),
+    },
+    {
+        "category": "power.device",
+        "key": "202-7A-T",
+        "data": {
+            "part_no": "202-7A-T",
+            "description": "Xenon flasher",
+            "currents": [
+                {"ma": 90, "label": "15/75 cd, 24 Vdc"},
+                {"ma": 180, "label": "110 cd, 24 Vdc"},
+                {"ma": 128, "label": "15/75 cd, 24 Vfwr"},
+                {"ma": 260, "label": "110 cd, 24 Vfwr"},
+            ],
+            "datasheet": {"library": "EDWARDS",
+                          "path": "03- NAC/Horn-Strobe/202-7A-T Flasher Emar approved.pdf", "pages": [3]},
+        },
+        "source": (
+            "202 series datasheet, page 3, typical current: 90 mA at 15/75 cd and 180 mA at 110 cd "
+            "on 24 Vdc (128 and 260 mA on 24 Vfwr)."
+        ),
+    },
+    {
+        "category": "power.device",
+        "key": "G1RF",
+        "data": {
+            "part_no": "G1RF",
+            "description": "Genesis G1 LED strobe",
+            "currents": [
+                {"ma": 24, "label": "15/30/75 cd, 16-33 VDC"},
+                {"ma": 32, "label": "15/30/75 cd, 16-33 VFWR"},
+            ],
+            "datasheet": {"library": "EDWARDS", "path": "03- NAC/Horn-Strobe/02- G1 series WM.pdf",
+                          "pages": [3]},
+        },
+        "source": (
+            "Genesis G1 series datasheet, page 3: an LED strobe draws 24 mA at any of its 15, 30 or "
+            "75 cd settings on 16 to 33 VDC."
+        ),
+    },
+    {
+        "category": "power.device",
+        "key": "G1RHDVM",
+        "data": {
+            "part_no": "G1RHDVM",
+            "description": "Genesis G1 horn-strobe",
+            "currents": [
+                {"ma": 35, "label": "C-Low / T-Low, 16-33 VDC"},
+                {"ma": 45, "label": "C-High / T-High, 16-33 VDC"},
+                {"ma": 43, "label": "C-Low / T-Low, 16-33 VFWR"},
+                {"ma": 55, "label": "C-High / T-High, 16-33 VFWR"},
+            ],
+            "datasheet": {"library": "EDWARDS", "path": "03- NAC/Horn-Strobe/02- G1 series WM.pdf",
+                          "pages": [3]},
+        },
+        "source": (
+            "Genesis G1 series datasheet, page 3: a horn-strobe at any candela setting draws 35 mA "
+            "on C-Low or T-Low and 45 mA on C-High or T-High at 16 to 33 VDC."
+        ),
+    },
+    # The audio riser module each floor is fed through, and what one may
+    # carry. A rule rather than code, so the part or the limit is corrected
+    # without a release.
+    {
+        "category": "ve.module",
+        "key": "audio_riser",
+        "data": {
+            "part_no": "SIGA-CC2A",
+            "description": "Dual Input (Riser) Module - Class A",
+            "max_watts": 35,
+            "per_floor": 1,
+        },
+        "source": (
+            "Decided by the platform owner: every floor is fed through one SIGA-CC2A, and one "
+            "module carries at most 35 W of speaker load."
+        ),
+    },
+    # The speaker database the amplifier calculation loads from: what each
+    # speaker can be tapped at, taken off its datasheet in the library.
+    # A rule rather than code, so a tapping is corrected without a release,
+    # and versioned, so a calculation already issued does not shift when
+    # one is.
+    #
+    # `taps` is the **70 V line**, which is what these systems run on. The
+    # same speaker taps differently on 100 V and the figures are not
+    # interchangeable: an EST-S186 is 3 / 1.5 / 0.75 / 0.37 W on 70 V and
+    # 6 / 3 / 1.5 / 0.75 W on 100 V.
+    #
+    # There is deliberately no default tapping. A datasheet says what a
+    # speaker *can* be set to, not what this company sets it to; the
+    # engineer chooses, and the amplifier page asks until they have.
+    {
+        "category": "ve.speaker",
+        "key": "EST-S186C",
+        "data": {
+            "part_no": "EST-S186C",
+            "description": "EST-S186 ceiling loudspeaker, ABS fire dome, rated 6 W",
+            "line_volts": 70,
+            "taps": [0.37, 0.75, 1.5, 3],
+            "taps_100v": [0.75, 1.5, 3, 6],
+            "rated_watts": 6,
+            "datasheet": {"library": "EDWARDS", "path": "03- NAC/Speaker/03- EST-S186.pdf", "pages": [2]},
+        },
+        "source": (
+            "EST-S186 datasheet, page 2: \"Tappings 70 V line, W -- 3 / 1,5 / 0,75 / 0,37\" "
+            "(100 V line: 6 / 3 / 1,5 / 0,75; rated power 6 W)."
+        ),
+    },
+    {
+        "category": "ve.speaker",
+        "key": "G4SRN",
+        "data": {
+            "part_no": "G4SRN",
+            "description": "Genesis G4 wall loudspeaker, selectable 25 V / 70 V",
+            "line_volts": 70,
+            "taps": [0.25, 0.5, 1, 2],
+            "datasheet": {"library": "EDWARDS", "path": "03- NAC/Speaker/01- G4 WM.pdf", "pages": [4]},
+        },
+        "source": (
+            "Genesis G4 datasheet, page 4 sound settings table: taps of 1/4 W, 1/2 W, 1 W and 2 W, "
+            "at 25 V or 70 V by a switch under the cover."
+        ),
+    },
+    {
+        "category": "ve.speaker",
+        "key": "757-3A-SS70",
+        "data": {
+            "part_no": "757-3A-SS70",
+            "description": "Integrity 70 V speaker/strobe",
+            "line_volts": 70,
+            "taps": [0.25, 0.5, 1, 2],
+            "datasheet": {"library": "EDWARDS",
+                          "path": "03- NAC/Speaker/01- 757-3A-SS70 WP + 757WP WM.pdf", "pages": [1]},
+        },
+        "source": (
+            "Integrity 757 datasheet, page 1: \"Multiple Output Taps, 25 or 70 Volt Models -- easy to "
+            "select for 1/4, 1/2, 1 or 2 watt operation.\""
+        ),
+    },
 ]
 
 

@@ -670,3 +670,40 @@ def test_uploading_is_for_editors(client, db_session, tmp_path, monkeypatch):
     make_user(db_session, "viewer@ep-platform.com", RoleEnum.viewer)
     login(client, "viewer@ep-platform.com")
     assert _upload(client, project["id"], "drf").status_code == 403
+
+
+def test_a_project_carrying_every_kind_of_row_can_still_be_deleted(client, db_session):
+    """Every table that hangs off a project by key must be cleared when the
+    project is.
+
+    The foreign keys are enforced, so a table nobody remembered does not
+    fail quietly -- the project simply cannot be deleted at all. This
+    walks the mappers rather than naming tables, so the next per-project
+    table added fails here rather than on someone's machine.
+    """
+    from sqlalchemy import inspect
+
+    from app.database import Base
+    from app.models import Project
+    from app.services import project_deletion
+
+    cleared = open(project_deletion.__file__, encoding="utf-8").read()
+    cascaded = {
+        relationship.mapper.class_.__name__
+        for relationship in inspect(Project).relationships
+        if "delete" in str(relationship.cascade)
+    }
+    forgotten = []
+    for mapper in Base.registry.mappers:
+        model = mapper.class_
+        columns = model.__table__.columns
+        if "project_id" not in columns:
+            continue
+        if not any(key.column.table.name == "projects" for key in columns["project_id"].foreign_keys):
+            continue
+        if model.__name__ not in cascaded and model.__name__ not in cleared:
+            forgotten.append(model.__name__)
+    assert forgotten == [], (
+        f"{forgotten} hang off a project but are neither cascaded nor cleared in project_deletion.py; "
+        "deleting a project that has one of these rows fails on a foreign key."
+    )

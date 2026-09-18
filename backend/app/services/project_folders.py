@@ -32,6 +32,12 @@ from app.services import document_control, system_rules
 SCAN = "01- Scan"
 MATERIAL_SUBMITTALS = "02- Material Submittals"
 DRAWINGS = "03- Drawings"
+# Where the design schedules an engineer works from are kept -- the
+# floor-wise BOQ workbook among them. Unlike the folders above it is made
+# when something is first filed into it rather than when the project is
+# opened, so a project nobody has handed a schedule for does not grow an
+# empty folder.
+DESIGN = "03- Design"
 APPROVED = "Approved"
 
 # The platform's system code -> the folder name the archive uses for it.
@@ -98,6 +104,67 @@ def ensure(project) -> list[str]:
         os.makedirs(document_control._os_path(target), exist_ok=True)
         created.append(relative)
     return created
+
+
+def design_folder(project) -> Path | None:
+    """Where this project's design schedules are filed:
+    <project>/03- Design. None when the project's folder is not reachable
+    on this PC -- the platform never invents a path outside the archive.
+
+    The folder itself is not made here; `file_design_document` makes it
+    when there is something to put in it.
+    """
+    if not project.source_folder_path:
+        return None
+    root = Path(project.source_folder_path)
+    if not _is_dir(root):
+        return None
+    return root / DESIGN
+
+
+def design_documents(project, suffixes: tuple[str, ...] = (".xlsx", ".xlsm")) -> list[Path]:
+    """The design documents already filed in the project's own folder,
+    newest first.
+
+    This is what lets the floor-wise BOQ keep itself up to date: the
+    workbook an engineer edits in 03- Design is the source, and the
+    platform reads it again when it changes rather than asking for it to
+    be uploaded a second time.
+    """
+    folder = design_folder(project)
+    if folder is None or not _is_dir(folder):
+        return []
+    found: list[tuple[float, Path]] = []
+    try:
+        for entry in os.scandir(document_control._os_path(folder)):
+            if not entry.is_file() or not entry.name.lower().endswith(suffixes):
+                continue
+            if entry.name.startswith("~$"):
+                continue          # Excel's own lock file for an open workbook
+            found.append((entry.stat().st_mtime, folder / entry.name))
+    except OSError:
+        return []
+    return [path for _mtime, path in sorted(found, key=lambda pair: -pair[0])]
+
+
+def file_design_document(project, name: str, content: bytes) -> str | None:
+    """Keep a design document in the project's own folder on OneDrive, and
+    say where it went, relative to the project.
+
+    None when the project's folder is not reachable: the platform reads
+    the archive from wherever OneDrive syncs it, and on a PC where that
+    folder is not there the upload is still read and shown -- it is simply
+    not filed. Paths past Windows' 260-character limit are written through
+    the long-path API, as everything else here is.
+    """
+    folder = design_folder(project)
+    if folder is None:
+        return None
+    os.makedirs(document_control._os_path(folder), exist_ok=True)
+    path = folder / Path(name).name
+    with open(document_control._os_path(path), "wb") as handle:
+        handle.write(content)
+    return path.relative_to(Path(project.source_folder_path)).as_posix()
 
 
 def system_folder(system_code: str | None) -> str | None:

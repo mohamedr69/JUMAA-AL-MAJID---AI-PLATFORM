@@ -496,46 +496,71 @@ class ProjectFrcCables(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
 
 
-class DeviceSymbol(Base):
-    """A symbol the platform has been taught, kept for every project.
+class ProjectFloorSchedule(Base):
+    """A floor-wise BOQ read off the schedule an engineer keeps in Excel.
 
-    The geometry is what identifies a device on a drawing; the block names
-    are only what draughtsmen have called it so far. A row is written when
-    a drawing's legend explains a symbol, and when an engineer confirms
-    one -- so the next project recognises it with no legend at all
-    (app.services.device_symbols)."""
+    The other way a floor-wise BOQ arrives. The drawings route counts
+    symbols on a CAD layout (`project_floor_boq`); this is the workbook a
+    project is actually run from, where the quantities are already
+    written down -- a row per item, a column per floor, and "1 to 13" for
+    the thirteen typical floors nobody writes out.
 
-    __tablename__ = "device_symbols"
+    The workbook itself is not kept; what it said is
+    (`app.services.floor_schedule.Schedule`, as JSON). One row per
+    project, replaced each time a schedule is handed in.
+    """
+
+    __tablename__ = "project_floor_schedule"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    # The device as the platform names it ("Smoke detector with sounder base").
-    device: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
-    system_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
-    description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    part_numbers: Mapped[list | None] = mapped_column(JSON, nullable=True)
-    # Every way the symbol has been drawn, and every name it has been given.
-    fingerprints: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    shapes: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    block_names: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
-    layers: Mapped[list | None] = mapped_column(JSON, nullable=True)
-    # "legend" (a drawing explained it), "engineer" (someone confirmed it).
-    source: Mapped[str] = mapped_column(String(16), nullable=False, default="legend")
-    learned_from: Mapped[str | None] = mapped_column(Text, nullable=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, unique=True)
+    # The workbook this was read from, for the page to name.
+    file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sheet_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Where the workbook itself was filed in the project's own folder
+    # ("03- Design/EP-30880 FLOOR WISE BOQ.xlsx"), relative to the project.
+    # Null on a PC where that folder is not reachable: the schedule is
+    # still read and shown, it is simply not filed.
+    archive_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The workbook in the project folder this was last read from, and what
+    # it contained then. The tab re-reads it by itself when the file
+    # changes, so an engineer keeps the schedule in Excel and the platform
+    # follows -- nothing is uploaded twice.
+    source_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Quantities an engineer set by hand, kept apart from the reading:
+    # {item description: {floor: quantity}}. Held separately so that
+    # re-reading a changed workbook does not throw the corrections away --
+    # they are applied again over whatever the sheet now says.
+    edits: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    result: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
 
 
-class ProjectFloorBoq(Base):
-    """The floor-wise device count read off a project's drawings: the
-    schedule as it was last extracted, kept so the tab shows it again
-    without the drawings being read a second time. One row per project."""
+class ProjectAmplifierDesign(Base):
+    """What a project sets its voice evacuation speakers to, and anything
+    an engineer has adjusted by hand.
 
-    __tablename__ = "project_floor_boq"
+    The schedule itself is not stored: it is worked out from the
+    floor-wise BOQ every time the tab is opened
+    (`app.services.amplifier_calculation`), so a speaker added to a floor
+    shows in the amplifier loading without anything being re-imported.
+    What is stored is only what cannot be derived -- the tapping each
+    speaker is set to, and any quantity the engineer has overridden.
+    """
+
+    __tablename__ = "project_amplifier_design"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, unique=True)
-    # app.services.floor_devices.Extraction, as JSON.
-    result: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # {part number: watts} -- the tapping this project sets each speaker to.
+    taps: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    # {part number: milliamps} -- the current this project takes each 24 V
+    # appliance at, where its datasheet gives more than one figure. The
+    # power calculation is the other half of the same design, so it is kept
+    # on the same row rather than in a table of its own.
+    currents: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
 

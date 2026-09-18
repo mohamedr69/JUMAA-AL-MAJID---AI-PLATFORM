@@ -21,7 +21,6 @@ const SECTIONS = [
   { to: "documents", label: "Documents", end: false },
   { to: "boq", label: "BOQ", end: false },
   { to: "materials", label: "Proposed Materials", end: false },
-  { to: "floor-boq", label: "BOQ floor wise", end: false },
   { to: "calculations", label: "Calculations", end: false },
   { to: "compliance", label: "Compliance Statement", end: false },
   { to: "submittal", label: "Material Submittals", end: false },

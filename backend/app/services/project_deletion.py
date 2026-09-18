@@ -17,17 +17,25 @@ from sqlalchemy.orm import Session
 from app.models import (
     AiProposal,
     AiUsage,
+    AiVerification,
     BackgroundJob,
+    BatteryPanelResult,
     BoqCandidate,
     BoqSnapshot,
     ComplianceAudit,
     ComplianceLearnedAnswer,
     ComplianceStatement,
+    DocumentDependency,
+    DocumentReading,
     ExtractionIssue,
     ExtractionRun,
     Project,
+    ProjectAmplifierDesign,
     ProjectBoqItem,
     ProjectDocument,
+    ProjectFloorSchedule,
+    ProjectFrcCables,
+    ProjectProposedMaterial,
     ResultCache,
 )
 
@@ -50,7 +58,16 @@ def delete_project(db: Session, project: Project) -> None:
     db.execute(delete(ComplianceAudit).where(ComplianceAudit.statement_id.in_(statements)))
     db.execute(delete(ComplianceLearnedAnswer).where(ComplianceLearnedAnswer.project_id == project_id))
     db.execute(delete(ComplianceStatement).where(ComplianceStatement.project_id == project_id))
-    for model in (BoqCandidate, BoqSnapshot, ProjectDocument, BackgroundJob, ResultCache):
+    # Everything else that hangs off the project by key and has no
+    # cascade of its own. A table missing from here does not fail
+    # quietly: the foreign keys are enforced, so deleting the project
+    # raises and the project cannot be removed at all -- which is what
+    # `test_a_project_carrying_every_kind_of_row_can_still_be_deleted`
+    # is here to catch when the next per-project table is added.
+    # Documents go after the rows that point at them.
+    for model in (AiVerification, DocumentDependency, DocumentReading, BatteryPanelResult,
+                  ProjectFrcCables, ProjectProposedMaterial, ProjectFloorSchedule, ProjectAmplifierDesign,
+                  BoqCandidate, BoqSnapshot, ProjectDocument, BackgroundJob, ResultCache):
         db.execute(delete(model).where(model.project_id == project_id))
     db.expire(project, ["boq_items"])
     db.delete(project)

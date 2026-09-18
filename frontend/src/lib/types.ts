@@ -1736,92 +1736,6 @@ export interface FrcCables {
   updated_at: string | null;
 }
 
-
-/** One floor of the floor-wise BOQ: the devices counted on it, and the
- * floors a typical layout covers (app/services/floor_devices.py). */
-export interface FloorBoqFloor {
-  floor: string;
-  order: number;
-  typical: boolean;
-  covers: string[];
-  source: string;
-  devices: Record<string, number>;
-  total: number;
-}
-
-/** One piece of evidence for what a symbol is: which source spoke, what
- * it said, and what that source is worth. */
-export interface FloorBoqEvidence {
-  source: string;
-  device: string;
-  weight: number;
-  detail: string;
-}
-
-/** A symbol on the drawings, recognised once however many times it is
- * used. `state` is the band an engineer works by: `accepted` (95% and
- * above), `accepted_flagged` (80-95%), `review` (60-80%) or `unresolved`
- * (below 60%). */
-export interface FloorBoqSymbol {
-  file: string;
-  block: string;
-  layer: string;
-  fingerprint: string;
-  shape: string;
-  features: Record<string, unknown>;
-  instances: number;
-  floors: string[];
-  device: string;
-  confidence: number;
-  state: "accepted" | "accepted_flagged" | "review" | "unresolved";
-  method: string;
-  conflict: string | null;
-  evidence: FloorBoqEvidence[];
-}
-
-/** One device where it was drawn: for the engineer who wants to see the
- * count on the drawing itself. */
-export interface FloorBoqInstance {
-  floor: string;
-  device: string;
-  block: string;
-  address: string | null;
-  x: number;
-  y: number;
-  confidence: number;
-  method: string;
-  file: string;
-}
-
-export interface FloorBoqResult {
-  floors: FloorBoqFloor[];
-  /** Every device kind found, in the order the columns are shown. */
-  devices: string[];
-  legend_excluded: number;
-  outside_plan_excluded: number;
-  furniture_excluded: number;
-  /** The riser diagram, the key plan, the typical details: the same
-   * devices drawn again beside the plans. */
-  diagram_excluded: number;
-  files: { file: string; floors: string[]; devices: number; layouts: string[] }[];
-  warnings: string[];
-  /** What each symbol was taken to be, and on what evidence. */
-  symbols: FloorBoqSymbol[];
-  /** Every device where it was drawn (up to 20,000). */
-  instances: FloorBoqInstance[];
-  /** What the drawings' legends taught the platform. */
-  learned: { device: string; block: string; description: string; file: string }[];
-}
-
-/** GET/POST /projects/{id}/floor-boq. `converter` says why a DWG cannot be
- * converted on this server, when it cannot. */
-export interface FloorBoq {
-  result: FloorBoqResult | null;
-  updated_at: string | null;
-  converter: string | null;
-}
-
-
 /** Where this PC keeps the platform's data (GET /data-location): the
  * database in use, whether it is a folder shared between PCs, and what it
  * holds. */
@@ -1835,4 +1749,258 @@ export interface DataLocation {
   projects: number;
   users: number;
   advice: string;
+}
+
+
+/** One line of the floor-wise schedule read off an engineer's workbook
+ * (the BOQ page's "BOQ Floor Wise" tab). `per_floor` is already expanded:
+ * a column headed "1 to 13" has put its quantity against each of the
+ * thirteen floors. */
+export interface FloorScheduleItem {
+  description: string;
+  catalog_no: string | null;
+  unit: string | null;
+  manufacturer: string | null;
+  remarks: string | null;
+  /** What the line is, in the platform's own vocabulary ("Smoke
+   * detector"), read from the description. Null where the wording names
+   * no device the platform knows -- never guessed at. */
+  device: string | null;
+  /** The family it is ordered under ("Detectors"), as the drawings tab
+   * groups its columns. */
+  family: string | null;
+  /** "FAS" or "ELS": a fire alarm job and an emergency lighting job are
+   * two BOQs, so the schedule is shown as two. Null where the line names
+   * no device the platform knows -- shown under neither rather than
+   * dropped. */
+  system: string | null;
+  per_floor: Record<string, number>;
+  /** Which of the project's proposed materials the line is ordered as,
+   * once an engineer settles it. */
+  material?: { part_no: string; description: string | null; manufacturer: string | null } | null;
+  /** True once a quantity on the line has been set by hand, so a row no
+   * longer claiming to match the sheet's own total is expected. */
+  edited?: boolean;
+  total: number;
+  /** What the workbook's own total column said, where it had one. */
+  stated_total: number | null;
+  row: number;
+}
+
+/** A column of the workbook, and what it was taken to be. */
+export interface FloorScheduleColumn {
+  heading: string;
+  kind: string;
+  floors: string[];
+  /** True where the column stands for a range of floors ("1 to 13"). */
+  typical: boolean;
+}
+
+export interface FloorScheduleResult {
+  sheet: string;
+  /** Every floor the schedule covers, lowest first, each once -- the
+   * typical ranges already written out. */
+  floors: string[];
+  items: FloorScheduleItem[];
+  columns: FloorScheduleColumn[];
+  /** "per_floor" (a typical column's quantity is the quantity on each of
+   * its floors) or "across" (it is shared between them). A thirteenfold
+   * difference, so `typical_reason` says what settled it. */
+  typical_reading: "per_floor" | "across";
+  typical_reason: string;
+  warnings: string[];
+  /** The devices the schedule carries, each once. */
+  devices: string[];
+  /** What each system's rows come to. A line the platform cannot name is
+   * counted under "" and shown all the same, so these always sum to
+   * `grand_total` and nothing can be lost between the tabs. */
+  systems: Record<string, number>;
+  totals: Record<string, number>;
+  grand_total: number;
+  /** What the sheet's own total column comes to, where it has one. It
+   * includes lines whose floor cells could not be read as numbers, so the
+   * two differ by exactly what could not be counted per floor. */
+  stated_grand_total: number | null;
+}
+
+/** GET/POST /projects/{id}/floor-schedule */
+export interface FloorSchedule {
+  result: FloorScheduleResult | null;
+  file_name: string | null;
+  sheet_name: string | null;
+  /** Where the workbook was filed in the project's own OneDrive folder
+   * ("03- Design/..."), or null when that folder is not reachable on this
+   * PC -- the schedule is read and shown all the same. */
+  archive_path: string | null;
+  /** The workbook in the project's own folder the tab keeps itself in step
+   * with. Set once a schedule has been read from (or filed into)
+   * `03- Design`; the upload control is only offered when it is null. */
+  source_path: string | null;
+  /** What the last sync did, when it did something: read the workbook for
+   * the first time, or read it again because it had changed. */
+  filed_note: string | null;
+  updated_at: string | null;
+}
+
+/** GET /projects/{id}/floor-schedule/check -- the schedule's own totals
+ * beside the design sheet BOQ, which are read from different documents
+ * and should agree. */
+export interface FloorScheduleCheck {
+  rows: {
+    description: string;
+    catalog_no: string | null;
+    schedule_total: number;
+    boq_quantity: number | null;
+    difference: number | null;
+  }[];
+  matched: number;
+  only_in_schedule: { description: string; catalog_no: string | null; total: number }[];
+  only_in_boq: { catalog_no: string | null; description: string; quantity: number }[];
+}
+
+
+/** One part a schedule line may be settled as: the project's own proposed
+ * materials, devices only (GET /projects/{id}/floor-schedule/materials).
+ * Back boxes, panel parts and batteries are never offered -- they are
+ * ordered with a device or for a panel, not counted on a floor. */
+export interface FloorScheduleMaterial {
+  part_no: string;
+  description: string;
+  manufacturer: string | null;
+  system_code: string | null;
+  source: string;
+}
+
+
+/** One speaker the project proposes, as a column of the amplifier
+ * schedule. `tap` is null where the platform has no datasheet tapping for
+ * the part -- the engineer picks one and nothing is assumed. */
+export interface AmplifierColumn {
+  key: string;
+  description: string;
+  taps: number[];
+  tap: number | null;
+  lines: string[];
+  /** The schedule line is not settled as a part on the Proposed Materials
+   * tab, so the column is named after the schedule's own wording. */
+  unsettled: boolean;
+}
+
+export interface AmplifierFloorRow {
+  floor: string;
+  counts: Record<string, number>;
+  watts: number;
+  speakers: number;
+  amplifier: string | null;
+  /** How many audio riser modules the floor needs: one, unless its load is
+   * more than a single module may carry. Nought where it has no speakers. */
+  modules: number;
+}
+
+export interface AmplifierUnit {
+  name: string;
+  floors: string[];
+  watts: number;
+  cabinet: string | null;
+  /** The floor carries more speakers than one amplifier can feed, so it is
+   * shown alone and over its limit rather than split quietly. */
+  over_limit: boolean;
+}
+
+export interface AmplifierResult {
+  columns: AmplifierColumn[];
+  floors: AmplifierFloorRow[];
+  amplifiers: AmplifierUnit[];
+  cabinets: { name: string; amplifiers: string[] }[];
+  amplifier_part: string;
+  amplifier_watts: number;
+  /** What one amplifier may be loaded to: its rating times the design
+   * rule's fraction. */
+  limit_watts: number;
+  amplifiers_per_cabinet: number;
+  /** The audio riser module each floor is fed through, and what one may
+   * carry, from the `ve.module` design rule. */
+  module_part: string;
+  module_max_watts: number;
+  total_modules: number;
+  total_floors: number;
+  total_speakers: number;
+  total_watts: number;
+  spare_fraction: number;
+  total_watts_with_spare: number;
+  totals_by_column: Record<string, number>;
+  warnings: string[];
+}
+
+/** GET/PUT /projects/{id}/design/amplifier */
+export interface AmplifierSchedule {
+  result: AmplifierResult;
+  schedule_file: string | null;
+  updated_at: string | null;
+}
+
+/** GET /design/speakers -- what each speaker can be tapped at. */
+export interface SpeakerDatabaseRow {
+  part_no: string;
+  description: string | null;
+  taps: number[];
+  default_tap: number | null;
+}
+
+
+/** One 24 V appliance the project proposes, as a column of the power
+ * schedule. `current_ma` is null until an engineer chooses one of the
+ * datasheet's figures -- nothing is assumed. */
+export interface PowerColumn {
+  key: string;
+  description: string;
+  device: string;
+  currents: { ma: number; label?: string }[];
+  current_ma: number | null;
+  /** A sounder base is powered but sits on the Signature loop, so it needs
+   * no notification-circuit module. */
+  needs_module: boolean;
+  lines: string[];
+  unsettled: boolean;
+}
+
+export interface PowerFloorRow {
+  floor: string;
+  counts: Record<string, number>;
+  current_ma: number;
+  devices: number;
+  supply: string | null;
+  modules: number;
+}
+
+export interface PowerResult {
+  columns: PowerColumn[];
+  floors: PowerFloorRow[];
+  supplies: { name: string; floors: string[]; current_ma: number; over_limit: boolean }[];
+  supply_part: string;
+  supply_amps: number;
+  /** What one supply may be worked to, in milliamps. */
+  limit_ma: number;
+  module_part: string;
+  total_floors: number;
+  total_devices: number;
+  total_modules: number;
+  total_ma: number;
+  total_amps: number;
+  totals_by_column: Record<string, number>;
+  warnings: string[];
+}
+
+/** GET/PUT /projects/{id}/design/power */
+export interface PowerSchedule {
+  result: PowerResult;
+  schedule_file: string | null;
+  updated_at: string | null;
+}
+
+/** GET /design/device-currents -- what each 24 V appliance draws. */
+export interface DeviceCurrentRow {
+  part_no: string;
+  description: string | null;
+  currents: { ma: number; label?: string }[];
 }

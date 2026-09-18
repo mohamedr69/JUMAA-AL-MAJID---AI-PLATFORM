@@ -13,8 +13,9 @@ import { LoginPage } from "./pages/LoginPage";
 import { OpenProjectPage } from "./pages/OpenProjectPage";
 import { OpeningScreen } from "./pages/OpeningScreen";
 import { ProjectBatteryPage } from "./pages/ProjectBatteryPage";
+import { ProjectAmplifierPage } from "./pages/ProjectAmplifierPage";
+import { ProjectPowerPage } from "./pages/ProjectPowerPage";
 import { ProjectBoqPage } from "./pages/ProjectBoqPage";
-import { ProjectFloorBoqPage } from "./pages/ProjectFloorBoqPage";
 import { ProjectProposedMaterialsPage } from "./pages/ProjectProposedMaterialsPage";
 import { ProjectCalculationsPage } from "./pages/ProjectCalculationsPage";
 import { ProjectCompliancePage } from "./pages/ProjectCompliancePage";
@@ -67,23 +68,13 @@ export default function App() {
             <Route path="info" element={<ProjectInfoPage />} />
             <Route path="boq" element={<ProjectBoqPage />} />
             <Route path="materials" element={<ProjectProposedMaterialsPage />} />
-            <Route path="floor-boq" element={<ProjectFloorBoqPage />} />
             <Route path="boq/revisions" element={<ProjectBoqRevisionsPage />} />
             <Route path="boq/reread" element={<ProjectBoqRereadPage />} />
             <Route path="calculations" element={<ProjectCalculationsPage />}>
               <Route index element={<Navigate to="battery" replace />} />
               <Route path="battery" element={<ProjectBatteryPage />} />
-              {/* Marked "soon" on the platform owner's instruction. The page
-                  component and the VE API are unchanged and still here; only
-                  the route is turned off, so releasing it is one line. */}
-              <Route
-                path="amplifier"
-                element={<UnderMaintenance title="Amplifier calculation" note="Voice Evacuation amplifier loading — zones, speaker taps, channels and racks — sits here once it is released." />}
-              />
-              <Route
-                path="power"
-                element={<UnderMaintenance title="Power calculation" note="Panel and auxiliary power supply sizing sits here once it is built." />}
-              />
+              <Route path="amplifier" element={<ProjectAmplifierPage />} />
+              <Route path="power" element={<ProjectPowerPage />} />
             </Route>
             <Route path="compliance" element={<ProjectCompliancePage />} />
             {/* Where these pages used to live. */}
