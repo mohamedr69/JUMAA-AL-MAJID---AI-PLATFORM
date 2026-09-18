@@ -36,6 +36,7 @@ SUPPLY_CATEGORY, SUPPLY_KEY = "power.supply", "booster"
 NAC_CATEGORY, NAC_KEY = "power.module", "nac"
 CURRENT_CATEGORY = "power.device"
 SPEAKER_CATEGORY = "ve.speaker"
+STAIRCASE_CATEGORY, STAIRCASE_KEY = "ve.staircase", "speakers"
 
 
 def _current(db: Session, category: str) -> list[DesignRule]:
@@ -49,6 +50,12 @@ def _current(db: Session, category: str) -> list[DesignRule]:
 def speaker_database(db: Session) -> dict[str, dict]:
     """Every speaker the platform knows a tapping for, by part number."""
     return {row.key.upper(): dict(row.data or {}) for row in _current(db, SPEAKER_CATEGORY)}
+
+
+def _staircase(db: Session) -> dict | None:
+    """Which speakers are a staircase's, or None where no rule says."""
+    rule = next((row for row in _current(db, STAIRCASE_CATEGORY) if row.key == STAIRCASE_KEY), None)
+    return dict(rule.data or {}) if rule else None
 
 
 def _module(db: Session) -> dict:
@@ -249,6 +256,7 @@ def _out(db: Session, project, design: ProjectAmplifierDesign | None,
         chosen={key: float(value) for key, value in ((design.taps if design else {}) or {}).items()},
         fraction=_fraction(db),
         module=_module(db),
+        staircase=_staircase(db),
     )
     if schedule is None:
         result.warnings.insert(0, (
@@ -325,8 +333,11 @@ def set_count(
         chosen={key: float(value) for key, value in ((design.taps if design else {}) or {}).items()},
         fraction=_fraction(db),
         module=_module(db),
+        staircase=_staircase(db),
     )
-    column = next((c for c in result.columns if c.key == payload.part_no), None)
+    # A staircase speaker's count is changed from its own tab the same way.
+    columns = result.columns + (result.staircase.columns if result.staircase else [])
+    column = next((c for c in columns if c.key == payload.part_no), None)
     if column is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND,
                             detail=f"{payload.part_no} is not a speaker on this schedule")

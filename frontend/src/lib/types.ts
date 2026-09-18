@@ -1905,6 +1905,48 @@ export interface AmplifierUnit {
   /** The floor carries more speakers than one amplifier can feed, so it is
    * shown alone and over its limit rather than split quietly. */
   over_limit: boolean;
+  /** The staircase circuits it feeds; a floor amplifier feeds floors. */
+  circuits: string[];
+}
+
+/** One staircase circuit: a run of floors of one stair, on one module. */
+export interface StairCircuit {
+  /** "ST1-1": stair 1, its first circuit. */
+  name: string;
+  stair: number;
+  floors: string[];
+  speakers: number;
+  watts: number;
+  amplifier: string | null;
+  over_limit: boolean;
+}
+
+/** The staircase speakers, on circuits of their own. */
+export interface StaircaseResult {
+  columns: AmplifierColumn[];
+  /** How many stairs the building has: its busiest floor's count of
+   * staircase speakers, one to a stair. */
+  stairs: number;
+  floors: {
+    floor: string;
+    counts: Record<string, number>;
+    stairs: number;
+    speakers: number;
+    watts: number;
+    /** The circuit each of the floor's stairs is on, stair 1 first. */
+    circuits: string[];
+  }[];
+  circuits: StairCircuit[];
+  amplifiers: AmplifierUnit[];
+  /** What one staircase circuit may carry: the amplifier's limit, or the
+   * module's rating where that is lower. */
+  circuit_limit_watts: number;
+  total_circuits: number;
+  total_speakers: number;
+  total_watts: number;
+  total_watts_with_spare: number;
+  totals_by_column: Record<string, number>;
+  warnings: string[];
 }
 
 export interface AmplifierResult {
@@ -1930,6 +1972,10 @@ export interface AmplifierResult {
   total_watts_with_spare: number;
   totals_by_column: Record<string, number>;
   warnings: string[];
+  /** Null where the project keeps no staircase apart. */
+  staircase: StaircaseResult | null;
+  /** What the job orders, the floors' and the staircases' together. */
+  job: { amplifiers: number; modules: number; cabinets: number; speakers: number; watts: number };
 }
 
 /** GET/PUT /projects/{id}/design/amplifier */

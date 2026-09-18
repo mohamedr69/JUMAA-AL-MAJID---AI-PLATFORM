@@ -54,6 +54,21 @@ INITIAL_DESIGN_RULES = [
             "the datasheet library."
         ),
     },
+    # The speakers in a staircase: on circuits of their own, never shared
+    # with a floor's. A rule rather than code, so another project's
+    # staircase speaker is added without a release.
+    {
+        "category": "ve.staircase",
+        "key": "speakers",
+        "data": {"parts": ["G4SRN"]},
+        "source": (
+            "Decided by the platform owner on 2026-09-18: wall-mounted speakers in a staircase (G4SRN) "
+            "are on separate circuits from the floors'. A stair has one speaker on each floor it serves, "
+            "so a floor's count of them is its number of stairs. A staircase circuit is loaded to one "
+            "SIGA-AA50's 40 W -- or the SIGA-CC2A's rating where that is lower -- and then a new circuit "
+            "starts on a new SIGA-CC2A."
+        ),
+    },
     # --- the 24 V power calculation --------------------------------------
     #
     # The booster power supply the floors are fed from, and how hard it is

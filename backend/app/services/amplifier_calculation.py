@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+import re
 
 from app.services.symbol_taxonomy import SPEAKER, device_in, family_of
 
@@ -61,8 +62,22 @@ MODULE_PART = "SIGA-CC2A"
 MODULE_MAX_WATTS = 35.0
 
 
+# The speakers in a staircase are on circuits of their own, never shared
+# with a floor's: a staircase is evacuated as one, top to bottom, whatever
+# the floors either side of it are doing. Which parts they are is a design
+# rule (`ve.staircase/speakers`); a line whose own wording says "stair"
+# is one as well, whatever it is ordered as.
+_STAIR_RE = re.compile(r"\bSTAIR", re.IGNORECASE)
+
+
 def _watts(value: float) -> float:
     return round(value + 0.0, 4)
+
+
+def is_staircase(item: dict, parts: set[str]) -> bool:
+    """Whether a speaker line is a staircase's rather than a floor's."""
+    part = ((item.get("material") or {}).get("part_no") or item.get("catalog_no") or "").strip().upper()
+    return bool((part and part in parts) or _STAIR_RE.search(item.get("description") or ""))
 
 
 @dataclasses.dataclass
@@ -118,10 +133,13 @@ class Amplifier:
     # A floor whose own load is over the limit cannot be fed by one
     # amplifier at all; it is reported rather than quietly split.
     over_limit: bool = False
+    # The staircase circuits it feeds, on the Staircase tab; a floor
+    # amplifier feeds floors and has none.
+    circuits: list[str] = dataclasses.field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {"name": self.name, "floors": list(self.floors), "watts": _watts(self.watts),
-                "cabinet": self.cabinet, "over_limit": self.over_limit}
+                "cabinet": self.cabinet, "over_limit": self.over_limit, "circuits": list(self.circuits)}
 
 
 @dataclasses.dataclass
@@ -134,6 +152,76 @@ class Cabinet:
 
 
 @dataclasses.dataclass
+class StairCircuit:
+    """One staircase circuit: a run of floors of one stair, on one module."""
+
+    name: str                       # "ST1-1": stair 1, its first circuit
+    stair: int
+    floors: list[str] = dataclasses.field(default_factory=list)
+    speakers: int = 0
+    watts: float = 0.0
+    amplifier: str | None = None
+    # One speaker drawing more than a circuit may carry -- a tapping no
+    # staircase would be set to, but reported rather than hidden.
+    over_limit: bool = False
+
+    def as_dict(self) -> dict:
+        return {"name": self.name, "stair": self.stair, "floors": list(self.floors),
+                "speakers": self.speakers, "watts": _watts(self.watts),
+                "amplifier": self.amplifier, "over_limit": self.over_limit}
+
+
+@dataclasses.dataclass
+class Staircase:
+    """The staircase speakers, worked out apart from the floors'.
+
+    How many staircases a building has is read off the schedule: every
+    stair has one speaker on each floor it serves, so a floor with two
+    staircase speakers is served by two stairs, and the building has as
+    many stairs as its busiest floor. Each stair is walked floor by floor
+    in the schedule's order and its speakers put on a circuit until the
+    next would take it over the limit; then a new circuit starts, on a
+    module of its own. The circuits are then fed from amplifiers, whole,
+    as floors are on the Speakers tab.
+    """
+
+    columns: list[SpeakerColumn] = dataclasses.field(default_factory=list)
+    stairs: int = 0
+    floors: list[dict] = dataclasses.field(default_factory=list)
+    circuits: list[StairCircuit] = dataclasses.field(default_factory=list)
+    amplifiers: list["Amplifier"] = dataclasses.field(default_factory=list)
+    circuit_limit_watts: float = 0.0
+    warnings: list[str] = dataclasses.field(default_factory=list)
+
+    @property
+    def total_watts(self) -> float:
+        return sum(circuit.watts for circuit in self.circuits)
+
+    @property
+    def total_speakers(self) -> int:
+        return sum(circuit.speakers for circuit in self.circuits)
+
+    def as_dict(self) -> dict:
+        return {
+            "columns": [column.as_dict() for column in self.columns],
+            "stairs": self.stairs,
+            "floors": self.floors,
+            "circuits": [circuit.as_dict() for circuit in self.circuits],
+            "amplifiers": [amplifier.as_dict() for amplifier in self.amplifiers],
+            "circuit_limit_watts": _watts(self.circuit_limit_watts),
+            "total_circuits": len(self.circuits),
+            "total_speakers": self.total_speakers,
+            "total_watts": _watts(self.total_watts),
+            "total_watts_with_spare": _watts(self.total_watts * (1 + SPARE_FRACTION)),
+            "totals_by_column": {
+                column.key: sum(floor["counts"].get(column.key, 0) for floor in self.floors)
+                for column in self.columns
+            },
+            "warnings": self.warnings,
+        }
+
+
+@dataclasses.dataclass
 class Result:
     columns: list[SpeakerColumn] = dataclasses.field(default_factory=list)
     floors: list[FloorRow] = dataclasses.field(default_factory=list)
@@ -143,6 +231,8 @@ class Result:
     module_part: str = MODULE_PART
     module_max_watts: float = MODULE_MAX_WATTS
     warnings: list[str] = dataclasses.field(default_factory=list)
+    # None where the project keeps no staircase apart (no rule given).
+    staircase: Staircase | None = None
 
     @property
     def total_watts(self) -> float:
@@ -184,6 +274,17 @@ class Result:
                 for column in self.columns
             },
             "warnings": self.warnings,
+            "staircase": self.staircase.as_dict() if self.staircase is not None else None,
+            # What the job orders, the floors' and the staircases' together:
+            # the cabinets are shared, so an odd amplifier on each tab is
+            # still one cabinet between them.
+            "job": {
+                "amplifiers": len(self.amplifiers) + (len(self.staircase.amplifiers) if self.staircase else 0),
+                "modules": self.total_modules + (len(self.staircase.circuits) if self.staircase else 0),
+                "cabinets": len(self.cabinets),
+                "speakers": self.total_speakers + (self.staircase.total_speakers if self.staircase else 0),
+                "watts": _watts(self.total_watts + (self.staircase.total_watts if self.staircase else 0)),
+            },
         }
 
 
@@ -220,7 +321,34 @@ def speaker_columns(schedule: dict, taps: dict[str, dict]) -> list[SpeakerColumn
 
 
 def calculate(schedule: dict, *, taps: dict[str, dict], chosen: dict[str, float] | None = None,
-              fraction: float = 0.8, module: dict | None = None) -> Result:
+              fraction: float = 0.8, module: dict | None = None, staircase: dict | None = None) -> Result:
+    """The amplifier schedule a floor-wise BOQ makes, the staircases apart.
+
+    `staircase` is the `ve.staircase/speakers` rule: which parts are the
+    speakers in a staircase. Given, those lines are taken off the floors
+    and worked out on circuits of their own (`Result.staircase`); not
+    given, every speaker is a floor's, as it always was.
+    """
+    parts = None if staircase is None else {
+        part.strip().upper() for part in (staircase.get("parts") or []) if part and part.strip()}
+    floors, stairs = schedule, None
+    if parts is not None:
+        on_floors, on_stairs = [], []
+        for item in schedule.get("items", []):
+            device = item.get("device") or device_in(item.get("description"))
+            (on_stairs if device in SPEAKER_DEVICES and is_staircase(item, parts) else on_floors).append(item)
+        floors = {**schedule, "items": on_floors}
+        stairs = {**schedule, "items": on_stairs}
+    result = _floor_speakers(floors, taps=taps, chosen=chosen, fraction=fraction, module=module,
+                             stair_speakers=bool(stairs and stairs["items"]))
+    if stairs is not None:
+        result.staircase = _staircase(stairs, taps=taps, chosen=chosen, result=result)
+    _cabinets(result)
+    return result
+
+
+def _floor_speakers(schedule: dict, *, taps: dict[str, dict], chosen: dict[str, float] | None,
+                    fraction: float, module: dict | None, stair_speakers: bool = False) -> Result:
     """The amplifier schedule a floor-wise BOQ makes.
 
     `taps` is the speaker database (`DesignRule` "ve.speaker") and
@@ -247,6 +375,8 @@ def calculate(schedule: dict, *, taps: dict[str, dict], chosen: dict[str, float]
 
     if not result.columns:
         result.warnings.append(
+            "Every speaker on the floor-wise BOQ is a staircase's; they are worked out on the Staircase tab."
+            if stair_speakers else
             "No speaker is proposed on the floor-wise BOQ, so there is nothing to load an amplifier with."
         )
         return result
@@ -356,14 +486,113 @@ def _assign(result: Result) -> None:
             "limit, for the engineer to split or to feed from a larger amplifier."
         )
 
-    # Two amplifiers to a cabinet, in the order the amplifiers were filled.
-    for index in range(0, len(result.amplifiers), AMPLIFIERS_PER_CABINET):
-        members = result.amplifiers[index: index + AMPLIFIERS_PER_CABINET]
+
+def _cabinets(result: Result) -> None:
+    """Two amplifiers to a cabinet: the floors' in the order they were
+    filled, then the staircases'. The cabinets are one set for the job, so
+    an odd amplifier on each tab shares a cabinet rather than taking two."""
+    amplifiers = result.amplifiers + (result.staircase.amplifiers if result.staircase else [])
+    for index in range(0, len(amplifiers), AMPLIFIERS_PER_CABINET):
+        members = amplifiers[index: index + AMPLIFIERS_PER_CABINET]
         cabinet = Cabinet(name=f"{CABINET_PART}-{index // AMPLIFIERS_PER_CABINET + 1}",
                           amplifiers=[amplifier.name for amplifier in members])
         result.cabinets.append(cabinet)
         for amplifier in members:
             amplifier.cabinet = cabinet.name
+
+
+def _staircase(schedule: dict, *, taps: dict[str, dict], chosen: dict[str, float] | None,
+               result: Result) -> Staircase:
+    """The staircase speakers on circuits of their own (see `Staircase`).
+
+    A circuit is loaded to what one amplifier may feed -- or, where the
+    module is rated for less, to the module's rating: a SIGA-CC2A carries
+    35 W on a 70 V line, below a SIGA-AA50's 40 W, and a circuit over its
+    module's rating is one the module cannot switch.
+    """
+    stair = Staircase(circuit_limit_watts=_watts(min(result.limit_watts, result.module_max_watts)))
+    stair.columns = speaker_columns(schedule, taps)
+    for column in stair.columns:
+        picked = (chosen or {}).get(column.key)
+        if picked is not None:
+            column.tap = float(picked)
+            if column.taps and column.tap not in column.taps:
+                column.taps = sorted({*column.taps, column.tap})
+    if not stair.columns:
+        return stair
+    unknown = [column for column in stair.columns if column.tap is None]
+    if unknown:
+        stair.warnings.append(
+            f"{len(unknown)} staircase speaker{'s have' if len(unknown) != 1 else ' has'} no tapping set "
+            f"({', '.join(column.key for column in unknown[:4])}). Choose one; until then the staircase "
+            "circuits carry no load and are fed from no amplifier."
+        )
+
+    # Each floor's staircase speakers, one to a stair, in a fixed order.
+    limit = stair.circuit_limit_watts
+    by_floor: list[tuple[str, list[float]]] = []
+    for floor in schedule.get("floors", []):
+        counts: dict[str, int] = {}
+        speakers: list[float] = []
+        for column in stair.columns:
+            count = sum(int((item.get("per_floor") or {}).get(floor) or 0)
+                        for item in schedule.get("items", []) if item.get("description") in column.lines)
+            if count:
+                counts[column.key] = count
+                speakers += [column.tap or 0.0] * count
+        by_floor.append((floor, speakers))
+        stair.floors.append({"floor": floor, "counts": counts, "stairs": len(speakers),
+                             "speakers": len(speakers), "watts": _watts(sum(speakers)), "circuits": []})
+    stair.stairs = max((len(speakers) for _, speakers in by_floor), default=0)
+
+    # Each stair, top of the schedule to the bottom, onto its circuits.
+    rows = {row["floor"]: row for row in stair.floors}
+    for number in range(1, stair.stairs + 1):
+        circuit: StairCircuit | None = None
+        made = 0
+        for floor, speakers in by_floor:
+            if len(speakers) < number:
+                continue                    # this stair does not reach this floor
+            watts = speakers[number - 1]
+            alone = watts > limit
+            if alone or circuit is None or circuit.watts + watts > limit:
+                made += 1
+                circuit = StairCircuit(name=f"ST{number}-{made}", stair=number, over_limit=alone)
+                stair.circuits.append(circuit)
+            circuit.floors.append(floor)
+            circuit.speakers += 1
+            circuit.watts = _watts(circuit.watts + watts)
+            rows[floor]["circuits"].append(circuit.name)
+            if alone:
+                circuit = None              # nothing more goes on a circuit already over its limit
+
+    # The circuits onto amplifiers, whole, in order.
+    amplifier: Amplifier | None = None
+    for circuit in stair.circuits:
+        if not circuit.watts:
+            continue                        # no tapping set: nothing to feed yet
+        if circuit.watts > result.limit_watts:
+            own = Amplifier(name=f"{AMPLIFIER_PART.replace('SIGA-', '')}-ST{len(stair.amplifiers) + 1}",
+                            watts=circuit.watts, over_limit=True, circuits=[circuit.name])
+            stair.amplifiers.append(own)
+            circuit.amplifier = own.name
+            amplifier = None
+            continue
+        if amplifier is None or amplifier.watts + circuit.watts > result.limit_watts:
+            amplifier = Amplifier(name=f"{AMPLIFIER_PART.replace('SIGA-', '')}-ST{len(stair.amplifiers) + 1}")
+            stair.amplifiers.append(amplifier)
+        amplifier.circuits.append(circuit.name)
+        amplifier.watts = _watts(amplifier.watts + circuit.watts)
+        circuit.amplifier = amplifier.name
+
+    over = [circuit for circuit in stair.circuits if circuit.over_limit]
+    if over:
+        stair.warnings.append(
+            f"{len(over)} staircase speaker{'s draw' if len(over) != 1 else ' draws'} more than one circuit "
+            f"may carry at {limit:g} W ({', '.join(circuit.floors[0] for circuit in over[:3])}). Each is on a "
+            "circuit of its own, over its limit."
+        )
+    return stair
 
 
 def cabinets_for(amplifiers: int) -> int:

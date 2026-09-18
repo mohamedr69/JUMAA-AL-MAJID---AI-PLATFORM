@@ -461,3 +461,112 @@ def test_the_module_and_its_limit_come_from_the_design_rule(client):
     assert result["module_part"] == "SIGA-CC1"
     assert result["module_max_watts"] == 20
     assert result["floors"][0]["modules"] == 2                   # 30 W over a 20 W module
+
+
+# --- the staircases, on circuits of their own -------------------------------------------------
+
+STAIR_TAPS = {
+    **TAPS,
+    "G4SRN": {"part_no": "G4SRN", "description": "Wall speaker", "taps": [0.25, 0.5, 1, 2], "default_tap": 0.5},
+}
+STAIRCASE = {"parts": ["G4SRN"]}
+
+
+def test_staircase_speakers_are_taken_off_the_floors():
+    """A staircase speaker never shares a floor's circuit or amplifier: it
+    leaves the Speakers tab altogether and is worked out on its own."""
+    floors = ["GF", "Level 1"]
+    schedule = _schedule(floors, [
+        ("Ceiling Speaker", "Speaker", "EST-S186C", {"GF": 10, "Level 1": 10}),
+        ("Wall Speaker", "Speaker", "G4SRN", {"GF": 2, "Level 1": 2}),
+    ])
+    result = calculate(schedule, taps=STAIR_TAPS, staircase=STAIRCASE).as_dict()
+
+    assert [column["key"] for column in result["columns"]] == ["EST-S186C"]
+    assert result["total_speakers"] == 20 and result["total_watts"] == 20
+    stair = result["staircase"]
+    assert [column["key"] for column in stair["columns"]] == ["G4SRN"]
+    assert (stair["total_speakers"], stair["total_watts"]) == (4, 2.0)
+    # What the job orders counts both.
+    assert result["job"]["speakers"] == 24 and result["job"]["watts"] == 22.0
+
+
+def test_a_floors_count_of_staircase_speakers_is_its_number_of_stairs():
+    """One speaker a floor in each stair: the building has as many stairs as
+    its busiest floor, and a stair reaches only the floors that count it."""
+    schedule = _schedule(["B1", "GF", "Level 1"], [
+        ("Wall Speaker", "Speaker", "G4SRN", {"B1": 2, "GF": 4, "Level 1": 2}),
+    ])
+    stair = calculate(schedule, taps=STAIR_TAPS, staircase=STAIRCASE).as_dict()["staircase"]
+
+    assert stair["stairs"] == 4
+    assert [(c["name"], c["stair"], c["floors"]) for c in stair["circuits"]] == [
+        ("ST1-1", 1, ["B1", "GF", "Level 1"]),
+        ("ST2-1", 2, ["B1", "GF", "Level 1"]),
+        ("ST3-1", 3, ["GF"]),
+        ("ST4-1", 4, ["GF"]),
+    ]
+    by_floor = {row["floor"]: row["circuits"] for row in stair["floors"]}
+    assert by_floor["GF"] == ["ST1-1", "ST2-1", "ST3-1", "ST4-1"] and by_floor["B1"] == ["ST1-1", "ST2-1"]
+
+
+def test_a_stair_starts_a_new_circuit_on_a_new_module_past_its_limit():
+    """A stair's circuit takes floors until the next would pass the limit;
+    then a new circuit starts, each on a module of its own."""
+    floors = [f"Level {n}" for n in range(1, 11)]
+    # One stair, a 4 W speaker a floor: eight floors are 32 W, a ninth
+    # would be 36 W, over a SIGA-CC2A's 35 W.
+    schedule = _schedule(floors, [("Stair Speaker", "Speaker", "G4SRN", {floor: 1 for floor in floors})])
+    taps = {**STAIR_TAPS, "G4SRN": {**STAIR_TAPS["G4SRN"], "taps": [4], "default_tap": 4}}
+    result = calculate(schedule, taps=taps, staircase=STAIRCASE,
+                       module={"part_no": "SIGA-CC2A", "max_watts": 35}).as_dict()
+    stair = result["staircase"]
+
+    assert [(c["name"], len(c["floors"]), c["watts"]) for c in stair["circuits"]] == [
+        ("ST1-1", 8, 32.0), ("ST1-2", 2, 8.0)]
+    assert stair["total_circuits"] == 2 and result["job"]["modules"] == 2
+
+
+def test_a_staircase_circuit_is_held_to_the_module_rating_where_lower():
+    """A SIGA-AA50 may be loaded to 40 W, but a SIGA-CC2A on a 70 V line is
+    rated 35 W: the circuit is held to the lower, or the module could not
+    switch it. Where the module allows more, the amplifier's 40 W holds."""
+    schedule = _schedule(["GF"], [("Wall Speaker", "Speaker", "G4SRN", {"GF": 1})])
+    at_70v = calculate(schedule, taps=STAIR_TAPS, staircase=STAIRCASE, module={"max_watts": 35}).as_dict()
+    at_25v = calculate(schedule, taps=STAIR_TAPS, staircase=STAIRCASE, module={"max_watts": 50}).as_dict()
+    assert at_70v["staircase"]["circuit_limit_watts"] == 35
+    assert at_25v["staircase"]["circuit_limit_watts"] == 40
+
+
+def test_staircase_circuits_are_fed_whole_and_share_the_floors_cabinets():
+    """Circuits go onto amplifiers whole, as floors do; the cabinets are one
+    set for the job, so an odd amplifier on each tab shares a cabinet."""
+    schedule = _schedule(["GF", "Level 1"], [
+        ("Ceiling Speaker", "Speaker", "EST-S186C", {"GF": 20}),
+        ("Wall Speaker", "Speaker", "G4SRN", {"GF": 2, "Level 1": 2}),
+    ])
+    result = calculate(schedule, taps=STAIR_TAPS, staircase=STAIRCASE).as_dict()
+    stair = result["staircase"]
+
+    # Two stairs of 1 W each fit one amplifier together.
+    assert [(a["name"], a["circuits"], a["watts"]) for a in stair["amplifiers"]] == [
+        (f"{AMPLIFIER_PART.replace('SIGA-', '')}-ST1", ["ST1-1", "ST2-1"], 2.0)]
+    # One floor amplifier and one staircase amplifier: one cabinet, not two.
+    assert [cabinet["amplifiers"] for cabinet in result["cabinets"]] == [["AA50-1", "AA50-ST1"]]
+    assert result["job"] == {"amplifiers": 2, "modules": 1 + 2, "cabinets": 1, "speakers": 24, "watts": 22.0}
+
+
+def test_a_line_worded_as_a_staircase_is_one_whatever_it_is_ordered_as():
+    schedule = _schedule(["GF"], [
+        ("Ceiling Speaker", "Speaker", "EST-S186C", {"GF": 4}),
+        ("Staircase Speaker", "Speaker", "EST-S1814", {"GF": 2}),
+    ])
+    result = calculate(schedule, taps=TAPS, staircase={"parts": []}).as_dict()
+    assert [column["key"] for column in result["columns"]] == ["EST-S186C"]
+    assert [column["key"] for column in result["staircase"]["columns"]] == ["EST-S1814"]
+
+
+def test_without_the_staircase_rule_every_speaker_is_a_floors():
+    schedule = _schedule(["GF"], [("Wall Speaker", "Speaker", "G4SRN", {"GF": 2})])
+    result = calculate(schedule, taps=STAIR_TAPS).as_dict()
+    assert [column["key"] for column in result["columns"]] == ["G4SRN"] and result["staircase"] is None

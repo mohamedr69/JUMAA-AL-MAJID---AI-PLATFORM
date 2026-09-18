@@ -53,7 +53,8 @@ def build(project, result: dict) -> pymupdf.Document:
     doc = pymupdf.open()
     columns = result.get("columns", [])
     floors = result.get("floors", [])
-    amplifiers = {a["name"]: a for a in result.get("amplifiers", [])}
+    stair = result.get("staircase") or {}
+    amplifiers = {a["name"]: a for a in result.get("amplifiers", []) + stair.get("amplifiers", [])}
 
     # The widths: the floor name, a column per speaker, the load, then the
     # amplifier and its cabinet.
@@ -222,6 +223,43 @@ def build(project, result: dict) -> pymupdf.Document:
     _text(page, x + amp_width + 5, y + 12, str(len(result.get("cabinets", []))), size=8, bold=True)
     state["y"] = y + 30
 
+    # --- the staircases, on circuits of their own ---------------------------
+    circuits = stair.get("circuits", [])
+    if circuits:
+        room(60 + 14 * min(len(circuits), 8), "Staircase speakers")
+        page = state["page"]
+        _text(page, LEFT, state["y"], "STAIRCASE SPEAKERS", size=9, bold=True)
+        _text(page, 0, state["y"],
+              f"{stair.get('stairs', 0)} stairs, {stair.get('total_speakers', 0)} speakers, "
+              f"{_watts(stair.get('total_watts', 0))} W, {len(circuits)} x {result.get('module_part', '')}",
+              size=7.5, colour=_GREY, right=RIGHT)
+        state["y"] += 12
+        heads = [("CIRCUIT", LEFT + 6), ("STAIR", LEFT + 62), ("FLOORS", LEFT + 104), ("SPEAKERS", LEFT + 300),
+                 ("LOAD", LEFT + 350), ("MODULE", LEFT + 420), ("AMPLIFIER", LEFT + 470)]
+        page.draw_rect(pymupdf.Rect(LEFT, state["y"], RIGHT, state["y"] + 15), color=None, fill=_RED)
+        for label, x in heads:
+            _text(page, x, state["y"] + 10.5, label, size=7, bold=True, colour=(1, 1, 1))
+        state["y"] += 15
+        limit = stair.get("circuit_limit_watts", 0)
+        for circuit in circuits:
+            if state["y"] + 14 > BOTTOM:
+                new_page("Staircase speakers (continued)")
+            page = state["page"]
+            y = state["y"]
+            listed = circuit.get("floors", [])
+            run = listed[0] if len(listed) <= 1 else f"{listed[0]} - {listed[-1]}"
+            _text(page, LEFT + 6, y + 10, circuit["name"], size=7.5, bold=True)
+            _text(page, LEFT + 62, y + 10, f"Stair {circuit['stair']}", size=7.5)
+            _text(page, LEFT + 104, y + 10, f"{run} ({len(listed)})"[:44], size=7, colour=_GREY)
+            _text(page, LEFT + 300, y + 10, str(circuit.get("speakers", 0)), size=7.5)
+            _text(page, LEFT + 350, y + 10, f"{_watts(circuit.get('watts', 0))} / {_watts(limit)} W"
+                  + (" OVER" if circuit.get("over_limit") else ""), size=7.5, bold=bool(circuit.get("over_limit")))
+            _text(page, LEFT + 420, y + 10, result.get("module_part", ""), size=7)
+            _text(page, LEFT + 470, y + 10, circuit.get("amplifier") or "-", size=7.5, bold=True)
+            page.draw_line(pymupdf.Point(LEFT, y + 14), pymupdf.Point(RIGHT, y + 14), color=(0.9, 0.9, 0.9), width=0.5)
+            state["y"] = y + 14
+        state["y"] += 12
+
     # --- the amplifiers and their cabinets ---------------------------------
     room(120, "Amplifiers")
     page = state["page"]
@@ -242,8 +280,8 @@ def build(project, result: dict) -> pymupdf.Document:
             amplifier = amplifiers.get(name, {})
             _text(page, LEFT + 16, y + 10, name, size=7.5, bold=True)
             _text(page, LEFT + 70, y + 10, f"{_watts(amplifier.get('watts', 0))} W", size=7.5)
-            _text(page, LEFT + 110, y + 10,
-                  ", ".join(amplifier.get("floors", []))[:92], size=7, colour=_GREY)
+            fed = amplifier.get("floors") or [f"staircase {name}" for name in amplifier.get("circuits", [])]
+            _text(page, LEFT + 110, y + 10, ", ".join(fed)[:92], size=7, colour=_GREY)
             y += 14
         state["y"] = y + 6
 
@@ -260,6 +298,14 @@ def build(project, result: dict) -> pymupdf.Document:
         f"Every floor with speakers is fed through one {result.get('module_part', '')}; a floor carrying "
         f"more than {_watts(result.get('module_max_watts', 0))} W needs another.",
         "A sounder, horn or flasher is on a notification circuit and is not counted here.",
+    ] + ([
+        "Staircase speakers are on circuits of their own, never shared with a floor's. A stair has one "
+        "speaker on each floor it serves, so a floor's count of them is its number of stairs. Each stair "
+        f"is put on a circuit until the next floor would take it over {_watts(stair.get('circuit_limit_watts', 0))} W "
+        f"-- one {result.get('amplifier_part', '')}'s limit, or the {result.get('module_part', '')}'s rating "
+        f"where lower -- then a new circuit starts on a new {result.get('module_part', '')}. The circuits are "
+        "fed from amplifiers whole, and share the floors' cabinets.",
+    ] if circuits else []) + [
         "Speaker quantities are the project's floor-wise BOQ.",
     ]
     room(40 + 12 * len(rules), "Basis of calculation")
@@ -273,7 +319,7 @@ def build(project, result: dict) -> pymupdf.Document:
         y += 2
     state["y"] = y
 
-    warnings = result.get("warnings", [])
+    warnings = result.get("warnings", []) + stair.get("warnings", [])
     if warnings:
         room(24 + 12 * len(warnings), "Notes")
         page = state["page"]

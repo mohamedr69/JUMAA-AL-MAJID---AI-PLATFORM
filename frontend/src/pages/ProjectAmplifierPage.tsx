@@ -15,7 +15,7 @@ import type { ReactNode } from "react";
 import { API_BASE_URL, ApiError, api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { PROJECT_EDITOR_ROLES } from "../lib/types";
-import type { AmplifierResult, AmplifierSchedule, SpeakerDatabaseRow } from "../lib/types";
+import type { AmplifierResult, AmplifierSchedule, SpeakerDatabaseRow, StaircaseResult } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
 
 /** A wattage as it should read: 40 rather than 40.0000. */
@@ -122,6 +122,8 @@ export function ProjectAmplifierPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [panel, setPanel] = useState<"none" | "database" | "settings">("none");
+  // Speakers on the floors, or the staircases' on circuits of their own.
+  const [view, setView] = useState<"speakers" | "staircase">("speakers");
 
   const load = useCallback(async () => {
     try {
@@ -144,7 +146,7 @@ export function ProjectAmplifierPage() {
     setError(null);
     try {
       const taps: Record<string, number> = {};
-      for (const column of result.columns) {
+      for (const column of [...result.columns, ...(result.staircase?.columns ?? [])]) {
         if (column.tap !== null) taps[column.key] = column.tap;
       }
       taps[part] = tap;
@@ -187,14 +189,59 @@ export function ProjectAmplifierPage() {
         panel={panel}
         onPanel={(next) => setPanel((was) => (was === next ? "none" : next))}
       />
-      <Tiles result={result} />
+      {result.staircase && (
+        <div className="mt-4 flex flex-wrap gap-1" role="tablist">
+          {(
+            [
+              ["speakers", "Speakers", result.total_speakers],
+              [
+                "staircase",
+                `Staircase speakers${result.staircase.columns.length ? ` (${result.staircase.columns.map((c) => c.key).join(", ")})` : ""}`,
+                result.staircase.total_speakers,
+              ],
+            ] as const
+          ).map(([key, label, count]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={view === key}
+              onClick={() => setView(key)}
+              className={`rounded-t-lg border border-gray-200 px-6 py-2.5 text-sm font-semibold ${
+                view === key ? "bg-brand-600 text-white" : "bg-gray-50 text-gray-500 hover:text-navy-900"
+              }`}
+            >
+              {label}
+              <span className={`ml-2 text-xs ${view === key ? "text-white/80" : "text-gray-400"}`}>{count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <Tiles result={result} view={result.staircase ? view : "speakers"} />
       {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{error}</p>}
       {panel === "database" && <SpeakerDatabase rows={database} />}
       {panel === "settings" && <Settings result={result} scheduleFile={data?.schedule_file ?? null} />}
 
-      {result.columns.length === 0 ? (
+      {view === "staircase" && result.staircase ? (
+        result.staircase.columns.length === 0 ? (
+          <p className="mt-4 rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">
+            No staircase speaker is on the floor-wise BOQ.
+          </p>
+        ) : (
+          <StaircaseLoading
+            result={result}
+            stair={result.staircase}
+            canEdit={canEdit}
+            saving={saving}
+            onTap={setTap}
+            onCount={setCount}
+          />
+        )
+      ) : result.columns.length === 0 ? (
         <p className="mt-4 rounded-2xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-400">
-          No speaker is proposed on the floor-wise BOQ yet.
+          {result.staircase?.columns.length
+            ? "Every speaker on the floor-wise BOQ is a staircase's: see the Staircase speakers tab."
+            : "No speaker is proposed on the floor-wise BOQ yet."}
         </p>
       ) : (
         <Loading result={result} canEdit={canEdit} saving={saving} onTap={setTap} onCount={setCount} />
@@ -243,8 +290,56 @@ function Toolbar({
   );
 }
 
-function Tiles({ result }: { result: AmplifierResult }) {
-  const tiles = [
+function Tiles({ result, view }: { result: AmplifierResult; view: "speakers" | "staircase" }) {
+  const stair = result.staircase;
+  // The cabinets are one set for the job: say so where the staircases share it.
+  const cabinetNote = stair?.amplifiers.length
+    ? `${result.amplifiers_per_cabinet} × ${result.amplifier_part} per APS, staircases included`
+    : `${result.amplifiers_per_cabinet} × ${result.amplifier_part} per APS`;
+  const tiles = view === "staircase" && stair ? [
+    {
+      glyph: GLYPHS.building,
+      tint: "bg-sky-50 text-sky-600",
+      label: "Stairs",
+      value: String(stair.stairs),
+      note: "one speaker a floor in each",
+    },
+    {
+      glyph: GLYPHS.speaker,
+      tint: "bg-indigo-50 text-indigo-600",
+      label: "Staircase speakers",
+      value: String(stair.total_speakers),
+      note: "Speakers",
+    },
+    {
+      glyph: GLYPHS.bolt,
+      tint: "bg-emerald-50 text-emerald-600",
+      label: `Total load (+${Math.round(result.spare_fraction * 100)}%)`,
+      value: `${watts(stair.total_watts_with_spare)} W`,
+      note: `${watts(stair.total_watts)} W as counted`,
+    },
+    {
+      glyph: GLYPHS.layers,
+      tint: "bg-violet-50 text-violet-600",
+      label: `${result.amplifier_part} required`,
+      value: String(stair.amplifiers.length),
+      note: `${watts(result.limit_watts)} W each`,
+    },
+    {
+      glyph: GLYPHS.cabinet,
+      tint: "bg-amber-50 text-amber-600",
+      label: "APS cabinets",
+      value: String(result.cabinets.length),
+      note: cabinetNote,
+    },
+    {
+      glyph: GLYPHS.module,
+      tint: "bg-rose-50 text-rose-600",
+      label: `${result.module_part} required`,
+      value: String(stair.total_circuits),
+      note: `one a circuit, up to ${watts(stair.circuit_limit_watts)} W`,
+    },
+  ] : [
     {
       glyph: GLYPHS.building,
       tint: "bg-sky-50 text-sky-600",
@@ -278,7 +373,7 @@ function Tiles({ result }: { result: AmplifierResult }) {
       tint: "bg-amber-50 text-amber-600",
       label: "APS cabinets",
       value: String(result.cabinets.length),
-      note: `${result.amplifiers_per_cabinet} × ${result.amplifier_part} per APS`,
+      note: cabinetNote,
     },
     {
       glyph: GLYPHS.module,
@@ -585,6 +680,196 @@ function Loading({
 
 /** One floor's speaker count: stepped, never typed. The number belongs to
  * the floor-wise BOQ, so stepping it here changes it there. */
+/** The circuits a run of staircase floors is on, told apart by colour. */
+const CIRCUIT_TINTS = [
+  "bg-sky-50 text-sky-800",
+  "bg-violet-50 text-violet-800",
+  "bg-emerald-50 text-emerald-800",
+  "bg-amber-50 text-amber-800",
+  "bg-rose-50 text-rose-800",
+  "bg-indigo-50 text-indigo-800",
+];
+
+function StaircaseLoading({
+  result,
+  stair,
+  canEdit,
+  saving,
+  onTap,
+  onCount,
+}: {
+  result: AmplifierResult;
+  stair: StaircaseResult;
+  canEdit: boolean;
+  saving: string | null;
+  onTap: (part: string, tap: number) => void;
+  onCount: (floor: string, part: string, count: number) => void;
+}) {
+  const tintOf = useMemo(
+    () => new Map(stair.circuits.map((circuit, index) => [circuit.name, CIRCUIT_TINTS[index % CIRCUIT_TINTS.length]])),
+    [stair.circuits],
+  );
+  const cabinetOf = useMemo(
+    () => new Map(result.cabinets.flatMap((cabinet) => cabinet.amplifiers.map((name) => [name, cabinet.name] as const))),
+    [result.cabinets],
+  );
+  const numbers = Array.from({ length: stair.stairs }, (_, index) => index + 1);
+  // A floor no stair reaches has nothing to show.
+  const floors = stair.floors.filter((floor) => floor.speakers > 0);
+  const columns = stair.columns;
+  const span = (list: string[]) => (list.length <= 1 ? list[0] ?? "" : `${list[0]} – ${list[list.length - 1]}`);
+
+  return (
+    <>
+      <section className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+        <div className="px-5 py-4">
+          <h2 className="inline-flex items-center gap-2 text-base font-bold text-navy-900">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
+              <Icon path={GLYPHS.chart} />
+            </span>
+            Staircase speakers by floor
+          </h2>
+          <p className="mt-1 text-xs text-gray-500">
+            One speaker a floor in each stair, so a floor&apos;s count is its number of stairs. Each stair is put
+            on a circuit of its own until the next floor would take it over {watts(stair.circuit_limit_watts)} W,
+            then a new circuit starts on a new {result.module_part}.
+          </p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-y border-gray-100 bg-gray-50/60 text-gray-600">
+              <tr>
+                <th className="sticky left-0 z-10 bg-gray-50/60 px-5 py-3 text-left font-semibold">Floor</th>
+                {columns.map((column) => (
+                  <th key={column.key} className="px-3 py-3 text-center font-semibold" title={column.lines.join(", ")}>
+                    {column.key}
+                    <span className="block text-[11px] font-normal text-gray-400">
+                      {column.tap === null ? "no tapping" : `(${watts(column.tap)} W)`}
+                    </span>
+                  </th>
+                ))}
+                {numbers.map((number) => (
+                  <th key={number} className="px-3 py-3 text-center font-semibold">
+                    Stair {number}
+                  </th>
+                ))}
+                <th className="px-3 py-3 text-right font-semibold">Total (W)</th>
+              </tr>
+              <tr className="border-t border-gray-100 bg-white">
+                <th className="sticky left-0 z-10 bg-white px-5 py-2 text-left text-xs font-medium text-gray-400">
+                  Tapping (W)
+                </th>
+                {columns.map((column) => (
+                  <th key={column.key} className="px-3 py-2 text-center">
+                    <select
+                      value={column.tap ?? ""}
+                      disabled={!canEdit || column.taps.length === 0 || saving === `tap:${column.key}`}
+                      onChange={(e) => e.target.value && onTap(column.key, Number(e.target.value))}
+                      className="w-28 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm text-navy-900 focus:border-brand-400 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
+                    >
+                      <option value="">—</option>
+                      {column.taps.map((tap) => (
+                        <option key={tap} value={tap}>
+                          {watts(tap)} W
+                        </option>
+                      ))}
+                    </select>
+                  </th>
+                ))}
+                <th colSpan={numbers.length + 1} />
+              </tr>
+            </thead>
+            <tbody>
+              {floors.map((floor) => (
+                <tr key={floor.floor} className="border-t border-gray-100">
+                  <td className="sticky left-0 z-10 bg-white px-5 py-2.5 font-semibold text-navy-900">{floor.floor}</td>
+                  {columns.map((column) => (
+                    <td key={column.key} className="px-2 py-1.5 text-center">
+                      <Stepper
+                        value={floor.counts[column.key] ?? 0}
+                        canEdit={canEdit}
+                        busy={saving === `${floor.floor}:${column.key}`}
+                        onStep={(by) => onCount(floor.floor, column.key, (floor.counts[column.key] ?? 0) + by)}
+                      />
+                    </td>
+                  ))}
+                  {numbers.map((number) => {
+                    const name = floor.circuits[number - 1];
+                    return (
+                      <td key={number} className="px-3 py-2 text-center text-xs">
+                        {name ? (
+                          <span className={`inline-block rounded-md px-2 py-1 font-semibold ${tintOf.get(name) ?? ""}`}>
+                            {name}
+                          </span>
+                        ) : (
+                          <span className="text-gray-300">—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2.5 text-right font-bold tabular-nums text-navy-900">{watts(floor.watts)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
+        <h2 className="px-5 py-4 text-base font-bold text-navy-900">Staircase circuits</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-y border-gray-100 bg-gray-50/60 text-left text-gray-600">
+              <tr>
+                {["Circuit", "Stair", "Floors", "Speakers", "Load", "Module", result.amplifier_part, "APS"].map((label) => (
+                  <th key={label} className="px-4 py-3 font-semibold">
+                    {label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {stair.circuits.map((circuit) => (
+                <tr key={circuit.name} className="border-t border-gray-100">
+                  <td className="px-4 py-2.5">
+                    <span className={`inline-block rounded-md px-2 py-1 text-xs font-semibold ${tintOf.get(circuit.name) ?? ""}`}>
+                      {circuit.name}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-700">Stair {circuit.stair}</td>
+                  <td className="px-4 py-2.5 text-gray-700">
+                    {span(circuit.floors)}
+                    <span className="ml-1 text-xs text-gray-400">({circuit.floors.length})</span>
+                  </td>
+                  <td className="px-4 py-2.5 tabular-nums text-gray-700">{circuit.speakers}</td>
+                  <td className={`px-4 py-2.5 tabular-nums ${circuit.over_limit ? "font-bold text-red-700" : "text-navy-900"}`}>
+                    {watts(circuit.watts)} / {watts(stair.circuit_limit_watts)} W
+                    {circuit.over_limit && <span className="ml-1 text-xs">over limit</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs font-medium text-navy-900">{result.module_part}</td>
+                  <td className="px-4 py-2.5 text-xs font-semibold text-violet-900">
+                    {circuit.amplifier ?? <span className="font-normal text-gray-400">no load yet</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-700">
+                    {circuit.amplifier ? cabinetOf.get(circuit.amplifier) ?? "—" : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {stair.warnings.length > 0 && (
+          <ul className="border-t border-gray-100 px-5 py-3 text-xs text-amber-800">
+            {stair.warnings.map((warning) => (
+              <li key={warning}>{warning}</li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </>
+  );
+}
+
 function Stepper({
   value,
   canEdit,
