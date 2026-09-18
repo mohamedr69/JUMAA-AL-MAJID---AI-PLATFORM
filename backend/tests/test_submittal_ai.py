@@ -33,6 +33,29 @@ def test_a_revision_filed_twice_is_settled_by_the_copy_with_the_consultants_repl
     assert system["system_code"] == "FAS"
 
 
+def test_one_reference_across_three_systems_is_three_submittals():
+    """EP-30880 numbers the fire alarm, the emergency lighting and the fire
+    rated cable alike: the map keeps all three, one row per system."""
+    readings = [
+        {**_reading("EP-30880", 0, relative="02- Material Submittals/FA/R0/form.pdf",
+                    title="Fire Alarm, Voice Evacuation & Fire Telephone System"), "system_code": "FAS"},
+        {**_reading("EP-30880", 0, relative="02- Material Submittals/ELS/R0/form.pdf",
+                    title="Emergency Light Monitoring System"), "system_code": "ELS"},
+        {**_reading("EP-30880", 0, relative="02- Material Submittals/FRC/R0/form.pdf",
+                    title="Fire Rated Cable (M/s. Fireguard & M/s. Ramcro)"), "system_code": "FRC"},
+    ]
+    result = submittal_reader.build_map(readings, systems_on_project=["FAS", "ELS", "FRC"])
+    assert result["submittals"] == 3 and result["forms"] == 3
+    assert [(s["system_code"], len(s["rows"])) for s in result["systems"]] == [("ELS", 1), ("FAS", 1), ("FRC", 1)]
+    # None of the three is filed away as a duplicate copy of another.
+    for system in result["systems"]:
+        (row,) = system["rows"]
+        assert row["reference"] == "EP-30880" and row["cells"]["R0"]["copies"] == 1
+        assert row["system_code"] == system["system_code"]
+    # And no system is reported missing when its form is right there.
+    assert result["actions"] == []
+
+
 def test_a_reply_not_verified_as_the_consultants_is_still_under_review():
     readings = [_reading("X-MAS-0001", 0, "approved", relative="03- MS/form.pdf", from_consultant=False)]
     (row,) = submittal_reader.build_map(readings)["systems"][0]["rows"]

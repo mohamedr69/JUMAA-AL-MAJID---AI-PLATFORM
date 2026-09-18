@@ -432,25 +432,30 @@ def build_map(readings: list[dict], *, systems_on_project: list[str] | None = No
     """`readings`: each a form reading plus "relative", "modified" (iso),
     "in_approval_folder". Returns the map: systems, rows, cells, actions."""
     forms = [r for r in readings if r.get("is_submittal") and r.get("reference")]
-    chosen: dict[tuple[str, int], dict] = {}
-    duplicates: dict[tuple[str, int], int] = {}
+    chosen: dict[tuple[str, str | None, int], dict] = {}
+    duplicates: dict[tuple[str, str | None, int], int] = {}
     for reading in forms:
-        key = (reading["reference"], reading["revision"] if reading["revision"] is not None else 0)
+        # A project that numbers every system's form with the one reference --
+        # EP-30880 for the fire alarm, the emergency lighting and the cable
+        # alike -- has three submittals, not three copies of one: what tells
+        # them apart is the system each is for.
+        system = _system_code(reading, reading["relative"])
+        key = (reading["reference"], system, reading["revision"] if reading["revision"] is not None else 0)
         duplicates[key] = duplicates.get(key, 0) + 1
         current = chosen.get(key)
         if current is None or _better(reading, current):
             chosen[key] = reading
 
-    by_reference: dict[str, dict[int, dict]] = {}
-    for (reference, revision), reading in chosen.items():
-        by_reference.setdefault(reference, {})[revision] = reading
+    by_reference: dict[tuple[str, str | None], dict[int, dict]] = {}
+    for (reference, system, revision), reading in chosen.items():
+        by_reference.setdefault((reference, system), {})[revision] = reading
     highest = max((rev for revs in by_reference.values() for rev in revs), default=-1)
     revisions = [f"R{n}" for n in range(0, highest + 1)] if highest >= 0 else ["R0"]
 
     systems: dict[str | None, list[dict]] = {}
     actions: list[str] = []
-    for reference in sorted(by_reference):
-        revs = by_reference[reference]
+    for reference, system in sorted(by_reference, key=lambda pair: (pair[0], pair[1] or "")):
+        revs = by_reference[(reference, system)]
         latest_n = max(revs)
         first = revs[min(revs)]
         cells = {}
@@ -461,7 +466,7 @@ def build_map(readings: list[dict], *, systems_on_project: list[str] | None = No
                 "reply_code": reply.get("code") or "", "consultant": reply.get("consultant") or "",
                 "reply_date": reply.get("date") or "", "evidence": reply.get("evidence") or "",
                 "unverified_reply": bool(reply.get("present") and not reply.get("from_consultant")),
-                "copies": duplicates.get((reference, n), 1),
+                "copies": duplicates.get((reference, system, n), 1),
             }
         latest_status = cells[f"R{latest_n}"]["status"]
         action = None
@@ -469,7 +474,6 @@ def build_map(readings: list[dict], *, systems_on_project: list[str] | None = No
             action = (f"Material submittal required: {reference} R{latest_n} was returned "
                       f"{'revise and resubmit' if latest_status == 'RR' else 'rejected'}; R{latest_n + 1} is not filed")
             actions.append(action)
-        system = _system_code(first, first["relative"])
         systems.setdefault(system, []).append({
             "reference": reference, "title": first.get("title") or "", "supplier": first.get("supplier") or "",
             "manufacturer": first.get("manufacturer") or "", "system_code": system,
@@ -580,14 +584,14 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
 def sync_register(db: Session, project: Project, submittal_map: dict, user: User | None) -> dict:
     """The register as the map says: one row per reference at its latest
     revision, where that revision stands."""
-    by_reference = {(s.reference or "").upper(): s for s in project.submittals if s.reference}
+    by_reference = {((s.reference or "").upper(), s.system_code): s for s in project.submittals if s.reference}
     created = updated = unchanged = 0
     for system in submittal_map["systems"]:
         for row in system["rows"]:
             status, letter = REGISTER[row["latest_status"]]
             cell = row["cells"][row["latest"]]
             revision = f"R{int(row['latest'][1:]):02d}"
-            submittal = by_reference.get(row["reference"].upper())
+            submittal = by_reference.get((row["reference"].upper(), row["system_code"]))
             detail = (f"{row['latest']} {row['latest_status']}"
                       + (f" — {cell['evidence']}" if cell.get("evidence") else " — no consultant reply on the form"))
             if submittal is None:
@@ -598,7 +602,7 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
                 )
                 submittal.events.append(ProjectSubmittalEvent(kind="ai_check", detail=detail, by_id=user.id if user else None, at=utc_now()))
                 db.add(submittal)
-                by_reference[row["reference"].upper()] = submittal
+                by_reference[(row["reference"].upper(), row["system_code"])] = submittal
                 created += 1
                 continue
             changes = submittal.status != status or submittal.reply_code != letter or submittal.revision != revision
@@ -616,10 +620,10 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
     # A reference the map no longer has -- its forms gone from the folder --
     # leaves the register too: the register says what the folder holds. A
     # row the engineer typed in by hand (no reference) is not the map's to remove.
-    on_map = {row["reference"].upper() for system in submittal_map["systems"] for row in system["rows"]}
+    on_map = {(row["reference"].upper(), row["system_code"]) for system in submittal_map["systems"] for row in system["rows"]}
     removed = 0
-    for reference, submittal in list(by_reference.items()):
-        if reference not in on_map:
+    for key, submittal in list(by_reference.items()):
+        if key not in on_map:
             db.delete(submittal)
             removed += 1
     db.commit()
