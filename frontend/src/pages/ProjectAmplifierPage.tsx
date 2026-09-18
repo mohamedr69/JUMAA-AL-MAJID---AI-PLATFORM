@@ -719,6 +719,33 @@ function StaircaseLoading({
   const columns = stair.columns;
   const span = (list: string[]) => (list.length <= 1 ? list[0] ?? "" : `${list[0]} – ${list[list.length - 1]}`);
 
+  // The amplifiers a floor's stairs are fed from, stair 1's first. A floor
+  // can be on more than one: each stair is a circuit of its own, and two
+  // stairs' circuits need not share an amplifier.
+  const amplifierOf = new Map(stair.amplifiers.map((amplifier) => [amplifier.name, amplifier]));
+  const circuitOf = new Map(stair.circuits.map((circuit) => [circuit.name, circuit]));
+  const amplifiersOn = (circuits: string[]): string[] => [
+    ...new Set(circuits.map((name) => circuitOf.get(name)?.amplifier).filter((name): name is string => Boolean(name))),
+  ];
+  const cabinetsOf = (amplifiers: string[]): string[] => [
+    ...new Set(amplifiers.map((name) => cabinetOf.get(name)).filter((name): name is string => Boolean(name))),
+  ];
+  // Runs of floors fed from the same amplifiers, drawn as one cell each,
+  // as the Speakers tab draws a run of floors on one amplifier.
+  const runs = new Map<number, { amplifiers: string[]; rows: number }>();
+  let open = -1;
+  floors.forEach((floor, index) => {
+    const amplifiers = amplifiersOn(floor.circuits);
+    const previous = open >= 0 ? runs.get(open) : undefined;
+    if (previous && previous.amplifiers.join("|") === amplifiers.join("|")) {
+      previous.rows += 1;
+      return;
+    }
+    runs.set(index, { amplifiers, rows: 1 });
+    open = index;
+  });
+  const stairCabinets = cabinetsOf(stair.amplifiers.map((amplifier) => amplifier.name));
+
   return (
     <>
       <section className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white">
@@ -754,6 +781,8 @@ function StaircaseLoading({
                   </th>
                 ))}
                 <th className="px-3 py-3 text-right font-semibold">Total (W)</th>
+                <th className="px-3 py-3 text-center font-semibold">{result.amplifier_part}</th>
+                <th className="px-3 py-3 text-center font-semibold">APS</th>
               </tr>
               <tr className="border-t border-gray-100 bg-white">
                 <th className="sticky left-0 z-10 bg-white px-5 py-2 text-left text-xs font-medium text-gray-400">
@@ -776,11 +805,13 @@ function StaircaseLoading({
                     </select>
                   </th>
                 ))}
-                <th colSpan={numbers.length + 1} />
+                <th colSpan={numbers.length + 3} />
               </tr>
             </thead>
             <tbody>
-              {floors.map((floor) => (
+              {floors.map((floor, index) => {
+                const run = runs.get(index);
+                return (
                 <tr key={floor.floor} className="border-t border-gray-100">
                   <td className="sticky left-0 z-10 bg-white px-5 py-2.5 font-semibold text-navy-900">{floor.floor}</td>
                   {columns.map((column) => (
@@ -808,9 +839,77 @@ function StaircaseLoading({
                     );
                   })}
                   <td className="px-3 py-2.5 text-right font-bold tabular-nums text-navy-900">{watts(floor.watts)}</td>
+                  {run && (
+                    <>
+                      <td
+                        rowSpan={run.rows}
+                        className={`px-3 py-2.5 text-center align-middle text-sm font-bold ${
+                          run.amplifiers.length === 0
+                            ? "text-gray-300"
+                            : run.amplifiers.some((name) => amplifierOf.get(name)?.over_limit)
+                              ? "bg-red-50/70 text-red-800"
+                              : "bg-sky-50/70 text-sky-900"
+                        }`}
+                      >
+                        {run.amplifiers.length === 0 ? (
+                          <span className="text-xs font-normal">no load yet</span>
+                        ) : (
+                          run.amplifiers.map((name) => (
+                            <span key={name} className="block">
+                              {name}
+                              <span className="block text-xs font-medium text-sky-700">
+                                ({watts(amplifierOf.get(name)?.watts ?? 0)} W)
+                              </span>
+                              {amplifierOf.get(name)?.over_limit && (
+                                <span className="block text-xs font-medium">over limit</span>
+                              )}
+                            </span>
+                          ))
+                        )}
+                      </td>
+                      <td
+                        rowSpan={run.rows}
+                        className={`px-3 py-2.5 text-center align-middle text-sm font-bold ${
+                          cabinetsOf(run.amplifiers).length ? "bg-emerald-50/70 text-emerald-800" : "text-gray-300"
+                        }`}
+                      >
+                        {cabinetsOf(run.amplifiers).length
+                          ? cabinetsOf(run.amplifiers).map((name) => (
+                              <span key={name} className="block">
+                                {name}
+                              </span>
+                            ))
+                          : "—"}
+                      </td>
+                    </>
+                  )}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-gray-200 bg-gray-50/60">
+                <td className="sticky left-0 z-10 bg-gray-50/60 px-5 py-3 font-bold text-navy-900">
+                  All {floors.length} floors
+                </td>
+                {columns.map((column) => (
+                  <td key={column.key} className="px-3 py-3 text-center font-bold tabular-nums text-navy-900">
+                    {stair.totals_by_column[column.key] ?? 0}
+                  </td>
+                ))}
+                {numbers.map((number) => {
+                  const made = stair.circuits.filter((circuit) => circuit.stair === number).length;
+                  return (
+                    <td key={number} className="px-3 py-3 text-center text-xs font-semibold text-navy-900">
+                      {made} {made === 1 ? "circuit" : "circuits"}
+                    </td>
+                  );
+                })}
+                <td className="px-3 py-3 text-right font-bold tabular-nums text-navy-900">{watts(stair.total_watts)}</td>
+                <td className="px-3 py-3 text-center font-bold text-navy-900">{stair.amplifiers.length}</td>
+                <td className="px-3 py-3 text-center font-bold text-navy-900">{stairCabinets.length}</td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </section>
