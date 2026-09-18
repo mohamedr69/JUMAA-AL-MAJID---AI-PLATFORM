@@ -1955,7 +1955,9 @@ export interface PowerColumn {
   key: string;
   description: string;
   device: string;
-  currents: { ma: number; label?: string }[];
+  /** Every figure the datasheet gives; `default` marks the setting the
+   * device leaves the factory at, which it draws until set otherwise. */
+  currents: { ma: number; label?: string; default?: boolean }[];
   current_ma: number | null;
   /** A sounder base is powered but sits on the Signature loop, so it needs
    * no notification-circuit module. */
@@ -1970,17 +1972,34 @@ export interface PowerFloorRow {
   current_ma: number;
   devices: number;
   supply: string | null;
+  /** The notification circuit of its supply the floor is wired to. */
+  circuit: string | null;
   modules: number;
+}
+
+/** One notification circuit of a supply, and the floors wired to it. */
+export interface PowerCircuit {
+  name: string;
+  supply: string;
+  floors: string[];
+  current_ma: number;
+  over_limit: boolean;
 }
 
 export interface PowerResult {
   columns: PowerColumn[];
   floors: PowerFloorRow[];
-  supplies: { name: string; floors: string[]; current_ma: number; over_limit: boolean }[];
+  supplies: { name: string; floors: string[]; current_ma: number; over_limit: boolean; circuits: string[] }[];
+  circuits: PowerCircuit[];
   supply_part: string;
   supply_amps: number;
   /** What one supply may be worked to, in milliamps. */
   limit_ma: number;
+  /** How many notification circuits one supply has. */
+  circuits_per_supply: number;
+  /** What one circuit may be worked to, in milliamps: the supply's rating
+   * shared between its circuits, at the same spare. */
+  circuit_limit_ma: number;
   module_part: string;
   total_floors: number;
   total_devices: number;

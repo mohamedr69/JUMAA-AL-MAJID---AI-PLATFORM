@@ -190,6 +190,8 @@ def build(project, result: dict) -> pymupdf.Document:
     page = state["page"]
     _text(page, LEFT, state["y"], "POWER SUPPLIES", size=9, bold=True)
     y = state["y"] + 12
+    circuits = result.get("circuits", [])
+    limit = result.get("circuit_limit_ma", 0)
     for supply in result.get("supplies", []):
         if y + 16 > BOTTOM:
             new_page("Power supplies (continued)")
@@ -198,6 +200,18 @@ def build(project, result: dict) -> pymupdf.Document:
         _text(page, LEFT + 60, y + 10, f"{_amps(supply['current_ma'])} A", size=7.5)
         _text(page, LEFT + 100, y + 10, ", ".join(supply["floors"])[:96], size=7, colour=_GREY)
         y += 14
+        # The circuits of this supply, each with its load against the limit.
+        for circuit in (c for c in circuits if c["supply"] == supply["name"]):
+            if y + 14 > BOTTOM:
+                new_page("Power supplies (continued)")
+                page, y = state["page"], state["y"]
+            _text(page, LEFT + 18, y + 9, circuit["name"], size=7)
+            _text(page, LEFT + 60, y + 9, f"{_ma(circuit['current_ma'])} / {_ma(limit)} mA"
+                  + ("  OVER LIMIT" if circuit.get("over_limit") else ""), size=7,
+                  bold=bool(circuit.get("over_limit")))
+            _text(page, LEFT + 150, y + 9, ", ".join(circuit["floors"])[:84], size=6.5, colour=_GREY)
+            y += 11
+        y += 3
     state["y"] = y + 10
 
     rules = [
@@ -205,9 +219,13 @@ def build(project, result: dict) -> pymupdf.Document:
         "Everything that runs on 24 V is counted: sounders, flashers, the flasher half of a "
         "speaker-flasher, and sounder bases. A plain speaker is on the amplifier's 70 V line and "
         "draws nothing here.",
-        f"Floors are added to a supply in the schedule's order until the next would take it over "
-        f"{_amps(result.get('limit_ma', 0))} A, then a new {result.get('supply_part', '')} starts. "
-        "A floor is never split between two.",
+        f"Each {result.get('supply_part', '')} has {result.get('circuits_per_supply', 4)} circuits, each "
+        f"worked to {_ma(result.get('circuit_limit_ma', 0))} mA: the supply's {result.get('supply_amps', '')} A "
+        "shared between its circuits with the same spare kept, so circuits within their limit keep the "
+        f"supply within its {_amps(result.get('limit_ma', 0))} A.",
+        "Floors are wired to a circuit in the schedule's order until the next would take it over its "
+        f"limit, then the next circuit starts; after {result.get('circuits_per_supply', 4)} circuits, the "
+        "next supply. A floor is never split between two circuits.",
         f"A floor with a notification circuit is driven from one {result.get('module_part', '')}. "
         "A sounder base is on the Signature loop and needs none, so a floor carrying only bases draws "
         "power and takes no module.",

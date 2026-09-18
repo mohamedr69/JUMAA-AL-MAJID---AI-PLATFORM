@@ -86,6 +86,7 @@ class PowerOut(BaseModel):
 def _power(db: Session, project, design: ProjectAmplifierDesign | None,
            schedule: ProjectFloorSchedule | None) -> PowerOut:
     from app.services import power_calculation
+    from app.services.schedule_materials import sounder_bases
 
     result = power_calculation.calculate(
         (schedule.result if schedule else {}) or {},
@@ -93,6 +94,7 @@ def _power(db: Session, project, design: ProjectAmplifierDesign | None,
         chosen={key: float(value) for key, value in ((design.currents if design else {}) or {}).items()},
         supply=_supply(db),
         module=_nac_module(db),
+        bases=sounder_bases(db, project),
     )
     if schedule is None:
         result.warnings.insert(0, (

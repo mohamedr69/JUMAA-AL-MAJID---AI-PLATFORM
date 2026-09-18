@@ -257,6 +257,23 @@ function Load({
     return starts;
   }, [matching]);
 
+  /** Each circuit's run of floors, over the rows as drawn. */
+  const circuitRuns = useMemo(() => {
+    const starts = new Map<number, { key: string | null; rows: number }>();
+    let open = -1;
+    matching.forEach((floor, index) => {
+      const key = floor.supply && floor.circuit ? `${floor.supply}|${floor.circuit}` : null;
+      const previous = open >= 0 ? starts.get(open) : undefined;
+      if (previous && previous.key === key) {
+        previous.rows += 1;
+        return;
+      }
+      starts.set(index, { key, rows: 1 });
+      open = index;
+    });
+    return starts;
+  }, [matching]);
+
   const supplyStarts = useMemo(() => {
     const first = new Set<number>();
     let previous: string | null | undefined;
@@ -310,6 +327,12 @@ function Load({
                 </th>
               ))}
               <th className="px-3 py-3 text-right font-semibold">Load (mA)</th>
+              <th className="px-3 py-3 text-center font-semibold">
+                Circuit load
+                <span className="block text-xs font-normal text-gray-400">
+                  max {ma(result.circuit_limit_ma)} mA
+                </span>
+              </th>
               <th className="px-3 py-3 text-center font-semibold">{result.supply_part}</th>
             </tr>
             <tr className="border-t border-gray-100 bg-white">
@@ -334,13 +357,13 @@ function Load({
                   </select>
                 </th>
               ))}
-              <th colSpan={2} />
+              <th colSpan={3} />
             </tr>
           </thead>
           <tbody>
             {matching.length === 0 && (
               <tr>
-                <td colSpan={columns.length + 4} className="px-5 py-10 text-center text-sm text-gray-400">
+                <td colSpan={columns.length + 5} className="px-5 py-10 text-center text-sm text-gray-400">
                   No floor matches “{query}”.
                 </td>
               </tr>
@@ -348,6 +371,8 @@ function Load({
             {matching.map((floor, index) => {
               const run = runs.get(index);
               const supply = result.supplies.find((s) => s.name === floor.supply);
+              const circuitRun = circuitRuns.get(index);
+              const circuit = result.circuits.find((c) => c.supply === floor.supply && c.name === floor.circuit);
               return (
                 <tr
                   key={floor.floor}
@@ -371,6 +396,30 @@ function Load({
                   <td className="px-3 py-2.5 text-right font-bold tabular-nums text-navy-900">
                     {ma(floor.current_ma)}
                   </td>
+                  {circuitRun && (
+                    <td
+                      rowSpan={circuitRun.rows}
+                      className={`px-3 py-2.5 text-center align-middle text-sm tabular-nums ${
+                        !circuit
+                          ? "text-gray-300"
+                          : circuit.over_limit
+                            ? "bg-red-50/70 font-bold text-red-800"
+                            : "bg-sky-50/60 font-semibold text-sky-900"
+                      }`}
+                    >
+                      {circuit ? (
+                        <>
+                          {circuit.name}
+                          <span className="block text-xs font-medium">
+                            {ma(circuit.current_ma)} / {ma(result.circuit_limit_ma)} mA
+                          </span>
+                          {circuit.over_limit && <span className="block text-xs font-medium">over limit</span>}
+                        </>
+                      ) : (
+                        <span className="text-xs font-normal">—</span>
+                      )}
+                    </td>
+                  )}
                   {run && (
                     <td
                       rowSpan={run.rows}
@@ -483,9 +532,15 @@ function Notes({ result }: { result: PowerResult }) {
             sounder bases. A plain speaker is on the amplifier's 70 V line and draws nothing here.
           </li>
           <li>
-            Floors are added to a supply in the schedule's order until the next would take it over{" "}
-            {amps(result.limit_ma)} A, then a new {result.supply_part} starts. A floor is never split
-            between two.
+            Each {result.supply_part} has {result.circuits_per_supply} circuits. A circuit is worked to{" "}
+            {ma(result.circuit_limit_ma)} mA &mdash; the supply's {result.supply_amps} A shared between its
+            circuits, with the same spare kept &mdash; so {result.circuits_per_supply} circuits within their
+            limit keep the supply within its {amps(result.limit_ma)} A.
+          </li>
+          <li>
+            Floors are wired to a circuit in the schedule's order until the next would take it over its
+            limit, then the next circuit starts; after {result.circuits_per_supply} circuits, the next{" "}
+            {result.supply_part}. A floor is never split between two circuits.
           </li>
           <li>
             A floor with a notification circuit is driven from one {result.module_part}. A sounder base is on

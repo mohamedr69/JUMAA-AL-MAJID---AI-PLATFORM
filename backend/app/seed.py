@@ -125,6 +125,55 @@ INITIAL_DESIGN_RULES = [
     },
     {
         "category": "power.device",
+        "key": "SIGA-LPS",
+        "data": {
+            "part_no": "SIGA-LPS",
+            "description": "Low profile sounder base",
+            # The base is the half of "Smoke with Sounder Base" that draws
+            # the current, whichever detector sits in it. Factory set to
+            # high dBA, and a booster's output is 24 Vdc filtered and
+            # regulated, so the datasheet itself settles the figure.
+            "currents": [
+                {"ma": 24, "label": "Low dBA, 24 VDC"},
+                {"ma": 41, "label": "High dBA, 24 VDC", "default": True},
+                {"ma": 51, "label": "Low dBA, 24 VFWR"},
+                {"ma": 60, "label": "High dBA, 24 VFWR"},
+            ],
+            "datasheet": {"library": "EDWARDS",
+                          "path": "02- Initiating Devices/06- bases/low profile/04- SIGA_LPS.pdf", "pages": [4]},
+        },
+        "source": (
+            "SIGA-LPS datasheet, page 4, Operating Current (RMS): 24 mA at low dBA and 41 mA at high dBA "
+            "on 24 VDC (51 and 60 mA on 24 VFWR). Default output volume: high dBA. Supervisory current "
+            "1.46 mA DC."
+        ),
+    },
+    {
+        "category": "power.device",
+        "key": "757-7A-T",
+        "data": {
+            "part_no": "757-7A-T",
+            "description": "Integrity temporal horn-strobe, 15/75 cd, weatherproof",
+            # A horn-strobe draws for both halves: the 15/75 cd strobe, and
+            # the horn at whichever output it is set to. The datasheet names
+            # no factory setting for the horn, so both are offered.
+            "currents": [
+                {"ma": 110, "label": "Horn low + 15/75 cd strobe, 24 VDC"},
+                {"ma": 130, "label": "Horn high + 15/75 cd strobe, 24 VDC"},
+                {"ma": 156, "label": "Horn low + 15/75 cd strobe, 24 VFWR"},
+                {"ma": 183, "label": "Horn high + 15/75 cd strobe, 24 VFWR"},
+            ],
+            "datasheet": {"library": "EDWARDS",
+                          "path": "03- NAC/Horn-Strobe/01- 757-7A-T WP + 757-WB WM.pdf", "pages": [3, 4]},
+        },
+        "source": (
+            "757 series datasheet. Page 3, strobe operating current (RMS) at 15/75 cd: 90 mA on 24 Vdc, "
+            "128 mA on 24 Vfwr. Page 4, horn current: 20 mA low and 40 mA high on 24 Vdc (28 and 55 mA "
+            "on 24 Vrms FWR). Each figure offered is the strobe and the horn together."
+        ),
+    },
+    {
+        "category": "power.device",
         "key": "G1RF",
         "data": {
             "part_no": "G1RF",

@@ -142,6 +142,35 @@ def mark_stale(db: Session, row: ProjectDocument, because: str) -> int:
     return count
 
 
+def settle_from(db: Session, row: ProjectDocument, dependent_type: str) -> int:
+    """This document has been read again, so what is derived straight from
+    its own content is in step with it once more. Returns how many links
+    were settled.
+
+    The mirror of `mark_stale`, and it works from the source document
+    rather than the dependent's name on purpose. The log entry for a
+    submittal package the platform filed itself is first known by the
+    reference the platform gave it (EP-30880-MAS-FA), and then by the
+    reference the model reads off the form (EP-30880). Settling by name
+    would never find the first, and the page would go on reporting a
+    source document changed for a log entry that had already caught up.
+    """
+    # The session does not flush on its own, and `mark_stale` has usually
+    # just marked these links in memory: without the flush the query below
+    # reads them as they were on disk, finds none stale, and the commit
+    # then writes the stale mark this was meant to clear.
+    db.flush()
+    count = 0
+    for link in db.query(DocumentDependency).filter(DocumentDependency.source_document_id == row.id,
+                                                    DocumentDependency.dependent_type == dependent_type,
+                                                    DocumentDependency.stale.is_(True)):
+        link.stale = False
+        link.last_validated_sha256 = row.sha256
+        link.updated_at = utc_now()
+        count += 1
+    return count
+
+
 def stale_dependencies(db: Session, project: Project) -> list[dict]:
     rows = (db.query(DocumentDependency, ProjectDocument)
             .join(ProjectDocument, ProjectDocument.id == DocumentDependency.source_document_id)
@@ -352,6 +381,12 @@ def sync(db: Session, project: Project, *, user: User | None = None, ctx=None, p
             depend(db, row, "compliance", str(project.id), f"specification {relative}")
         if row.reference and row.extracted and row.extracted.get("records"):
             depend(db, row, "log", row.reference, f"register row from {relative}")
+        # The log is not rebuilt from a document, it is read off the index
+        # every time the page is opened. A document that has just been read
+        # again is therefore already in the log, and saying its entry is out
+        # of date would be telling the engineer to go and fix what is right.
+        if row.state == FRESH:
+            counts["stale"] -= settle_from(db, row, "log")
         db.commit()
 
     for key, row in rows.items():

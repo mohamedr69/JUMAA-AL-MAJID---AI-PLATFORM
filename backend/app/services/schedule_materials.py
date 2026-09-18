@@ -149,6 +149,30 @@ def device_materials(db: Session, project, system_code: str | None) -> list[dict
     return sorted(found.values(), key=lambda material: material["part_no"]) + _with_sounder_base(found, bases)
 
 
+def sounder_bases(db: Session, project) -> list[str]:
+    """The sounder bases this project proposes, by part number.
+
+    The power calculation needs them by name: a "Smoke with Sounder Base"
+    line draws the base's current whichever detector sits in it, so the
+    line is counted as the base. From the same two places the dropdown
+    reads -- the BOQ and what an engineer added -- in that order.
+    """
+    from app.models import ProjectBoqItem, ProjectProposedMaterial
+
+    found: dict[str, str] = {}
+    lines = [(line.catalog_no, line.description)
+             for line in db.query(ProjectBoqItem).filter(ProjectBoqItem.project_id == project.id)]
+    lines += [(row.catalog_no, row.description)
+              for row in (db.query(ProjectProposedMaterial)
+                          .filter(ProjectProposedMaterial.project_id == project.id)
+                          .order_by(ProjectProposedMaterial.id))]
+    for part_no, description in lines:
+        part = (part_no or "").strip()
+        if part and is_sounder_base(part, description):
+            found.setdefault(part.upper(), part)
+    return list(found.values())
+
+
 def _with_sounder_base(devices: dict[str, dict], bases: dict[str, dict]) -> list[dict]:
     """A smoke detector and an audible base, as the one line the schedule
     calls "Smoke with Sounder Base".

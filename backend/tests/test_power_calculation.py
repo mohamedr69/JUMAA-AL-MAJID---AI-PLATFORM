@@ -145,27 +145,92 @@ def test_a_pair_takes_the_current_of_the_half_that_draws_it():
 # --- the supplies ----------------------------------------------------------------------------------
 
 
-def test_floors_are_combined_until_the_next_would_pass_the_supplys_limit():
-    floors = ["GF", "Level 1", "Level 2"]
+def test_a_supplys_circuit_limit_is_its_rating_shared_between_its_circuits():
+    """A BPS10A worked to 80% gives 8 A, over four circuits: 2 A each. Each
+    circuit is rated 3 A on the datasheet, so 2 A keeps every circuit and
+    the four together inside their ratings with the same spare."""
+    result = calculate(_schedule(["GF"], []), currents=CURRENTS).as_dict()
+    assert (result["limit_ma"], result["circuits_per_supply"], result["circuit_limit_ma"]) == (8000, 4, 2000)
+
+
+def test_floors_fill_a_circuit_and_four_circuits_fill_a_supply():
+    """Whole floors go on a circuit until the next would take it past 2 A;
+    a supply takes four circuits, and the fifth opens the next supply."""
+    floors = [f"Level {n}" for n in range(1, 11)]
+    # 100 horns at 7 mA: 700 mA a floor. Two floors are 1400 mA on a
+    # circuit; a third would be 2100, over the 2000 limit.
     schedule = _schedule(floors, [("Wall Sounder", "Sounder", "G1ARN", {floor: 100 for floor in floors})])
-    # A 1 A supply worked to 80%: 800 mA. Each floor draws 100 x 5 = 500 mA.
-    result = calculate(schedule, currents=CURRENTS, chosen={"G1ARN": 5},
-                       supply={"part_no": "BPS6A", "amps": 1, "fraction": 0.8}).as_dict()
+    result = calculate(schedule, currents=CURRENTS, chosen={"G1ARN": 7}).as_dict()
 
-    assert result["limit_ma"] == 800
-    assert [(s["name"], s["floors"], s["current_ma"]) for s in result["supplies"]] == [
-        ("BPS-1", ["GF"], 500.0),
-        ("BPS-2", ["Level 1"], 500.0),
-        ("BPS-3", ["Level 2"], 500.0),
+    assert [(c["supply"], c["name"], c["floors"], c["current_ma"]) for c in result["circuits"]] == [
+        ("BPS-1", "NAC 1", ["Level 1", "Level 2"], 1400.0),
+        ("BPS-1", "NAC 2", ["Level 3", "Level 4"], 1400.0),
+        ("BPS-1", "NAC 3", ["Level 5", "Level 6"], 1400.0),
+        ("BPS-1", "NAC 4", ["Level 7", "Level 8"], 1400.0),
+        ("BPS-2", "NAC 1", ["Level 9", "Level 10"], 1400.0),
     ]
+    assert [(s["name"], s["circuits"], s["current_ma"]) for s in result["supplies"]] == [
+        ("BPS-1", ["NAC 1", "NAC 2", "NAC 3", "NAC 4"], 5600.0),
+        ("BPS-2", ["NAC 1"], 1400.0),
+    ]
+    # Every floor knows its circuit as well as its supply, for the table.
+    level_5 = next(floor for floor in result["floors"] if floor["floor"] == "Level 5")
+    assert (level_5["supply"], level_5["circuit"]) == ("BPS-1", "NAC 3")
+    assert not any(circuit["over_limit"] for circuit in result["circuits"])
 
 
-def test_a_floor_drawing_more_than_one_supply_can_give_is_reported():
-    schedule = _schedule(["GF"], [("Wall Sounder", "Sounder", "G1ARN", {"GF": 100})])
-    result = calculate(schedule, currents=CURRENTS, chosen={"G1ARN": 23},
-                       supply={"part_no": "BPS6A", "amps": 1, "fraction": 0.8}).as_dict()
-    assert result["supplies"][0]["over_limit"] is True
-    assert any("more than one BPS6A can give" in warning for warning in result["warnings"])
+def test_a_floor_drawing_more_than_one_circuit_can_carry_is_reported():
+    """A floor is wired to one circuit and never split, so a floor drawing
+    more than 2 A is shown on a circuit of its own, over its limit."""
+    schedule = _schedule(["GF", "Level 1"], [("Wall Sounder", "Sounder", "G1ARN", {"GF": 100, "Level 1": 10})])
+    result = calculate(schedule, currents=CURRENTS, chosen={"G1ARN": 23}).as_dict()
+
+    over, after = result["circuits"]
+    assert (over["floors"], over["current_ma"], over["over_limit"]) == (["GF"], 2300.0, True)
+    # Nothing else is put on a circuit already over its limit.
+    assert (after["name"], after["floors"], after["over_limit"]) == ("NAC 2", ["Level 1"], False)
+    assert any("more than one notification circuit can carry at 2 A" in warning for warning in result["warnings"])
+
+
+def test_a_sounder_base_is_the_base_whichever_detector_it_sits_under():
+    """The base draws the current and the detector in it none, so a "Smoke
+    with Sounder Base" line is the SIGA-LPS whether it was settled with a
+    smoke detector, a heat detector, or not settled at all."""
+    floors = ["GF", "Level 1", "Level 2"]
+    schedule = _schedule(floors, [
+        ("Smoke with Sounder Base", "Smoke detector with sounder base", "SIGA-HRD-FCN + SIGA-LPS", {"GF": 2}),
+        ("Smoke with Sounder Base", "Smoke detector with sounder base", "SIGA-OSD-FCN + SIGA-LPS", {"Level 1": 3}),
+        ("Sounder base (unsettled)", "Smoke detector with sounder base", None, {"Level 2": 4}),
+    ])
+    result = calculate(schedule, currents=CURRENTS, bases=["SIGA-LPS"]).as_dict()
+
+    (column,) = result["columns"]
+    assert column["key"] == "SIGA-LPS" and column["unsettled"] is False
+    assert result["totals_by_column"] == {"SIGA-LPS": 9}
+
+
+def test_the_setting_a_device_leaves_the_factory_at_is_drawn_until_changed():
+    """Where the datasheet names the factory setting -- a sounder base at
+    high dBA -- the device draws that figure; it is the datasheet's, not a
+    guess. Where it names none, nothing is assumed."""
+    currents = {
+        "SIGA-LPS": {"part_no": "SIGA-LPS", "description": "Low profile sounder base",
+                     "currents": [{"ma": 24, "label": "Low dBA, 24 VDC"},
+                                  {"ma": 41, "label": "High dBA, 24 VDC", "default": True}]},
+        "757-7A-T": {"part_no": "757-7A-T", "description": "Horn-strobe",
+                     "currents": [{"ma": 110, "label": "Horn low"}, {"ma": 130, "label": "Horn high"}]},
+    }
+    schedule = _schedule(["GF"], [
+        ("Smoke with Sounder Base", "Smoke detector with sounder base", "SIGA-OSD-FCN + SIGA-LPS", {"GF": 10}),
+        ("Wall Sounder Flasher WP", "Sounder", "757-7A-T", {"GF": 2}),
+    ])
+    by_key = {c["key"]: c for c in calculate(schedule, currents=currents, bases=["SIGA-LPS"]).as_dict()["columns"]}
+    assert by_key["SIGA-LPS"]["current_ma"] == 41
+    assert by_key["757-7A-T"]["current_ma"] is None
+
+    # The engineer's own choice still wins over the factory setting.
+    chosen = calculate(schedule, currents=currents, bases=["SIGA-LPS"], chosen={"SIGA-LPS": 24}).as_dict()
+    assert next(c for c in chosen["columns"] if c["key"] == "SIGA-LPS")["current_ma"] == 24
 
 
 # --- through the API ---------------------------------------------------------------------------------

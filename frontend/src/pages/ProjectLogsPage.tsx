@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { ApiError, api, apiUrl } from "../lib/api";
 import type { ProjectLogs, SubmittalRegister } from "../lib/types";
-import { directoryRevision, registerRevision, groupRevisions, type LogDocument, type LogRevision } from "../lib/projectLog";
+import { directoryRevision, registerRevision, groupRevisions, systemGroup, type LogDocument, type LogRevision } from "../lib/projectLog";
 import { useAuth } from "../context/AuthContext";
 import { PROJECT_EDITOR_ROLES } from "../lib/types";
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
@@ -76,18 +76,7 @@ export function ProjectLogsPage() {
 
   // An Edwards fire alarm carries voice evacuation and fire telephone (backend system rules).
   const integrated = project.voice_evacuation_integrated;
-  const group = (value: string | null): string => {
-    const code = (value ?? "").trim().toUpperCase().replace(/[_-]+/g, " ");
-    if (["FAS", "FA", "FIRE ALARM"].includes(code)) return "FAS";
-    if (["VE", "VES", "VOICE EVACUATION", "FT", "FIRE TELEPHONE"].includes(code)) {
-      if (["FT", "FIRE TELEPHONE"].includes(code)) return "FAS";
-      return integrated ? "FAS" : "VE";
-    }
-    // Emergency lighting is one system: ELS, CBS and EML alike.
-    if (["ELS", "EL", "EML", "ELM", "CBS", "EMERGENCY LIGHTING", "CENTRAL BATTERY SYSTEM", "EMERGENCY LIGHT MONITORING", "MONITORED SELF CONTAINED", "MONITORED SELF CONTAINED SYSTEM", "MONITORED SELF CONTAINED EMERGENCY LIGHTING", "EMERGENCY LIGHTING MONITORING"].includes(code)) return "ELS";
-    if (["FRC", "FIRE RATED CABLE", "FIRE RESISTANT CABLE"].includes(code)) return "FRC";
-    return value?.trim() ?? "";
-  };
+  const group = (value: string | null): string => systemGroup(value, integrated);
   const fullPackage = /full[ _-]*package/i.test(project.scope_of_work ?? "");
   const systems = [ALL, ...Array.from(new Set([
     ...project.systems.map((entry) => entry.name),
@@ -104,7 +93,7 @@ export function ProjectLogsPage() {
   const materials = (logs?.material_submittals ?? []).filter((item) => matches(item.system_code));
   const rows = activeChild === "submittals" ? [...items.map(registerRevision), ...materials.map(directoryRevision)]
     : (activeChild === "samples" ? samples : drawings.filter((file) => group(file.system_code) !== "FRC")).map(directoryRevision);
-  const documents = groupRevisions(rows);
+  const documents = groupRevisions(rows, integrated);
   // The material submittals the log lists, by reference: these can be
   // deleted for good from here (the files included), after the warning.
   const materialReferences = new Set((logs?.material_submittals ?? []).map((item) => (item.reference ?? "").toUpperCase()));

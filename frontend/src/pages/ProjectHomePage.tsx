@@ -65,9 +65,12 @@ export function ProjectHomePage() {
 
   const intake = useJob(project.id, "documents_intake", `/projects/${project.id}/jobs/documents-intake`, () => loadReadiness());
 
-  const submittals = useMemo(() => summarise(logs?.material_submittals), [logs]);
-  const drawings = useMemo(() => summarise(logs?.drawings), [logs]);
-  const samples = useMemo(() => summarise(logs?.samples), [logs]);
+  // The same grouping the Logs tab uses, so the two never disagree about
+  // how many documents are on file.
+  const integrated = project.voice_evacuation_integrated;
+  const submittals = useMemo(() => summarise(logs?.material_submittals, integrated), [logs, integrated]);
+  const drawings = useMemo(() => summarise(logs?.drawings, integrated), [logs, integrated]);
+  const samples = useMemo(() => summarise(logs?.samples, integrated), [logs, integrated]);
   const kinds = useMemo<Record<Kind, Summary>>(() => ({ submittals, drawings, samples }), [submittals, drawings, samples]);
   const overall = submittals.total + drawings.total + samples.total;
   const approved = submittals.approved + drawings.approved + samples.approved;
@@ -378,8 +381,8 @@ function bucket(status: string): keyof Omit<Counts, "total"> {
 
 /** One row per document (its revisions collapsed), counted by where its
  * latest revision stands -- the same grouping the Logs tab shows. */
-function summarise(rows: ProjectLogDrawing[] | undefined): Summary {
-  const documents = groupRevisions((rows ?? []).map(directoryRevision));
+function summarise(rows: ProjectLogDrawing[] | undefined, voiceEvacuationIntegrated = false): Summary {
+  const documents = groupRevisions((rows ?? []).map(directoryRevision), voiceEvacuationIntegrated);
   const summary: Summary = { documents, total: 0, approved: 0, review: 0, rejected: 0, bySystem: new Map() };
   for (const doc of documents) {
     const latest = doc.revisions[0];

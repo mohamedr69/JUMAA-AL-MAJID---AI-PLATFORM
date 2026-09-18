@@ -139,6 +139,27 @@ def test_a_form_the_title_block_reader_cannot_read_still_reaches_the_log(client,
     assert logs["material_submittals"][0]["path"] == "02- Material Submittals/FA/R0/EP-30880 - Material Submittal - FA - R0.pdf"
 
 
+def test_a_log_entry_whose_reference_changed_is_not_reported_stale(client, db_session, tmp_path, ai):
+    """A package the platform files is known first by the reference it was
+    given (EP-30880-MAS-FA) and then by the one read off the form
+    (EP-30880). Once the form has been read again the log is in step, and
+    the page must not go on saying its source document changed."""
+    folder = tmp_path / "EP-30880"
+    form = folder / "02- Material Submittals" / "FA" / "R0" / "EP-30880 - Material Submittal - FA - R0.pdf"
+    _pdf(form, "scan")
+    ai.answers = [_reading("EP-30880-MAS-FA", 0)]
+    project_id = _project(client, folder, ep="30880")
+    client.post(f"/projects/{project_id}/jobs/sync-documents")
+
+    # The form changes, and this time the model reads the form's own number.
+    _pdf(form, "scan 2")
+    ai.answers = [_reading("EP-30880", 0)]
+    client.post(f"/projects/{project_id}/jobs/sync-documents")
+
+    stale = client.get(f"/projects/{project_id}/documents/status").json()["stale"]
+    assert [entry for entry in stale if entry["dependent_type"] == "log"] == []
+
+
 def test_a_changed_design_sheet_marks_the_boq_stale_and_a_new_specification_the_compliance_page(client, db_session, tmp_path, ai):
     import app.routers.projects as projects_router
     from app.services.design_sheet_extractor import ExtractedBoqLine

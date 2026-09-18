@@ -39,6 +39,13 @@ from app.services.symbol_taxonomy import device_in
 SUPPLY_PART = "BPS10A/230"
 SUPPLY_AMPS = 10.0
 SUPPLY_FRACTION = 0.8
+# A BPS10A has four notification circuits (NAC 1 to 4), each rated 3 A,
+# and 10 A across all four (datasheet, page 4). A floor is wired to one
+# circuit. Sharing the supply's rating evenly between its circuits and
+# working each to the same fraction -- 10 A / 4 x 0.8 = 2 A -- keeps every
+# circuit well inside its own 3 A and the four together inside the 10 A,
+# with the same spare kept on both.
+SUPPLY_CIRCUITS = 4
 MODULE_PART = "SIGA-CC1"
 MODULE_PER_FLOOR = 1
 
@@ -84,6 +91,7 @@ class FloorRow:
     counts: dict[str, int] = dataclasses.field(default_factory=dict)
     current_ma: float = 0.0
     supply: str | None = None
+    circuit: str | None = None
     modules: int = 0
 
     @property
@@ -92,7 +100,22 @@ class FloorRow:
 
     def as_dict(self) -> dict:
         return {"floor": self.floor, "counts": dict(self.counts), "current_ma": _round(self.current_ma),
-                "devices": self.devices, "supply": self.supply, "modules": self.modules}
+                "devices": self.devices, "supply": self.supply, "circuit": self.circuit, "modules": self.modules}
+
+
+@dataclasses.dataclass
+class Circuit:
+    """One notification circuit of a supply, and the floors wired to it."""
+
+    name: str                       # "NAC 1" .. "NAC 4", within its supply
+    supply: str
+    floors: list[str] = dataclasses.field(default_factory=list)
+    current_ma: float = 0.0
+    over_limit: bool = False
+
+    def as_dict(self) -> dict:
+        return {"name": self.name, "supply": self.supply, "floors": list(self.floors),
+                "current_ma": _round(self.current_ma), "over_limit": self.over_limit}
 
 
 @dataclasses.dataclass
@@ -101,10 +124,11 @@ class Supply:
     floors: list[str] = dataclasses.field(default_factory=list)
     current_ma: float = 0.0
     over_limit: bool = False
+    circuits: list[str] = dataclasses.field(default_factory=list)
 
     def as_dict(self) -> dict:
         return {"name": self.name, "floors": list(self.floors), "current_ma": _round(self.current_ma),
-                "over_limit": self.over_limit}
+                "over_limit": self.over_limit, "circuits": list(self.circuits)}
 
 
 @dataclasses.dataclass
@@ -112,9 +136,12 @@ class Result:
     columns: list[DeviceColumn] = dataclasses.field(default_factory=list)
     floors: list[FloorRow] = dataclasses.field(default_factory=list)
     supplies: list[Supply] = dataclasses.field(default_factory=list)
+    circuits: list[Circuit] = dataclasses.field(default_factory=list)
     supply_part: str = SUPPLY_PART
     supply_amps: float = SUPPLY_AMPS
     limit_ma: float = SUPPLY_AMPS * SUPPLY_FRACTION * 1000
+    circuits_per_supply: int = SUPPLY_CIRCUITS
+    circuit_limit_ma: float = SUPPLY_AMPS / SUPPLY_CIRCUITS * SUPPLY_FRACTION * 1000
     module_part: str = MODULE_PART
     warnings: list[str] = dataclasses.field(default_factory=list)
 
@@ -135,9 +162,12 @@ class Result:
             "columns": [column.as_dict() for column in self.columns],
             "floors": [floor.as_dict() for floor in self.floors],
             "supplies": [supply.as_dict() for supply in self.supplies],
+            "circuits": [circuit.as_dict() for circuit in self.circuits],
             "supply_part": self.supply_part,
             "supply_amps": self.supply_amps,
             "limit_ma": _round(self.limit_ma),
+            "circuits_per_supply": self.circuits_per_supply,
+            "circuit_limit_ma": _round(self.circuit_limit_ma),
             "module_part": self.module_part,
             "total_floors": len(self.floors),
             "total_devices": self.total_devices,
@@ -152,8 +182,27 @@ class Result:
         }
 
 
-def device_columns(schedule: dict, currents: dict[str, dict]) -> list[DeviceColumn]:
-    """The 24 V appliances a project proposes, one column each."""
+def _sounder_base(settled: str, bases: list[str]) -> str | None:
+    """The sounder base a "Smoke with Sounder Base" line is powered by.
+
+    The base draws the current and the detector in it draws none from the
+    supply, so the line is the base's whichever detector it was settled
+    with -- "SIGA-HRD-FCN + SIGA-LPS" and "SIGA-OSD-FCN + SIGA-LPS" are both
+    a SIGA-LPS here. Where the line is not settled yet and the project
+    proposes exactly one sounder base, it is that one: there is nothing
+    else it could be.
+    """
+    known = {base.upper(): base for base in bases}
+    for half in (part.strip() for part in settled.split("+")) if settled else ():
+        if half.upper() in known:
+            return known[half.upper()]
+    return bases[0] if len(bases) == 1 else None
+
+
+def device_columns(schedule: dict, currents: dict[str, dict], bases: list[str] | None = None) -> list[DeviceColumn]:
+    """The 24 V appliances a project proposes, one column each.
+
+    `bases` are the sounder bases the project proposes, by part number."""
     found: dict[str, DeviceColumn] = {}
     for item in schedule.get("items", []):
         device = item.get("device") or device_in(item.get("description"))
@@ -162,6 +211,9 @@ def device_columns(schedule: dict, currents: dict[str, dict]) -> list[DeviceColu
         material = item.get("material") or {}
         settled = (material.get("part_no") or "").strip()
         key = settled or (item.get("catalog_no") or "").strip() or item["description"].strip()
+        base = _sounder_base(settled, bases or []) if device in BASE_DEVICES else None
+        if base:
+            key = base
         column = found.get(key)
         if column is None:
             # A pair -- "SIGA-OSD-FCN + SIGA-LPS" -- is looked up by the
@@ -184,26 +236,39 @@ def device_columns(schedule: dict, currents: dict[str, dict]) -> list[DeviceColu
                 # One figure on the datasheet is still the engineer's to
                 # accept, but there is nothing to choose between.
                 column.current_ma = float(column.currents[0]["ma"])
-            column.unsettled = not settled
+            else:
+                # Where the datasheet names the setting a device leaves the
+                # factory at -- a sounder base at high dBA -- that figure is
+                # the datasheet's, not a guess, and the device draws it
+                # until the engineer sets it otherwise.
+                default = next((entry for entry in column.currents if entry.get("default")), None)
+                if default is not None:
+                    column.current_ma = float(default["ma"])
+            # A base resolved as the project's only one is settled: there
+            # was nothing to choose.
+            column.unsettled = not settled and not base
         if item["description"] not in column.lines:
             column.lines.append(item["description"])
     return sorted(found.values(), key=lambda column: column.key)
 
 
 def calculate(schedule: dict, *, currents: dict[str, dict], chosen: dict[str, float] | None = None,
-              supply: dict | None = None, module: dict | None = None) -> Result:
+              supply: dict | None = None, module: dict | None = None, bases: list[str] | None = None) -> Result:
     """The 24 V power schedule a floor-wise BOQ makes."""
     supply = supply or {}
     module = module or {}
     amps = float(supply.get("amps") or SUPPLY_AMPS)
     fraction = float(supply.get("fraction") or SUPPLY_FRACTION)
+    circuits = int(supply.get("circuits") or SUPPLY_CIRCUITS)
     result = Result(
         supply_part=str(supply.get("part_no") or SUPPLY_PART),
         supply_amps=amps,
         limit_ma=_round(amps * fraction * 1000),
+        circuits_per_supply=circuits,
+        circuit_limit_ma=_round(amps / circuits * fraction * 1000),
         module_part=str(module.get("part_no") or MODULE_PART),
     )
-    result.columns = device_columns(schedule, currents)
+    result.columns = device_columns(schedule, currents, bases)
     for column in result.columns:
         picked = (chosen or {}).get(column.key)
         if picked is not None:
@@ -250,33 +315,47 @@ def calculate(schedule: dict, *, currents: dict[str, dict], chosen: dict[str, fl
 
 
 def _assign(result: Result) -> None:
-    """Fill supplies with whole floors, in the schedule's own order."""
-    limit = result.limit_ma
-    current: Supply | None = None
+    """Wire whole floors to circuits in the schedule's own order, and give
+    each supply its circuits in turn.
+
+    A floor goes on one notification circuit and is never split across
+    two. A circuit takes floors until the next would carry it past its
+    limit; a supply takes circuits until it has as many as it has outputs,
+    and the next circuit opens the next supply. Because the circuit limit
+    is the supply's rating shared between its outputs, a supply whose
+    circuits are each within their limit is within its own as well.
+    """
+    limit = result.circuit_limit_ma
+    supply: Supply | None = None
+    circuit: Circuit | None = None
     for row in result.floors:
         if not row.current_ma:
             continue
-        if row.current_ma > limit:
-            supply = Supply(name=f"BPS-{len(result.supplies) + 1}", floors=[row.floor],
-                            current_ma=row.current_ma, over_limit=True)
-            result.supplies.append(supply)
-            row.supply = supply.name
-            current = None
-            continue
-        if current is None or current.current_ma + row.current_ma > limit:
-            current = Supply(name=f"BPS-{len(result.supplies) + 1}")
-            result.supplies.append(current)
-        current.floors.append(row.floor)
-        current.current_ma = _round(current.current_ma + row.current_ma)
-        row.supply = current.name
+        alone = row.current_ma > limit
+        if alone or circuit is None or circuit.current_ma + row.current_ma > limit:
+            if supply is None or len(supply.circuits) >= result.circuits_per_supply:
+                supply = Supply(name=f"BPS-{len(result.supplies) + 1}")
+                result.supplies.append(supply)
+            circuit = Circuit(name=f"NAC {len(supply.circuits) + 1}", supply=supply.name, over_limit=alone)
+            supply.circuits.append(circuit.name)
+            result.circuits.append(circuit)
+        circuit.floors.append(row.floor)
+        circuit.current_ma = _round(circuit.current_ma + row.current_ma)
+        supply.floors.append(row.floor)
+        supply.current_ma = _round(supply.current_ma + row.current_ma)
+        supply.over_limit = supply.over_limit or alone or supply.current_ma > result.limit_ma
+        row.supply, row.circuit = supply.name, circuit.name
+        if alone:
+            circuit = None          # nothing else is put on a circuit already over its limit
 
-    over = [supply for supply in result.supplies if supply.over_limit]
+    over = [circuit for circuit in result.circuits if circuit.over_limit]
     if over:
         result.warnings.append(
-            f"{len(over)} floor{'s draw' if len(over) != 1 else ' draws'} more than one "
-            f"{result.supply_part} can give at {limit / 1000:g} A "
-            f"({', '.join(supply.floors[0] for supply in over[:3])}"
-            f"{', ...' if len(over) > 3 else ''}). Each is shown on a supply of its own, over its limit."
+            f"{len(over)} floor{'s draw' if len(over) != 1 else ' draws'} more than one notification "
+            f"circuit can carry at {limit / 1000:g} A "
+            f"({', '.join(f'{c.floors[0]} on {c.supply} {c.name}' for c in over[:3])}"
+            f"{', ...' if len(over) > 3 else ''}). Each is shown on a circuit of its own, over its limit: "
+            "split the floor's appliances across two circuits."
         )
 
 
