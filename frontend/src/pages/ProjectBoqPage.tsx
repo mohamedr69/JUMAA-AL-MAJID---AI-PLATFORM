@@ -24,6 +24,8 @@ import { FloorScheduleTab } from "../components/FloorScheduleTab";
 import { ExtractionReview } from "../components/ExtractionReview";
 import { AiCheckBadge, AiVerificationPanel } from "../components/AiVerificationPanel";
 import { StaleWriteNotice } from "../components/StaleWriteNotice";
+import { BoqGroupedView } from "../components/BoqGroupedView";
+import { boqGroupKey, groupBoqRows, type IndexedRow } from "../lib/boqGroups";
 import { useProject } from "./ProjectWorkspace";
 
 // Stands in for "no system" so a tab always has a key. Lines only land here
@@ -70,7 +72,12 @@ const STATUS: Record<BoqLineStatus | "new", { label: string; className: string; 
   new: { label: "Unsaved", className: "bg-white text-gray-600 ring-gray-300 ring-dashed", help: "Added on this page, not saved yet." },
 };
 
-type StatusFilter = "all" | BoqLineStatus | "attention";
+type StatusFilter = "all" | BoqLineStatus | "attention" | "duplicates";
+
+/** How the lines are laid out: under the Design Sheet's headings to read,
+ * or as the flat grid to edit many at once. Either shows the same lines. */
+type View = "grouped" | "table";
+const VIEW_KEY = "boq.view";
 
 interface Row extends ProjectBoqItemInput {
   /** Stable key for React while the line has no id yet. */
@@ -142,7 +149,21 @@ export function ProjectBoqPage() {
   const [filter, setFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [buildingFilter, setBuildingFilter] = useState<string>("");
-  const [duplicatesOnly, setDuplicatesOnly] = useState(false);
+  const [groupFilter, setGroupFilter] = useState("");
+  const [manufacturerFilter, setManufacturerFilter] = useState("");
+  // Remembered on this browser; storage can be refused (a private window),
+  // and then the page simply opens grouped.
+  const [view, setView] = useState<View>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === "table" ? "table" : "grouped";
+    } catch {
+      return "grouped";
+    }
+  });
+  // Which groups are open, by tab and heading. Unset, a tab opens on its
+  // first group, with the rest closed until asked for.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const [source, setSource] = useState<SourceKey>("design");
   const [page, setPage] = useState(1);
@@ -272,15 +293,87 @@ export function ProjectBoqPage() {
     () => Array.from(new Set([...meta.values()].map((item) => item.building).filter((b): b is string => Boolean(b)))).sort(),
     [meta]
   );
+  // The tab's lines under the Design Sheet's own headings, for the grouped
+  // view and for the group filter. Only how they are shown; not the lines.
+  const groups = useMemo(() => groupBoqRows(tabRows), [tabRows]);
+  const manufacturers = useMemo(
+    () => Array.from(new Set(tabRows.map(({ row }) => (row.manufacturer ?? "").trim()).filter(Boolean))).sort(),
+    [tabRows]
+  );
   const visibleRows = tabRows.filter(({ row, index }) => {
     if (!matchesFilter(row, filter)) return false;
     if (buildingFilter && (row.id ? meta.get(row.id)?.building : null) !== buildingFilter) return false;
-    if (duplicatesOnly && !duplicates.has(index)) return false;
+    if (groupFilter && boqGroupKey(row) !== groupFilter) return false;
+    if (manufacturerFilter && (row.manufacturer ?? "").trim() !== manufacturerFilter) return false;
+    if (statusFilter === "duplicates") return duplicates.has(index);
     if (statusFilter === "attention") return needsAttention(row, index);
     if (statusFilter !== "all") return rowStatus(row, meta) === statusFilter;
     return true;
   });
-  const filtering = filter.trim() !== "" || duplicatesOnly || statusFilter !== "all" || buildingFilter !== "";
+  const visibleIndices = new Set(visibleRows.map(({ index }) => index));
+  const filtering =
+    filter.trim() !== "" || statusFilter !== "all" || buildingFilter !== "" || groupFilter !== "" || manufacturerFilter !== "";
+  // Price columns only earn their width once somebody has entered a price.
+  const showPrices = tabRows.some(({ row }) => Boolean(row.unit_price?.trim() || row.total_price?.trim()));
+  const showUnits = tabRows.some(({ row }) => Boolean(row.unit?.trim()));
+  const attentionCount = rows.filter((row, index) => needsAttention(row, index)).length;
+  const duplicateCount = duplicates.size;
+
+  function chooseView(next: View) {
+    setView(next);
+    setEditingKey(null);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // Not remembered on this browser; the choice still holds for this visit.
+    }
+  }
+
+  function isOpen(key: string): boolean {
+    return expanded[`${activeTab}|${key}`] ?? groups[0]?.key === key;
+  }
+
+  function toggleGroup(key: string) {
+    setExpanded((was) => ({ ...was, [`${activeTab}|${key}`]: !isOpen(key) }));
+  }
+
+  function setAllGroups(open: boolean) {
+    setExpanded((was) => ({ ...was, ...Object.fromEntries(groups.map((group) => [`${activeTab}|${group.key}`, open])) }));
+  }
+
+  /** What the sheet said for a field an engineer has since changed, or
+   * undefined where the line is as read. */
+  function sheetValue({ row }: IndexedRow, field: TextColumn): string | null | undefined {
+    const stored = row.id ? meta.get(row.id) : undefined;
+    if (stored?.status !== "corrected" || !(field in (stored.extracted_values ?? {}))) return undefined;
+    const original = (stored.extracted_values as Record<string, string | null>)[field];
+    return (original ?? "") !== (row[field] ?? "") ? original : undefined;
+  }
+
+  /** A line's source status and AI check, and its source record on demand --
+   * the same as the table view's first column. */
+  function lineStatus({ row }: IndexedRow) {
+    const stored = row.id ? meta.get(row.id) : undefined;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setOpenDetail(openDetail === row.key ? null : row.key)}
+          aria-expanded={openDetail === row.key}
+          title="Where this line came from"
+          className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        >
+          <StatusBadge status={rowStatus(row, meta)} />
+        </button>
+        <AiCheckBadge check={stored?.ai_check} />
+        {openDetail === row.key && (
+          <div className="basis-full">
+            <Provenance row={row} meta={meta} />
+          </div>
+        )}
+      </>
+    );
+  }
   // Long BOQs are paged, but an edit must never move a line out from under
   // the engineer, so the page only changes when they change it.
   const pageCount = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
@@ -302,14 +395,20 @@ export function ProjectBoqPage() {
   }
 
   function addRow() {
-    setRows((prev) => [...prev, toRow({ system_code: activeTab === UNASSIGNED ? null : activeTab, description: "" })]);
+    const added = toRow({ system_code: activeTab === UNASSIGNED ? null : activeTab, description: "" });
+    setRows((prev) => [...prev, added]);
     // A new, blank line would be hidden by an active filter, or by the
     // drawings tab being the one on show.
     setFilter("");
     setStatusFilter("all");
-    setDuplicatesOnly(false);
+    setGroupFilter("");
+    setManufacturerFilter("");
     setSource("design");
     setPage(pageCount);
+    // Grouped, it opens ready to fill in, among the lines without a heading
+    // -- where a line with none is listed until it is given one.
+    setEditingKey(added.key);
+    setExpanded((was) => ({ ...was, [`${activeTab}|${boqGroupKey(added)}`]: true }));
     touched();
   }
 
@@ -462,6 +561,67 @@ export function ProjectBoqPage() {
         </div>
       ) : (
         <>
+          <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Tile
+              icon="lines"
+              label="Total Lines"
+              value={rows.length.toLocaleString()}
+              note={(() => {
+                const systems = tabs.filter((tab) => tab !== UNASSIGNED);
+                return systems.length ? `items · ${systems.join(", ")}` : "items";
+              })()}
+              tint="bg-blue-50 text-blue-600"
+            />
+            <Tile
+              icon="sum"
+              label="Total Quantity"
+              value={allTotals.units.toLocaleString()}
+              note={[
+                "units",
+                ...Object.entries(allTotals.byWord).map(([word, count]) => `+ ${count} × ${word}`),
+                allTotals.totalPrice !== null
+                  ? `est. ${allTotals.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              tint="bg-emerald-50 text-emerald-600"
+            />
+            <Tile
+              icon="groups"
+              label="Groups"
+              value={String(new Set(rows.filter((row) => row.group_heading?.trim()).map((row) => `${row.system_code}|${boqGroupKey(row)}`)).size)}
+              note="headings on the Design Sheets"
+              tint="bg-violet-50 text-violet-600"
+            />
+            <Tile
+              icon="attention"
+              label="Needs attention"
+              value={String(attentionCount)}
+              note={
+                attentionCount === 0
+                  ? "every line checks out"
+                  : [
+                      unassigned ? `${unassigned} unassigned` : null,
+                      duplicateCount ? `${duplicateCount} possible duplicate${duplicateCount === 1 ? "" : "s"}` : null,
+                      invalidQuantities ? `${invalidQuantities} invalid qty` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "lines to look over"
+              }
+              tint={attentionCount ? "bg-amber-50 text-amber-600" : "bg-gray-100 text-gray-500"}
+              active={statusFilter === "attention"}
+              onClick={
+                attentionCount
+                  ? () => {
+                      setStatusFilter(statusFilter === "attention" ? "all" : "attention");
+                      setPage(1);
+                    }
+                  : undefined
+              }
+            />
+          </div>
+
           {/* What the table on screen is: its source, how it was read, what is
               unresolved, what engineers changed, and where it stands against
               the last issued revision. */}
@@ -521,27 +681,6 @@ export function ProjectBoqPage() {
               </div>
             </StripCell>
           </section>
-
-          <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <SummaryCard label="Total Items" value={rows.length.toLocaleString()} tint="bg-blue-50 text-blue-600" />
-            <SummaryCard label="Total Quantity" value={allTotals.units.toLocaleString()} tint="bg-green-50 text-green-600" />
-            <SummaryCard
-              label="Systems"
-              value={String(tabs.filter((tab) => tab !== UNASSIGNED).length)}
-              note={tabs.filter((tab) => tab !== UNASSIGNED).join(", ")}
-              tint="bg-orange-50 text-orange-500"
-            />
-            <SummaryCard
-              label="Estimated Cost"
-              value={
-                allTotals.totalPrice === null
-                  ? "—"
-                  : allTotals.totalPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-              }
-              note={allTotals.totalPrice === null ? "No prices entered yet" : "From the lines' total prices"}
-              tint="bg-purple-50 text-purple-600"
-            />
-          </div>
 
           {extractNote && <div className="mt-4 rounded-lg bg-blue-50 px-3 py-2 text-sm text-blue-800">{extractNote}</div>}
           {reading.job && (reading.active || reading.job.status === "failed") && (
@@ -634,6 +773,11 @@ export function ProjectBoqPage() {
                       onClick={() => {
                         setSelectedTab(tab);
                         setPage(1);
+                        // A group or maker picked on one system's tab means
+                        // nothing on another's.
+                        setGroupFilter("");
+                        setManufacturerFilter("");
+                        setEditingKey(null);
                       }}
                       className={`-mb-px shrink-0 rounded-t-lg border-b-2 px-4 py-2 text-sm font-medium ${
                         isActive ? "border-brand-600 text-brand-700" : "border-transparent text-gray-500 hover:text-navy-900"
@@ -646,33 +790,82 @@ export function ProjectBoqPage() {
                 })}
               </div>
 
-              <div className="sticky top-0 z-10 mt-4 flex flex-wrap items-center gap-3 bg-gray-50/95 py-2 backdrop-blur">
+              <div className="sticky top-0 z-10 mt-4 flex flex-wrap items-center gap-2 bg-gray-50/95 py-2 backdrop-blur">
                 <label className="sr-only" htmlFor="boq-filter">
-                  Filter lines
+                  Search lines
                 </label>
-                <input
-                  id="boq-filter"
-                  type="search"
-                  value={filter}
+                <div className="relative min-w-60 max-w-md flex-1">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+                    aria-hidden="true"
+                  >
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.5-3.5" />
+                  </svg>
+                  <input
+                    id="boq-filter"
+                    type="search"
+                    value={filter}
+                    onChange={(e) => {
+                      setFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Search groups, part numbers, descriptions..."
+                    className="input py-2 pl-9"
+                  />
+                </div>
+                <select
+                  aria-label="Group"
+                  value={groupFilter}
                   onChange={(e) => {
-                    setFilter(e.target.value);
+                    setGroupFilter(e.target.value);
                     setPage(1);
                   }}
-                  placeholder="Filter by part no., description, manufacturer..."
-                  className="input max-w-sm py-1.5"
-                />
-                <label className="flex items-center gap-2 text-sm text-gray-600">
-                  Show
+                  className="input w-auto max-w-56 py-2"
+                >
+                  <option value="">All groups ({groups.length})</option>
+                  {groups.map((group) => (
+                    <option key={group.key} value={group.key}>
+                      {group.heading || "Lines without a group"} ({group.lines.length})
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Manufacturer"
+                  value={manufacturerFilter}
+                  onChange={(e) => {
+                    setManufacturerFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="input w-auto max-w-48 py-2"
+                >
+                  <option value="">All manufacturers</option>
+                  {manufacturers.map((maker) => (
+                    <option key={maker} value={maker}>
+                      {maker}
+                    </option>
+                  ))}
+                </select>
+                <label className="contents">
+                  <span className="sr-only">Status</span>
                   <select
                     value={statusFilter}
                     onChange={(e) => {
                       setStatusFilter(e.target.value as StatusFilter);
                       setPage(1);
                     }}
-                    className="input w-auto py-1.5"
+                    className="input w-auto py-2"
                   >
-                    <option value="all">All lines</option>
+                    <option value="all">All statuses</option>
                     <option value="attention">Needs attention</option>
+                    {(tabDuplicates > 0 || statusFilter === "duplicates") && (
+                      <option value="duplicates">Possible duplicates ({tabDuplicates})</option>
+                    )}
                     <option value="extracted">Read, unchanged ({counts.extracted ?? 0})</option>
                     <option value="corrected">Corrected by an engineer ({counts.corrected ?? 0})</option>
                     <option value="ai_accepted">AI reading accepted ({counts.ai_accepted ?? 0})</option>
@@ -682,41 +875,75 @@ export function ProjectBoqPage() {
                   </select>
                 </label>
                 {buildings.length > 0 && (
-                  <label className="flex items-center gap-2 text-sm text-gray-600">
-                    Building
-                    <select
-                      value={buildingFilter}
-                      onChange={(e) => {
-                        setBuildingFilter(e.target.value);
-                        setPage(1);
-                      }}
-                      className="input w-auto py-1.5"
-                    >
-                      <option value="">All buildings ({buildings.length})</option>
-                      {buildings.map((building) => (
-                        <option key={building} value={building}>
-                          {building}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <select
+                    aria-label="Building"
+                    value={buildingFilter}
+                    onChange={(e) => {
+                      setBuildingFilter(e.target.value);
+                      setPage(1);
+                    }}
+                    className="input w-auto py-2"
+                  >
+                    <option value="">All buildings ({buildings.length})</option>
+                    {buildings.map((building) => (
+                      <option key={building} value={building}>
+                        {building}
+                      </option>
+                    ))}
+                  </select>
                 )}
-                {tabDuplicates > 0 && (
-                  <label className="flex items-center gap-2 text-sm text-amber-800">
-                    <input
-                      type="checkbox"
-                      checked={duplicatesOnly}
-                      onChange={(e) => setDuplicatesOnly(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300"
-                    />
-                    Only possible duplicates ({tabDuplicates})
-                  </label>
-                )}
-                {filtering && (
-                  <span className="text-xs text-gray-500" aria-live="polite">
-                    Showing {visibleRows.length} of {tabRows.length} lines
-                  </span>
-                )}
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  {filtering && (
+                    <span className="text-xs text-gray-500" aria-live="polite">
+                      Showing {visibleRows.length} of {tabRows.length} lines
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFilter("");
+                          setStatusFilter("all");
+                          setBuildingFilter("");
+                          setGroupFilter("");
+                          setManufacturerFilter("");
+                          setPage(1);
+                        }}
+                        className="ml-2 font-semibold text-brand-600 hover:underline"
+                      >
+                        Clear
+                      </button>
+                    </span>
+                  )}
+                  {view === "grouped" && !filtering && groups.length > 1 && (
+                    <span className="hidden items-center gap-1 text-xs md:flex">
+                      <button type="button" onClick={() => setAllGroups(true)} className="rounded-md px-2 py-1 font-medium text-gray-600 hover:bg-gray-100">
+                        Expand all
+                      </button>
+                      <button type="button" onClick={() => setAllGroups(false)} className="rounded-md px-2 py-1 font-medium text-gray-600 hover:bg-gray-100">
+                        Collapse all
+                      </button>
+                    </span>
+                  )}
+                  <div role="group" aria-label="Layout" className="hidden overflow-hidden rounded-lg border border-gray-300 bg-white md:flex">
+                    {(
+                      [
+                        ["grouped", "Grouped", "Lines under the Design Sheet's headings, to read"],
+                        ["table", "Table", "Every line as an editable grid, to change many at once"],
+                      ] as const
+                    ).map(([key, label, help]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => chooseView(key)}
+                        aria-pressed={view === key}
+                        title={help}
+                        className={`px-3 py-1.5 text-sm font-semibold ${
+                          view === key ? "bg-brand-600 text-white" : "text-gray-600 hover:bg-gray-50"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {visibleRows.length === 0 ? (
@@ -725,9 +952,10 @@ export function ProjectBoqPage() {
                 </div>
               ) : (
                 <>
-                  {/* Narrow screens: one card per line, every field labelled. */}
+                  {/* Narrow screens: one card per line, every field labelled.
+                      Grouped, the whole tab is listed; the grid pages it. */}
                   <ul className="mt-3 space-y-3 md:hidden">
-                    {pagedRows.map(({ row, index }) => (
+                    {(view === "grouped" ? visibleRows : pagedRows).map(({ row, index }) => (
                       <li key={row.key} className="rounded-xl border border-gray-200 bg-white p-3">
                         <div className="flex items-start justify-between gap-2">
                           <span>
@@ -770,6 +998,28 @@ export function ProjectBoqPage() {
                     ))}
                   </ul>
 
+                  {view === "grouped" ? (
+                    <BoqGroupedView
+                      groups={groups}
+                      visible={visibleIndices}
+                      filtering={filtering}
+                      isOpen={isOpen}
+                      onToggle={toggleGroup}
+                      canEdit={canEdit}
+                      duplicates={duplicates}
+                      quantityProblems={quantityProblems}
+                      editingKey={editingKey}
+                      onEdit={setEditingKey}
+                      onUpdate={update}
+                      onRemove={removeRow}
+                      fields={COLUMNS}
+                      showPrices={showPrices}
+                      showUnits={showUnits}
+                      renderStatus={lineStatus}
+                      sheetValue={sheetValue}
+                      needsAttention={({ row, index }) => needsAttention(row, index)}
+                    />
+                  ) : (
                   <div className="mt-3 hidden max-h-[70vh] overflow-auto rounded-xl border border-gray-200 bg-white md:block">
                     <table className="w-full min-w-[1500px] text-sm">
                       <caption className="sr-only">
@@ -874,10 +1124,11 @@ export function ProjectBoqPage() {
                       </tbody>
                     </table>
                   </div>
+                  )}
                 </>
               )}
 
-              {visibleRows.length > PAGE_SIZE && (
+              {view === "table" && visibleRows.length > PAGE_SIZE && (
                 <nav aria-label="BOQ pages" className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
                   <span className="text-gray-500">
                     Showing {(currentPage - 1) * PAGE_SIZE + 1} to {Math.min(currentPage * PAGE_SIZE, visibleRows.length)} of{" "}
@@ -1054,24 +1305,80 @@ function Provenance({ row, meta }: { row: Row; meta: Map<number, ProjectBoqItem>
   );
 }
 
-function SummaryCard({ label, value, note, tint }: { label: string; value: string; note?: string; tint: string }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
-      <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tint}`} aria-hidden="true">
+const TILE_ICONS = {
+  lines: (
+    <>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 8h8M8 12h8M8 16h5" />
+    </>
+  ),
+  sum: <path d="M17 4H7l6 8-6 8h10" />,
+  groups: (
+    <>
+      <rect x="3" y="4" width="18" height="6" rx="1.5" />
+      <rect x="3" y="14" width="18" height="6" rx="1.5" />
+      <path d="M7 7h.01M7 17h.01" />
+    </>
+  ),
+  attention: (
+    <>
+      <path d="m21 8-9-5-9 5 9 5 9-5Z" />
+      <path d="M3 8v8l9 5 9-5V8M12 13v8" />
+    </>
+  ),
+};
+
+/** One figure about the BOQ. Given `onClick`, the tile is also the way to
+ * the lines it counts. */
+function Tile({
+  icon,
+  label,
+  value,
+  note,
+  tint,
+  active,
+  onClick,
+}: {
+  icon: keyof typeof TILE_ICONS;
+  label: string;
+  value: string;
+  note?: string;
+  tint: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  const body = (
+    <>
+      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${tint}`} aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-          <rect x="4" y="3" width="16" height="18" rx="2" />
-          <path d="M8 8h8M8 12h8M8 16h5" />
+          {TILE_ICONS[icon]}
         </svg>
       </span>
-      <div className="min-w-0">
-        <div className="text-xs text-gray-500">{label}</div>
-        <div className="text-xl font-bold tabular-nums text-navy-900">{value}</div>
+      <span className="min-w-0 text-left">
+        <span className="block text-xs font-medium text-gray-500">{label}</span>
+        <span className="block text-2xl font-bold leading-tight tabular-nums text-navy-900">{value}</span>
         {note && (
-          <div className="truncate text-xs text-gray-400" title={note}>
+          <span className="block truncate text-xs text-gray-400" title={note}>
             {note}
-          </div>
+          </span>
         )}
-      </div>
-    </div>
+      </span>
+    </>
+  );
+  const frame = `flex w-full items-center gap-3 rounded-2xl border bg-white px-4 py-3 ${
+    active ? "border-amber-400 ring-2 ring-amber-100" : "border-gray-200"
+  }`;
+  return onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      title={active ? "Show every line again" : "Show only these lines"}
+      className={`${frame} hover:border-amber-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500`}
+    >
+      {body}
+    </button>
+  ) : (
+    <div className={frame}>{body}</div>
   );
 }
