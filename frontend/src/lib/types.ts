@@ -132,6 +132,21 @@ export interface DocumentStatus {
   folder_reachable: boolean;
 }
 
+/** Whether a system has had its sample board sent, read off the
+ * transmittals in the project's Transmittal folder (and any sample approval
+ * form). The other fields describe the latest board sent, or the latest
+ * sample material when no board was. */
+export interface SampleBoardCheck {
+  system_code: string;
+  system_name: string;
+  state: "submitted" | "material_only" | "missing";
+  reference: string | null;
+  revision: string | null;
+  status: string | null;
+  submitted_on: string | null;
+  path: string | null;
+}
+
 export interface ProjectLogs {
   scanning: boolean;
   processed_files: number;
@@ -139,6 +154,9 @@ export interface ProjectLogs {
   /** When the index was last synced with the folder; null until the first sync. */
   synced_at: string | null;
   samples: ProjectLogDrawing[];
+  /** Every system of the project shall have a sample board: one entry per
+   * system, empty until the folder has been synced. */
+  sample_boards: SampleBoardCheck[];
   material_submittals: ProjectLogDrawing[];
   systems: string[];
   drawings: ProjectLogDrawing[];
@@ -2068,4 +2086,42 @@ export interface DeviceCurrentRow {
   part_no: string;
   description: string | null;
   currents: { ma: number; label?: string }[];
+}
+
+/** GET /archive/search -- one line of the EP search box's dropdown. The
+ * archive's EP folders are indexed in the database, so typing suggests
+ * projects instead of walking OneDrive for every keystroke. */
+export interface ArchiveSuggestion {
+  ep_number: string;
+  /** The project's own name once the platform has one (read off the DRF),
+   * otherwise the name the archive folder carries. */
+  project_name: string | null;
+  folder_name: string;
+  /** Below the archive root, never the whole path: the index is shared
+   * between machines and the archive sits under each user's own profile. */
+  relative_path: string;
+  /** How many folders carry this EP number. More than one and creating it
+   * still goes through the "which folder is this?" step. */
+  locations: number;
+  /** The platform's project for this number, when it already has one. */
+  project_id: number | null;
+  project_status: ProjectStatus | null;
+}
+
+/** GET /archive/status -- whether the EP search box can answer from the
+ * index, and how fresh the index is. */
+export interface ArchiveStatus {
+  configured: boolean;
+  reachable: boolean;
+  archive_path: string | null;
+  /** pending | scanning | ready | partial | failed */
+  scan_status: string;
+  scanning: boolean;
+  /** Distinct EP numbers, and the folders they are filed in. */
+  projects: number;
+  folders: number;
+  searchable: boolean;
+  last_scan_at: string | null;
+  last_successful_scan_at: string | null;
+  last_error: string | null;
 }

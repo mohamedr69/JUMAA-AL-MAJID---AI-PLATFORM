@@ -33,12 +33,13 @@ import os
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
+from stat import S_ISREG
 
 from sqlalchemy.orm import Session
 
 from app.core.timeutils import utc_now
 from app.models import DocumentDependency, Project, ProjectDocument, User
-from app.services import document_control, spec_finder, submittal_scanner
+from app.services import document_control, spec_finder, submittal_scanner, transmittals
 
 INDEX_VERSION = "index-2026-09-18.1"   # the reference codes MAR and SD: every document is read again
 MAX_FILES = 2000
@@ -47,6 +48,8 @@ INTAKE_ROLES = ("drf", "design_sheet")
 ROLE_SUBMITTAL = "submittal_form"
 ROLE_SPEC = "spec"
 ROLE_DOCUMENT = "document"
+# A Word transmittal in the project's Transmittal folder: read for the samples it sent.
+ROLE_TRANSMITTAL = "transmittal"
 FRESH, STALE, PROCESSING, FAILED, REMOVED = "fresh", "stale", "processing", "failed", "removed"
 
 
@@ -58,17 +61,23 @@ class SyncError(Exception):
 
 
 def listing(root: Path) -> list[tuple[Path, str, int, float]]:
-    """(path, relative path, size, mtime) of every PDF under the folder -- a
-    stat each, nothing opened."""
+    """(path, relative path, size, mtime) of every PDF under the folder, and
+    of every Word document in a Transmittal folder -- a stat each, nothing
+    opened. Word documents anywhere else are not the index's."""
     found = []
-    for n, path in enumerate(sorted(root.rglob("*.pdf"))):
-        if n >= MAX_FILES:
+    for path in sorted(root.rglob("*")):
+        if len(found) >= MAX_FILES:
             break
+        relative = path.relative_to(root).as_posix()
+        if path.suffix.lower() != ".pdf" and not transmittals.is_transmittal(relative):
+            continue
         try:
             stat = os.stat(document_control._os_path(path))
         except OSError:
             continue
-        found.append((path, path.relative_to(root).as_posix(), stat.st_size, stat.st_mtime))
+        if not S_ISREG(stat.st_mode):   # a folder named like a file
+            continue
+        found.append((path, relative, stat.st_size, stat.st_mtime))
     return found
 
 
@@ -96,7 +105,10 @@ def sha256_of(path: Path) -> str | None:
 def classify(path: Path, relative: str) -> str:
     """A material submittal form (a MAS reference on its first page, or a
     scan filed under a submittal / approval folder), a specification, or
-    any other document of the project's (a drawing, a reply, a catalogue)."""
+    any other document of the project's (a drawing, a reply, a catalogue)
+    -- or, a Word document in the Transmittal folder, a transmittal."""
+    if transmittals.is_transmittal(relative):
+        return ROLE_TRANSMITTAL
     try:
         with document_control._open_pdf(path) as doc:
             text = doc[0].get_text() if doc.page_count else ""
@@ -248,7 +260,15 @@ def process(db: Session, project: Project, row: ProjectDocument, path: Path, roo
     for every document, and for a material submittal form the model's
     reading as well. Raises on failure; the caller keeps the old result."""
     stat = os.stat(document_control._os_path(path))
-    records, notes = document_control._read_pdf(str(path), stat.st_mtime_ns, stat.st_size, ocr)
+    if row.role == ROLE_TRANSMITTAL:
+        from app.services.word_text import read_word_text
+
+        relative = path.relative_to(root).as_posix()
+        records = transmittals.read_transmittal(read_word_text(path), relative,
+                                                datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc))
+        notes = ()
+    else:
+        records, notes = document_control._read_pdf(str(path), stat.st_mtime_ns, stat.st_size, ocr)
     extracted: dict = {
         "records": [_record_dict(document_control.replace(r, path=path.relative_to(root).as_posix()), root) for r in records],
         "notes": list(notes),
@@ -489,6 +509,8 @@ def status(db: Session, project: Project) -> dict:
 
 
 def log_records(db: Session, project: Project) -> tuple[list, list[str]]:
+    from app.services import system_rules
+
     """The document-control records of every indexed document, combined
     the way the folder scan combined them -- from the database."""
     records = []
@@ -499,6 +521,11 @@ def log_records(db: Session, project: Project) -> tuple[list, list[str]]:
         for data in extracted.get("records") or []:
             data = dict(data)
             data["modified"] = datetime.fromisoformat(data["modified"])
+            if data.get("source") == "transmittal":
+                # Under the project's rules before they are numbered: the
+                # voice evacuation of an integrated Edwards fire alarm is the
+                # fire alarm's sample board, not a second one.
+                data["system_code"] = system_rules.effective_code(data["system_code"], project)
             records.append(document_control.ControlledDocument(**data))
         warnings.extend(extracted.get("notes") or [])
     return document_control.combine(records), list(dict.fromkeys(warnings))

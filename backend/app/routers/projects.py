@@ -48,7 +48,7 @@ from app.schemas_project import (
     SheetComparisonOut,
     SystemComparisonOut,
 )
-from app.schemas_design import ProjectLogDrawingOut, ProjectLogsOut
+from app.schemas_design import ProjectLogDrawingOut, ProjectLogsOut, SampleBoardCheckOut
 from app.extraction import pipeline as extraction_pipeline
 from app.extraction.issues import Coverage, Issue, IssueCode, PageCoverage
 from app.services import activity, boq_provenance, concurrency, design_sheet_extractor
@@ -60,6 +60,7 @@ from app.services.design_sheet_extractor import (
 )
 from app.services.boq_export import boq_workbook
 from app.services.boq_revisions import compare_boq
+from app.services import ep_directory
 from app.services.ep_resolver import canonical_system_code, infer_single_system, mark_superseded, resolve_project
 from app.services.reextraction import reextract_project
 from app.services import system_rules
@@ -117,6 +118,7 @@ def _get_project_or_404(db: Session, project_id: int) -> Project:
 def resolve(
     payload: ProjectResolveRequest,
     _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
 ) -> ProjectResolveResponse:
     if not settings.projects_root:
         raise HTTPException(
@@ -132,7 +134,19 @@ def resolve(
         )
 
     selected = Path(payload.selected_folder) if payload.selected_folder else None
-    result = resolve_project(root, payload.ep_number, selected_folder=selected)
+    # The archive index answers where an EP number's folders are without
+    # walking the synced drive (app.services.ep_directory). It answers None
+    # when it holds nothing for this archive yet -- a machine whose first
+    # scan has not finished -- and then the archive is walked as before.
+    # An index that holds the archive but not this number is taken as a
+    # miss rather than an answer: the folder may have been made since the
+    # last scan, so it is looked for once and what is found is recorded,
+    # which is the last time anyone pays for that walk.
+    indexed = ep_directory.folders_for(db, payload.ep_number, root) if settings.archive_index_enabled else None
+    result = resolve_project(root, payload.ep_number, selected_folder=selected,
+                             known_folders=indexed or None)
+    if settings.archive_index_enabled and not indexed and result.matched_folders:
+        ep_directory.observe(db, root, result.matched_folders, result.ep_number)
 
     extracted_fields: dict[str, ExtractedFieldOut] = {}
     extracted_scope_of_work: str | None = None
@@ -1256,11 +1270,34 @@ def project_logs(
         material_submittals=[output(row) for row in records if row.category == "submittals"],
         drawings=[output(row) for row in records if row.category == "drawings"],
         samples=[output(row) for row in records if row.category == "samples"],
+        # Not before the first sync: an unread folder is not a missing board.
+        sample_boards=sample_board_checks(project, [row for row in records if row.category == "samples"])
+        if project.documents_synced_at else [],
         searched=project.source_folder_path,
         warnings=warnings,
     )
 
 
+
+
+def sample_board_checks(project: Project, samples: list) -> list[SampleBoardCheckOut]:
+    """Every system of the project shall have a sample board. A sample
+    approval form (SAR) counts as a board sent; a transmittal counts by what
+    it says it carried."""
+    from app.services import system_rules
+
+    checks = []
+    for code in system_rules.project_codes(project):
+        mine = [row for row in samples if system_rules.effective_code(row.system_code, project) == code]
+        boards = [row for row in mine if row.group_reference != "SAMPLE MATERIAL"]
+        latest = max(boards or mine, key=lambda row: (row.modified, row.revision), default=None)
+        checks.append(SampleBoardCheckOut(
+            system_code=code, system_name=system_rules.system_display_name(project, code),
+            state="submitted" if boards else "material_only" if mine else "missing",
+            reference=latest.reference if latest else None, revision=latest.revision if latest else None,
+            status=latest.status if latest else None, submitted_on=latest.modified if latest else None,
+            path=latest.path if latest else None))
+    return checks
 
 
 @router.get("/{project_id}/logs/file")

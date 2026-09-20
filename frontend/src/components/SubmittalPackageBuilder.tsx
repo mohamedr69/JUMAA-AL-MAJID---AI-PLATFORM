@@ -333,7 +333,10 @@ export function SubmittalPackageBuilder({
 
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <button
-                onClick={create}
+                // Not `onClick={create}`: React would hand the click event
+                // in as `options`, and the build would go out with whatever
+                // a MouseEvent happens to have on it rather than with none.
+                onClick={() => void create()}
                 disabled={building || chosen.size === 0 || loading}
                 className="rounded-lg bg-brand-600 px-5 py-2 font-semibold text-white disabled:opacity-40"
               >

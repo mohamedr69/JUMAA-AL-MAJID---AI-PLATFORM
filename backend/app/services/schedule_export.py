@@ -1,9 +1,11 @@
 r"""The floor-wise BOQ as a document.
 
-The tab is a wide table -- a line per item, a column per floor, and a
-real job has forty-three floors -- so the page is landscape and the
-floors are split across as many pages as they need, the item column
-repeated on each so a reader never loses which line they are on.
+The tab is a wide table -- a line per item, a column per floor as the
+workbook has them (a typical column, "1 to 13", once, with the quantity
+on each of its floors), and a real job has many -- so the page is
+landscape and the columns are split across as many pages as they need,
+the item column repeated on each so a reader never loses which line they
+are on. The totals count every floor a typical column stands for.
 
 One section per system, because a fire alarm BOQ and an emergency
 lighting BOQ are two documents to two consultants; a line the platform
@@ -14,6 +16,8 @@ for every row of the schedule.
 from __future__ import annotations
 
 import pymupdf
+
+from app.services.floor_schedule import sheet_columns, tidy
 
 _RED = (0.72, 0.11, 0.11)
 _GREY = (0.45, 0.45, 0.45)
@@ -40,13 +44,25 @@ def _clip(text: str, width: float, size: float = 6.5) -> str:
     return text if len(text) <= room else text[: room - 1] + "…"
 
 
+def cell(per_floor: dict, floors: list[str]) -> str:
+    """What one column shows for a line: its quantity on a floor, and for a
+    typical column the quantity on each of its floors -- or the range, where
+    floors of it were changed by hand and no longer agree."""
+    values = {tidy(per_floor.get(floor) or 0) for floor in floors}
+    if values == {0}:
+        return ""
+    shown = str(values.pop()) if len(values) == 1 else f"{min(values)}-{max(values)}"
+    # "3 x14": three on each of the typical column's fourteen floors.
+    return f"{shown} x{len(floors)}" if len(floors) > 1 else shown
+
+
 def build(project, result: dict) -> pymupdf.Document:
     """The schedule as it is shown, system by system."""
     doc = pymupdf.open()
-    floors: list[str] = list(result.get("floors", []))
+    columns = sheet_columns(result)
     items = list(result.get("items", []))
     per_page = _floors_per_page()
-    pages = [floors[at: at + per_page] for at in range(0, len(floors), per_page)] or [[]]
+    pages = [columns[at: at + per_page] for at in range(0, len(columns), per_page)] or [[]]
 
     systems = sorted(
         {(item.get("system") or "") for item in items},
@@ -64,7 +80,7 @@ def build(project, result: dict) -> pymupdf.Document:
             page.insert_text((LEFT, 56), title.upper()[:110], fontname="helv", fontsize=8, color=_GREY)
             heading = SYSTEM_NAMES.get(system, system)
             if len(pages) > 1 and shown:
-                heading += f"  ·  {shown[0]} to {shown[-1]}"
+                heading += f"  ·  {shown[0]['heading']} to {shown[-1]['heading']}"
             page.insert_text((LEFT, 70), heading, fontname="hebo", fontsize=8.5, color=_GREY)
 
             y = 82
@@ -76,8 +92,16 @@ def build(project, result: dict) -> pymupdf.Document:
             x += DEVICE_WIDTH
             page.insert_text((x, y + 12), "PART", fontname="hebo", fontsize=7, color=(1, 1, 1))
             x += PART_WIDTH
-            for floor in shown:
-                page.insert_text((x, y + 12), _clip(floor, FLOOR_WIDTH, 6), fontname="hebo", fontsize=6, color=(1, 1, 1))
+            for column in shown:
+                if len(column["floors"]) > 1:
+                    # A typical column: its heading, and under it how many floors it stands for.
+                    page.insert_text((x, y + 8), _clip(column["heading"], FLOOR_WIDTH, 6), fontname="hebo", fontsize=6,
+                                     color=(1, 1, 1))
+                    page.insert_text((x, y + 15.5), f"x{len(column['floors'])} floors", fontname="helv", fontsize=5,
+                                     color=(1, 1, 1))
+                else:
+                    page.insert_text((x, y + 12), _clip(column["heading"], FLOOR_WIDTH, 6), fontname="hebo", fontsize=6,
+                                     color=(1, 1, 1))
                 x += FLOOR_WIDTH
             page.insert_text((x, y + 12), "TOTAL", fontname="hebo", fontsize=7, color=(1, 1, 1))
             y += 18
@@ -96,10 +120,10 @@ def build(project, result: dict) -> pymupdf.Document:
                 part = (item.get("material") or {}).get("part_no") or "—"
                 page.insert_text((x, y + 10), _clip(part, PART_WIDTH), fontname="helv", fontsize=6.5)
                 x += PART_WIDTH
-                for floor in shown:
-                    count = (item.get("per_floor") or {}).get(floor)
-                    if count:
-                        page.insert_text((x, y + 10), str(count), fontname="helv", fontsize=6.5)
+                for column in shown:
+                    shown_count = cell(item.get("per_floor") or {}, column["floors"])
+                    if shown_count:
+                        page.insert_text((x, y + 10), shown_count, fontname="helv", fontsize=6.5)
                     x += FLOOR_WIDTH
                 page.insert_text((x, y + 10), str(item.get("total") or 0), fontname="hebo", fontsize=6.5)
                 page.draw_line(pymupdf.Point(LEFT, y + ROW_HEIGHT - 2), pymupdf.Point(RIGHT, y + ROW_HEIGHT - 2),
@@ -112,10 +136,13 @@ def build(project, result: dict) -> pymupdf.Document:
             page.insert_text((x, y + 12), f"{SYSTEM_NAMES.get(system, system)} total",
                              fontname="hebo", fontsize=7)
             x += ITEM_WIDTH + DEVICE_WIDTH + PART_WIDTH
-            for floor in shown:
-                total = sum((item.get("per_floor") or {}).get(floor) or 0 for item in rows)
-                if total:
-                    page.insert_text((x, y + 12), str(total), fontname="hebo", fontsize=6.5)
+            for column in shown:
+                # Per floor, like the column's cells: the column's floors each carry it.
+                totals = {floor: sum((item.get("per_floor") or {}).get(floor) or 0 for item in rows)
+                          for floor in column["floors"]}
+                shown_total = cell(totals, column["floors"])
+                if shown_total:
+                    page.insert_text((x, y + 12), shown_total, fontname="hebo", fontsize=6.5)
                 x += FLOOR_WIDTH
             page.insert_text((x, y + 12), str(sum(item.get("total") or 0 for item in rows)),
                              fontname="hebo", fontsize=7)

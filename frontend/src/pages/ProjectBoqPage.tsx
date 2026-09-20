@@ -19,8 +19,9 @@ import { useUnsavedChanges } from "../lib/useUnsavedChanges";
 import { useJob } from "../lib/useJob";
 import { JobProgress } from "../components/JobProgress";
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
-import { UnderMaintenance } from "../components/UnderMaintenance";
 import { FloorScheduleTab } from "../components/FloorScheduleTab";
+import IfcBoqTab from "../components/ifc/IfcBoqTab";
+import ComparisonTab from "../components/ifc/ComparisonTab";
 import { ExtractionReview } from "../components/ExtractionReview";
 import { AiCheckBadge, AiVerificationPanel } from "../components/AiVerificationPanel";
 import { StaleWriteNotice } from "../components/StaleWriteNotice";
@@ -33,13 +34,15 @@ import { useProject } from "./ProjectWorkspace";
 // filename carried no system code.
 const UNASSIGNED = " unassigned";
 
-/** Where a BOQ's quantities come from. Reading them off the issued-for-
- * construction drawings is in the platform's design but not built yet. */
-type SourceKey = "design" | "floor" | "ifc";
+/** Where a BOQ's quantities come from: the Design Sheet, the engineer's
+ * floor-wise schedule, or the issued-for-construction drawings (fire alarm
+ * for now; emergency lighting is next). */
+type SourceKey = "design" | "floor" | "ifc" | "compare";
 const SOURCES: { key: SourceKey; label: string; soon?: boolean }[] = [
   { key: "design", label: "As per Design Sheet" },
   { key: "floor", label: "BOQ Floor Wise" },
-  { key: "ifc", label: "As per IFC Drawings", soon: true },
+  { key: "ifc", label: "As per IFC Drawings" },
+  { key: "compare", label: "Comparison" },
 ];
 
 const PAGE_SIZE = 25;
@@ -554,10 +557,11 @@ export function ProjectBoqPage() {
         <FloorScheduleTab projectId={project.id} canEdit={canEdit} />
       ) : source === "ifc" ? (
         <div className="mt-4">
-          <UnderMaintenance
-            title="BOQ from IFC drawings"
-            note="Taking quantities off the issued-for-construction drawings — uploading them, extracting the items and reviewing them against the design sheet BOQ — is being built. The BOQ as per Design Sheet is beside it."
-          />
+          <IfcBoqTab projectId={project.id} canEdit={canEdit} />
+        </div>
+      ) : source === "compare" ? (
+        <div className="mt-4">
+          <ComparisonTab projectId={project.id} />
         </div>
       ) : (
         <>

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { ApiError, api, apiUrl } from "../lib/api";
-import type { ProjectLogs, SubmittalRegister } from "../lib/types";
+import type { ProjectLogs, SampleBoardCheck, SubmittalRegister } from "../lib/types";
 import { directoryRevision, registerRevision, groupRevisions, systemGroup, type LogDocument, type LogRevision } from "../lib/projectLog";
 import { useAuth } from "../context/AuthContext";
 import { PROJECT_EDITOR_ROLES } from "../lib/types";
@@ -11,6 +11,10 @@ import { useProject } from "./ProjectWorkspace";
 
 const ALL = "__all__";
 type ChildTab = "submittals" | "drawings" | "samples";
+
+function systemLabel(code: string): string {
+  return code === "FRC" ? "Fire Rated Cable" : code;
+}
 
 function when(value: string): string {
   return new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`).toLocaleString();
@@ -85,14 +89,20 @@ export function ProjectLogsPage() {
   ].map(group).filter(Boolean)))];
   const selectedSystem = systems.includes(system) ? system : ALL;
   const matches = (code: string | null) => selectedSystem === ALL || group(code) === selectedSystem;
-  const activeChild = selectedSystem === "FRC" ? "submittals" : child;
+  // Fire-rated cable has no drawings of its own, but it does have a sample board.
+  const activeChild = selectedSystem === "FRC" && child === "drawings" ? "submittals" : child;
   const drawings = (logs?.drawings ?? []).filter((drawing) => matches(drawing.system_code));
   const directoryReferences = new Set((logs?.material_submittals ?? []).map((item) => item.reference?.replace(/-R\d+$/i, "").toUpperCase()));
   const items = (submittals?.items ?? []).filter((item) => matches(item.system_code) && !directoryReferences.has(item.reference?.replace(/-R\d+$/i, "").toUpperCase()));
-  const samples = (logs?.samples ?? []).filter((file) => matches(file.system_code) && group(file.system_code) !== "FRC");
+  const samples = (logs?.samples ?? []).filter((file) => matches(file.system_code));
+  const boardChecks = (logs?.sample_boards ?? []).filter((check) => matches(check.system_code));
   const materials = (logs?.material_submittals ?? []).filter((item) => matches(item.system_code));
   const rows = activeChild === "submittals" ? [...items.map(registerRevision), ...materials.map(directoryRevision)]
-    : (activeChild === "samples" ? samples : drawings.filter((file) => group(file.system_code) !== "FRC")).map(directoryRevision);
+    : activeChild === "samples"
+      // A transmittal's sample is filed as "Sample Board" per system: the
+      // system goes in the title so the ALL view tells them apart.
+      ? samples.map((file) => ({ ...directoryRevision(file), title: file.source === "transmittal" ? `${file.name} / ${systemLabel(group(file.system_code))}` : file.name }))
+      : drawings.filter((file) => group(file.system_code) !== "FRC").map(directoryRevision);
   const documents = groupRevisions(rows, integrated);
   // The material submittals the log lists, by reference: these can be
   // deleted for good from here (the files included), after the warning.
@@ -179,12 +189,13 @@ export function ProjectLogsPage() {
         </div>
       )}
       {ready && <>
-      <div className="mt-7 flex flex-wrap gap-1">{systems.map((value) => <button key={value} onClick={() => { setSystem(value); setStatusFilter(""); if (value === "FRC") setChild("submittals"); }} className={`rounded-t-lg border border-gray-200 px-7 py-3 font-semibold ${selectedSystem === value ? "bg-brand-600 text-white" : "bg-gray-50 text-gray-500"}`}>{value === ALL ? "ALL" : value === "FRC" ? "Fire Rated Cable" : value}</button>)}</div>
+      <div className="mt-7 flex flex-wrap gap-1">{systems.map((value) => <button key={value} onClick={() => { setSystem(value); setStatusFilter(""); if (value === "FRC") setChild("submittals"); }} className={`rounded-t-lg border border-gray-200 px-7 py-3 font-semibold ${selectedSystem === value ? "bg-brand-600 text-white" : "bg-gray-50 text-gray-500"}`}>{value === ALL ? "ALL" : systemLabel(value)}</button>)}</div>
       <div className="rounded-b-xl rounded-tr-xl border border-gray-200 bg-white p-4">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex gap-4">{((selectedSystem === "FRC" ? ["submittals"] : ["submittals", "drawings", "samples"]) as ChildTab[]).map((value) => <button key={value} onClick={() => { setChild(value); setStatusFilter(""); }} className={`border-b-2 px-2 py-3 text-sm font-semibold ${activeChild === value ? "border-brand-600 text-brand-600" : "border-transparent text-gray-500"}`}>{value === "submittals" ? "Material Submittals" : value === "drawings" ? "Drawings" : "Samples"}</button>)}</div>
+          <div className="flex gap-4">{((selectedSystem === "FRC" ? ["submittals", "samples"] : ["submittals", "drawings", "samples"]) as ChildTab[]).map((value) => <button key={value} onClick={() => { setChild(value); setStatusFilter(""); }} className={`border-b-2 px-2 py-3 text-sm font-semibold ${activeChild === value ? "border-brand-600 text-brand-600" : "border-transparent text-gray-500"}`}>{value === "submittals" ? "Material Submittals" : value === "drawings" ? "Drawings" : "Samples"}</button>)}</div>
           <div className="flex flex-wrap items-center gap-3"><input aria-label="Search documents" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search documents..." className="input w-60" /><label className="flex items-center gap-2 text-sm">Status<select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">All statuses</option>{[...new Set(documents.map((doc) => doc.revisions[0].status))].sort().map((value) => <option key={value}>{value}</option>)}</select></label></div>
         </div>
+        {activeChild === "samples" && <SampleBoardChecks checks={boardChecks} projectId={project.id} synced={Boolean(logs?.synced_at)} />}
         {(() => {
           // Two shapes, following the platform owner's design. A drawing is
           // one row per floor with a column per revision, because what is
@@ -199,7 +210,7 @@ export function ProjectLogsPage() {
           return <div className="overflow-x-auto rounded-lg border border-gray-200"><table className="w-full text-left text-sm">
           <thead className="bg-gray-50"><tr>{columns.map((label) => <th key={label} className="whitespace-nowrap border-b border-gray-200 px-4 py-4 font-semibold">{label}</th>)}</tr></thead>
           <tbody>{visible.map((doc) => { const latest = doc.revisions[0]; return <Fragment key={doc.key}>
-            <tr className="border-b border-gray-100"><td className="min-w-60 px-4 py-4"><button aria-expanded={expanded.has(doc.key)} onClick={() => setExpanded((prev) => { const next = new Set(prev); if (next.has(doc.key)) next.delete(doc.key); else next.add(doc.key); return next; })} className="flex gap-3 text-left font-medium"><span aria-hidden="true">{expanded.has(doc.key) ? "⌄" : "›"}</span>{doc.title}</button></td><td className="px-4 py-4">{doc.reference}{canEdit && materialReferences.has(doc.reference.toUpperCase()) && <button onClick={() => { setDeleteError(null); setDeleting(doc); }} title="Delete this material submittal permanently" className="ml-3 text-xs font-semibold text-red-600 hover:underline">Delete</button>}</td>
+            <tr className="border-b border-gray-100"><td className="min-w-60 px-4 py-4"><button aria-expanded={expanded.has(doc.key)} onClick={() => setExpanded((prev) => { const next = new Set(prev); if (next.has(doc.key)) next.delete(doc.key); else next.add(doc.key); return next; })} className="flex gap-3 text-left font-medium"><span aria-hidden="true">{expanded.has(doc.key) ? "⌄" : "›"}</span>{doc.title}</button></td><td className="px-4 py-4">{activeChild === "samples" ? latest.reference : doc.reference}{canEdit && materialReferences.has(doc.reference.toUpperCase()) && <button onClick={() => { setDeleteError(null); setDeleting(doc); }} title="Delete this material submittal permanently" className="ml-3 text-xs font-semibold text-red-600 hover:underline">Delete</button>}</td>
             {activeChild === "drawings" ? <>
               <td className="px-4 py-4">{latest.floor}</td>
               {revisionColumns.map((rev) => <td key={rev} className="px-4 py-4">{doc.revisions.some((r) => r.revision === rev) ? doc.revisions.filter((r) => r.revision === rev).map((r, i) => <div key={i} title={r.evidence ?? "No consultant decision recorded"}>{badge(r.status)}<div className="mt-1 text-xs">{view(r)}</div></div>) : <span className="text-gray-400">&mdash;</span>}</td>)}
@@ -217,5 +228,40 @@ export function ProjectLogsPage() {
       </div>
       </>}
     </div>
+  );
+}
+
+/** Every system shall have a sample board. One card a system: the board
+ * sent (its transmittal, date and where it stands), loose sample material
+ * only, or none found in the Transmittal folder. */
+function SampleBoardChecks({ checks, projectId, synced }: { checks: SampleBoardCheck[]; projectId: number; synced: boolean }) {
+  if (!synced || checks.length === 0) return null;
+  const missing = checks.filter((check) => check.state !== "submitted").length;
+  const tone = { submitted: "border-green-200 bg-green-50", material_only: "border-amber-200 bg-amber-50", missing: "border-rose-200 bg-rose-50" };
+  const heading = { submitted: "Sample board submitted", material_only: "Sample material only — no board", missing: "No sample board found" };
+  return (
+    <section aria-label="Sample board per system" className="mb-5">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-sm font-semibold">Sample board per system</h2>
+        <p className="text-xs text-gray-500">{missing ? `${missing} of ${checks.length} system${checks.length === 1 ? "" : "s"} still need a sample board` : "Every system has a sample board"} &middot; read from the transmittals in the Transmittal folder</p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {checks.map((check) => (
+          <div key={check.system_code} className={`rounded-lg border p-3 ${tone[check.state]}`}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold">{check.system_name}</span>
+              <span className="text-xs font-semibold text-gray-500">{systemLabel(check.system_code)}</span>
+            </div>
+            <p className={`mt-1 text-sm font-medium ${check.state === "submitted" ? "text-green-800" : check.state === "missing" ? "text-rose-700" : "text-amber-800"}`}>{heading[check.state]}</p>
+            {check.reference && (
+              <p className="mt-1 text-xs text-gray-600">
+                {check.reference}{check.revision ? ` · ${check.revision}` : ""}{check.submitted_on ? ` · ${new Date(check.submitted_on).toLocaleDateString()}` : ""}
+                {check.path && <> · <a className="font-medium text-brand-600 hover:underline" href={apiUrl(`/projects/${projectId}/logs/file?path=${encodeURIComponent(check.path)}`)} target="_blank" rel="noreferrer">View transmittal</a></>}
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

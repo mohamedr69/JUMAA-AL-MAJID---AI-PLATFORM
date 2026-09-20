@@ -35,13 +35,15 @@ class Cancelled(Exception):
 class JobContext:
     job_id: int
 
-    def progress(self, done: int, total: int, message: str) -> None:
+    def progress(self, done: int, total: int, message: str, **extra) -> None:
+        """`extra` is kept beside the step count: a stage's name, the
+        seconds a job estimates it has left."""
         db = SessionLocal()
         try:
             job = db.get(BackgroundJob, self.job_id)
             if job is None:
                 return
-            job.progress = {"done": done, "total": total, "message": message[:300]}
+            job.progress = {"done": done, "total": total, "message": message[:300], **extra}
             cancel = job.cancel_requested
             db.commit()
         finally:

@@ -57,6 +57,15 @@ async def lifespan(app: FastAPI):
         from app.services import suppliers
 
         suppliers.seed(db)
+        # The IFC symbol library: the device types once, then anything the
+        # library file on the company shelf has that this database lacks,
+        # and the file written back so it always matches the database.
+        from app.ifc.library_file import import_library, save_library
+        from app.ifc.seed import seed_device_types
+
+        seed_device_types(db)
+        import_library(db)
+        save_library(db)
         # Work a previous run of the server left unfinished never finishes.
         from app.services.jobs import fail_interrupted
 
@@ -72,7 +81,18 @@ async def lifespan(app: FastAPI):
     from app.knowledge import importer
 
     importer.import_on_start()
-    yield
+    # The archive index: the EP folders in the synced archive, so typing a
+    # number suggests projects instead of walking OneDrive. Built and kept
+    # fresh in the background -- a first scan takes minutes over a synced
+    # drive and nothing waits for it.
+    from app.services import ep_directory
+
+    if settings.archive_index_enabled:
+        ep_directory.start_refresh_thread(scan_now=settings.archive_index_scan_on_start)
+    try:
+        yield
+    finally:
+        ep_directory.stop_refresh()
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
@@ -202,6 +222,19 @@ app.include_router(floor_schedule_router.router)
 from app.routers import amplifier as amplifier_router  # noqa: E402
 
 app.include_router(amplifier_router.router)
+
+# The BOQ page's "As per IFC Drawings" tab: fire alarm devices counted off an
+# IFC drawing, every unknown symbol verified before any quantity is given.
+from app.routers import ifc_boq as ifc_boq_router  # noqa: E402
+
+app.include_router(ifc_boq_router.router)
+from app.routers import drawings as drawings_router  # noqa: E402
+app.include_router(drawings_router.router)
+
+# Search the archive's EP folders from the index rather than walking it.
+from app.routers import archive as archive_router  # noqa: E402
+
+app.include_router(archive_router.router)
 
 
 @app.get("/health")

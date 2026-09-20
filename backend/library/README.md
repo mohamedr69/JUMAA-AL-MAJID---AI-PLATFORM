@@ -23,6 +23,9 @@ library/
     EDWARDS/                  one folder per manufacturer, named for the
     ROCKET/                   brand as the DRF and the BOQ spell it
     MENVIER/
+  symbols/                    symbol_library.json: the IFC symbols engineers have
+                              verified for the BOQ as per IFC drawings, written by
+                              the platform on every answer (app/ifc/library_file.py)
   submittal/                  the submittal builder, section by section
     Company Profile/
     Product Catalogue or Brochure/

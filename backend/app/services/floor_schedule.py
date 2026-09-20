@@ -631,25 +631,59 @@ def apply_edits(result: dict, edits: dict) -> dict:
     return recompute(result)
 
 
-def set_quantity(result: dict, *, row: int, floor: str, quantity: float | None) -> dict:
-    """One cell of the schedule, changed by hand.
+def sheet_columns(result: dict) -> list[dict]:
+    """The floor columns as the workbook has them: a typical column ("1 to
+    13") once, standing for its floors, and every other floor a column of
+    its own -- the way the schedule is shown and exported. The floors are
+    still counted one by one (`per_floor`); this is only how they are laid
+    out. Each floor is in exactly one column, in the schedule's floor order.
+
+    [{"heading": "1 to 13", "floors": ["Level 1", ..., "Level 13"]}, ...]
+    """
+    floors = list(result.get("floors") or [])
+    seen: set[str] = set()
+    columns = []
+    for column in result.get("columns") or []:
+        if column.get("kind") != "floor":
+            continue
+        mine = [floor for floor in column.get("floors") or [] if floor in floors and floor not in seen]
+        if not mine:
+            continue
+        seen.update(mine)
+        # A single floor keeps the platform's name for it ("Level 14"); a
+        # typical column keeps the sheet's heading, which is what says so.
+        columns.append({"heading": (column.get("heading") or mine[0]) if len(mine) > 1 else mine[0], "floors": mine})
+    # A floor no column accounts for (an older schedule stored without its
+    # columns) is shown on its own rather than lost.
+    columns += [{"heading": floor, "floors": [floor]} for floor in floors if floor not in seen]
+    return sorted(columns, key=lambda column: floors.index(column["floors"][0]))
+
+
+def set_quantity(result: dict, *, row: int, floor: str | list[str], quantity: float | None) -> dict:
+    """One cell of the schedule, changed by hand -- one floor, or every
+    floor of a typical column at once (each gets the quantity).
 
     A quantity of nothing puts the cell back to blank rather than to zero:
     a blank means the item is not on that floor, which is what the reader
     has been careful about from the start, and a zero would read as a BOQ
     line of none.
     """
-    if floor not in result.get("floors", []):
-        raise KeyError(f"{floor!r} is not a floor of this schedule")
+    targets = [floor] if isinstance(floor, str) else list(floor)
+    if not targets:
+        raise KeyError("no floor given")
+    for target in targets:
+        if target not in result.get("floors", []):
+            raise KeyError(f"{target!r} is not a floor of this schedule")
     items = [dict(item) for item in result.get("items", [])]
     wanted = next((item for item in items if item.get("row") == row), None)
     if wanted is None:
         raise KeyError(f"no line at row {row}")
     per_floor = dict(wanted.get("per_floor") or {})
-    if not quantity:
-        per_floor.pop(floor, None)
-    else:
-        per_floor[floor] = tidy(max(0.0, float(quantity)))
+    for target in targets:
+        if not quantity:
+            per_floor.pop(target, None)
+        else:
+            per_floor[target] = tidy(max(0.0, float(quantity)))
     wanted["per_floor"] = per_floor
     # The line has been changed by hand, so it no longer claims to be what
     # the sheet totalled -- the reconciliation warning is then telling the

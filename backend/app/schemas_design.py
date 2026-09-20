@@ -932,6 +932,21 @@ class ProjectLogDrawingOut(BaseModel):
     modified: datetime
 
 
+class SampleBoardCheckOut(BaseModel):
+    """Whether a system of the project has had its sample board sent: every
+    system shall have one. `state` is "submitted", "material_only" (loose
+    sample material went, no board) or "missing"; the rest describe the
+    latest board sent, or the latest material when no board was."""
+    system_code: str
+    system_name: str
+    state: str
+    reference: str | None = None
+    revision: str | None = None
+    status: str | None = None
+    submitted_on: datetime | None = None
+    path: str | None = None
+
+
 class ProjectLogsOut(BaseModel):
     scanning: bool = False
     processed_files: int = 0
@@ -939,6 +954,7 @@ class ProjectLogsOut(BaseModel):
     # When the index was last synced with the folder; None until the first sync.
     synced_at: datetime | None = None
     samples: list[ProjectLogDrawingOut] = Field(default_factory=list)
+    sample_boards: list[SampleBoardCheckOut] = Field(default_factory=list)
     material_submittals: list[ProjectLogDrawingOut] = Field(default_factory=list)
     systems: list[str]
     drawings: list[ProjectLogDrawingOut]

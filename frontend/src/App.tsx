@@ -26,6 +26,7 @@ import { ProjectHomePage } from "./pages/ProjectHomePage";
 import { ProjectInfoPage } from "./pages/ProjectInfoPage";
 import { ProjectMaterialSubmittalPage } from "./pages/ProjectMaterialSubmittalPage";
 import { ProjectLogsPage } from "./pages/ProjectLogsPage";
+import { ProjectDrawingsPage } from "./pages/ProjectDrawingsPage";
 import { UnderMaintenance } from "./components/UnderMaintenance";
 // ProjectVoiceEvacuationPage is deliberately not imported: the Amplifier tab
 // is marked "soon". The page is kept in src/pages for when it is released.
@@ -77,13 +78,13 @@ export default function App() {
               <Route path="power" element={<ProjectPowerPage />} />
             </Route>
             <Route path="compliance" element={<ProjectCompliancePage />} />
+            <Route path="drawings" element={<ProjectDrawingsPage />} />
             {/* Where these pages used to live. */}
             <Route path="batteries" element={<Navigate to="../calculations/battery" replace />} />
             <Route path="design/ve" element={<Navigate to="../calculations/amplifier" replace />} />
             <Route path="submittal" element={<ProjectMaterialSubmittalPage />} />
             <Route path="documents" element={<ProjectDocumentsPage />} />
             {/* Sections of the design still being built: each says so. */}
-            <Route path="drawings" element={<UnderMaintenance title="Drawings" />} />
             <Route path="logs" element={<ProjectLogsPage />} />
             <Route path="om-manual" element={<UnderMaintenance title="O&M Manual" />} />
             <Route path="reports" element={<UnderMaintenance title="Reports" />} />

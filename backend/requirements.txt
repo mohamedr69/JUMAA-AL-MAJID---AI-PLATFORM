@@ -13,6 +13,9 @@ httpx==0.28.1
 pymupdf==1.28.2
 pytesseract==0.3.13
 numpy==2.5.3
+# Reads the IFC drawings (DXF, and DWG once AutoCAD or the ODA File
+# Converter has made it a DXF) for the BOQ as per IFC drawings (app/ifc).
+ezdxf==1.4.4
 Pillow==12.3.0
 alembic==1.19.2
 openpyxl==3.1.5

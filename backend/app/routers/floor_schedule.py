@@ -300,9 +300,11 @@ def schedule_materials(
 
 
 class QuantityIn(BaseModel):
-    """One cell of the schedule, set by hand."""
+    """One cell of the schedule, set by hand: a floor, or all the floors of
+    a typical column (each set to the quantity)."""
 
-    floor: str
+    floor: str | None = None
+    floors: list[str] = []
     # Nothing puts the cell back to blank -- the item is not on that floor
     # -- rather than to a BOQ line of zero.
     quantity: float | None = None
@@ -330,16 +332,20 @@ def set_quantity(
     item = next((line for line in (stored.result or {}).get("items", []) if line.get("row") == row), None)
     if item is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"no line at row {row}")
+    targets = payload.floors or ([payload.floor] if payload.floor else [])
+    if not targets:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Say which floor, or floors, to set")
     try:
         stored.result = floor_schedule.set_quantity(
-            dict(stored.result), row=row, floor=payload.floor, quantity=payload.quantity,
+            dict(stored.result), row=row, floor=targets, quantity=payload.quantity,
         )
     except KeyError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(exc.args[0])) from exc
     # Kept apart from the reading, so re-reading a changed workbook does
     # not throw the correction away.
     edits = {key: dict(value) for key, value in (stored.edits or {}).items()}
-    edits.setdefault(item["description"], {})[payload.floor] = payload.quantity or 0
+    for target in targets:
+        edits.setdefault(item["description"], {})[target] = payload.quantity or 0
     stored.edits = edits
     stored.created_by_id = current_user.id
     db.commit()

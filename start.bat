@@ -10,7 +10,9 @@ if not exist backend\venv (
     exit /b 1
 )
 
-start "EP Platform - API" cmd /k "cd /d "%~dp0backend" && venv\Scripts\python -m uvicorn app.main:app --reload --reload-dir app --port 8000"
+rem --timeout-graceful-shutdown: a reload waits at most 3 s for open page
+rem connections, instead of hanging on them with the old code still serving.
+start "EP Platform - API" cmd /k "cd /d "%~dp0backend" && venv\Scripts\python -m uvicorn app.main:app --reload --reload-dir app --timeout-graceful-shutdown 3 --port 8000"
 start "EP Platform - Web" cmd /k "cd /d "%~dp0frontend" && npm run dev"
 
 timeout /t 8 >nul

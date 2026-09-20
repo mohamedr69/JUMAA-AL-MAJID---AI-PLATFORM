@@ -24,7 +24,7 @@ const SECTIONS = [
   { to: "calculations", label: "Calculations", end: false },
   { to: "compliance", label: "Compliance Statement", end: false },
   { to: "submittal", label: "Material Submittals", end: false },
-  { to: "drawings", label: "Drawings", end: false, soon: true },
+  { to: "drawings", label: "Drawings", end: false },
   { to: "logs", label: "Logs", end: false },
   { to: "om-manual", label: "O&M Manual", end: false, soon: true },
   { to: "reports", label: "Reports", end: false, soon: true },

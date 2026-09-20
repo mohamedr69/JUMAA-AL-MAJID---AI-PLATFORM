@@ -373,6 +373,12 @@ def combine(records: list[ControlledDocument]) -> list[ControlledDocument]:
     """The register from the records read off every document -- one row per
     submission, replies folded in, drawings matched to their schedule --
     whether the records were just read or come from the index."""
+    # Samples sent under a transmittal have no revision of their own: they
+    # are numbered in the order they were sent (transmittals.number).
+    from app.services import transmittals
+
+    sent = transmittals.number([row for row in records if row.source == "transmittal"])
+    records = [row for row in records if row.source != "transmittal"]
     found: dict = {}
     for row in records:
         key = (row.category, row.system_code, row.reference.upper(), row.revision)
@@ -410,6 +416,7 @@ def combine(records: list[ControlledDocument]) -> list[ControlledDocument]:
         key = (row.category, row.system_code, row.reference.upper())
         if row.status == "UR" and _revision_number(row.revision) < latest[key]:
             rows[i] = replace(row, status="SUPERSEDED")
+    rows.extend(sent)
     return sorted(rows, key=lambda row: (row.category, row.system_code or "", row.reference, row.revision))
 
 

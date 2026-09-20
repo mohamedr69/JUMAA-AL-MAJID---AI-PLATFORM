@@ -659,3 +659,68 @@ def test_a_spacer_row_holding_a_stray_number_is_not_an_item(tmp_path):
     read = floor_schedule.read(path).as_dict()
     assert [item["description"] for item in read["items"]] == ["Smoke detector"]
     assert set(read["systems"]) == {"FAS"}
+
+
+# --- laid out as the workbook is -------------------------------------------------------------------
+
+
+def test_a_typical_column_is_shown_once_as_the_sheet_has_it(tmp_path):
+    path = _workbook(tmp_path, headings=["Description", "B1", "GF", "1 to 13", "14", "ROOF"],
+                     rows=[["Photoelectric smoke detector", 4, 6, 5, 3, 2]])
+    read = floor_schedule.read(path).as_dict()
+    columns = floor_schedule.sheet_columns(read)
+
+    # Five columns, as in Excel -- not seventeen.
+    assert [column["heading"] for column in columns] == ["B1", "GF", "1 to 13", "14", "ROOF"]
+    typical = columns[2]
+    assert typical["floors"] == [f"Level {n}" for n in range(1, 14)]
+    # Each floor in exactly one column, so nothing is shown twice or lost.
+    assert [floor for column in columns for floor in column["floors"]] == read["floors"]
+    # The floors are still counted one by one: the total is every floor's.
+    assert read["items"][0]["total"] == 4 + 6 + 5 * 13 + 3 + 2
+
+
+def test_an_older_schedule_stored_without_its_columns_shows_a_column_a_floor():
+    result = {"floors": ["GF", "Level 1", "Level 2"], "items": []}
+    assert [c["heading"] for c in floor_schedule.sheet_columns(result)] == ["GF", "Level 1", "Level 2"]
+
+
+def test_stepping_a_typical_column_sets_every_floor_it_stands_for(client, tmp_path):
+    _login(client)
+    project_id = _project(client, "30897")
+    path = _workbook(tmp_path, headings=["Description", "GF", "1 to 3"],
+                     rows=[["Photoelectric smoke detector", 4, 5]])
+    row = _upload(client, project_id, path).json()["result"]["items"][0]["row"]
+
+    typical = ["Level 1", "Level 2", "Level 3"]
+    result = client.patch(f"/projects/{project_id}/floor-schedule/items/{row}",
+                          json={"floors": typical, "quantity": 6})
+    assert result.status_code == 200, result.text
+    item = result.json()["result"]["items"][0]
+    assert [item["per_floor"][floor] for floor in typical] == [6, 6, 6]
+    assert item["total"] == 4 + 6 * 3
+
+    # Kept, and read back after a reload.
+    stored = client.get(f"/projects/{project_id}/floor-schedule").json()["result"]["items"][0]
+    assert [stored["per_floor"][floor] for floor in typical] == [6, 6, 6]
+    # A floor that is not the schedule's refuses the whole change.
+    assert client.patch(f"/projects/{project_id}/floor-schedule/items/{row}",
+                        json={"floors": ["Level 1", "Level 99"], "quantity": 1}).status_code == 404
+    assert client.patch(f"/projects/{project_id}/floor-schedule/items/{row}",
+                        json={"quantity": 1}).status_code == 422
+
+
+def test_the_pdf_shows_the_typical_column_once(client, tmp_path):
+    import pymupdf
+
+    _login(client)
+    project_id = _project(client, "30898")
+    path = _workbook(tmp_path, headings=["Description", "B1", "GF", "1 to 13"],
+                     rows=[["Photoelectric smoke detector", 4, 6, 5]])
+    _upload(client, project_id, path)
+    export = client.get(f"/projects/{project_id}/floor-schedule/export.pdf")
+    text = pymupdf.open(stream=export.content, filetype="pdf")[0].get_text()
+    assert "1 to 13" in text and "x13 floors" in text
+    assert "5 x13" in text                       # five on each of the thirteen
+    assert "Level 7" not in text                 # the thirteen are not written out
+    assert "75" in text                          # 4 + 6 + 5 x 13

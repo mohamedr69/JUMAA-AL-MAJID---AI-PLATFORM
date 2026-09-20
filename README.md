@@ -126,6 +126,46 @@ This replaced `Base.metadata.create_all`, which created missing tables but never
 - The DRF and the Design Sheets are read by the AI (`app/ai/sheet_reader.py`, `app/ai/verification.py`): every page, twice, and a close-up where the readings disagree. One extra standard-tier call per sixteen rows against the earlier witnessed read. [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki) is optional and used only by document intake, document control and the submittal scanner; set `TESSERACT_CMD` in `.env` if it is not on `PATH`.
 - The deterministic readers (`drf_extractor.py`, `design_sheet_extractor.py`) no longer read documents; their parsers and page rendering are reused by the AI read. They are kept, with their tests, until the AI-only read has run on enough projects, and are then to be deleted.
 
+### The EP directory: the archive indexed, and the search box
+
+Create New Project used to ask for an EP number the engineer already had to
+know by heart, and every attempt walked the synced OneDrive archive looking
+for it. The archive's EP folders are now walked **once** and kept in the
+database (`app/services/ep_directory.py`, tables `ep_archive_roots` and
+`ep_archive_folders`), so:
+
+- **Typing suggests.** `294` offers "EP-29495 - IVY Garden 2"; a name works
+  too, so `wasl` finds EP-30851. A number the platform already has a project
+  for says so and offers to open it rather than create it twice.
+  (`GET /archive/search`, `frontend/src/components/EpNumberSearch.tsx`.)
+- **Find Project asks the database.** `POST /projects/resolve` takes the
+  folders from the index. A number added to the archive since the last scan
+  is still found by the old walk, and what that walk found is written into
+  the index, so nobody waits for it twice. Duplicate EP numbers still reach
+  the "which folder is this?" picker.
+- **The index is everybody's, not one user's.** A folder is stored as its
+  path *below* the archive root -- `Samana Developers/EP-29495 IVY Garden 2`,
+  never `C:\Users\moham\...` -- and the archive is identified by the synced
+  library's name rather than its path. Each PC joins the stored path to its
+  own `PROJECTS_ROOT`, so one PC can scan and every PC pointed at the same
+  `DATA_ROOT` can search. On the real archive: 893 EP numbers in 1,174
+  folders, rescanned in about two seconds.
+- **It keeps itself current.** A scan runs on server start and every
+  `ARCHIVE_INDEX_REFRESH_MINUTES` (default 30); "Check for new projects"
+  under the EP box runs one on demand; `python -m scripts.scan_archive`
+  (`--dry-run`, `--status`, `--search`) runs one from the command line.
+- **It never guesses that a project is gone.** A folder the scan did not see
+  is marked unavailable only when the directory that held it *was* read this
+  time -- three folders in the real archive have paths past Windows' 260
+  character limit and fail every scan, and that must not be read as "these
+  projects have been deleted". Rows are retired, never deleted, so a folder
+  that comes back is the same row again.
+
+Indexing creates no projects and writes nothing to the archive: a folder is
+a folder, and a project is a record an engineer makes. Turn the whole thing
+off with `ARCHIVE_INDEX_ENABLED=false` and every Find Project walks the
+archive exactly as it used to. See `docs/EP_DIRECTORY_STAGE_2.md`.
+
 ### The company library
 
 Everything a submittal needs that is **not about a particular project** -- the
@@ -646,6 +686,45 @@ opens from the database, and
 design sheet BOQ: the two are read from different documents and should
 agree, so what differs, what only the schedule has and what only the BOQ
 has is the first thing an engineer looks at.
+
+### The BOQ as per IFC drawings (fire alarm)
+
+The third tab of the BOQ page, **As per IFC Drawings**, counts the fire
+alarm devices off an issued-for-construction drawing. It is the standalone
+*BOQ Extraction* tool brought into the platform: the reading and matching
+(`backend/app/ifc/dxf`, `resolve.py`, `reprocess.py`, the Excel export)
+are that tool's, unchanged, and its tests run here as
+`tests/test_ifc_boq.py`. Emergency lighting is the next step; only fire
+alarm is counted and shown for now.
+
+- **Upload** a DWG or DXF in the tab. A DWG is converted to DXF by AutoCAD's
+  Core Console (found under Program Files, or `ACCORECONSOLE_PATH`), else
+  the free ODA File Converter; DXF always works. The drawing as uploaded is
+  filed in the project's folder, `03- Drawings/IFC/Electrical/FA`, and never
+  over a different file of the same name; the platform's working copy is
+  under `uploads/EP-<number>/ifc/`, by a path relative to the uploads.
+- **Verify symbols first.** A symbol is known by what it looks like -- its
+  drawing, its letters, what it is made of -- not its block name, which on
+  IFC drawings is unreliable. Every symbol on the floor plans the library
+  does not know exactly is asked: pick the device and **Verify**, **Not a
+  device**, or **Skip** (left out without teaching the library). No quantity
+  is shown and nothing is exported until every one is answered.
+- **Save to library.** Each answer is saved the moment it is given, to the
+  database and to `backend/library/symbols/symbol_library.json`, so the
+  next drawing -- on any project -- recognises it. The library started
+  empty on the platform: nothing was carried over from the tool's own use.
+  The device list is the tool's fire alarm list (38 types); a device not in
+  it is added from any dropdown and kept for good.
+- **Quantities** floor by floor: each floor plan's count times the floors
+  its title says it stands for ("TYP(1ST TO 14TH) FLOORS" is 14, editable in
+  the Floors tab), then the building total, and the same in Excel.
+
+On the real FA-105 drawing (one typical plan for floors 1 to 14) the tab
+converts the DWG in about 4 s, reads 224 distinct symbols in about 11 s, and
+asks 42 before giving the quantities.
+
+The API is `app/routers/ifc_boq.py`: `/projects/{id}/ifc-drawings...` for a
+project's drawings, `/ifc/...` for the shared device types and symbols.
 
 ### The amplifier calculation, from the floor-wise BOQ
 

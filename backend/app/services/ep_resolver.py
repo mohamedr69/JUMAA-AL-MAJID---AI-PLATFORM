@@ -132,10 +132,34 @@ def _ep_folder_pattern(ep_number: str) -> re.Pattern:
 # to reuse an EP-number-shaped name (observed in the archive, e.g. a "Cabinet
 # Sample" folder named after a different EP number) gets misread as a
 # duplicate top-level match for that other number.
-ANY_EP_FOLDER_RE = re.compile(r"^EP[-_ ]?\d{4,6}(?!\d)", re.IGNORECASE)
+ANY_EP_FOLDER_RE = re.compile(r"^EP[-_ ]?(\d{4,6})(?!\d)", re.IGNORECASE)
 
 
-def _walk_with_errors(root: Path, max_depth: int, errors: list[str]):
+def ep_number_of(folder_name: str) -> str | None:
+    """The EP number a folder name carries -- "29495" for "EP-29495 IVY
+    Garden 2" -- or None when the name is not an EP folder's. The number is
+    stored and compared without the "EP-", the same convention as
+    `Project.ep_number`."""
+    match = ANY_EP_FOLDER_RE.match(folder_name)
+    return match.group(1) if match else None
+
+
+def project_name_of(folder_name: str) -> str | None:
+    """What the folder name says the project is called: everything after the
+    EP number, with the separators the archive puts there ("EP-29495 - IVY
+    Garden 2" -> "IVY Garden 2"). None when the name is only the number.
+
+    This is the only project name available before anything is read out of
+    the folder, and it is what the search suggests beside an EP number the
+    platform has no project for yet."""
+    match = ANY_EP_FOLDER_RE.match(folder_name)
+    if match is None:
+        return None
+    rest = folder_name[match.end():].strip(" -_–—.")
+    return " ".join(rest.split()) or None
+
+
+def walk_with_errors(root: Path, max_depth: int, errors: list[str]):
     root = Path(root)
 
     def on_error(exc: OSError) -> None:
@@ -161,7 +185,7 @@ def find_ep_folders(root: Path, ep_number: str, errors: list[str] | None = None)
     pattern = _ep_folder_pattern(ep_number)
     matches: list[Path] = []
 
-    for dirpath, dirnames, _filenames in _walk_with_errors(root, MAX_EP_SEARCH_DEPTH, errors):
+    for dirpath, dirnames, _filenames in walk_with_errors(root, MAX_EP_SEARCH_DEPTH, errors):
         for name in list(dirnames):
             if pattern.match(name):
                 matches.append(Path(dirpath) / name)
@@ -215,7 +239,7 @@ def find_drf_candidates(
     if errors is None:
         errors = []
     results: list[DocumentMatch] = []
-    for dirpath, _dirnames, filenames in _walk_with_errors(
+    for dirpath, _dirnames, filenames in walk_with_errors(
         project_folder, MAX_DOCUMENT_SEARCH_DEPTH, errors
     ):
         if not DOCUMENT_FOLDER_RE.search(Path(dirpath).name):
@@ -238,7 +262,7 @@ def find_design_sheet_candidates(
     if errors is None:
         errors = []
     results: list[DocumentMatch] = []
-    for dirpath, _dirnames, filenames in _walk_with_errors(
+    for dirpath, _dirnames, filenames in walk_with_errors(
         project_folder, MAX_DOCUMENT_SEARCH_DEPTH, errors
     ):
         if not DOCUMENT_FOLDER_RE.search(Path(dirpath).name):
@@ -310,7 +334,10 @@ class ProjectResolution:
 
 
 def resolve_project(
-    root: Path, ep_number: str, selected_folder: Path | None = None
+    root: Path,
+    ep_number: str,
+    selected_folder: Path | None = None,
+    known_folders: list[Path] | None = None,
 ) -> ProjectResolution:
     """Resolve an EP number to its documents.
 
@@ -322,9 +349,18 @@ def resolve_project(
     number can legitimately label several folders across different
     contractors/scope variants for one building), so "duplicate EP numbers"
     is the common case, not an edge case.
+
+    `known_folders` skips the search: the folders the archive index already
+    holds for this EP number. The document scan below still reads the
+    folder itself, so the documents are always as they are now -- only
+    finding the folder is served from the index.
     """
     errors: list[str] = []
-    folders = find_ep_folders(root, ep_number, errors)
+    # `known_folders` is the archive index answering instead of a walk
+    # (app.services.ep_directory): the folders it already holds for this EP
+    # number. The caller passes None when it has nothing indexed, and the
+    # archive is walked as before.
+    folders = find_ep_folders(root, ep_number, errors) if known_folders is None else list(known_folders)
     resolution = ProjectResolution(ep_number=ep_number, matched_folders=folders, errors=errors)
 
     if not folders:

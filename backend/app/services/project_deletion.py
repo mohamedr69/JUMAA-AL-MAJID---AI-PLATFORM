@@ -35,6 +35,7 @@ from app.models import (
     ProjectDocument,
     ProjectFloorSchedule,
     ProjectFrcCables,
+    ProjectIfcDrawing,
     ProjectProposedMaterial,
     ResultCache,
 )
@@ -66,8 +67,15 @@ def delete_project(db: Session, project: Project) -> None:
     # is here to catch when the next per-project table is added.
     # Documents go after the rows that point at them.
     for model in (AiVerification, DocumentDependency, DocumentReading, BatteryPanelResult,
-                  ProjectFrcCables, ProjectProposedMaterial, ProjectFloorSchedule, ProjectAmplifierDesign,
+                  ProjectFrcCables, ProjectProposedMaterial, ProjectFloorSchedule, ProjectAmplifierDesign, ProjectIfcDrawing,
                   BoqCandidate, BoqSnapshot, ProjectDocument, BackgroundJob, ResultCache):
         db.execute(delete(model).where(model.project_id == project_id))
     db.expire(project, ["boq_items"])
     db.delete(project)
+    # The platform's working copies of its IFC drawings. What was filed in
+    # the project's own folder is the project's, and stays.
+    import shutil
+
+    from app.ifc import storage
+
+    shutil.rmtree(storage.project_folder(project), ignore_errors=True)

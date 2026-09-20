@@ -1,15 +1,16 @@
 /** The BOQ page's "BOQ Floor Wise" tab: the floor-wise BOQ read off the
  * schedule an engineer keeps in Excel.
  *
- * The tab's whole point is the typical column. A schedule does not write
- * out thirteen identical columns; it writes "1 to 13" once, and this
- * shows the thirteen -- Level 1, Level 2, Level 3 -- because that is what
- * anyone ordering for a floor needs.
+ * The table is laid out as the workbook is. A schedule does not write out
+ * thirteen identical columns; it writes "1 to 13" once, and so does this:
+ * one column, headed as the sheet heads it, carrying the quantity on each
+ * of its floors. The floors are still counted one by one underneath, so
+ * every total includes all thirteen.
  *
  * A fire alarm job and an emergency lighting job are two BOQs, so the
  * table is shown a system at a time.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { API_BASE_URL, ApiError, api } from "../lib/api";
 import type {
@@ -135,8 +136,8 @@ export function FloorScheduleTab({ projectId, canEdit }: { projectId: number; ca
                 Nothing is filed in this project&rsquo;s <span className="font-medium text-navy-900">03- Design</span>{" "}
                 folder yet. Hand in the Excel schedule the project is run from &mdash; a row per item and a
                 column per floor &mdash; and it is kept there and read again by itself whenever it changes. A
-                column standing for a range, <span className="font-medium text-navy-900">1 to 13</span>, is
-                written out here as Level 1, Level 2, Level 3, one floor at a time.
+                typical column, <span className="font-medium text-navy-900">1 to 13</span>, stays one column as
+                in the sheet, and its quantity is counted on each of its floors.
               </p>
             )}
           </div>
@@ -266,6 +267,9 @@ function ScheduleTable({
   // on the smoke detector. Worked out by the server, once for the system.
   const [orderByLine, setOrderByLine] = useState<Record<number, string[]>>({});
   const [saving, setSaving] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [familyFilter, setFamilyFilter] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let live = true;
@@ -303,22 +307,25 @@ function ScheduleTable({
 
   const rows = (result.items ?? []).filter((item) => (item.system ?? "") === system);
   const floors = result.floors ?? [];
-  const totals = Object.fromEntries(
+  const columns = useMemo(() => sheetColumns(result), [result]);
+  const floorTotals = Object.fromEntries(
     floors.map((floor) => [floor, rows.reduce((sum, item) => sum + (item.per_floor?.[floor] ?? 0), 0)]),
   );
   const total = rows.reduce((sum, item) => sum + (item.total ?? 0), 0);
 
   /** A quantity is only ever stepped, never typed: the schedule is a count
-   * of devices, and a keyboard invites a decimal or a paste. */
-  async function step(item: FloorScheduleItem, floor: string, by: number) {
-    const now = item.per_floor?.[floor] ?? 0;
-    const next = Math.max(0, now + by);
-    if (next === now) return;
-    setSaving(`${item.row}:${floor}`);
+   * of devices, and a keyboard invites a decimal or a paste. A typical
+   * column is stepped as one: every floor it stands for gets the new
+   * quantity. */
+  async function step(item: FloorScheduleItem, column: SheetColumn, by: number) {
+    const values = column.floors.map((floor) => item.per_floor?.[floor] ?? 0);
+    const next = Math.max(0, Math.max(...values) + by);
+    if (values.every((value) => value === next)) return;
+    setSaving(`${item.row}:${column.heading}`);
     try {
       const body = await api.patch<FloorSchedule>(
         `/projects/${projectId}/floor-schedule/items/${item.row}`,
-        { floor, quantity: next },
+        { floors: column.floors, quantity: next },
       );
       if (body.result) onChanged(body.result);
     } finally {
@@ -339,127 +346,298 @@ function ScheduleTable({
     }
   }
 
+  // What is shown: the system's lines, narrowed by the family chip and the
+  // search box, grouped under their families in the order a BOQ is read.
+  // Only the view changes -- every total below is the system's own.
+  const familyOf = (item: FloorScheduleItem) => item.family || OTHER_FAMILY;
+  const familyCounts = new Map<string, number>();
+  for (const item of rows) familyCounts.set(familyOf(item), (familyCounts.get(familyOf(item)) ?? 0) + 1);
+  const families = [...familyCounts.keys()].sort((a, b) => familyRank(a) - familyRank(b));
+  const needle = search.trim().toLowerCase();
+  const shown = rows.filter(
+    (item) =>
+      (!familyFilter || familyOf(item) === familyFilter) &&
+      (!needle ||
+        [item.description, item.catalog_no, item.device, item.material?.part_no, item.material?.manufacturer]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase()
+          .includes(needle)),
+  );
+  const groups = families
+    .map((family) => ({ family, items: shown.filter((item) => familyOf(item) === family) }))
+    .filter((group) => group.items.length > 0);
+  // Numbered down the page as shown, family by family.
+  const numbers = new Map(groups.flatMap((group) => group.items).map((item, index) => [item.row, index + 1]));
+  const fixedColumns = 4; // #, item, material, unit
+
   return (
     <>
-      <section className="mt-4 rounded-xl border border-gray-200 bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-5 py-3">
-          <h2 className="text-sm font-bold text-navy-900">
-            Quantities per floor
-            <span className="ml-2 text-xs font-normal text-gray-500">
-              {rows.length} item{rows.length === 1 ? "" : "s"} · {floors.length} floor
-              {floors.length === 1 ? "" : "s"} · {count(total)} in this system · {count(result.grand_total ?? 0)} in all
-            </span>
-          </h2>
-        </div>
-        {systems.length > 1 && (
-          <div className="flex flex-wrap gap-1 border-b border-gray-100 px-5 py-2">
-            {systems.map((code) => (
-              <button
-                key={code}
-                onClick={() => setSystem(code)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
-                  code === system ? "bg-brand-600 text-white" : "text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                {SYSTEM_LABELS[code] ?? code}
-                <span className={`ml-2 text-xs font-normal ${code === system ? "text-white/80" : "text-gray-400"}`}>
-                  {count(totalsBySystem[code] ?? 0)}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="sticky left-0 z-10 bg-gray-50 px-4 py-2 font-semibold">Item</th>
-                <th className="px-3 py-2 font-semibold">Device</th>
-                <th className="px-3 py-2 font-semibold">Proposed material</th>
-                {floors.map((floor) => (
-                  <th key={floor} className="px-3 py-2 text-center font-semibold">{floor}</th>
+      <section className="mt-4 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3">
+            {systems.length > 1 ? (
+              <div className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1" role="tablist" aria-label="System">
+                {systems.map((code) => (
+                  <button
+                    key={code}
+                    role="tab"
+                    aria-selected={code === system}
+                    onClick={() => {
+                      setSystem(code);
+                      setFamilyFilter(null);
+                    }}
+                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                      code === system ? "bg-brand-600 text-white shadow-sm" : "text-gray-600 hover:text-navy-900"
+                    }`}
+                  >
+                    {SYSTEM_LABELS[code] ?? code}
+                    <span className={`ml-2 text-xs font-normal ${code === system ? "text-white/80" : "text-gray-400"}`}>
+                      {count(totalsBySystem[code] ?? 0)}
+                    </span>
+                  </button>
                 ))}
-                <th className="px-4 py-2 text-right font-semibold">Total</th>
+              </div>
+            ) : (
+              <h2 className="text-base font-bold text-navy-900">{SYSTEM_LABELS[system] ?? system}</h2>
+            )}
+            <span className="text-xs text-gray-500">
+              {floors.length} floor{floors.length === 1 ? "" : "s"} in {columns.length} column{columns.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <label className="relative block w-full sm:w-80">
+            <span className="sr-only">Search items</span>
+            <svg aria-hidden="true" viewBox="0 0 20 20" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="9" cy="9" r="5.5" />
+              <path d="m13.5 13.5 3.5 3.5" strokeLinecap="round" />
+            </svg>
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search item, part number, or keyword..."
+              className="w-full rounded-xl border border-gray-200 py-2 pl-9 pr-3 text-sm focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/20"
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-wrap gap-2 border-b border-gray-100 px-5 py-3">
+          <FamilyChip label="All" count={rows.length} active={familyFilter === null} onClick={() => setFamilyFilter(null)} />
+          {families.map((family) => (
+            <FamilyChip
+              key={family}
+              family={family}
+              label={family}
+              count={familyCounts.get(family) ?? 0}
+              active={familyFilter === family}
+              onClick={() => setFamilyFilter(familyFilter === family ? null : family)}
+            />
+          ))}
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-separate border-spacing-0 text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-xs font-semibold text-gray-600">
+                <th className="sticky left-0 z-20 w-12 min-w-12 max-w-12 border-b border-gray-200 bg-gray-50 px-3 py-3 text-center">#</th>
+                <th className="sticky left-12 z-20 min-w-[16rem] border-b border-r border-gray-200 bg-gray-50 px-3 py-3 text-left">Item / Device</th>
+                <th className="min-w-[11rem] border-b border-gray-200 px-3 py-3 text-left">Proposed material (part no.)</th>
+                <th className="border-b border-gray-200 px-3 py-3 text-center">Unit</th>
+                {columns.map((column) => (
+                  <th key={column.heading} className="min-w-[5.5rem] border-b border-l border-gray-100 px-2 py-3 text-center leading-tight">
+                    {column.heading}
+                    {column.floors.length > 1 && (
+                      <span
+                        className="mt-0.5 block text-[10px] font-normal text-gray-400"
+                        title={`${column.floors[0]} to ${column.floors[column.floors.length - 1]}: the quantity is on each floor`}
+                      >
+                        &times;{column.floors.length} floors
+                      </span>
+                    )}
+                  </th>
+                ))}
+                <th className="border-b border-l border-gray-200 bg-gray-100 px-4 py-3 text-center">Total</th>
               </tr>
             </thead>
-            <tbody>
-              {rows.map((item) => (
-                <tr key={item.row} className="border-t border-gray-100">
-                  <td className="sticky left-0 z-10 bg-white px-4 py-2">
-                    <span className="font-medium text-navy-900">{item.catalog_no ?? item.description}</span>
-                    {item.catalog_no && (
-                      <span className="block truncate text-xs font-normal text-gray-500" title={item.description}>
-                        {item.description}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-gray-700">
-                    {item.device ? (
-                      <>
-                        {item.device}
-                        {item.family && <span className="block text-xs text-gray-400">{item.family}</span>}
-                      </>
-                    ) : (
-                      <span className="text-gray-300" title="No device the platform knows is named in this line">
-                        &mdash;
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {canEdit ? (
-                      <select
-                        value={item.material?.part_no ?? ""}
-                        disabled={saving === `${item.row}:part`}
-                        onChange={(e) => void choose(item, e.target.value)}
-                        className="w-44 rounded-lg border border-gray-300 px-2 py-1 text-xs"
+            {groups.map(({ family, items }) => {
+              const style = familyStyle(family);
+              const open = !collapsed.has(family);
+              const groupTotal = items.reduce((sum, item) => sum + (item.total ?? 0), 0);
+              return (
+                <tbody key={family}>
+                  <tr className={style.band}>
+                    <td colSpan={2} className={`sticky left-0 z-10 border-b border-r border-gray-200 px-3 py-2.5 ${style.band}`}>
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        onClick={() =>
+                          setCollapsed((was) => {
+                            const next = new Set(was);
+                            if (next.has(family)) next.delete(family);
+                            else next.add(family);
+                            return next;
+                          })
+                        }
+                        className="flex items-center gap-3 whitespace-nowrap text-left"
                       >
-                        <option value="">&mdash; not settled &mdash;</option>
-                        {optionsFor(item.row).map((material) => (
-                          <option key={material.part_no} value={material.part_no}>
-                            {material.part_no}
-                            {material.description ? ` — ${material.description.slice(0, 40)}` : ""}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="text-xs text-gray-700">{item.material?.part_no ?? "—"}</span>
-                    )}
-                  </td>
-                  {floors.map((floor) => (
-                    <td key={floor} className="px-1 py-1 text-center">
-                      <Stepper
-                        value={item.per_floor?.[floor] ?? 0}
-                        canEdit={canEdit}
-                        busy={saving === `${item.row}:${floor}`}
-                        onStep={(by) => void step(item, floor, by)}
-                      />
+                        <svg aria-hidden="true" viewBox="0 0 20 20" className={`h-4 w-4 text-gray-500 transition ${open ? "" : "-rotate-90"}`} fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="m5 8 5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        <FamilyIcon family={family} />
+                        <span className={`text-base font-bold ${style.text}`}>{family}</span>
+                        <span className="text-xs text-gray-500">
+                          {items.length} item{items.length === 1 ? "" : "s"}
+                        </span>
+                      </button>
                     </td>
-                  ))}
-                  <td className="px-4 py-2 text-right font-semibold tabular-nums text-navy-900">{count(item.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-            {rows.length > 0 && (
+                    <td colSpan={fixedColumns - 2} className="border-b border-gray-200" />
+                    {columns.map((column) => {
+                      const values = column.floors.map((floor) =>
+                        items.reduce((sum, item) => sum + (item.per_floor?.[floor] ?? 0), 0),
+                      );
+                      const most = Math.max(...values);
+                      return (
+                        <td key={column.heading} className="border-b border-gray-200 px-2 py-2.5 text-center font-bold tabular-nums text-navy-900">
+                          {most ? (
+                            <>
+                              {spread(values) ?? count(most)}
+                              <Times floors={column.floors.length} />
+                            </>
+                          ) : (
+                            <span className="font-normal text-gray-300">&mdash;</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="border-b border-l border-gray-200 bg-black/[0.03] px-4 py-2.5 text-center font-bold tabular-nums text-navy-900">
+                      {count(groupTotal)}
+                    </td>
+                  </tr>
+                  {open &&
+                    items.map((item) => {
+                      const sub = [item.catalog_no && item.catalog_no !== item.description ? item.catalog_no : null, item.device]
+                        .filter(Boolean)
+                        .join(" · ");
+                      return (
+                        <tr key={item.row} className="group/row hover:bg-gray-50/70">
+                          <td className="sticky left-0 z-10 w-12 min-w-12 max-w-12 border-b border-gray-100 bg-white px-1 py-2 text-center text-xs text-gray-500 group-hover/row:bg-gray-50">
+                            {numbers.get(item.row)}
+                          </td>
+                          <td className="sticky left-12 z-10 border-b border-r border-gray-100 bg-white px-3 py-2 group-hover/row:bg-gray-50">
+                            <span className="block font-semibold text-navy-900">{item.description}</span>
+                            <span className={`block text-xs ${item.device ? "text-gray-500" : "text-amber-700"}`}>
+                              {sub || "Not recognised as a device"}
+                            </span>
+                          </td>
+                          <td className="border-b border-gray-100 px-3 py-2">
+                            {canEdit ? (
+                              <select
+                                aria-label={`Proposed material for ${item.description}`}
+                                value={item.material?.part_no ?? ""}
+                                disabled={saving === `${item.row}:part`}
+                                onChange={(e) => void choose(item, e.target.value)}
+                                className="w-44 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs text-navy-900 focus:border-brand-600 focus:outline-none"
+                              >
+                                <option value="">&mdash; not settled &mdash;</option>
+                                {optionsFor(item.row).map((material) => (
+                                  <option key={material.part_no} value={material.part_no}>
+                                    {material.part_no}
+                                    {material.description ? ` — ${material.description.slice(0, 40)}` : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="block text-xs font-medium text-navy-900">{item.material?.part_no ?? "—"}</span>
+                            )}
+                            {item.material?.manufacturer && (
+                              <span className="mt-0.5 block text-[11px] text-gray-400">{item.material.manufacturer}</span>
+                            )}
+                          </td>
+                          <td className="border-b border-gray-100 px-3 py-2 text-center text-xs text-gray-600">
+                            {item.unit ?? <span className="text-gray-300">&mdash;</span>}
+                          </td>
+                          {columns.map((column) => {
+                            const values = column.floors.map((floor) => item.per_floor?.[floor] ?? 0);
+                            return (
+                              <td key={column.heading} className="border-b border-gray-100 px-1.5 py-1.5 text-center">
+                                <Stepper
+                                  value={Math.max(...values)}
+                                  // Floors of a typical column changed one by one no longer agree: say so.
+                                  label={spread(values)}
+                                  times={column.floors.length}
+                                  canEdit={canEdit}
+                                  busy={saving === `${item.row}:${column.heading}`}
+                                  onStep={(by) => void step(item, column, by)}
+                                />
+                              </td>
+                            );
+                          })}
+                          <td className="border-b border-l border-gray-100 bg-gray-50 px-4 py-2 text-center font-semibold tabular-nums text-navy-900">
+                            {count(item.total)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              );
+            })}
+            {groups.length > 0 && (
               <tfoot>
-                <tr className="border-t-2 border-gray-200 bg-gray-50">
-                  <td className="sticky left-0 z-10 bg-gray-50 px-4 py-2 font-bold text-navy-900">
-                    {SYSTEM_LABELS[system] ?? system}
+                <tr className="bg-gray-50">
+                  <td colSpan={2} className="sticky left-0 z-10 border-r border-t-2 border-gray-200 bg-gray-50 px-3 py-3 font-bold text-navy-900">
+                    {SYSTEM_LABELS[system] ?? system} total
                   </td>
-                  <td className="px-3 py-2" />
-                  <td className="px-3 py-2" />
-                  {floors.map((floor) => (
-                    <td key={floor} className="px-3 py-2 text-center font-semibold tabular-nums text-navy-900">
-                      {totals[floor] ? count(totals[floor]) : <span className="font-normal text-gray-300">&mdash;</span>}
-                    </td>
-                  ))}
-                  <td className="px-4 py-2 text-right font-bold tabular-nums text-navy-900">{count(total)}</td>
+                  <td colSpan={fixedColumns - 2} className="border-t-2 border-gray-200" />
+                  {columns.map((column) => {
+                    // Per floor, like the column's cells; the row total counts every floor.
+                    const values = column.floors.map((floor) => floorTotals[floor] ?? 0);
+                    const most = Math.max(...values);
+                    return (
+                      <td key={column.heading} className="border-t-2 border-gray-200 px-2 py-3 text-center font-bold tabular-nums text-navy-900">
+                        {most ? (
+                          <>
+                            {spread(values) ?? count(most)}
+                            <Times floors={column.floors.length} />
+                          </>
+                        ) : (
+                          <span className="font-normal text-gray-300">&mdash;</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="border-l border-t-2 border-gray-200 bg-gray-100 px-4 py-3 text-center font-bold tabular-nums text-navy-900">
+                    {count(total)}
+                  </td>
                 </tr>
               </tfoot>
             )}
           </table>
+          {groups.length === 0 && (
+            <p className="p-10 text-center text-sm text-gray-500">{rows.length ? "No items match this view." : "No items in this system."}</p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+          <div className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-600">
+            <span>
+              Total items: <span className="font-semibold text-navy-900">{rows.length}</span>
+            </span>
+            <span aria-hidden="true" className="h-4 w-px bg-gray-200" />
+            <span>
+              Showing: <span className="font-semibold text-navy-900">{shown.length}</span> item{shown.length === 1 ? "" : "s"}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-500">{count(result.grand_total ?? 0)} in all systems</span>
+            <div className="flex items-center gap-4 rounded-xl bg-brand-600 px-5 py-2.5 text-white shadow-sm">
+              <span className="text-sm font-semibold">
+                <span aria-hidden="true" className="mr-2 text-lg leading-none">&Sigma;</span>
+                Grand total
+              </span>
+              <span className="text-xl font-bold tabular-nums">{count(total)}</span>
+            </div>
+          </div>
         </div>
       </section>
-
       <section className="mt-4 grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border border-gray-200 bg-white p-5">
           <h2 className="text-sm font-bold text-navy-900">How the typical floors were read</h2>
@@ -498,6 +676,42 @@ function ScheduleTable({
   );
 }
 
+/** "×14" beside a typical column's quantity: the quantity is on each of its
+ * fourteen floors. Nothing for a single floor. */
+function Times({ floors }: { floors: number }) {
+  if (floors <= 1) return null;
+  return <span className="ml-1 text-xs font-normal text-gray-400">&times;{floors}</span>;
+}
+
+/** A floor column as the workbook has it: a typical column once, standing
+ * for its floors; every other floor on its own. The same rule as the PDF
+ * export (`floor_schedule.sheet_columns` on the server). */
+interface SheetColumn {
+  heading: string;
+  floors: string[];
+}
+
+function sheetColumns(result: FloorScheduleResult): SheetColumn[] {
+  const floors = result.floors ?? [];
+  const seen = new Set<string>();
+  const columns: SheetColumn[] = [];
+  for (const column of result.columns ?? []) {
+    if (column.kind !== "floor") continue;
+    const mine = (column.floors ?? []).filter((floor) => floors.includes(floor) && !seen.has(floor));
+    if (mine.length === 0) continue;
+    mine.forEach((floor) => seen.add(floor));
+    columns.push({ heading: mine.length > 1 ? column.heading || mine[0] : mine[0], floors: mine });
+  }
+  for (const floor of floors) if (!seen.has(floor)) columns.push({ heading: floor, floors: [floor] });
+  return columns.sort((a, b) => floors.indexOf(a.floors[0]) - floors.indexOf(b.floors[0]));
+}
+
+/** "2–3" where the floors of a typical column carry different quantities
+ * (changed one by one before); nothing where they agree. */
+function spread(values: number[]): string | undefined {
+  return new Set(values).size > 1 ? `${count(Math.min(...values))}–${count(Math.max(...values))}` : undefined;
+}
+
 /** A quantity as it should read: whole where it is whole, and to two
  * places where a typical column's total did not divide evenly over its
  * floors. The stored figure keeps its full precision -- only the page
@@ -506,53 +720,198 @@ function count(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
-/** One floor's quantity: stepped up and down, never typed.
+/** One cell's quantity: stepped up and down, never typed.
  *
  * A blank is not a zero -- it means the item is not on that floor -- so a
  * cell at nothing shows a dash, and stepping down from one returns it to
- * a dash rather than writing a BOQ line of none. */
+ * a dash rather than writing a BOQ line of none. The value sits in a box;
+ * the − and + come up when the pointer or the keyboard reaches it. */
 function Stepper({
   value,
+  label,
+  times = 1,
   canEdit,
   busy,
   onStep,
 }: {
   value: number;
+  /** Shown instead of the value: a typical column whose floors differ. */
+  label?: string;
+  /** How many floors a typical column's quantity stands on: shown as "×14". */
+  times?: number;
   canEdit: boolean;
   busy: boolean;
   onStep: (by: number) => void;
 }) {
+  const shown = value ? (
+    <>
+      {label ?? count(value)}
+      <Times floors={times} />
+    </>
+  ) : (
+    <span className="text-gray-300">&ndash;</span>
+  );
   if (!canEdit) {
-    return value ? (
-      <span className="tabular-nums text-gray-700">{count(value)}</span>
-    ) : (
-      <span className="text-gray-300">&mdash;</span>
+    return (
+      <span className="mx-auto flex h-9 min-w-[4.5rem] items-center justify-center whitespace-nowrap rounded-lg border border-gray-100 bg-white px-2 tabular-nums text-navy-900">
+        {shown}
+      </span>
     );
   }
+  const reveal = "opacity-0 group-hover/cell:opacity-100 focus-visible:opacity-100 group-focus-within/cell:opacity-100";
   return (
-    <span className="inline-flex items-center gap-0.5">
+    <span
+      className={`group/cell relative mx-auto flex h-9 min-w-[4.5rem] items-center justify-center whitespace-nowrap rounded-lg border bg-white px-6 tabular-nums text-navy-900 transition ${
+        busy ? "border-brand-600/40 opacity-60" : "border-gray-200 hover:border-brand-600/50"
+      }`}
+    >
       <button
         type="button"
         aria-label="one fewer"
         onClick={() => onStep(-1)}
         disabled={busy || value <= 0}
-        className="h-5 w-5 rounded border border-gray-200 text-xs leading-none text-gray-500 disabled:opacity-30"
+        className={`absolute left-1 top-1/2 h-5 w-5 -translate-y-1/2 rounded text-xs leading-none text-gray-500 hover:bg-gray-100 disabled:hidden ${reveal}`}
       >
         &minus;
       </button>
-      <span className={`w-9 tabular-nums ${value ? "text-gray-800" : "text-gray-300"}`}>
-        {value ? count(value) : "—"}
-      </span>
+      {shown}
       <button
         type="button"
         aria-label="one more"
         onClick={() => onStep(1)}
         disabled={busy}
-        className="h-5 w-5 rounded border border-gray-200 text-xs leading-none text-gray-500 disabled:opacity-30"
+        className={`absolute right-1 top-1/2 h-5 w-5 -translate-y-1/2 rounded text-xs leading-none text-gray-500 hover:bg-gray-100 ${reveal}`}
       >
         +
       </button>
     </span>
+  );
+}
+
+// --- the families the lines are grouped under ------------------------------------------------
+
+/** A line naming no device the platform knows. */
+const OTHER_FAMILY = "Other";
+
+/** The order a BOQ is read in -- the server's `symbol_taxonomy.FAMILY_ORDER`. */
+const FAMILY_ORDER = [
+  "Detectors",
+  "Pull station",
+  "Speaker",
+  "Exit & emergency light",
+  "Fire telephone",
+  "Modules & isolators",
+  "Panels & power",
+  OTHER_FAMILY,
+];
+
+function familyRank(family: string): number {
+  const at = FAMILY_ORDER.indexOf(family);
+  return at < 0 ? FAMILY_ORDER.length : at;
+}
+
+/** Each family's colours: the band behind its heading row, its icon, its name. */
+const FAMILY_STYLES: Record<string, { band: string; icon: string; text: string }> = {
+  Detectors: { band: "bg-blue-50", icon: "bg-blue-600", text: "text-blue-900" },
+  "Pull station": { band: "bg-rose-50", icon: "bg-rose-600", text: "text-rose-900" },
+  Speaker: { band: "bg-violet-50", icon: "bg-violet-600", text: "text-violet-900" },
+  "Exit & emergency light": { band: "bg-amber-50", icon: "bg-amber-500", text: "text-amber-900" },
+  "Fire telephone": { band: "bg-teal-50", icon: "bg-teal-600", text: "text-teal-900" },
+  "Modules & isolators": { band: "bg-emerald-50", icon: "bg-emerald-600", text: "text-emerald-900" },
+  "Panels & power": { band: "bg-orange-50", icon: "bg-orange-500", text: "text-orange-900" },
+  [OTHER_FAMILY]: { band: "bg-gray-100", icon: "bg-gray-500", text: "text-gray-800" },
+};
+
+function familyStyle(family: string) {
+  return FAMILY_STYLES[family] ?? FAMILY_STYLES[OTHER_FAMILY];
+}
+
+/** A small drawing of what the family is, on its colour. */
+function FamilyIcon({ family, small = false }: { family: string; small?: boolean }) {
+  const paths: Record<string, ReactNode> = {
+    Detectors: (
+      <>
+        <circle cx="12" cy="12" r="7" />
+        <circle cx="12" cy="12" r="2.5" />
+      </>
+    ),
+    "Pull station": (
+      <>
+        <rect x="5" y="5" width="14" height="14" rx="2" />
+        <rect x="9" y="9" width="6" height="6" rx="1" />
+      </>
+    ),
+    Speaker: (
+      <>
+        <path d="M5 10h3l4-4v12l-4-4H5z" strokeLinejoin="round" />
+        <path d="M15.5 9.5a3.5 3.5 0 0 1 0 5M18 7a7 7 0 0 1 0 10" strokeLinecap="round" />
+      </>
+    ),
+    "Exit & emergency light": (
+      <>
+        <rect x="4" y="7" width="16" height="10" rx="2" />
+        <path d="M10 10h-2.5v4H10M7.5 12H9.5M13 10l3 4m0-4-3 4" strokeLinecap="round" />
+      </>
+    ),
+    "Fire telephone": (
+      <path d="M7 4h3l1.5 4-2 1.5a10 10 0 0 0 5 5l1.5-2 4 1.5v3a2 2 0 0 1-2 2A15 15 0 0 1 5 6a2 2 0 0 1 2-2z" strokeLinejoin="round" />
+    ),
+    "Modules & isolators": (
+      <>
+        <rect x="7" y="7" width="10" height="10" rx="1.5" />
+        <path d="M10 4v3M14 4v3M10 17v3M14 17v3M4 10h3M4 14h3M17 10h3M17 14h3" strokeLinecap="round" />
+      </>
+    ),
+    "Panels & power": (
+      <>
+        <rect x="5" y="4" width="14" height="16" rx="2" />
+        <path d="M8 8h8M8 12h8M8 16h4" strokeLinecap="round" />
+      </>
+    ),
+  };
+  const size = small ? "h-5 w-5 rounded-md" : "h-8 w-8 rounded-lg";
+  return (
+    <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center text-white ${size} ${familyStyle(family).icon}`}>
+      <svg viewBox="0 0 24 24" className={small ? "h-3.5 w-3.5" : "h-5 w-5"} fill="none" stroke="currentColor" strokeWidth="1.8">
+        {paths[family] ?? (
+          <>
+            <circle cx="7" cy="12" r="1.5" />
+            <circle cx="12" cy="12" r="1.5" />
+            <circle cx="17" cy="12" r="1.5" />
+          </>
+        )}
+      </svg>
+    </span>
+  );
+}
+
+/** A family filter: "Detectors (6)". "All" carries no family. */
+function FamilyChip({
+  family,
+  label,
+  count: total,
+  active,
+  onClick,
+}: {
+  family?: string;
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-sm font-medium transition ${
+        active ? "border-brand-600 bg-brand-600 text-white shadow-sm" : "border-gray-200 bg-white text-navy-900 hover:border-gray-300"
+      }`}
+    >
+      {family && <FamilyIcon family={family} small />}
+      {label}
+      <span className={active ? "text-white/80" : "text-gray-500"}>({total})</span>
+    </button>
   );
 }
 

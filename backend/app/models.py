@@ -9,6 +9,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
+    Index,
     Numeric,
     String,
     Text,
@@ -1434,3 +1435,159 @@ class ActivityEvent(Base):
     entity_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+# --- BOQ as per IFC drawings (app/ifc) -------------------------------------------------------
+#
+# The fire alarm devices counted off an issued-for-construction drawing. A
+# symbol is known by what it looks like -- its fingerprint -- not its block
+# name, and the engineer verifies every symbol the library does not know
+# before any quantity is given. The library (device types, verified
+# symbols, the block names seen on them) is the company's, shared by every
+# project; a drawing belongs to one project.
+
+
+class IfcDeviceType(Base):
+    """A BOQ line item an IFC symbol can be verified as: "SD Smoke Detector
+    (Addressable)". `category` is the tab it counts in."""
+
+    __tablename__ = "ifc_device_types"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    code: Mapped[str] = mapped_column(String(20), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    category: Mapped[str] = mapped_column(String(30), nullable=False)  # fire_alarm | emergency_light | other
+    unit: Mapped[str] = mapped_column(String(10), nullable=False, default="Nos")
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+    symbols: Mapped[list["IfcSymbol"]] = relationship(back_populates="device_type")
+
+
+class IfcSymbol(Base):
+    """A verified symbol: a name-independent fingerprint mapped to a device
+    type, or marked as not a device. The library grows with every drawing
+    an engineer verifies."""
+
+    __tablename__ = "ifc_symbols"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    signature: Mapped[str] = mapped_column(String(40), unique=True, index=True, nullable=False)
+    label: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    inner_label: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    raster_hex: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    svg: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    entity_counts: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    block_names: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    device_type_id: Mapped[int | None] = mapped_column(ForeignKey("ifc_device_types.id"), nullable=True)
+    is_ignored: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    source_drawing: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+    device_type: Mapped["IfcDeviceType | None"] = relationship(back_populates="symbols")
+    aliases: Mapped[list["IfcBlockAlias"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
+
+
+class IfcBlockAlias(Base):
+    """A block name seen on a verified symbol. Used only to *suggest*: a
+    known name with different geometry is exactly the wrongly-named case."""
+
+    __tablename__ = "ifc_block_aliases"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    block_name: Mapped[str] = mapped_column(String(300), unique=True, index=True, nullable=False)
+    symbol_id: Mapped[int] = mapped_column(ForeignKey("ifc_symbols.id", ondelete="CASCADE"), nullable=False)
+
+    symbol: Mapped["IfcSymbol"] = relationship(back_populates="aliases")
+
+
+class ProjectIfcDrawing(Base):
+    """An IFC drawing uploaded to a project, and the symbol groups read off it.
+
+    The DXF read (converted from the DWG where one was uploaded) is kept
+    under the platform's uploads, at `stored_path` relative to it; the file
+    as uploaded is filed in the project's own folder at `archive_path`.
+    What an engineer decided per drawing -- skipped symbols, a sheet's
+    number of floors -- is in `meta`."""
+
+    __tablename__ = "project_ifc_drawings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    filename: Mapped[str] = mapped_column(String(300), nullable=False)
+    stored_path: Mapped[str] = mapped_column(String(500), nullable=False)
+    archive_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    units: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    dxf_version: Mapped[str] = mapped_column(String(20), nullable=False, default="")
+    seconds: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    meta: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    groups: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    # The IFC revision the drawing was issued as ("R0", "R1" ...), and the
+    # revision it replaces: a drawing another supersedes is history, the
+    # one nothing supersedes is the drawing in force.
+    revision: Mapped[str] = mapped_column(String(10), nullable=False, default="R0")
+    supersedes_id: Mapped[int | None] = mapped_column(ForeignKey("project_ifc_drawings.id"), nullable=True)
+
+
+class EpArchiveRoot(Base):
+    """One configured archive and the state of its directory scan.
+
+    This is discovery metadata, separate from an engineer's saved Project.
+    root_key is a SHA-256 of the normalized absolute root path; it keeps
+    long Windows paths out of unique database indexes. The scanner that
+    supplies these keys and timestamps is introduced in the next stage.
+    """
+
+    __tablename__ = "ep_archive_roots"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    root_key: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    root_path: Mapped[str] = mapped_column(Text, nullable=False)
+    # pending -> scanning -> ready, or failed with last_error populated.
+    scan_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", server_default="pending")
+    scan_token: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    scan_started_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    scan_finished_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    last_successful_scan_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), nullable=False, default=utc_now)
+
+    folders: Mapped[list["EpArchiveFolder"]] = relationship(
+        back_populates="archive", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class EpArchiveFolder(Base):
+    """A project folder found in an archive, not an application Project.
+
+    The same EP number may identify multiple locations. Only an archive
+    plus a normalized relative path identifies a single directory entry.
+    A future successful scan can mark a missing entry unavailable without
+    deleting history; a failed/incomplete scan must not do so.
+    """
+
+    __tablename__ = "ep_archive_folders"
+    __table_args__ = (
+        UniqueConstraint("archive_id", "path_key", name="uq_ep_archive_folder_path"),
+        Index("ix_ep_archive_folders_lookup", "archive_id", "ep_number", "is_available"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    archive_id: Mapped[int] = mapped_column(ForeignKey("ep_archive_roots.id", ondelete="CASCADE"), nullable=False)
+    # Same convention as Project.ep_number: store "29495", not "EP-29495".
+    ep_number: Mapped[str] = mapped_column(String(32), nullable=False)
+    folder_name: Mapped[str] = mapped_column(Text, nullable=False)
+    relative_path: Mapped[str] = mapped_column(Text, nullable=False)
+    path_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    is_available: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="1")
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(), nullable=False, default=utc_now)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(), nullable=False, default=utc_now)
+    last_seen_scan_token: Mapped[str | None] = mapped_column(String(32), nullable=True)
+
+    archive: Mapped["EpArchiveRoot"] = relationship(back_populates="folders")

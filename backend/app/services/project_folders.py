@@ -11,7 +11,7 @@ folder a file sits in, what it is and which system it belongs to:
     02- Material Submittals\ELS\R0\
     02- Material Submittals\Approved\FA\   the stamped copies the consultant returns
     02- Material Submittals\Approved\ELS\
-    03- Drawings\IFC\Electrical\{ACS, FA, Light, Power}\
+    03- Drawings\IFC\Electrical\{ACS, FA, Light, Power}\   the BOQ as per IFC files its FA drawings in FA
     03- Drawings\IFC\Mechanical\{FF, SM}\
     03- Drawings\IFC\RCP\                 03- Drawings\IFC\Builder Work\
     03- Drawings\SD\{FA, ELS}\             the shop drawings we submit
@@ -57,10 +57,14 @@ STRUCTURE: tuple[str, ...] = (
     f"{DRAWINGS}/IFC/Electrical/FA",
     f"{DRAWINGS}/IFC/Electrical/Light",
     f"{DRAWINGS}/IFC/Electrical/Power",
+    f"{DRAWINGS}/IFC/Electrical/Load Schedule",
     f"{DRAWINGS}/IFC/Mechanical/FF",
     f"{DRAWINGS}/IFC/Mechanical/SM",
     f"{DRAWINGS}/IFC/RCP",
     f"{DRAWINGS}/IFC/Builder Work",
+    # From the contractor before shop drawings start (Drawings > Actions Required).
+    f"{DRAWINGS}/Title Block",
+    f"{DRAWINGS}/SD Reference No",
     f"{DRAWINGS}/SD/FA",
     f"{DRAWINGS}/SD/ELS",
     f"{DRAWINGS}/SD/{APPROVED}",
@@ -165,6 +169,37 @@ def file_design_document(project, name: str, content: bytes) -> str | None:
     with open(document_control._os_path(path), "wb") as handle:
         handle.write(content)
     return path.relative_to(Path(project.source_folder_path)).as_posix()
+
+
+# Where the fire alarm IFC drawings are kept: the BOQ as per IFC drawings
+# files what it reads here.
+IFC_FIRE_ALARM = f"{DRAWINGS}/IFC/Electrical/FA"
+
+
+def file_ifc_drawing(project, name: str, content: bytes, *, stamp: str) -> str | None:
+    """Keep an uploaded IFC drawing in the project's own folder, under
+    03- Drawings/IFC/Electrical/FA, and say where it went, relative to the
+    project. None when the project's folder is not reachable on this PC.
+
+    A file already there is never overwritten: the same drawing is left as
+    it is and named, and a different one under the same name gets the
+    upload's time in its name ("FA-105 (uploaded 2026-09-19 1405).dwg")."""
+    if not project.source_folder_path:
+        return None
+    root = Path(project.source_folder_path)
+    if not _is_dir(root):
+        return None
+    folder = root / IFC_FIRE_ALARM
+    os.makedirs(document_control._os_path(folder), exist_ok=True)
+    path = folder / Path(name).name
+    if os.path.isfile(document_control._os_path(path)):
+        with open(document_control._os_path(path), "rb") as handle:
+            if handle.read() == content:
+                return path.relative_to(root).as_posix()
+        path = folder / f"{path.stem} (uploaded {stamp}){path.suffix}"
+    with open(document_control._os_path(path), "wb") as handle:
+        handle.write(content)
+    return path.relative_to(root).as_posix()
 
 
 def system_folder(system_code: str | None) -> str | None:

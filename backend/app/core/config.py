@@ -94,6 +94,21 @@ class Settings(BaseSettings):
     # Tests turn this off: their archives are the temporary folders they build.
     projects_root_autodetect: bool = True
 
+    # --- The archive index (app/services/ep_directory.py) ---------------
+    # The archive's EP folders, walked once and then searched in the
+    # database, so typing an EP number suggests projects instead of
+    # walking a synced drive. Off means every Find Project walks the
+    # archive as it used to.
+    archive_index_enabled: bool = True
+    # Scan on server start when the index has never been built, or has
+    # gone stale, so a new machine needs nothing done to it.
+    archive_index_scan_on_start: bool = True
+    # How old a complete scan may get before the server runs another in
+    # the background. This is what notices an EP folder added to OneDrive
+    # today; the search box also records a folder it had to fall back to a
+    # walk for, so a brand-new number is indexed the moment it is used.
+    archive_index_refresh_minutes: int = 30
+
     @model_validator(mode="after")
     def _resolve_projects_root(self) -> "Settings":
         self.projects_root = expand_path(self.projects_root)
@@ -109,6 +124,13 @@ class Settings(BaseSettings):
     # Path to tesseract.exe. Unset: found on the PATH or where the Windows
     # installer puts it, so a new machine needs no setting.
     tesseract_cmd: str | None = None
+
+    # AutoCAD's Core Console (accoreconsole.exe), which converts an uploaded
+    # IFC DWG to DXF for the BOQ as per IFC drawings. Unset: found under
+    # Program Files\Autodesk\AutoCAD <year>, newest first, then the free ODA
+    # File Converter -- see app/ifc/dxf/convert.py. Only needed when AutoCAD
+    # is installed somewhere else.
+    accoreconsole_path: str | None = None
 
     @model_validator(mode="after")
     def _apply_data_root(self) -> "Settings":
