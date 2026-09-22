@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, File, Form, Header, HTTPException, Response, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import update
+from sqlalchemy import or_, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -403,7 +403,15 @@ def list_projects(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[ProjectOut]:
-    return [_for(current_user, p) for p in db.query(Project).order_by(Project.created_at.desc()).all()]
+    """The projects this user may open: the ones they created or are the
+    assigned design engineer of. An admin sees every project."""
+    query = db.query(Project)
+    if current_user.role != RoleEnum.admin:
+        query = query.filter(or_(
+            Project.created_by_id == current_user.id,
+            Project.design_engineer_id == current_user.id,
+        ))
+    return [_for(current_user, p) for p in query.order_by(Project.created_at.desc()).all()]
 
 
 @router.get("/{project_id}", response_model=ProjectOut)

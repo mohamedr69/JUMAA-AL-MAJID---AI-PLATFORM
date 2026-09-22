@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import { DatasheetFileList, groupByFolder } from "../components/DatasheetFileList";
 import { DocumentIntakePanel } from "../components/DocumentIntakePanel";
-import { ApiError, api, apiUrl } from "../lib/api";
+import { ApiError, api } from "../lib/api";
 import { copyText, shortPath } from "../lib/format";
 import { PROJECT_EDITOR_ROLES, type DatasheetFile, type Project } from "../lib/types";
 import { useProject } from "./ProjectWorkspace";
@@ -323,41 +324,8 @@ function DatasheetLibrarySection() {
           {sections.length === 1 ? "" : "s"}, shared by every project. The library is read-only here.
         </p>
       )}
-      {open &&
-        sections.map(([folder, rows]) => (
-          <div key={folder} className="mt-3">
-            <h3 className="text-xs font-semibold text-navy-900">{folder || "Library root"}</h3>
-            <ul className="mt-1 divide-y divide-gray-100">
-              {rows.map((f) => (
-                <li key={`${f.library}/${f.path}`} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
-                  <a
-                    href={apiUrl(`/design-rules/datasheets/file?library=${encodeURIComponent(f.library)}&path=${encodeURIComponent(f.path)}`)}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="min-w-0 flex-1 truncate font-medium text-brand-600 hover:underline"
-                  >
-                    {f.filename}
-                  </a>
-                  <span className="text-xs text-gray-500">
-                    {f.document_no ?? "no document number"} · {f.pages} page{f.pages === 1 ? "" : "s"}
-                  </span>
-                  {f.unreadable && <span className="text-xs font-medium text-red-600">unreadable</span>}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+      {open && <DatasheetFileList files={files ?? []} />}
     </section>
   );
 }
 
-/** The library's own filing, kept in the order the endpoint returns. */
-function groupByFolder(files: DatasheetFile[]): [string, DatasheetFile[]][] {
-  const sections = new Map<string, DatasheetFile[]>();
-  for (const file of files) {
-    const rows = sections.get(file.folder);
-    if (rows) rows.push(file);
-    else sections.set(file.folder, [file]);
-  }
-  return [...sections.entries()];
-}

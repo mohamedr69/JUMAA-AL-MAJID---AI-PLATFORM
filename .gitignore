@@ -19,6 +19,10 @@ backend/uploads/
 
 # Database backups taken before migrations and on request: data, not source.
 backend/backups/
+# A snapshot kept beside the database rather than in backups/, named for the
+# revision it was taken before ("ep_platform.db.pre-1857b3e"). The suffix
+# leaves it outside *.db, and these run to hundreds of megabytes.
+backend/*.db.*
 
 # Node / frontend
 node_modules/

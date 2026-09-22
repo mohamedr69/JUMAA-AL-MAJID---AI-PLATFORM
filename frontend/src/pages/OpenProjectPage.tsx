@@ -43,7 +43,7 @@ export function OpenProjectPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <h1 className="text-xl font-bold text-navy-900">Open Project</h1>
-      <p className="mt-1 text-sm text-gray-500">Projects previously created in this platform.</p>
+      <p className="mt-1 text-sm text-gray-500">Projects you created or are assigned to.</p>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
       {loading && <div className="mt-6 text-sm text-gray-400">Loading...</div>}

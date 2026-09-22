@@ -155,6 +155,10 @@ class DatasheetFile:
     size: int
     reads_as_datasheet: bool
     unreadable: bool
+    # The file's own timestamp. The library is a synced folder, so this is
+    # when the sheet last changed on disk -- not when anyone uploaded it,
+    # which nothing here knows.
+    modified: float = 0.0
 
 
 @dataclass
@@ -380,6 +384,7 @@ class DatasheetLibrary:
                 size=entry.size,
                 reads_as_datasheet=entry.is_datasheet,
                 unreadable=bool(entry.error),
+                modified=entry.mtime,
             ))
         files.sort(key=lambda f: (f.folder.lower(), f.filename.lower()))
         return files
@@ -529,6 +534,54 @@ def get_libraries(
                 folders[name.upper()] = folder
 
     return {name: _library_for(name, folder) for name, folder in folders.items()}
+
+
+# --- the library by system ---------------------------------------------------
+#
+# Which manufacturers supply which system, for browsing the library the way
+# an engineer thinks of it: by the system being designed, not by the brand
+# folder it happens to be filed in.
+#
+# The systems are the platform's own (app/services/system_rules.py): FAS is
+# Fire Alarm, FRC the fire-rated cables, and the two kinds of emergency
+# lighting are one system (ELS) but not one product -- a monitored
+# self-contained system is Menvier luminaires with their own batteries, a
+# central battery system is a central unit feeding them.
+#
+# A brand listed here that has no folder under the datasheet library is
+# still shown, with none: a supplier the company uses whose sheets have not
+# been filed yet is a different thing from a supplier it does not use, and
+# leaving it out would hide the gap.
+SYSTEM_LIBRARIES: tuple[dict, ...] = (
+    {
+        "code": "FAS",
+        "label": "Fire Alarm",
+        "description": "Fire alarm control panels, detectors, modules, sounders, interfaces.",
+        "manufacturers": ("EDWARDS",),
+    },
+    {
+        "code": "ELS_SELF_CONTAINED",
+        "label": "Monitored Self Contained",
+        "description": "Emergency lighting (maintained/non-maintained), exit signs, luminaires.",
+        "manufacturers": ("MENVIER", "EATON", "JSB"),
+    },
+    {
+        "code": "ELS_CENTRAL_BATTERY",
+        "label": "Central Battery Systems",
+        "description": "Central power supply systems, CBS panels, sub-circuits, accessories.",
+        # Menvier supplies the self-contained system above, and its library
+        # is that system's sheets. Listing it here too would report those
+        # same four sheets as a central battery library the company does
+        # not yet have.
+        "manufacturers": ("RP-TECHNIK", "EATON"),
+    },
+    {
+        "code": "FRC",
+        "label": "Fire Rated Cables",
+        "description": "Fire alarm cables, speaker cables, emergency lighting cables.",
+        "manufacturers": ("FIREGUARD", "ELAND CABLES", "PRYSMIAN"),
+    },
+)
 
 
 def libraries_for(manufacturer: str | None, libraries: dict[str, DatasheetLibrary]) -> list[DatasheetLibrary]:

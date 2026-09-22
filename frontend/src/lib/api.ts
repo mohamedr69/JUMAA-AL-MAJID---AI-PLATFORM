@@ -1,5 +1,4 @@
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
-
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 /** An API address for the browser to open directly (a served PDF). */
 export function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;

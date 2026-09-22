@@ -21,6 +21,8 @@ from app.routers import (
     design,
     design_rules,
     extraction,
+    estimation,
+    divisions,
     jobs,
     knowledge,
     modules,
@@ -187,6 +189,8 @@ async def slide_session(request: Request, call_next):
     return response
 
 app.include_router(auth.router)
+app.include_router(estimation.router)
+app.include_router(divisions.router)
 app.include_router(users.router)
 app.include_router(modules.router)
 app.include_router(projects.router)

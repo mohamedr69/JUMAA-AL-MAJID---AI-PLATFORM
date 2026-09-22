@@ -188,17 +188,32 @@ def test_create_project_ep_number_is_stored_without_prefix_or_padding(client):
     assert client.post("/projects", json=_valid_project_payload(" 30100")).status_code == 409
 
 
-def test_list_projects_visible_to_any_authenticated_role(client, db_session):
+def test_list_projects_is_scoped_to_the_user(client, db_session):
+    """The list holds the projects a user created or is the assigned design
+    engineer of -- not every project on the platform. An admin sees all."""
     _login_admin(client)
     client.post("/projects", json=_valid_project_payload("31000"))
     client.post("/auth/logout")
 
+    # Someone who neither created it nor is assigned to it does not see it.
     make_user(db_session, "viewer2@ep-platform.com", RoleEnum.viewer)
     login(client, "viewer2@ep-platform.com")
-
     resp = client.get("/projects")
     assert resp.status_code == 200
-    assert any(p["ep_number"] == "31000" for p in resp.json())
+    assert all(p["ep_number"] != "31000" for p in resp.json())
+    client.post("/auth/logout")
+
+    # A design engineer sees the project they created, and only that one.
+    make_user(db_session, "engineer2@ep-platform.com", RoleEnum.design_engineer)
+    login(client, "engineer2@ep-platform.com")
+    client.post("/projects", json=_valid_project_payload("31001"))
+    assert [p["ep_number"] for p in client.get("/projects").json()] == ["31001"]
+    client.post("/auth/logout")
+
+    # The admin sees both.
+    _login_admin(client)
+    numbers = {p["ep_number"] for p in client.get("/projects").json()}
+    assert {"31000", "31001"} <= numbers
 
 
 def test_get_missing_project_404(client):

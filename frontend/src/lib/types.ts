@@ -1,4 +1,4 @@
-export type Role = "admin" | "design_manager" | "design_engineer" | "draftsman" | "viewer";
+export type Role = "admin" | "design_manager" | "design_engineer" | "estimation_engineer" | "fire_fighting_engineer" | "elv_engineer" | "draftsman" | "viewer";
 
 export interface User {
   id: number;
@@ -18,6 +18,9 @@ export const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
   design_manager: "Design Manager",
   design_engineer: "Design Engineer",
+  estimation_engineer: "Estimation Engineer",
+  fire_fighting_engineer: "Fire Fighting Engineer",
+  elv_engineer: "ELV Engineer",
   draftsman: "Draftsman",
   viewer: "Viewer",
 };
@@ -1688,6 +1691,51 @@ export interface DatasheetFile {
   size: number;
   reads_as_datasheet: boolean;
   unreadable: boolean;
+  /** Seconds since the epoch: when the file last changed in the synced
+   * library. Nothing records who put it there. */
+  modified: number;
+  /** The manufacturer's document number, "E85001-0495" -- what an engineer
+   * quotes when they name a sheet. Null for a sheet that prints none and
+   * has had none entered; that one keeps its file name. */
+  reference_no: string | null;
+}
+
+/** A manufacturer the platform can look a part up in: a folder under the
+ * datasheet library. `available` is false for a brand that is configured
+ * but whose folder is nowhere. */
+export interface DatasheetLibrarySummary {
+  name: string;
+  folder: string;
+  available: boolean;
+  source: string;
+  datasheets: number;
+}
+
+/** One system's share of the datasheet library. The systems are the
+ * platform's own (FAS, the two kinds of emergency lighting, FRC); a
+ * manufacturer with `available: false` is one the company uses whose
+ * sheets have not been filed in the library yet. */
+export interface DatasheetSystem {
+  code: string;
+  label: string;
+  description: string;
+  datasheets: number;
+  manufacturers: { name: string; datasheets: number; available: boolean }[];
+}
+
+/** One thing the datasheet search can be asked for. A "document" is a file
+ * the library holds, named for itself; a "part" is a part number recorded
+ * against a sheet that is *not* named for it. Both are needed: a part
+ * whose sheet carries its number has no link, and a variant is only ever
+ * found through one. */
+export interface DatasheetSuggestion {
+  kind: "part" | "document";
+  label: string;
+  reference_no: string | null;
+  description: string | null;
+  library: string;
+  path: string;
+  document_no: string | null;
 }
 
 

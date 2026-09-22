@@ -498,6 +498,48 @@ class DatasheetLibraryOut(BaseModel):
     datasheets: int = 0
 
 
+class SystemManufacturerOut(BaseModel):
+    name: str
+    datasheets: int = 0
+    # False for a supplier the company uses whose sheets are not filed yet.
+    available: bool = False
+
+
+class DatasheetSystemOut(BaseModel):
+    """One system's share of the datasheet library, for browsing it by the
+    system being designed rather than by brand folder."""
+
+    code: str
+    label: str
+    description: str
+    datasheets: int = 0
+    manufacturers: list[SystemManufacturerOut] = []
+
+
+class DatasheetSuggestionOut(BaseModel):
+    """One thing the datasheet search can be asked for, for the dropdown.
+
+    Two kinds, because a library answers to two different names. A
+    "document" is a file the library holds, suggested by its own name. A
+    "part" is a part number recorded in `part_datasheet_links` because the
+    file it is documented by is *not* named for it (app/services/
+    datasheet_links.py). Neither list is the whole catalogue on its own:
+    SIGA-270 has no link -- its file is named for it -- and a part with a
+    link may sit on a sheet named for a different model. Together they are
+    what an engineer can usefully be offered.
+    """
+
+    kind: str  # "part" or "document"
+    label: str
+    # The document number of the sheet this suggestion opens, when it has
+    # one -- searched for as readily as the name now that it is shown.
+    reference_no: str | None = None
+    description: str | None = None
+    library: str
+    path: str
+    document_no: str | None = None
+
+
 class DatasheetFileOut(BaseModel):
     """One datasheet in a manufacturer's library, for browsing the library
     from a project. The library is shared: the same files on every job."""
@@ -509,6 +551,13 @@ class DatasheetFileOut(BaseModel):
     document_no: str | None = None
     pages: int = 0
     size: int = 0
+    # Seconds since the epoch: when the file last changed in the synced
+    # library. Nothing records who put it there.
+    modified: float = 0.0
+    # The manufacturer's document number, "E85001-0495": what an engineer
+    # quotes when they name a sheet. None for a sheet that prints none and
+    # has had none entered, which keeps its file name.
+    reference_no: str | None = None
     # The first page gives a document number or says DATASHEET. False for
     # another manufacturer's sheet filed here (the Rocket batteries), which
     # is still the datasheet for those parts.

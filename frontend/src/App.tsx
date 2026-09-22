@@ -10,6 +10,7 @@ import { AdminSystemPage } from "./pages/AdminSystemPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { CreateProjectPage } from "./pages/CreateProjectPage";
 import { LoginPage } from "./pages/LoginPage";
+import { DatasheetEnginePage } from "./pages/DatasheetEnginePage";
 import { OpenProjectPage } from "./pages/OpenProjectPage";
 import { OpeningScreen } from "./pages/OpeningScreen";
 import { ProjectBatteryPage } from "./pages/ProjectBatteryPage";
@@ -30,7 +31,9 @@ import { ProjectDrawingsPage } from "./pages/ProjectDrawingsPage";
 import { UnderMaintenance } from "./components/UnderMaintenance";
 // ProjectVoiceEvacuationPage is deliberately not imported: the Amplifier tab
 // is marked "soon". The page is kept in src/pages for when it is released.
+import { DIVISIONS, type Division } from "./lib/divisions";
 import { ProjectWorkspace } from "./pages/ProjectWorkspace";
+import { EstimationCreatePage, EstimationOpenPage, EstimationProjectPage } from "./pages/EstimationPages";
 
 function LoginRoute() {
   const { user, loading } = useAuth();
@@ -54,6 +57,13 @@ export default function App() {
           }
         >
           <Route path="/" element={<OpeningScreen />} />
+          {(Object.keys(DIVISIONS) as Division[]).map(division => (
+            <Route key={division} path={`/${division}/projects`}>
+              <Route index element={<RoleRoute roles={["admin", DIVISIONS[division].role]}><EstimationOpenPage key={division} division={division} /></RoleRoute>} />
+              <Route path="new" element={<RoleRoute roles={["admin", DIVISIONS[division].role]}><EstimationCreatePage key={division} division={division} /></RoleRoute>} />
+              <Route path=":id" element={<RoleRoute roles={["admin", DIVISIONS[division].role]}><EstimationProjectPage key={division} division={division} /></RoleRoute>} />
+            </Route>
+          ))}
           <Route
             path="/projects/new"
             element={
@@ -64,6 +74,17 @@ export default function App() {
           />
           <Route path="/projects" element={<OpenProjectPage />} />
           <Route path="/account" element={<AccountPage />} />
+          {/* The division engineers are confined to their own project area
+              on the server (app/deps.py), so this page would 403 for them
+              rather than simply be empty. */}
+          <Route
+            path="/datasheets"
+            element={
+              <RoleRoute roles={["admin", "design_manager", "design_engineer", "draftsman", "viewer"]}>
+                <DatasheetEnginePage />
+              </RoleRoute>
+            }
+          />
           <Route path="/projects/:id" element={<ProjectWorkspace />}>
             <Route index element={<ProjectHomePage />} />
             <Route path="info" element={<ProjectInfoPage />} />

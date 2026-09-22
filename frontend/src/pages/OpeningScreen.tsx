@@ -5,6 +5,8 @@ import { BrandMark } from "../components/BrandMark";
 import { CitySkylineBackdrop } from "../components/CitySkylineBackdrop";
 import { useAuth } from "../context/AuthContext";
 import { ROLE_LABELS } from "../lib/types";
+import { divisionForRole } from "../lib/divisions";
+import { EstimationDashboard } from "./EstimationPages";
 
 /** The home page, built to the platform owner's design.
  *
@@ -41,6 +43,7 @@ const icon = (path: ReactNode) => (
 const IconHome = () => icon(<><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /></>);
 const IconPlus = () => icon(<><path d="M12 5v14" /><path d="M5 12h14" /></>);
 const IconFolder = () => icon(<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />);
+const IconSheet = () => icon(<><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></>);
 const IconTemplate = () => icon(<><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></>);
 const IconBook = () => icon(<><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" /><path d="M8 3v18" /></>);
 const IconFactory = () => icon(<><path d="M3 21V10l5 3V10l5 3V8l6 3v10z" /><path d="M7 17h.01M12 17h.01M17 17h.01" /></>);
@@ -64,12 +67,13 @@ interface Destination {
 }
 
 const PRIMARY: Destination[] = [
-  { label: "Home", to: "/", icon: IconHome },
+  { label: "Design Dashboard", to: "/", icon: IconHome },
   { label: "Create New Project", to: "/projects/new", icon: IconPlus, creatorOnly: true },
   { label: "Open Project", to: "/projects", icon: IconFolder },
 ];
 
 const TOOLS: Destination[] = [
+  { label: "Datasheets", description: "Search the manufacturers' datasheet library.", icon: IconSheet, to: "/datasheets" },
   { label: "Templates", description: "Standard documents and drawing templates.", icon: IconTemplate, soon: true },
   { label: "Knowledge Base", description: "Standards, codes, templates and guides.", icon: IconBook, soon: true },
   { label: "Manufacturer Monitoring", description: "Track latest updates from manufacturers.", icon: IconFactory, soon: true },
@@ -89,6 +93,9 @@ export function OpeningScreen() {
   const isAdmin = user?.role === "admin";
   const canCreate = !!user && CREATOR_ROLES.includes(user.role);
 
+  const division = divisionForRole(user?.role);
+  if (division) return <EstimationDashboard division={division} />;
+
   const available = (item: Destination) =>
     !item.soon && !!item.to && (!item.adminOnly || isAdmin) && (!item.creatorOnly || canCreate);
 
@@ -100,12 +107,12 @@ export function OpeningScreen() {
           <BrandMark size={30} />
           <div className="leading-tight">
             <div className="text-sm font-bold">{branding.appName}</div>
-            <div className="text-[10px] uppercase tracking-wider text-white/50">{branding.tagline}</div>
+            <div className="text-[10px] uppercase tracking-wider text-white/50">Design Team</div>
           </div>
         </div>
 
         <nav className="mt-7 flex flex-col gap-1">
-          {PRIMARY.map((item) => <RailItem key={item.label} item={item} active={item.label === "Home"} enabled={available(item)} />)}
+          {PRIMARY.map((item) => <RailItem key={item.label} item={item} active={item.to === "/"} enabled={available(item)} />)}
           <div className="my-3 border-t border-white/10" />
           {TOOLS.map((item) => <RailItem key={item.label} item={item} enabled={available(item)} />)}
         </nav>
@@ -128,8 +135,9 @@ export function OpeningScreen() {
         <section className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white">
           <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_1fr]">
             <div className="p-8">
-              <h1 className="text-3xl font-bold">Welcome back, {firstName} 👋</h1>
-              <p className="mt-2 text-sm text-gray-500">Your central hub for smarter engineering workflows.</p>
+              <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-brand-600">Design Team</p>
+              <h1 className="text-3xl font-bold">Design Team Dashboard</h1>
+              <p className="mt-2 text-sm text-gray-500">Welcome back, {firstName}. Your workspace for design projects, calculations, drawings and compliance.</p>
               <p className="mt-4 border-l-2 border-brand-600 pl-3 text-sm italic text-gray-600">{branding.heroSubtext}</p>
             </div>
             <div className="relative min-h-40 bg-navy-950 text-white">

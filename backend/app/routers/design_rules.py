@@ -6,7 +6,9 @@ saving a part that already has an entry supersedes it with the next
 version, so what a figure was computed from can always be traced.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -14,7 +16,7 @@ from app.core.config import get_settings
 from app.core.timeutils import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_role
-from app.models import DesignRule, RoleEnum, User
+from app.models import DesignRule, PartDatasheetLink, RoleEnum, User
 from app.routers.projects import CREATOR_ROLES
 from app.schemas_design import (
     BatteryUnitIn,
@@ -22,16 +24,20 @@ from app.schemas_design import (
     DatasheetLibraryOut,
     DatasheetMatchOut,
     DatasheetRowOut,
+    DatasheetSuggestionOut,
+    DatasheetSystemOut,
     DesignRuleOut,
     EquipmentAuditOut,
     EquipmentCurrentIn,
     EquipmentCurrentOut,
     PartCurrentIn,
+    SystemManufacturerOut,
 )
 from app.seed import BATTERY_UNIT_CATEGORY, PART_CURRENT_CATEGORY
 from app.services import company_library
 from app.services.battery_calculation import part_key
-from app.services.datasheet_library import get_libraries, libraries_for
+from app.services import datasheet_documents
+from app.services.datasheet_library import SYSTEM_LIBRARIES, get_libraries, libraries_for
 
 router = APIRouter(prefix="/design-rules", tags=["design rules"])
 
@@ -230,6 +236,41 @@ def list_datasheet_libraries(_current_user: User = Depends(get_current_user)) ->
     return rows
 
 
+@router.get("/datasheet-systems", response_model=list[DatasheetSystemOut])
+def list_datasheet_systems(
+    _current_user: User = Depends(get_current_user),
+) -> list[DatasheetSystemOut]:
+    """The library grouped by the system being designed.
+
+    An engineer opens this looking for a fire alarm detector or an exit
+    sign, not for a brand folder, so the brands are shown under the system
+    they supply (`SYSTEM_LIBRARIES`). The count is the sheets the library
+    would list, not every PDF in the folder: the submittal builder and the
+    EST4 manuals share that folder without being datasheets, and a card
+    promising 106 where the table then shows 75 is a card that lies.
+    """
+    available = _libraries()
+    counts = {name: len(library.listing()) for name, library in available.items()}
+    systems = []
+    for system in SYSTEM_LIBRARIES:
+        brands = [
+            SystemManufacturerOut(
+                name=name,
+                datasheets=counts.get(name.upper(), 0),
+                available=name.upper() in available,
+            )
+            for name in system["manufacturers"]
+        ]
+        systems.append(DatasheetSystemOut(
+            code=system["code"],
+            label=system["label"],
+            description=system["description"],
+            datasheets=sum(b.datasheets for b in brands),
+            manufacturers=brands,
+        ))
+    return systems
+
+
 @router.post("/datasheet-libraries/reindex", response_model=list[DatasheetLibraryOut])
 def reindex_datasheet_libraries(
     _current_user: User = Depends(require_role(*CREATOR_ROLES)),
@@ -250,6 +291,7 @@ def reindex_datasheet_libraries(
 def list_all_datasheets(
     manufacturer: str | None = None,
     _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> list[DatasheetFileOut]:
     """Every datasheet the platform holds, filed as the library files them.
 
@@ -260,8 +302,12 @@ def list_all_datasheets(
     are left out.
     """
     files = []
+    references: dict[tuple[str, str], str] = {}
     for library in libraries_for(manufacturer, _libraries()):
         files += library.listing()
+        references.update(
+            {(library.name, path): row.reference_no for path, row in datasheet_documents.stored(db, library.name).items()}
+        )
     return [
         DatasheetFileOut(
             library=f.library,
@@ -273,9 +319,79 @@ def list_all_datasheets(
             size=f.size,
             reads_as_datasheet=f.reads_as_datasheet,
             unreadable=f.unreadable,
+            modified=f.modified,
+            reference_no=datasheet_documents.resolve(references.get((f.library, f.path)), f.document_no),
         )
         for f in files
     ]
+
+
+# A suggestion's description is a label, not the datasheet: the ordering
+# tables run several sentences into one cell.
+SUGGESTION_DESCRIPTION_CHARS = 120
+
+
+@router.get("/datasheets/index", response_model=list[DatasheetSuggestionOut])
+def datasheet_index(
+    manufacturer: str | None = None,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[DatasheetSuggestionOut]:
+    """What the datasheet search can be asked for, for its dropdown.
+
+    The library's own files, and the part numbers recorded against them.
+    Neither alone is what an engineer types: a part whose sheet is named
+    for it has no link (the search finds it by file name), and a variant
+    on another model's sheet is only ever found through its link. The
+    list is small -- a brand's library is tens of files and hundreds of
+    parts -- so it is sent once per manufacturer and filtered as the
+    engineer types, which is what makes the dropdown answer immediately.
+    """
+    libraries = libraries_for(manufacturer, _libraries())
+    names = [library.name for library in libraries]
+
+    references: dict[tuple[str, str], str] = {}
+    for library in libraries:
+        references.update(
+            {(library.name, path): row.reference_no for path, row in datasheet_documents.stored(db, library.name).items()}
+        )
+
+    # A sheet is offered under its document number when it has one, with
+    # its file name beside it -- that is what an engineer now sees in the
+    # list, so it is what they will type.
+    out = []
+    for library in libraries:
+        for f in library.listing():
+            reference = datasheet_documents.resolve(references.get((f.library, f.path)), f.document_no)
+            out.append(DatasheetSuggestionOut(
+                kind="document",
+                label=reference or Path(f.filename).stem,
+                description=Path(f.filename).stem if reference else (f.folder or None),
+                library=f.library,
+                path=f.path,
+                document_no=f.document_no,
+                reference_no=reference,
+            ))
+
+    if names:
+        links = (
+            db.query(PartDatasheetLink)
+            .filter(PartDatasheetLink.library.in_(names))
+            .order_by(PartDatasheetLink.part_no)
+            .all()
+        )
+        out += [
+            DatasheetSuggestionOut(
+                kind="part",
+                label=link.part_no,
+                description=(link.note or "")[:SUGGESTION_DESCRIPTION_CHARS].strip() or None,
+                library=link.library,
+                path=link.path,
+                reference_no=references.get((link.library, link.path)),
+            )
+            for link in links
+        ]
+    return out
 
 
 @router.get("/datasheets", response_model=list[DatasheetMatchOut])
@@ -326,6 +442,43 @@ def open_datasheet(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such datasheet in the library")
     # Inline, so the browser's PDF viewer opens it (and honours #page=N).
     return FileResponse(file, media_type="application/pdf", content_disposition_type="inline", filename=file.name)
+
+
+# Wide enough to stay sharp on the card, small enough that a page of
+# rows does not pull megabytes of preview.
+THUMBNAIL_WIDTH = 240
+
+
+@router.get("/datasheets/thumbnail")
+def datasheet_thumbnail(
+    library: str,
+    path: str,
+    _current_user: User = Depends(get_current_user),
+) -> Response:
+    """The first page of a datasheet as a PNG, for the preview on the card.
+
+    Rendered on the way out rather than kept: the libraries are tens of
+    files, a page renders in milliseconds, and a stored thumbnail is one
+    more thing to invalidate when the synced folder changes underneath.
+    The browser is told to keep it for an hour, which is what stops a
+    scroll re-rendering the same page.
+    """
+    import pymupdf
+
+    found = _libraries().get(library.upper())
+    file = found.resolve(path) if found else None
+    if file is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such datasheet in the library")
+    try:
+        with pymupdf.open(file) as document:
+            page = document.load_page(0)
+            scale = THUMBNAIL_WIDTH / page.rect.width if page.rect.width else 1
+            png = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale)).tobytes("png")
+    except Exception:
+        # An unreadable PDF is already flagged in the listing; the card
+        # simply shows no preview rather than failing the page.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="This datasheet could not be rendered")
+    return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.get("/battery-units", response_model=list[DesignRuleOut])

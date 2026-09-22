@@ -10,7 +10,7 @@ ALL_ROLES = list(RoleEnum)
 EXPECTATIONS = {
     "/modules/admin": {RoleEnum.admin},
     "/modules/design": {RoleEnum.admin, RoleEnum.design_manager, RoleEnum.design_engineer, RoleEnum.draftsman},
-    "/modules/viewer": set(ALL_ROLES),
+    "/modules/viewer": set(ALL_ROLES) - {RoleEnum.estimation_engineer, RoleEnum.fire_fighting_engineer, RoleEnum.elv_engineer},
 }
 
 

@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>EP Platform — System Design</title>
+<style>
+  @page { size: A4; margin: 12mm 12mm 12mm; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body {
+    margin: 0; font: 9.0pt/1.42 "Segoe UI", system-ui, sans-serif;
+    color: #1a1d24; background: #fff;
+  }
+  code, .mono { font-family: "Cascadia Mono", Consolas, monospace; font-size: 0.88em; }
+  code { background: #eef1f6; padding: 0.5px 3px; border-radius: 3px; color: #17324d; }
+  h1, h2, h3, h4 { font-weight: 650; line-height: 1.25; margin: 0; }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  .avoid { page-break-inside: avoid; }
+
+  /* ---- cover ---- */
+  .cover { height: 250mm; display: flex; flex-direction: column; justify-content: center; }
+  .cover .rule { height: 5px; width: 64mm; background: #0f4c81; margin-bottom: 9mm; }
+  .cover h1 { font-size: 30pt; letter-spacing: -0.6px; color: #0d1b2a; }
+  .cover .sub { font-size: 14pt; color: #4a5568; margin-top: 4mm; font-weight: 400; }
+  .cover .meta { margin-top: 14mm; font-size: 9pt; color: #5a6472; }
+  .cover .meta b { color: #0d1b2a; font-weight: 600; }
+  .cover .toc { margin-top: 12mm; border-top: 1px solid #d8dee8; padding-top: 5mm;
+                column-count: 2; column-gap: 10mm; font-size: 8.8pt; }
+  .cover .toc div { break-inside: avoid; padding: 1.1mm 0; color: #364152; }
+  .cover .toc span { color: #0f4c81; font-weight: 650; display: inline-block; width: 12mm; }
+
+  /* ---- section headings ---- */
+  h2 { font-size: 13.6pt; color: #0d1b2a; padding-bottom: 2.5mm; border-bottom: 2px solid #0f4c81;
+       margin-bottom: 4mm; }
+  h2 .n { color: #0f4c81; margin-right: 3mm; }
+  h3 { font-size: 10pt; color: #0f4c81; margin: 4.5mm 0 2mm; }
+  h4 { font-size: 9.6pt; color: #26384d; margin: 4mm 0 1.5mm; }
+  p { margin: 0 0 2.8mm; }
+  .lead { color: #47536b; margin-bottom: 4mm; }
+  ul { margin: 0 0 3mm; padding-left: 5mm; }
+  li { margin-bottom: 1.2mm; }
+
+  /* ---- tables ---- */
+  table { width: 100%; border-collapse: collapse; margin: 0 0 3.4mm; font-size: 8.05pt; }
+  th { text-align: left; background: #0d1b2a; color: #fff; font-weight: 600;
+       padding: 1.7mm 2.1mm; border: 1px solid #0d1b2a; }
+  td { padding: 1.5mm 2.1mm; border: 1px solid #d8dee8; vertical-align: top; }
+  tbody tr:nth-child(even) td { background: #f6f8fb; }
+  td.step { text-align: center; font-weight: 700; color: #0f4c81; width: 7mm; background: #eaf0f7 !important; }
+  td.where { width: 52mm; }
+  td.where b { display: block; color: #0d1b2a; }
+  td.where .mono { color: #5a6472; font-size: 7.6pt; }
+  .k { color: #0f4c81; font-weight: 600; }
+
+  /* ---- boxes ---- */
+  .note, .warn, .ok {
+    border-left: 3px solid #0f4c81; background: #f2f6fb; padding: 2.6mm 3.4mm;
+    margin: 0 0 3.4mm; font-size: 8.2pt; border-radius: 0 3px 3px 0;
+  }
+  .warn { border-left-color: #b45309; background: #fdf6ec; }
+  .ok { border-left-color: #15803d; background: #f0f8f2; }
+  .note b, .warn b, .ok b { color: #0d1b2a; }
+
+  /* ---- stack / flow diagrams ---- */
+  .stack { margin: 0 0 5mm; }
+  .layer { border: 1px solid #b9c5d6; border-radius: 4px; padding: 2mm 2.6mm; margin-bottom: 1.2mm;
+           background: #fff; font-size: 8.2pt; }
+  .layer .t { font-weight: 650; color: #0d1b2a; }
+  .layer .d { color: #5a6472; font-size: 8.2pt; }
+  .layer.proc { background: #eaf0f7; border-color: #0f4c81; }
+  .layer.db   { background: #f0f8f2; border-color: #15803d; }
+  .layer.ext  { background: #fdf6ec; border-color: #b45309; }
+  .arrow { text-align: center; color: #8894a8; font-size: 8pt; margin: 0.4mm 0 1.2mm; }
+  .indent1 { margin-left: 6mm; } .indent2 { margin-left: 12mm; } .indent3 { margin-left: 18mm; }
+
+  .cols { display: flex; gap: 4mm; }
+  .cols > * { flex: 1; }
+  .card { border: 1px solid #d8dee8; border-radius: 4px; padding: 2.6mm; font-size: 8.1pt; }
+  .card h4 { margin-top: 0; }
+  .tight table { font-size: 7.55pt; }
+  .tight td { padding: 1.15mm 1.9mm; }
+  .tight th { padding: 1.4mm 1.9mm; }
+  .tight .note, .tight .warn, .tight .ok { font-size: 7.8pt; padding: 2.2mm 3mm; }
+  .tight .layer { font-size: 7.8pt; padding: 1.7mm 2.3mm; margin-bottom: 1mm; }
+  .tight p, .tight .lead { font-size: 8.5pt; }
+  .tighter table { font-size: 7.15pt; }
+  .tighter td { padding: 1mm 1.7mm; }
+  .tighter .layer { font-size: 7.3pt; padding: 1.3mm 2mm; margin-bottom: 0.7mm; }
+  .tighter .arrow { margin: 0.2mm 0 0.6mm; font-size: 7pt; }
+  .tighter .note, .tighter .warn { font-size: 7.4pt; padding: 2mm 2.6mm; }
+  .tighter h3 { margin: 3mm 0 1.6mm; }
+  .tighter .stack { margin-bottom: 3mm; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="page cover">
+  <div class="rule"></div>
+  <h1>Engineering Project Platform</h1>
+  <div class="sub">System Design &mdash; how a request travels through the stack</div>
+  <div class="meta">
+    <b>Repository</b> &nbsp;<span class="mono">C:\dev\ep-platform</span> &nbsp;&middot;&nbsp; branch <span class="mono">master</span><br>
+    <b>Stack</b> &nbsp;React&nbsp;19 + Vite&nbsp;8 &nbsp;&rarr;&nbsp; uvicorn + FastAPI&nbsp;0.115 &nbsp;&rarr;&nbsp; SQLAlchemy&nbsp;2.0 &nbsp;&rarr;&nbsp; SQLite / Postgres<br>
+    <b>Generated</b> &nbsp;22 September 2026, from the code as it stands &mdash; every hop cites <span class="mono">file:line</span>
+  </div>
+  <div class="toc">
+    <div><span>1</span>Deployment topology</div>
+    <div><span>2</span>The ASGI layer: bytes to Python</div>
+    <div><span>3</span>The universal request pipeline</div>
+    <div><span>4</span>Trace A &mdash; POST /auth/login</div>
+    <div><span>5</span>Trace B &mdash; GET /projects/{id}</div>
+    <div><span>6</span>Trace C &mdash; PUT /projects/{id}</div>
+    <div><span>7</span>Trace D &mdash; long jobs (202 + polling)</div>
+    <div><span>8</span>Trace E &mdash; file upload</div>
+    <div><span>9</span>Trace F &mdash; export download</div>
+    <div><span>10</span>Trace G &mdash; AI-assisted request</div>
+    <div><span>11</span>Startup and shutdown</div>
+    <div><span>12</span>The persistence layer</div>
+    <div><span>13</span>Component connection map</div>
+    <div><span>14</span>Failure paths</div>
+  </div>
+</div>
+
+<!-- ============ 1. TOPOLOGY ============ -->
+<div class="page">
+<h2><span class="n">1</span>Deployment topology</h2>
+<p class="lead">Two processes, started together by <code>start.bat</code>. There is no API gateway, no BFF and no
+server-side rendering: the browser talks straight to uvicorn across an origin boundary, which is why CORS and
+cookie settings matter as much as they do.</p>
+
+<div class="stack">
+  <div class="layer ext"><span class="t">Browser &mdash; the SPA</span>
+    <div class="d"><span class="mono">http://localhost:5173</span> &middot; Vite dev server (or the static <span class="mono">dist/</span> build behind any web server)</div></div>
+  <div class="arrow">&darr;&nbsp; <span class="mono">fetch(API_BASE_URL + path, { credentials: "include" })</span> &nbsp; <span class="mono">frontend/src/lib/api.ts:1</span></div>
+  <div class="layer proc"><span class="t">uvicorn &mdash; the ASGI server</span>
+    <div class="d"><span class="mono">python -m uvicorn app.main:app --reload --reload-dir app --timeout-graceful-shutdown 3 --port 8000</span><br>
+    one process, one asyncio event loop, HTTP/1.1 parsed by <span class="mono">h11</span> (or <span class="mono">httptools</span> when installed)</div></div>
+  <div class="arrow">&darr;&nbsp; ASGI <span class="mono">scope</span> / <span class="mono">receive</span> / <span class="mono">send</span></div>
+  <div class="layer proc"><span class="t">FastAPI application object</span>
+    <div class="d"><span class="mono">backend/app/main.py:100</span> &mdash; middleware stack, 25 routers, lifespan</div></div>
+  <div class="arrow">&darr;&nbsp; SQLAlchemy ORM session</div>
+  <div class="layer db"><span class="t">Database</span>
+    <div class="d">SQLite file (dev) or Postgres &mdash; one <span class="mono">DATABASE_URL</span>, 53 tables, Alembic-managed</div></div>
+  <div class="arrow">&nbsp;</div>
+  <div class="layer ext"><span class="t">Outside the process</span>
+    <div class="d">the OneDrive-synced project archive (read-only) &middot; the company library under <span class="mono">backend/library</span> &middot;
+    the Claude Code CLI as a child process &middot; AutoCAD / ODA converter &middot; Tesseract &middot; Word via COM</div></div>
+</div>
+
+<h3>Why the origin boundary shapes the design</h3>
+<table class="avoid">
+  <tr><th style="width:42mm">Consequence</th><th>Where it is handled</th></tr>
+  <tr><td>Cookies must be sent cross-origin</td><td>Client sets <code>credentials: "include"</code>; server sets <code>allow_credentials=True</code> with an explicit origin list &mdash; <code>*</code> is illegal alongside credentials. <span class="mono">main.py:102</span></td></tr>
+  <tr><td>The browser hides most response headers from JS</td><td><code>expose_headers</code> names the six the SPA actually reads: <code>Content-Disposition</code>, <code>X-Package-Pages</code>, <code>X-Package-Warnings</code>, <code>X-Resource-Version</code>, <code>ETag</code>, <code>X-Request-ID</code>. <span class="mono">main.py:114</span></td></tr>
+  <tr><td>Every non-simple request costs a preflight</td><td><code>OPTIONS</code> is answered by <code>CORSMiddleware</code> and never reaches a router, a dependency or the database.</td></tr>
+  <tr><td>The session cookie is <code>samesite=lax</code></td><td>Assumes frontend and API share a site in production. On different domains this must become <code>samesite=none; secure</code>. <span class="mono">auth.py:59</span></td></tr>
+</table>
+</div>
+
+<!-- ============ 2. ASGI ============ -->
+<div class="page">
+<h2><span class="n">2</span>The ASGI layer: how bytes become a Python call</h2>
+<p class="lead">This is the part usually hand-waved. uvicorn is a single-threaded event loop; the FastAPI endpoints in
+this codebase are almost all plain <code>def</code>. The handoff between those two facts is the most important
+mechanical detail in the system.</p>
+
+<table>
+  <tr><th class="step">#</th><th class="where">Component</th><th>What happens to the request</th></tr>
+  <tr><td class="step">1</td><td class="where"><b>OS socket</b><span class="mono">uvicorn, port 8000</span></td>
+      <td>The event loop accepts the TCP connection. Nothing is parsed yet &mdash; only bytes have arrived.</td></tr>
+  <tr><td class="step">2</td><td class="where"><b>HTTP protocol parser</b><span class="mono">h11 / httptools</span></td>
+      <td>Request line, headers and body are parsed incrementally. A malformed request dies here with a 400 that no application code ever sees.</td></tr>
+  <tr><td class="step">3</td><td class="where"><b>ASGI scope built</b><span class="mono">uvicorn protocol layer</span></td>
+      <td>A dict: <code>type: "http"</code>, <code>method</code>, <code>path</code>, <code>raw_headers</code>, <code>query_string</code>, <code>client</code>. The body is <i>not</i> in it &mdash; it is pulled later through the <code>receive</code> callable, which is how a large upload streams instead of buffering.</td></tr>
+  <tr><td class="step">4</td><td class="where"><b>The app is called</b><span class="mono">main.py:100</span></td>
+      <td>uvicorn awaits <code>app(scope, receive, send)</code>. <code>app</code> is the FastAPI instance, a subclass of Starlette. From here everything is a coroutine on that one event loop.</td></tr>
+  <tr><td class="step">5</td><td class="where"><b>Middleware stack, outermost first</b><span class="mono">main.py:102&ndash;190</span></td>
+      <td>Starlette wraps the app in each registered middleware. Registration order is <i>inside-out</i>: the last <code>@app.middleware</code> declared sits closest to the router. Effective order here: <span class="k">CORS</span> &rarr; <span class="k">request_id</span> &rarr; <span class="k">slide_session</span> &rarr; router.</td></tr>
+  <tr><td class="step">6</td><td class="where"><b>Routing</b><span class="mono">starlette.routing</span></td>
+      <td>The path is matched against the route table built by the 25 <code>include_router</code> calls (<span class="mono">main.py:191&ndash;242</span>). First match wins, so prefix collisions matter: <code>/projects</code> is claimed by nine different routers. No match &rarr; 404 without touching the database.</td></tr>
+  <tr><td class="step">7</td><td class="where"><b>Dependency resolution</b><span class="mono">fastapi.dependencies</span></td>
+      <td>FastAPI walks the endpoint signature and builds the dependency graph <i>before</i> calling the handler: path params coerced, query params validated, the Pydantic body model constructed, <code>Depends(get_db)</code> and <code>Depends(get_current_user)</code> executed. A failure here is a <span class="k">422</span> and the handler is never entered.</td></tr>
+  <tr><td class="step">8</td><td class="where"><b>The threadpool handoff</b><span class="mono">anyio worker thread</span></td>
+      <td><b>The critical hop.</b> The endpoint is a sync <code>def</code>, so FastAPI does not await it &mdash; it runs it via <code>run_in_threadpool</code> on an anyio worker thread (40 by default). The event loop stays free to accept other requests. Everything the handler does &mdash; blocking SQLite I/O, reading a PDF off OneDrive, shelling out to AutoCAD &mdash; happens on that worker thread, never on the loop.</td></tr>
+  <tr><td class="step">9</td><td class="where"><b>The handler runs</b><span class="mono">app/routers/*.py</span></td>
+      <td>Router code calls services; services call the ORM. See traces A&ndash;G.</td></tr>
+  <tr><td class="step">10</td><td class="where"><b>Serialization</b><span class="mono">response_model=</span></td>
+      <td>The returned ORM object or dataclass is validated and filtered through the declared Pydantic model, then JSON-encoded. This is the field filter: a <code>User</code> row goes out as <code>UserOut</code>, so <code>hashed_password</code> cannot leak.</td></tr>
+  <tr><td class="step">11</td><td class="where"><b>Unwind</b><span class="mono">reverse middleware order</span></td>
+      <td>Dependency teardown (<code>get_db</code> closes the session in its <code>finally</code>) &rarr; <code>slide_session</code> may re-issue the cookie &rarr; <code>request_id</code> writes the log line and stamps the header &rarr; CORS adds its headers &rarr; <code>send</code> &rarr; bytes on the socket.</td></tr>
+</table>
+
+<div class="warn avoid"><b>Sync vs async, counted.</b> Across the 25 routers exactly <b>four</b> handlers are <code>async def</code>:
+<span class="mono">ifc_boq.py:477</span>, <span class="mono">ifc_boq.py:494</span>, their shared helper
+<span class="mono">ifc_boq.py:337</span>, and <span class="mono">submittal.py:854</span> &mdash; every one of them a handler that must
+<code>await</code> an <code>UploadFile</code>. All the rest are sync, and therefore threadpooled. Three consequences follow
+directly: the engine needs <code>check_same_thread: False</code> (<span class="mono">database.py:13</span>); shared in-process
+state needs real locks (<code>_fill_lock</code>, <span class="mono">design.py:77</span>; <code>_start_lock</code>,
+<span class="mono">verification.py:35</span>); and an async handler that wants to do blocking work must hand it back to a thread
+itself with <code>run_in_threadpool</code> (<span class="mono">ifc_boq.py:486</span>).</div>
+</div>
+
+<!-- ============ 3. PIPELINE ============ -->
+<div class="page">
+<h2><span class="n">3</span>The universal request pipeline</h2>
+<p class="lead">Every one of the traces that follow runs through this same spine. Only the shaded band in the middle
+differs from endpoint to endpoint.</p>
+
+<div class="stack">
+  <div class="layer proc"><span class="t">CORSMiddleware</span><div class="d"><span class="mono">main.py:102</span> &mdash; answers <code>OPTIONS</code> outright; on a real request, adds <code>Access-Control-Allow-*</code> and <code>expose_headers</code> on the way out</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer proc indent1"><span class="t">request_id</span><div class="d"><span class="mono">main.py:124</span> &mdash; accepts the caller's <code>X-Request-ID</code> only if it matches <code>[A-Za-z0-9._-]{8,64}</code>, else mints one. On the way out, logs one JSON line: id, method, <b>route template</b> (never the filled path &mdash; paths carry document names), status, ms, user id. No query strings, bodies, cookies or file paths.</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer proc indent2"><span class="t">slide_session</span><div class="d"><span class="mono">main.py:156</span> &mdash; on the way out, if the cookie is past half its 30-minute life, re-issues it for a full term. Skips <code>/auth/*</code> so login and logout own their own cookie writes.</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer indent3"><span class="t">Route match &rarr; dependency graph</span><div class="d"><code>get_db</code> opens a session &middot; <code>get_current_user</code> decodes the cookie and applies the division gate &middot; <code>require_role(...)</code> narrows further &middot; Pydantic validates body, path and query</div></div>
+  <div class="arrow">&darr;&nbsp; threadpool</div>
+  <div class="layer indent3" style="background:#eaf0f7;border-color:#0f4c81"><span class="t">Router handler &rarr; service(s) &rarr; ORM</span><div class="d">the part that differs &mdash; traces A to G</div></div>
+  <div class="arrow">&uarr;</div>
+  <div class="layer indent3"><span class="t">response_model serialization &rarr; dependency teardown</span><div class="d"><code>db.close()</code> always runs, success or exception</div></div>
+</div>
+
+<h3>The three dependencies almost every endpoint declares</h3>
+<table>
+  <tr><th style="width:38mm">Dependency</th><th>Contract</th></tr>
+  <tr><td><code>get_db</code><br><span class="mono">database.py:66</span></td>
+      <td>A generator dependency. Yields a <code>SessionLocal()</code>, and its <code>finally</code> closes it &mdash; so the session is closed even when the handler raised. One session per request; it is <b>not</b> committed automatically, so every write path calls <code>db.commit()</code> explicitly.</td></tr>
+  <tr><td><code>get_current_user</code><br><span class="mono">deps.py:12</span></td>
+      <td>Reads the cookie named by <code>COOKIE_NAME</code>, decodes the HS256 JWT, loads the user, checks <code>is_active</code>. <b>Then applies the division gate</b> (<span class="mono">deps.py:30</span>): a user whose role is <code>estimation_engineer</code>, <code>fire_fighting_engineer</code> or <code>elv_engineer</code> may reach only <code>/auth/me*</code> and <code>/{their-area}/projects*</code>; anything else is 403. This is enforced here, in one place, rather than per-router.</td></tr>
+  <tr><td><code>require_role(*roles)</code><br><span class="mono">deps.py:39</span></td>
+      <td>A factory returning a dependency that layers on top of <code>get_current_user</code>. <code>CREATOR_ROLES</code> = admin, design manager, design engineer (<span class="mono">projects.py:72</span>); <code>DELETER_ROLES</code> drops the design engineer, because starting a project and erasing one are different rights.</td></tr>
+</table>
+
+<div class="note avoid"><b>Roles, as the code defines them.</b> <code>RoleEnum</code> (<span class="mono">models.py:25</span>) has eight
+members: <code>admin</code>, <code>design_manager</code>, <code>design_engineer</code>, <code>estimation_engineer</code>,
+<code>fire_fighting_engineer</code>, <code>elv_engineer</code>, <code>draftsman</code>, <code>viewer</code>. The three division
+roles are the ones with the unusual path-prefix gate described above.</div>
+</div>
+
+<!-- ============ 4. TRACE A ============ -->
+<div class="page tight">
+<h2><span class="n">4</span>Trace A &mdash; <span class="mono" style="font-size:12pt">POST /auth/login</span></h2>
+<p class="lead">The canonical trace: an unauthenticated request that ends with a session cookie. Every hop below is
+real code, not a sketch.</p>
+
+<table>
+  <tr><th class="step">#</th><th class="where">Component</th><th>What happens</th></tr>
+  <tr><td class="step">1</td><td class="where"><b>SPA</b><span class="mono">lib/api.ts</span></td>
+      <td><code>request("/auth/login", { method: "POST", body: JSON.stringify({email, password}) })</code> with <code>credentials: "include"</code> and <code>Content-Type: application/json</code>. Because of the content type the browser first sends an <code>OPTIONS</code> preflight.</td></tr>
+  <tr><td class="step">2</td><td class="where"><b>CORS preflight</b><span class="mono">main.py:102</span></td>
+      <td><code>OPTIONS /auth/login</code> is answered by the middleware alone: allowed origin, methods, headers, <code>Allow-Credentials: true</code>. No router, no dependency, no database.</td></tr>
+  <tr><td class="step">3</td><td class="where"><b>uvicorn &rarr; ASGI</b></td>
+      <td>The real POST is parsed by h11, turned into a scope, and <code>app(scope, receive, send)</code> is awaited.</td></tr>
+  <tr><td class="step">4</td><td class="where"><b>request_id</b><span class="mono">main.py:124</span></td>
+      <td>Assigns <code>request.state.request_id</code> and starts the duration timer. It also peeks at the cookie to attribute the log line &mdash; on login there is none yet, so <code>user: null</code>.</td></tr>
+  <tr><td class="step">5</td><td class="where"><b>slide_session</b><span class="mono">main.py:156</span></td>
+      <td>Passes straight through on the way in. On the way out it returns early because the path starts with <code>/auth/</code> &mdash; login must own its own <code>Set-Cookie</code>.</td></tr>
+  <tr><td class="step">6</td><td class="where"><b>Route match</b><span class="mono">auth.py:16,21</span></td>
+      <td><code>APIRouter(prefix="/auth")</code> + <code>@router.post("/login")</code> &rarr; the <code>login</code> function. <b>No auth dependency</b> on this route &mdash; it is the one that creates the session.</td></tr>
+  <tr><td class="step">7</td><td class="where"><b>Validation + session</b><span class="mono">schemas.py</span> / <span class="mono">database.py:66</span></td>
+      <td>The JSON body is parsed into <code>LoginRequest</code> (a malformed body is 422 here). <code>Depends(get_db)</code> opens a <code>SessionLocal</code>.</td></tr>
+  <tr><td class="step">8</td><td class="where"><b>Threadpool</b></td>
+      <td><code>login</code> is a sync <code>def</code> &rarr; run on an anyio worker thread. bcrypt is deliberately slow; this is exactly why it must not run on the event loop.</td></tr>
+  <tr><td class="step">9</td><td class="where"><b>Handler: lookup</b><span class="mono">auth.py:22</span></td>
+      <td><code>db.query(User).filter(User.email == payload.email.lower()).first()</code> &rarr; SQLAlchemy compiles <code>SELECT ... FROM users WHERE email = ?</code>, the pooled DBAPI connection executes it, the row is mapped to a <code>User</code> in the identity map.</td></tr>
+  <tr><td class="step">10</td><td class="where"><b>Handler: gates</b><span class="mono">auth.py:24&ndash;46</span></td>
+      <td>In order: unknown email &rarr; generic 401 (never "no such user"); <code>locked_until</code> in the future &rarr; <span class="k">423</span> with minutes remaining; <code>is_active</code> false &rarr; 403; then <code>verify_password</code> (<span class="mono">security.py:16</span>, passlib/bcrypt).</td></tr>
+  <tr><td class="step">11</td><td class="where"><b>Handler: failure path</b><span class="mono">auth.py:41</span></td>
+      <td>A wrong password increments <code>failed_login_attempts</code>; at <code>MAX_FAILED_LOGIN_ATTEMPTS</code> it sets <code>locked_until = now + LOCKOUT_MINUTES</code> and resets the counter. <b><code>db.commit()</code> runs before the 401 is raised</b> &mdash; the lockout must survive the rejection.</td></tr>
+  <tr><td class="step">12</td><td class="where"><b>Handler: success path</b><span class="mono">auth.py:48&ndash;56</span></td>
+      <td>Counter cleared, <code>locked_until = None</code>, <code>last_login_at = now</code>, <code>db.commit()</code>, <code>db.refresh(user)</code>, then <code>activity.record(db, user, "auth.login", ...)</code> writes a row into <code>activity_events</code> &mdash; after the work succeeded, never before.</td></tr>
+  <tr><td class="step">13</td><td class="where"><b>Token</b><span class="mono">security.py:22</span></td>
+      <td><code>create_access_token(subject=str(user.id), role=user.role.value)</code> &rarr; HS256 JWT with <code>sub</code>, <code>role</code>, <code>exp</code>, signed with <code>SECRET_KEY</code>.</td></tr>
+  <tr><td class="step">14</td><td class="where"><b>Cookie</b><span class="mono">auth.py:59</span></td>
+      <td><code>response.set_cookie(httponly=True, samesite="lax", secure=COOKIE_SECURE, max_age=30*60, path="/")</code>. <b>httpOnly</b> is the point: the token is never readable by JavaScript, so an XSS bug cannot steal it.</td></tr>
+  <tr><td class="step">15</td><td class="where"><b>Serialization</b><span class="mono">response_model=UserOut</span></td>
+      <td>The <code>User</code> ORM object is filtered to <code>UserOut</code>. <code>hashed_password</code>, <code>failed_login_attempts</code> and <code>locked_until</code> are simply not in the model, so they cannot be sent.</td></tr>
+  <tr><td class="step">16</td><td class="where"><b>Unwind</b></td>
+      <td><code>get_db</code> closes the session &rarr; <code>slide_session</code> no-ops on <code>/auth/</code> &rarr; <code>request_id</code> logs <code>{"route": "/auth/login", "status": 200, "ms": 214, "user": null}</code> and sets <code>X-Request-ID</code> &rarr; CORS headers &rarr; response.</td></tr>
+  <tr><td class="step">17</td><td class="where"><b>Back in the SPA</b><span class="mono">context/AuthContext.tsx</span></td>
+      <td>The browser stores the cookie; the JSON user is put in <code>AuthContext</code>. <code>ProtectedRoute</code> and <code>RoleRoute</code> now let the app render. Every later request carries the cookie automatically.</td></tr>
+</table>
+
+<div class="note avoid"><b>Note the asymmetry.</b> The token is created and signed on the server, and the SPA never sees it.
+The client's copy of "who am I" is only the <code>UserOut</code> JSON, which is advisory &mdash; the server re-decodes the
+cookie on <i>every</i> subsequent request. Client-side role checks are UI convenience; <span class="mono">deps.py</span> is
+the enforcement.</div>
+</div>
+
+<!-- ============ 5. TRACE B ============ -->
+<div class="page">
+<h2><span class="n">5</span>Trace B &mdash; authenticated read: <span class="mono" style="font-size:12pt">GET /projects/{id}</span></h2>
+<p class="lead">The shape of most requests in the system. The difference from trace A is everything that happens
+<i>before</i> the handler.</p>
+
+<table>
+  <tr><th class="step">#</th><th class="where">Component</th><th>What happens</th></tr>
+  <tr><td class="step">1</td><td class="where"><b>SPA</b></td><td>A simple <code>GET</code> with the cookie attached; no preflight, because no custom header or content type is set.</td></tr>
+  <tr><td class="step">2</td><td class="where"><b>request_id</b><span class="mono">main.py:124</span></td>
+      <td>Decodes the cookie <i>only</i> to attribute the log line, swallowing any error &mdash; it never rejects; that is the route's job.</td></tr>
+  <tr><td class="step">3</td><td class="where"><b>slide_session</b><span class="mono">main.py:156</span></td>
+      <td>Remembers to check the cookie's remaining life on the way out.</td></tr>
+  <tr><td class="step">4</td><td class="where"><b>Route match</b><span class="mono">projects.py:69</span></td>
+      <td>Nine routers share the <code>/projects</code> prefix. Starlette takes the first registered pattern that matches, in <code>include_router</code> order (<span class="mono">main.py:191&ndash;242</span>).</td></tr>
+  <tr><td class="step">5</td><td class="where"><b>get_db</b><span class="mono">database.py:66</span></td>
+      <td>Session opened. On SQLite, the pool hands out a connection and the <code>connect</code>/<code>checkout</code> listener re-runs <code>PRAGMA foreign_keys=ON</code> (<span class="mono">database.py:28</span>) &mdash; on <i>every</i> checkout, because migrations turn it off on the connection they borrow.</td></tr>
+  <tr><td class="step">6</td><td class="where"><b>get_current_user</b><span class="mono">deps.py:12</span></td>
+      <td>No cookie &rarr; 401. Bad or expired signature &rarr; 401 "Session expired or invalid". Valid &rarr; <code>db.get(User, int(sub))</code>, a primary-key load that may be served from the identity map.</td></tr>
+  <tr><td class="step">7</td><td class="where"><b>The division gate</b><span class="mono">deps.py:30&ndash;37</span></td>
+      <td>If the role maps to a division area, the request path must be <code>/auth/me*</code> or <code>/{area}/projects*</code>. <code>/projects/7</code> is neither &rarr; <span class="k">403</span> "This module is not available to your division". The design roles and admin pass.</td></tr>
+  <tr><td class="step">8</td><td class="where"><b>Handler</b><span class="mono">projects.py:415</span></td>
+      <td><code>_get_project_or_404</code> (<span class="mono">projects.py:110</span>) does <code>db.get(Project, id)</code> &rarr; 404 if absent. Then <code>activity.record_open</code> (once per 30-minute window, because React StrictMode double-fires effects in dev) and <code>_ensure_project_folders</code>.</td></tr>
+  <tr><td class="step">9</td><td class="where"><b>Lazy loads</b><span class="mono">models.py relationships</span></td>
+      <td>Building the response touches <code>project.systems</code>, <code>project.documents</code>, <code>project.design</code> &hellip; each an extra <code>SELECT</code> the first time it is read, inside the same session and transaction.</td></tr>
+  <tr><td class="step">10</td><td class="where"><b>Serialization</b><span class="mono">schemas_project.py</span></td>
+      <td><code>response_model=ProjectOut</code> walks the loaded graph into JSON.</td></tr>
+  <tr><td class="step">11</td><td class="where"><b>slide_session, on the way out</b><span class="mono">main.py:176</span></td>
+      <td>If <code>exp - now &le; 15 min</code>, a fresh 30-minute cookie is issued. So a long BOQ edit never expires mid-work; a session ends only after 30 minutes of silence.</td></tr>
+  <tr><td class="step">12</td><td class="where"><b>Teardown</b></td><td>Session closed, log line written, headers added.</td></tr>
+</table>
+
+<h3>Where a read gets its data from &mdash; three different sources</h3>
+<div class="cols">
+  <div class="card"><h4>The database</h4>Project rows, BOQ lines, systems, submittals. The default.</div>
+  <div class="card"><h4>The filesystem</h4>The archive folder (<code>_project_folder</code>, <span class="mono">design.py:88</span>) and the company library. Read live, on the worker thread, which is why a stale OneDrive mount surfaces as <span class="k">503</span> rather than a hang.</div>
+  <div class="card"><h4>A cache table</h4><code>result_cache</code>, the datasheet index under <code>.cache/</code>, and the <code>ep_archive_folders</code> index &mdash; so a search is a query, not a directory walk.</div>
+</div>
+</div>
+
+<!-- ============ 6. TRACE C ============ -->
+<div class="page">
+<h2><span class="n">6</span>Trace C &mdash; versioned write: <span class="mono" style="font-size:12pt">PUT /projects/{id}</span></h2>
+<p class="lead">Two engineers can have the same project open. A write therefore has to say which version it was made
+against. This is the optimistic-concurrency path, and it runs on the BOQ, project info, design inputs and compliance
+statements alike.</p>
+
+<table>
+  <tr><th class="step">#</th><th class="where">Component</th><th>What happens</th></tr>
+  <tr><td class="step">1</td><td class="where"><b>SPA</b><span class="mono">lib/api.ts:78</span></td>
+      <td>The page kept the <code>X-Resource-Version</code> it received with the document. <code>ifMatch(version)</code> turns it into <code>If-Match: "4"</code> and sends it with the <code>PUT</code>. A request without the header is accepted &mdash; scripts and older clients still work.</td></tr>
+  <tr><td class="step">2</td><td class="where"><b>Header binding</b><span class="mono">projects.py:425</span></td>
+      <td><code>if_match: str | None = Header(default=None, alias="If-Match")</code> &mdash; FastAPI binds the raw header as a parameter.</td></tr>
+  <tr><td class="step">3</td><td class="where"><b>Authorisation</b><span class="mono">deps.py:39</span></td>
+      <td><code>Depends(require_role(*CREATOR_ROLES))</code> &mdash; admin, design manager, design engineer. A viewer reaching this endpoint is 403 before any body is read.</td></tr>
+  <tr><td class="step">4</td><td class="where"><b>Body validation</b><span class="mono">schemas_project.py</span></td>
+      <td><code>ProjectDetailsIn</code>. The EP number and document paths are deliberately <b>not</b> in the model &mdash; they tie the project to its archive folder and are not editable.</td></tr>
+  <tr><td class="step">5</td><td class="where"><b>Load</b><span class="mono">projects.py:434</span></td>
+      <td><code>_get_project_or_404</code>.</td></tr>
+  <tr><td class="step">6</td><td class="where"><b>The version check</b><span class="mono">concurrency.py:43</span></td>
+      <td><code>require_current(if_match, project.details_version, "The project information")</code>. <code>parse_if_match</code> accepts <code>"3"</code>, <code>W/"3"</code> or <code>3</code>; <code>*</code> or absent means no check; anything else is a 400.</td></tr>
+  <tr><td class="step">7</td><td class="where"><b>Conflict</b><span class="mono">concurrency.py:46</span></td>
+      <td>If the version does not match &rarr; <span class="k">409</span> with a structured body: <code>{code: "stale_write", message, your_version, current_version}</code>. The SPA's <code>ApiError.isStaleWrite</code> (<span class="mono">api.ts:22</span>) recognises it and renders <code>StaleWriteNotice</code> instead of a generic error.</td></tr>
+  <tr><td class="step">8</td><td class="where"><b>Apply</b><span class="mono">projects.py:436&ndash;440</span></td>
+      <td><code>details_version += 1</code>, a before-snapshot is taken, fields applied, then <code>_propagate_details</code> pushes a brand or system change down into the BOQ lines.</td></tr>
+  <tr><td class="step">9</td><td class="where"><b>Cascading version bump</b><span class="mono">projects.py:450</span></td>
+      <td>If any BOQ item is dirty (<code>db.is_modified</code>), <code>boq_version += 1</code> as well &mdash; a BOQ table open in another tab must not save over what this write just changed.</td></tr>
+  <tr><td class="step">10</td><td class="where"><b>Commit</b></td>
+      <td>One <code>db.commit()</code> flushes every change in the unit of work as a single transaction. Nothing was written before this point.</td></tr>
+  <tr><td class="step">11</td><td class="where"><b>Audit</b><span class="mono">activity.py:45</span></td>
+      <td><code>activity.record(..., detail=changed)</code> stores a field-by-field <code>old -&gt; new</code> diff, truncated to 80 characters per field.</td></tr>
+  <tr><td class="step">12</td><td class="where"><b>Response</b></td>
+      <td>Serialized as <code>ProjectOut</code>; the new version travels back so the page can keep editing without a reload.</td></tr>
+</table>
+
+<h3>Two ways a version is bumped</h3>
+<table class="avoid">
+  <tr><th style="width:44mm">Mechanism</th><th>Applies to</th></tr>
+  <tr><td><b>Explicit, in the router</b><br><span class="mono">projects.py:436</span></td>
+      <td><code>details_version</code> and <code>boq_version</code> are plain integer columns on <code>Project</code>, incremented by hand in the handler that changes them.</td></tr>
+  <tr><td><b>Automatic, by ORM event</b><br><span class="mono">concurrency.py:64</span></td>
+      <td><code>@event.listens_for(ProjectDesign, "before_update")</code> and the same for <code>ComplianceStatement</code>: any real modification bumps <code>version</code>, whoever caused it &mdash; a page save, a background AI job, or a recheck. A save made against the state before <i>any</i> of those is caught.</td></tr>
+</table>
+</div>
+
+<!-- ============ 7. TRACE D ============ -->
+<div class="page">
+<h2><span class="n">7</span>Trace D &mdash; long work: <span class="mono" style="font-size:12pt">POST /projects/{id}/jobs/boq-reread</span></h2>
+<p class="lead">Re-reading a four-page scanned Design Sheet takes a minute or more. Run inside the request, the page could
+only spin, a refresh lost the answer, and there was no stopping it. The answer is a job row: the request returns
+<span class="k">202</span> immediately and the work continues on a thread of its own.</p>
+
+<table>
+  <tr><th class="step">#</th><th class="where">Component</th><th>What happens</th></tr>
+  <tr><td class="step">1</td><td class="where"><b>Handler, in the request</b><span class="mono">jobs.py:66</span></td>
+      <td><code>require_role(*CREATOR_ROLES)</code> &rarr; <code>_get_project_or_404</code> &rarr; refuse if the project has no Design Sheets (409) &rarr; <code>_refuse_duplicate</code> (<span class="mono">jobs.py:57</span>) returns <span class="k">409 job_running</span> with the existing job's id if one is already queued or running for this project and kind.</td></tr>
+  <tr><td class="step">2</td><td class="where"><b>The closure</b><span class="mono">jobs.py:77</span></td>
+      <td>A local <code>work(session, ctx)</code> is defined. It captures only <b>ids</b> &mdash; <code>project_id</code>, <code>user_id</code> &mdash; never the ORM objects from the request's session. Those belong to a session that is about to close.</td></tr>
+  <tr><td class="step">3</td><td class="where"><b>Job row</b><span class="mono">services/jobs.py:70</span></td>
+      <td><code>jobs.start(...)</code> inserts a <code>background_jobs</code> row: <code>status="queued"</code>, <code>progress={done:0,total:0,message:"Waiting to start"}</code>, and commits it, so the row exists before the response leaves.</td></tr>
+  <tr><td class="step">4</td><td class="where"><b>Thread launch</b><span class="mono">services/jobs.py:81</span></td>
+      <td>A <code>threading.Thread</code> is started running <code>run()</code>, which opens <b>its own <code>SessionLocal()</code></b>. This is the point people get wrong: the request's session and the job's session are two different sessions on two different connections, and the request's is closed the moment the response is sent.</td></tr>
+  <tr><td class="step">5</td><td class="where"><b>Response</b><span class="mono">jobs.py:88</span></td>
+      <td><span class="k">202 Accepted</span> with the <code>JobOut</code> body. The request is over; the work has barely begun.</td></tr>
+  <tr><td class="step">6</td><td class="where"><b>The worker</b><span class="mono">services/jobs.py:83</span></td>
+      <td><code>status="running"</code>, <code>started_at</code> set and committed, then <code>work(session, JobContext(job_id))</code> runs &mdash; here <code>boq_candidates.build</code>, which reads the sheets, calls the AI reader and writes a candidate BOQ.</td></tr>
+  <tr><td class="step">7</td><td class="where"><b>Progress</b><span class="mono">services/jobs.py:38</span></td>
+      <td><code>ctx.progress(done, total, message, **extra)</code> opens <b>yet another short-lived session</b>, writes the progress JSON and commits, then closes it. A separate session on purpose: progress must become visible to the polling request even though the job's own long transaction is still open.</td></tr>
+  <tr><td class="step">8</td><td class="where"><b>Cancellation</b><span class="mono">services/jobs.py:38,53</span></td>
+      <td>The same read that writes progress also reads <code>cancel_requested</code>; if set, it raises <code>Cancelled</code>. So a job stops <i>between</i> steps &mdash; at the next page, never mid-write.</td></tr>
+  <tr><td class="step">9</td><td class="where"><b>Completion</b><span class="mono">services/jobs.py:87</span></td>
+      <td><code>status="succeeded"</code>, <code>result</code> (the candidate id and a summary), <code>finished_at</code>. On an exception the traceback is stored in <code>error</code> and the status is <code>failed</code>.</td></tr>
+  <tr><td class="step">10</td><td class="where"><b>Polling</b><span class="mono">lib/useJob.ts</span> &rarr; <span class="mono">jobs.py:130</span></td>
+      <td>The page polls <code>GET /jobs/{id}</code> &mdash; an ordinary authenticated read of one row &mdash; and renders <code>JobProgress</code>. A refresh loses nothing: the job is found again by id.</td></tr>
+  <tr><td class="step">11</td><td class="where"><b>Stop</b><span class="mono">jobs.py:139</span></td>
+      <td><code>POST /jobs/{id}/cancel</code> only sets the flag. The worker notices it at its next checkpoint.</td></tr>
+</table>
+
+<div class="warn avoid"><b>A job that was running when the server stopped cannot be resumed.</b> On the next start,
+<code>jobs.fail_interrupted</code> (<span class="mono">services/jobs.py:124</span>, called from the lifespan at
+<span class="mono">main.py:70</span>) marks every still-<code>running</code> row as failed with that reason &mdash; so no page
+waits forever on work that died with the process.</div>
+
+<h4>Endpoints that follow this pattern</h4>
+<p><code>jobs/boq-reread</code> and <code>jobs/documents-intake</code> (<span class="mono">jobs.py</span>),
+<code>jobs/ai-verify</code> (<span class="mono">verification.py</span>), and <code>ifc-drawings/jobs</code>
+(<span class="mono">ifc_boq.py:494</span>), which additionally reports a percentage, a stage name and an estimated
+seconds-remaining through the same <code>progress</code> channel.</p>
+</div>
+
+<!-- ============ 8. TRACE E ============ -->
+<div class="page">
+<h2><span class="n">8</span>Trace E &mdash; upload: <span class="mono" style="font-size:12pt">POST /projects/{id}/ifc-drawings</span></h2>
+<p class="lead">The only place in the codebase where the async/sync distinction is visible in the source, and the clearest
+illustration of why the threadpool exists.</p>
+
+<table>
+  <tr><th class="step">#</th><th class="where">Component</th><th>What happens</th></tr>
+  <tr><td class="step">1</td><td class="where"><b>SPA</b><span class="mono">components/ifc/api.ts</span></td>
+      <td>A <code>FormData</code> POST. The browser sets <code>multipart/form-data</code> with its own boundary &mdash; the client must <i>not</i> set <code>Content-Type</code> itself.</td></tr>
+  <tr><td class="step">2</td><td class="where"><b>ASGI body streaming</b></td>
+      <td>The body is not in the scope. Starlette pulls it in chunks through <code>receive</code>, spilling to a temporary file past a size threshold, so a 60&nbsp;MB DWG does not sit in memory as one string.</td></tr>
+  <tr><td class="step">3</td><td class="where"><b>The async handler</b><span class="mono">ifc_boq.py:477</span></td>
+      <td><code>async def upload_drawing(...)</code> &mdash; declared async <i>because</i> it must <code>await</code> the upload. It runs <b>on the event loop</b>, not on a worker thread.</td></tr>
+  <tr><td class="step">4</td><td class="where"><b>Await the bytes</b><span class="mono">ifc_boq.py:337</span></td>
+      <td><code>await _received(file)</code> &rarr; filename, extension and the bytes. Awaiting yields control, so other requests keep being served while the upload arrives.</td></tr>
+  <tr><td class="step">5</td><td class="where"><b>Back to a thread</b><span class="mono">ifc_boq.py:486</span></td>
+      <td><code>await run_in_threadpool(lambda: _read_drawing(...))</code>. Everything blocking &mdash; converting DWG to DXF through AutoCAD's core console or the ODA converter, parsing with <code>ezdxf</code>, matching blocks against <code>ifc_symbols</code>, writing rows &mdash; happens on a worker thread. <b>Without this one call the event loop would freeze for the whole conversion and the entire server would stop answering.</b></td></tr>
+  <tr><td class="step">6</td><td class="where"><b>Failure</b><span class="mono">ifc_boq.py:488</span></td>
+      <td>A <code>ReadError</code> becomes <span class="k">422</span> with the reason. A missing converter is refused up front with an instruction to install AutoCAD or the ODA converter, or to upload a DXF instead (<span class="mono">ifc_boq.py:511</span>).</td></tr>
+  <tr><td class="step">7</td><td class="where"><b>Or, as a job</b><span class="mono">ifc_boq.py:494</span></td>
+      <td>The tab actually uses the sibling endpoint, which does steps 3&ndash;4 in the request and then hands the parsed bytes to trace D, so the page can show a stage and an ETA rather than a spinner.</td></tr>
+</table>
+
+<h3>Where uploaded bytes land</h3>
+<p>Never in the archive. <code>UPLOADS_ROOT</code> (default <code>backend/uploads</code>, or
+<code>&lt;DATA_ROOT&gt;/uploads</code> when a data root is set, <span class="mono">config.py</span>) gets a folder per project;
+<code>_save_upload</code> (<span class="mono">projects.py:1152</span>) writes the file and the path is stored on the row. The
+platform <b>reads</b> the OneDrive archive and <b>writes</b> only to its own uploads folder &mdash; a deliberate one-way
+boundary.</p>
+</div>
+
+<!-- ============ 9. TRACE F ============ -->
+<div class="page">
+<h2><span class="n">9</span>Trace F &mdash; export: a generated file comes back</h2>
+<p class="lead">Excel exports, the battery calculation PDF, a built submittal package. Same pipeline, different exit.</p>
+
+<table>
+  <tr><th class="step">#</th><th class="where">Component</th><th>What happens</th></tr>
+  <tr><td class="step">1</td><td class="where"><b>Browser</b></td>
+      <td>Either a <code>fetch</code> whose blob is saved, or a plain link to <code>apiUrl(path)</code> (<span class="mono">api.ts:4</span>) for something the browser can display, such as a datasheet PDF.</td></tr>
+  <tr><td class="step">2</td><td class="where"><b>Handler</b><span class="mono">drawings.py:114</span>, <span class="mono">boq_review.py</span></td>
+      <td>Normal auth and load, then a service builds the file <b>in memory</b>: <code>boq_export</code>, <code>battery_export</code>, <code>schedule_export</code>, <code>submittal_export</code> &mdash; openpyxl into a <code>BytesIO</code>, or PyMuPDF for a PDF.</td></tr>
+  <tr><td class="step">3</td><td class="where"><b>Response object</b></td>
+      <td><code>StreamingResponse(buf, media_type=..., headers={"Content-Disposition": f'attachment; filename="..."'})</code>, or <code>FileResponse</code> when the bytes are already a file on disk (<span class="mono">design_rules.py:328</span>, <span class="mono">projects.py:1321</span>, both <code>content_disposition_type="inline"</code> so the browser displays rather than downloads).</td></tr>
+  <tr><td class="step">4</td><td class="where"><b>CORS, the catch</b><span class="mono">main.py:114</span></td>
+      <td>Cross-origin, JavaScript cannot read <code>Content-Disposition</code> unless it is in <code>expose_headers</code> &mdash; nor <code>X-Package-Pages</code> / <code>X-Package-Warnings</code>, which is exactly why the submittal page once reported "? pages assembled".</td></tr>
+  <tr><td class="step">5</td><td class="where"><b>Logging</b><span class="mono">main.py:141</span></td>
+      <td>The log line records the <b>route template</b>, never the filled path, so a document name or a client's folder never reaches the log.</td></tr>
+</table>
+
+<div class="note avoid"><b>Word and PDF.</b> The warranty letter is converted by driving Word over COM
+(<code>pywin32</code>, Windows only) so the page carries the real letterhead; if the import is unavailable the code falls back
+to a drawn page. That subprocess call, like every other blocking call, is safe only because the handler is on a worker
+thread.</div>
+</div>
+
+<!-- ============ 10. TRACE G ============ -->
+<div class="page tight tighter">
+<h2><span class="n">10</span>Trace G &mdash; an AI-assisted request</h2>
+<p class="lead">Off by default (<code>AI_ENABLED=false</code>). When on, a model is asked only about things the
+deterministic path could not settle, and its answer is a <i>proposal</i> an engineer accepts &mdash; never a value the
+system writes by itself.</p>
+
+<div class="stack">
+  <div class="layer"><span class="t">1 &nbsp; Router</span><div class="d"><span class="mono">verification.py</span>, <span class="mono">extraction.py</span> &mdash; usually starting a job (trace D), because a read takes minutes</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer indent1"><span class="t">2 &nbsp; Eligibility</span><div class="d"><span class="mono">ai/evaluation.py</span>, <span class="mono">ai/project_policy.py</span> &mdash; is this task allowed on this server and this project? <code>AI_DISABLED_TASKS</code> is the deployment kill switch, per task, without a code change</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer indent1"><span class="t">3 &nbsp; Budget</span><div class="d"><span class="mono">ai/budget.py</span> &mdash; calls per document, calls per project per day, elapsed seconds, estimated cost. Exceeded &rarr; the task stops and says so</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer indent1"><span class="t">4 &nbsp; Cache</span><div class="d"><span class="mono">ai/cache.py</span> &rarr; <code>result_cache</code>. The key includes <code>PROMPT_VERSION</code> (<span class="mono">provider.py:33</span>), so re-wording a prompt invalidates old answers. A document with the same content is never read twice</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer indent1 ext"><span class="t">5 &nbsp; Guard &mdash; document text is data</span><div class="d"><span class="mono">ai/guard.py:49</span> <code>neutralise()</code> makes every tag-shaped sequence inert so a document cannot close the fence it is wrapped in; <span class="mono">guard.py:66</span> <code>scan_parts()</code> flags instruction-like wording. A flagged call still runs &mdash; the words may be innocent &mdash; but its proposal can never be <code>validated</code>: it goes to an engineer with the flag shown</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer indent2"><span class="t">6 &nbsp; AiRequest</span><div class="d"><span class="mono">provider.py:48</span> &mdash; task, system prompt, fenced text and PNG parts, a JSON schema, token ceiling, tier (<code>small</code> / <code>standard</code>), idempotency key</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer indent2 proc"><span class="t">7 &nbsp; get_provider().complete()</span><div class="d"><span class="mono">provider.py:581</span> &mdash; the one place a model is called. Nothing else imports a vendor SDK<br>
+  <b>ClaudeCodeProvider</b> (<span class="mono">:450</span>, default) spawns the Claude Code CLI as a child process on the subscription signed in on the server &mdash; no API key &middot;
+  <b>ClaudeProvider</b> / <b>OpenAiProvider</b> call the vendor APIs with a key &middot;
+  <b>NullProvider</b> (<span class="mono">:121</span>) answers "insufficient evidence" to everything and is what runs when AI is off &mdash; the deterministic pipeline must be complete with it &middot;
+  <b>RecordingProvider</b> is what the tests use</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer indent2"><span class="t">8 &nbsp; Validation</span><div class="d"><span class="mono">ai/proposals.py</span> &mdash; refuses a target, region or value the task does not allow; <code>suspicious_value</code> catches links, markup or instruction wording that leaked into an answer</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer indent3 db"><span class="t">9 &nbsp; Persistence</span><div class="d"><code>ai_proposals</code> (what was suggested) &middot; <code>ai_usage</code> (tokens and estimated cost, per call) &middot; <code>ai_verifications</code> (a run and the items it touched) &middot; <code>document_readings</code> (a reading kept for good) &middot; <code>result_cache</code></div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer indent3"><span class="t">10 &nbsp; The engineer decides</span><div class="d"><code>AiVerificationPanel.tsx</code>, <code>ExtractionReview.tsx</code> &mdash; accept, reject, or undo a run that changed something</div></div>
+</div>
+
+<div class="note avoid"><b>Reading documents is AI-only.</b> The DRF and the Design Sheets are read by the model
+(<span class="mono">ai/sheet_reader.py</span>, <span class="mono">ai/verification.py</span>) &mdash; there is no OCR witness and no
+fallback; when the model cannot read something it says <i>"Not read: &lt;why&gt;"</i>. Tesseract remains, but only for document
+intake, document control and the submittal scanner. The deterministic readers
+(<span class="mono">services/drf_extractor.py</span>, <span class="mono">services/design_sheet_extractor.py</span>) no longer read
+documents; their parsers and page rendering are reused by the AI read, and they are kept with their tests until the AI-only
+read has run on enough projects.</div>
+</div>
+
+<!-- ============ 11. LIFESPAN ============ -->
+<div class="page">
+<h2><span class="n">11</span>Startup and shutdown</h2>
+<p class="lead">Before the first request can be served, the lifespan context manager
+(<span class="mono">main.py:41&ndash;97</span>) runs in strict order. Anything slow enough to make a new machine wait is
+pushed onto a background thread instead.</p>
+
+<table>
+  <tr><th class="step">#</th><th class="where">Step</th><th>Why it is there, and why in this order</th></tr>
+  <tr><td class="step">1</td><td class="where"><b>adopt_local_database</b><span class="mono">main.py:45 &rarr; database.py:44</span></td>
+      <td>First start after <code>DATA_ROOT</code> is pointed at a synced folder: an existing <code>backend/ep_platform.db</code> is copied in, so nothing made on this PC is left behind.</td></tr>
+  <tr><td class="step">2</td><td class="where"><b>upgrade_to_head</b><span class="mono">main.py:48 &rarr; migrations.py</span></td>
+      <td><code>alembic upgrade head</code> in-process, against the same <code>DATABASE_URL</code>. Pull a change, restart, done. This replaced <code>Base.metadata.create_all</code>, which created missing tables but never altered existing ones &mdash; a new column silently did not appear and the app failed at query time.</td></tr>
+  <tr><td class="step">3</td><td class="where"><b>Seeds</b><span class="mono">main.py:51&ndash;70</span></td>
+      <td>In one session: default admin, design rules, equipment currents, datasheet links, suppliers, IFC device types. Then <code>import_library</code> / <code>save_library</code> round-trips the IFC symbol library with the file on the company shelf, so database and file always agree. Every seed is idempotent.</td></tr>
+  <tr><td class="step">4</td><td class="where"><b>fail_interrupted</b><span class="mono">main.py:74</span></td>
+      <td>Jobs left <code>running</code> by a killed process are marked failed with that reason. See trace D.</td></tr>
+  <tr><td class="step">5</td><td class="where"><b>Warm the libraries</b><span class="mono">main.py:80</span></td>
+      <td>One daemon thread per datasheet library. Reading every datasheet over a synced drive takes a while; doing it now beats doing it on the first lookup.</td></tr>
+  <tr><td class="step">6</td><td class="where"><b>Knowledge import</b><span class="mono">main.py:85</span></td>
+      <td>On a machine that has never imported it, the compliance knowledge base is read from <code>data base/</code> in the background, so Auto-fill works without anyone configuring anything.</td></tr>
+  <tr><td class="step">7</td><td class="where"><b>Archive index</b><span class="mono">main.py:93</span></td>
+      <td>A refresh thread walks the archive's EP folders into <code>ep_archive_roots</code> / <code>ep_archive_folders</code>. A first scan takes minutes over OneDrive and nothing waits for it; afterwards, typing an EP number is a database query rather than a directory walk. Refreshed every <code>ARCHIVE_INDEX_REFRESH_MINUTES</code> (30).</td></tr>
+  <tr><td class="step">8</td><td class="where"><b>yield</b><span class="mono">main.py:95</span></td>
+      <td>uvicorn begins accepting requests.</td></tr>
+  <tr><td class="step">9</td><td class="where"><b>stop_refresh</b><span class="mono">main.py:97</span></td>
+      <td>On shutdown the index thread is stopped. <code>--timeout-graceful-shutdown 3</code> means a reload waits at most three seconds for open connections instead of hanging on them with the old code still serving.</td></tr>
+</table>
+
+<div class="note avoid"><b>Config is resolved once, at import.</b> <code>get_settings()</code> is <code>@lru_cache</code>d
+(<span class="mono">config.py</span>), and its <code>model_validator</code>s run then: <code>~</code> and <code>%VARS%</code>
+expanded, the OneDrive archive located by name (<code>find_synced_folder</code>), Tesseract found on the PATH or where the
+installer puts it, and <code>DATA_ROOT</code> rewritten into <code>DATABASE_URL</code>, <code>UPLOADS_ROOT</code>,
+<code>CACHE_ROOT</code> and <code>BACKUPS_ROOT</code>. A wrong value in <code>.env</code> therefore shows up at start, not
+mid-request &mdash; with one exception: an AI budget set too low is only discovered when a call is actually made.</div>
+</div>
+
+<!-- ============ 12. PERSISTENCE ============ -->
+<div class="page tight tighter">
+<h2><span class="n">12</span>The persistence layer</h2>
+
+<h3>Session lifecycle</h3>
+<div class="stack">
+  <div class="layer"><span class="t">engine</span><div class="d"><span class="mono">database.py:20</span> &mdash; one per process, from <code>DATABASE_URL</code>. SQLite adds <code>check_same_thread: False</code> (the threadpool), and an in-memory URL adds <code>StaticPool</code> (tests)</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer"><span class="t">SessionLocal</span><div class="d"><span class="mono">database.py:21</span> &mdash; <code>autocommit=False, autoflush=False</code>. Nothing is written until someone calls <code>commit()</code></div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer"><span class="t">Per-request session</span><div class="d"><code>Depends(get_db)</code> &mdash; opened at dependency resolution, closed in <code>finally</code>. One identity map and one transaction for the whole request</div></div>
+  <div class="arrow">&darr;</div>
+  <div class="layer db"><span class="t">Connection checkout</span><div class="d"><span class="mono">database.py:28</span> &mdash; on <b>connect and checkout</b>: <code>PRAGMA foreign_keys=ON</code>, and with a <code>DATA_ROOT</code> set, <code>PRAGMA journal_mode=DELETE</code> &mdash; a database in a synced folder must be one file, because a write-ahead log beside it is what a sync client copies half of</div></div>
+</div>
+
+<h3>Who else opens a session</h3>
+<table class="avoid">
+  <tr><th style="width:44mm">Opener</th><th>Lifetime</th></tr>
+  <tr><td>The request (<code>get_db</code>)</td><td>One per HTTP request.</td></tr>
+  <tr><td>A job worker (<span class="mono">services/jobs.py:82</span>)</td><td>One per job, on its own thread, for the whole run.</td></tr>
+  <tr><td>A progress tick (<span class="mono">services/jobs.py:39</span>)</td><td>Opened, written, committed and closed per tick &mdash; so progress is visible while the job's own transaction is still open.</td></tr>
+  <tr><td>The lifespan (<span class="mono">main.py:49</span>)</td><td>One, for the seeds, closed before <code>yield</code>.</td></tr>
+</table>
+
+<h3>Schema: 53 tables, two hubs</h3>
+<p>34 foreign keys point at <code>users.id</code>; 25 point at <code>projects.id</code>. Everything else clusters around
+those two.</p>
+<table>
+  <tr><th style="width:30mm">Cluster</th><th>Tables</th></tr>
+  <tr><td><b>Identity</b></td><td><code>users</code>, <code>activity_events</code></td></tr>
+  <tr><td><b>Division silos</b></td><td><code>estimation_projects</code>, <code>division_projects</code> &mdash; <b>separate tables</b>, not rows in <code>projects</code>. They carry reference, title, client and creator only; none of the workspace machinery hangs off them</td></tr>
+  <tr><td><b>Project core</b></td><td><code>projects</code> (unique <code>ep_number</code>; status draft &rarr; active &rarr; archived), <code>project_systems</code>, <code>project_boq_items</code>, <code>project_designs</code>, <code>project_design_sheets</code>, <code>project_floor_schedule</code>, <code>project_frc_cables</code>, <code>project_amplifier_design</code>, <code>project_proposed_materials</code>, <code>battery_panel_results</code></td></tr>
+  <tr><td><b>Versions</b></td><td><code>boq_snapshots</code>, <code>project_boq_revisions</code>, <code>boq_candidates</code></td></tr>
+  <tr><td><b>Documents</b></td><td><code>project_documents</code>, <code>document_dependencies</code>, <code>document_readings</code>, <code>project_submittals</code> &rarr; <code>project_submittal_events</code></td></tr>
+  <tr><td><b>Extraction &amp; AI</b></td><td><code>extraction_runs</code> &rarr; <code>extraction_issues</code>, <code>ai_verifications</code>, <code>ai_proposals</code>, <code>ai_usage</code>, <code>result_cache</code></td></tr>
+  <tr><td><b>Compliance</b></td><td><code>compliance_statements</code>, <code>compliance_learned_answers</code>, <code>compliance_audit</code></td></tr>
+  <tr><td><b>Knowledge</b></td><td><code>knowledge_imports</code> (8 FKs into it) &rarr; files, sources, requirements, mappings, mapping_reviews, responses, response_sources, models, equivalences, issues</td></tr>
+  <tr><td><b>IFC</b></td><td><code>ifc_device_types</code> &rarr; <code>ifc_symbols</code>, <code>ifc_block_aliases</code>, <code>project_ifc_drawings</code></td></tr>
+  <tr><td><b>Reference / index</b></td><td><code>design_rules</code>, <code>equipment_currents</code>, <code>brand_suppliers</code>, <code>part_datasheet_links</code>, <code>ep_archive_roots</code> &rarr; <code>ep_archive_folders</code>, <code>background_jobs</code></td></tr>
+</table>
+
+<div class="note avoid"><b>Changing the schema.</b> Edit <code>models.py</code> &rarr;
+<code>alembic revision --autogenerate -m "what changed"</code> &rarr; read the generated file (autogenerate misses things, and
+SQLite needs <code>batch_alter_table</code>, which <code>env.py</code> turns on) &rarr; restart. The test suite builds its
+database <i>through</i> the migrations, and <code>tests/test_migrations.py</code> fails when models and migrations disagree
+&mdash; a model change without a migration is caught there, not in the running app.</div>
+</div>
+
+<!-- ============ 13. MAP ============ -->
+<div class="page">
+<h2><span class="n">13</span>Component connection map</h2>
+<p class="lead">Who calls whom. The rule the codebase keeps: routers do HTTP, services do work, only services touch the
+filesystem and only <code>provider.py</code> touches a model.</p>
+
+<table>
+  <tr><th style="width:34mm">Layer</th><th style="width:52mm">Modules</th><th>Talks to</th></tr>
+  <tr><td><b>SPA pages</b></td><td>29 in <span class="mono">src/pages/</span>, plus <span class="mono">components/ifc/</span> and <span class="mono">components/drawings/</span></td><td><code>lib/api.ts</code> only. Domain helpers (<code>boq.ts</code>, <code>quantity.ts</code>, <code>ve.ts</code>) are pure functions, no I/O</td></tr>
+  <tr><td><b>Middleware</b></td><td><code>CORS</code>, <code>request_id</code>, <code>slide_session</code></td><td>Every request; nothing application-specific. <code>slide_session</code> reads <code>core/security</code></td></tr>
+  <tr><td><b>Dependencies</b></td><td><code>deps.get_current_user</code>, <code>deps.require_role</code>, <code>database.get_db</code></td><td><code>core/security</code>, <code>models.User</code>. Every protected route</td></tr>
+  <tr><td><b>Routers (25)</b></td><td><span class="mono">app/routers/</span></td><td>Services, schemas, <code>concurrency</code>, <code>activity</code>, <code>jobs</code>. Routers import each other's helpers freely &mdash; <code>_get_project_or_404</code> and <code>CREATOR_ROLES</code> come from <code>projects.py</code>, <code>JobOut</code> and <code>_refuse_duplicate</code> from <code>jobs.py</code></td></tr>
+  <tr><td><b>BOQ services</b></td><td><code>boq_candidates</code>, <code>boq_export</code>, <code>boq_provenance</code>, <code>boq_revisions</code>, <code>schedule_materials</code>, <code>schedule_export</code></td><td><code>boq_review.py</code>, <code>jobs.py</code> &rarr; <code>project_boq_items</code>, <code>boq_snapshots</code>, <code>boq_candidates</code></td></tr>
+  <tr><td><b>Calculation services</b></td><td><code>battery_*</code>, <code>amplifier_*</code>, <code>power_*</code>, <code>ve_calculation</code>, <code>ve_workbook_reader</code>, <code>calc_integrity</code></td><td><code>design.py</code>, <code>amplifier.py</code> &rarr; <code>design_rules</code>, <code>equipment_currents</code>, <code>project_designs</code>. Pure functions over inputs; the rule version used is stored with the result</td></tr>
+  <tr><td><b>Document services</b></td><td><code>document_intake</code>, <code>document_control</code>, <code>document_sync</code>, <code>drawing_log</code>, <code>required_drawings</code>, <code>transmittals</code>, <code>submittal_*</code>, <code>word_text</code></td><td><code>documents.py</code>, <code>drawings.py</code>, <code>submittal.py</code> &rarr; the archive (read), <code>UPLOADS_ROOT</code> (write), Tesseract, Word/COM</td></tr>
+  <tr><td><b>Library services</b></td><td><code>datasheet_library</code>, <code>datasheet_links</code>, <code>datasheet_currents</code>, <code>part_catalog</code>, <code>company_library</code>, <code>suppliers</code>, <code>spec_finder</code></td><td><code>materials.py</code>, <code>design.py</code> &rarr; <code>backend/library/</code>, the index under <code>.cache/</code>. A listing is trusted for <code>LIBRARY_RESCAN_SECONDS</code> (60) &mdash; looking up fifty parts used to re-walk the folder fifty times</td></tr>
+  <tr><td><b>Archive services</b></td><td><code>ep_directory</code>, <code>ep_resolver</code>, <code>project_directory</code>, <code>project_folders</code>, <code>project_deletion</code></td><td><code>archive.py</code>, <code>projects.py</code>, <code>data_location.py</code> &rarr; the synced archive (read-only) and the index tables</td></tr>
+  <tr><td><b>AI</b></td><td><span class="mono">app/ai/</span> &mdash; <code>guard</code>, <code>budget</code>, <code>evaluation</code>, <code>cache</code>, <code>provider</code>, <code>proposals</code>, <code>sheet_reader</code>, <code>verification</code>, <code>submittal_reader</code>, <code>metrics</code></td><td><code>extraction.py</code>, <code>verification.py</code>, <code>compliance/assist.py</code>. <b>Only <code>provider.py</code> imports a vendor SDK or spawns the CLI</b></td></tr>
+  <tr><td><b>IFC</b></td><td><span class="mono">app/ifc/</span> &mdash; <code>dxf/convert</code>, <code>dxf/extract</code>, <code>dxf/matcher</code>, <code>resolve</code>, <code>library_file</code>, <code>comparison</code>, <code>export</code></td><td><code>ifc_boq.py</code> &rarr; AutoCAD core console / ODA converter, <code>ezdxf</code>, the symbol tables</td></tr>
+  <tr><td><b>Compliance / knowledge</b></td><td><span class="mono">app/compliance/</span>, <span class="mono">app/knowledge/</span></td><td><code>compliance.py</code>, <code>knowledge.py</code> &rarr; the knowledge tables, <code>Compliance_Response_Database.xlsx</code>, openpyxl / xlrd</td></tr>
+  <tr><td><b>Infrastructure</b></td><td><code>jobs</code>, <code>concurrency</code>, <code>activity</code>, <code>readiness</code></td><td>Used by almost every router. <code>concurrency</code> also registers ORM events, so it acts without being called</td></tr>
+</table>
+</div>
+
+<!-- ============ 14. FAILURES ============ -->
+<div class="page">
+<h2><span class="n">14</span>Failure paths</h2>
+<p class="lead">Which layer produces which status, and what the SPA does with it.</p>
+
+<table>
+  <tr><th style="width:16mm">Status</th><th style="width:44mm">Raised by</th><th>Meaning, and the client's response</th></tr>
+  <tr><td><b>400</b></td><td><code>concurrency.parse_if_match</code><br><span class="mono">concurrency.py:31</span></td><td>An <code>If-Match</code> that is not a version number.</td></tr>
+  <tr><td><b>401</b></td><td><code>get_current_user</code><br><span class="mono">deps.py:15, 20, 25</span></td><td>No cookie, an invalid or expired token, or a user who no longer exists or is disabled. The SPA drops to the login route.</td></tr>
+  <tr><td><b>403</b></td><td><code>get_current_user</code> (division gate) <span class="mono">deps.py:35</span>; <code>require_role</code> <span class="mono">deps.py:42</span>; <code>login</code> <span class="mono">auth.py:40</span></td><td>Authenticated but not entitled &mdash; wrong division, wrong role, or a disabled account at login. Routed to <code>AccessDeniedPage</code>.</td></tr>
+  <tr><td><b>404</b></td><td>Starlette router, or <code>_get_project_or_404</code> <span class="mono">projects.py:110</span></td><td>No such route, or no such row.</td></tr>
+  <tr><td><b>409</b></td><td><code>require_current</code> <span class="mono">concurrency.py:46</span></td><td><b><code>stale_write</code></b> &mdash; someone saved after this page loaded. Structured body with both versions; <code>ApiError.isStaleWrite</code> renders <code>StaleWriteNotice</code> rather than a generic error.</td></tr>
+  <tr><td><b>409</b></td><td><code>_refuse_duplicate</code> <span class="mono">jobs.py:57</span></td><td><b><code>job_running</code></b> &mdash; the same work is already under way; the body names the job id so the page can attach to it.</td></tr>
+  <tr><td><b>409</b></td><td><code>_project_folder</code> <span class="mono">design.py:89</span></td><td>The project has no archive folder recorded.</td></tr>
+  <tr><td><b>422</b></td><td>FastAPI validation, before the handler</td><td>A bad body, path or query value. <code>errorFrom</code> (<span class="mono">api.ts:40</span>) names the first field that failed rather than showing a raw error list.</td></tr>
+  <tr><td><b>422</b></td><td><code>ReadError</code> <span class="mono">ifc_boq.py:488</span></td><td>A drawing that could not be read, or no DWG converter on this PC &mdash; with the fix in the message.</td></tr>
+  <tr><td><b>423</b></td><td><code>login</code> <span class="mono">auth.py:35</span></td><td>Locked after <code>MAX_FAILED_LOGIN_ATTEMPTS</code>; the message says how many minutes remain.</td></tr>
+  <tr><td><b>503</b></td><td><code>_project_folder</code> <span class="mono">design.py:92</span></td><td>The archive folder is not reachable &mdash; OneDrive unmounted or still syncing. Distinct from 409 on purpose: one is a data problem, the other is an environment problem.</td></tr>
+  <tr><td><b>500</b></td><td>Anything unhandled</td><td>The <code>request_id</code> middleware still logs the line (its <code>finally</code> defaults the status to 500) and still returns <code>X-Request-ID</code>, so a user-reported failure can be found in the log.</td></tr>
+</table>
+
+<h3>What holds the whole thing together</h3>
+<div class="cols">
+  <div class="card"><h4>One place per concern</h4>Auth in <code>deps.py</code>. Versioning in <code>concurrency.py</code>. Long work in <code>services/jobs.py</code>. Model calls in <code>provider.py</code>. Config in <code>config.py</code>. Each is small enough to read in one sitting, and nothing routes around them.</div>
+  <div class="card"><h4>Fail visibly, not silently</h4>Migrations run at startup; interrupted jobs are failed on boot; a stale write is refused rather than merged; an AI answer is a proposal, not a write; a document that cannot be read says <i>"Not read: why"</i>.</div>
+  <div class="card"><h4>Read wide, write narrow</h4>The archive and the company library are read; only the platform's own database and <code>UPLOADS_ROOT</code> are written. That one-way boundary is why a sync conflict can never destroy project data.</div>
+</div>
+</div>
+
+</body>
+</html>

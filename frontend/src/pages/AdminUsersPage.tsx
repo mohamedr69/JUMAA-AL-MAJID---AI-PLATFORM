@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ApiError, api } from "../lib/api";
 import { ROLE_LABELS, type Role, type User } from "../lib/types";
 
-const ROLES: Role[] = ["admin", "design_manager", "design_engineer", "draftsman", "viewer"];
+const ROLES: Role[] = ["admin", "design_manager", "design_engineer", "draftsman", "viewer", "estimation_engineer", "fire_fighting_engineer", "elv_engineer"];
 
 export function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);

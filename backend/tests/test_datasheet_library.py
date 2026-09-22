@@ -182,6 +182,125 @@ def test_api_lists_the_whole_library(client, mixed_library, monkeypatch):
     assert served.status_code == 200 and served.content.startswith(b"%PDF")
 
 
+def test_a_stored_reference_names_the_sheet(client, mixed_library, monkeypatch, db_session):
+    """The listing shows the manufacturer's document number, and an
+    engineer's entry beats what was read off the pages. A number is kept
+    against the file, not the other way round: one Edwards document covers
+    a product family, so two files can hold the same number."""
+    import app.routers.design_rules as design_rules_router
+    from app.services import datasheet_documents
+
+    monkeypatch.setattr(design_rules_router, "_libraries", lambda: {"EDWARDS": mixed_library})
+    login(client, settings.default_admin_email, settings.default_admin_password)
+
+    rocket = "12- Battery_Rocket/ES 18-12.pdf"
+    cpu = "01- PANEL/01- 4-CPU.pdf"
+
+    # The Rocket sheet prints no number, so it has none until one is typed in.
+    before = {r["path"]: r["reference_no"] for r in client.get("/design-rules/datasheets/all").json()}
+    assert before[rocket] is None
+    assert before[cpu] == "E85014-0010"  # read from the page-1 header by the index
+
+    datasheet_documents.set_reference(db_session, library="EDWARDS", path=rocket, reference_no="E99999-0001")
+    # An engineer's entry stands over the header the index read.
+    datasheet_documents.set_reference(db_session, library="EDWARDS", path=cpu, reference_no="E85014-9999")
+
+    after = {r["path"]: r["reference_no"] for r in client.get("/design-rules/datasheets/all").json()}
+    assert after[rocket] == "E99999-0001"
+    assert after[cpu] == "E85014-9999"
+
+    # The same number may name more than one file, and neither loses it.
+    datasheet_documents.set_reference(db_session, library="EDWARDS", path=rocket, reference_no="E85014-9999")
+    both = {r["path"]: r["reference_no"] for r in client.get("/design-rules/datasheets/all").json()}
+    assert both[rocket] == both[cpu] == "E85014-9999"
+
+
+def test_the_library_is_grouped_by_system(client, mixed_library, monkeypatch):
+    """Each system counts only its own brands' sheets, and a brand whose
+    folder is nowhere is still listed -- a supplier the company uses whose
+    sheets are not filed yet is not the same as one it does not use. The
+    count is the sheets the listing would show, not every PDF in the
+    folder, so the card and the table beneath it agree."""
+    import app.routers.design_rules as design_rules_router
+
+    monkeypatch.setattr(design_rules_router, "_libraries", lambda: {"EDWARDS": mixed_library})
+    login(client, settings.default_admin_email, settings.default_admin_password)
+
+    systems = {s["label"]: s for s in client.get("/design-rules/datasheet-systems").json()}
+    assert set(systems) == {"Fire Alarm", "Monitored Self Contained", "Central Battery Systems", "Fire Rated Cables"}
+
+    fire_alarm = systems["Fire Alarm"]
+    assert fire_alarm["datasheets"] == len(mixed_library.listing())
+    assert [m["name"] for m in fire_alarm["manufacturers"]] == ["EDWARDS"]
+    assert fire_alarm["manufacturers"][0]["available"] is True
+
+    # Nothing is filed for the central battery system yet, and Menvier's
+    # sheets belong to the self-contained system rather than being counted
+    # twice here.
+    central = systems["Central Battery Systems"]
+    assert central["datasheets"] == 0
+    assert all(m["available"] is False for m in central["manufacturers"])
+    assert "MENVIER" not in [m["name"] for m in central["manufacturers"]]
+
+
+def test_the_listing_carries_a_timestamp_and_a_preview(client, mixed_library, monkeypatch):
+    """What the card shows beside a sheet: when the file last changed, and
+    its first page. Nothing records who added it -- the library is a synced
+    folder -- so the page says "updated", not "uploaded by"."""
+    import app.routers.design_rules as design_rules_router
+
+    monkeypatch.setattr(design_rules_router, "_libraries", lambda: {"EDWARDS": mixed_library})
+    login(client, settings.default_admin_email, settings.default_admin_password)
+
+    rows = client.get("/design-rules/datasheets/all").json()
+    assert all(r["modified"] > 0 for r in rows)
+
+    png = client.get("/design-rules/datasheets/thumbnail",
+                     params={"library": "EDWARDS", "path": rows[0]["path"]})
+    assert png.status_code == 200
+    assert png.headers["content-type"] == "image/png"
+    assert png.content[1:4] == b"PNG"
+
+    # The same guard as serving the file itself: nothing outside the library.
+    escape = client.get("/design-rules/datasheets/thumbnail",
+                        params={"library": "EDWARDS", "path": "../secret.pdf"})
+    assert escape.status_code == 404
+
+
+def test_the_search_index_offers_files_and_linked_parts(client, mixed_library, monkeypatch, db_session):
+    """The dropdown is built from both halves of the library.
+
+    A file is offered under its own name. A part number is offered only
+    because a link records it -- its sheet is named for something else --
+    and without that half the search would under-report what is there.
+    """
+    import app.routers.design_rules as design_rules_router
+    from app.models import PartDatasheetLink
+
+    monkeypatch.setattr(design_rules_router, "_libraries", lambda: {"EDWARDS": mixed_library})
+    db_session.add(PartDatasheetLink(manufacturer="EDWARDS", key="4LCDLE", part_no="4-LCDLE",
+                                     library="EDWARDS", path="01- PANEL/01- 4-CPU.pdf",
+                                     note="Local rail display", source="ordering_table"))
+    db_session.commit()
+    login(client, settings.default_admin_email, settings.default_admin_password)
+
+    rows = client.get("/design-rules/datasheets/index", params={"manufacturer": "EDWARDS"}).json()
+    documents = {r["label"] for r in rows if r["kind"] == "document"}
+    parts = {r["label"]: r for r in rows if r["kind"] == "part"}
+
+    # A sheet is offered under its document number, and only falls back to
+    # its file name when it prints none -- the Rocket battery sheet here.
+    assert documents == {"E85014-0010", "ES 18-12"}
+    assert parts["4-LCDLE"]["path"] == "01- PANEL/01- 4-CPU.pdf"
+    assert parts["4-LCDLE"]["description"] == "Local rail display"
+
+    # A brand none of the libraries answer to falls back to all of them --
+    # `libraries_for`, so an unrecognised BOQ brand searches everything
+    # rather than nothing. The page only ever sends a name it was given.
+    everything = client.get("/design-rules/datasheets/index", params={"manufacturer": "NOSUCHBRAND"}).json()
+    assert {r["label"] for r in everything if r["kind"] == "document"} == documents
+
+
 @requires_live_archive
 def test_live_edwards_library():
     libraries = get_libraries(settings.model_fields["archive_datasheet_libraries"].default, LIVE_ROOT)

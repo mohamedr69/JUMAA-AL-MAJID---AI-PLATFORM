@@ -24,6 +24,15 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
+    # These divisions currently have only their project area and self-service account.
+    # Enforce this on the server too, including design routes that allow any user.
+    path = request.url.path.rstrip("/")
+    area = {RoleEnum.estimation_engineer: "estimation", RoleEnum.fire_fighting_engineer: "fire-fighting", RoleEnum.elv_engineer: "elv"}.get(user.role)
+    if area and not (
+        path == "/auth/me" or path.startswith("/auth/me/")
+        or path == f"/{area}/projects" or path.startswith(f"/{area}/projects/")
+    ):
+        raise HTTPException(status_code=403, detail="This module is not available to your division")
     return user
 
 

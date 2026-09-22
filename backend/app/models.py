@@ -26,6 +26,9 @@ class RoleEnum(str, enum.Enum):
     admin = "admin"
     design_manager = "design_manager"
     design_engineer = "design_engineer"
+    estimation_engineer = "estimation_engineer"
+    fire_fighting_engineer = "fire_fighting_engineer"
+    elv_engineer = "elv_engineer"
     draftsman = "draftsman"
     viewer = "viewer"
 
@@ -48,6 +51,30 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(), default=utc_now, onupdate=utc_now, nullable=False
     )
+
+
+class EstimationProject(Base):
+    __tablename__ = "estimation_projects"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reference: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    client: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
+class DivisionProject(Base):
+    __tablename__ = "division_projects"
+    __table_args__ = (UniqueConstraint("division", "reference", name="uq_division_project_reference"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    division: Mapped[str] = mapped_column(String(30), nullable=False)
+    reference: Mapped[str] = mapped_column(String(100), nullable=False)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    client: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
 class ProjectStatus(str, enum.Enum):
@@ -610,6 +637,38 @@ class PartDatasheetLink(Base):
     source: Mapped[str] = mapped_column(String(16), nullable=False, default="engineer", server_default="engineer")
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
+class DatasheetDocument(Base):
+    """The manufacturer's document number for one sheet in the library --
+    Edwards "E85001-0495", printed in the footer of every page.
+
+    The library is a folder of PDFs read at runtime, so this is the one
+    place a fact about a file can be kept. Keyed by the file, not by the
+    number: a number is *not* unique to a file. One Edwards datasheet
+    covers a product family, and the library files the same document under
+    each product -- E85001-0279 is SIGA-270, SIGA-278 and SIGA-270P -- so
+    renaming the files to their number would collide and lose two of the
+    three.
+
+    `source` is "extracted" when the reader took it from the pages, and
+    "engineer" when someone typed it in. Extraction never overwrites what
+    an engineer entered: seventeen Edwards sheets print no number at all,
+    and a hand-entered one is the only record there is.
+    """
+
+    __tablename__ = "datasheet_documents"
+    __table_args__ = (UniqueConstraint("library", "path", name="uq_datasheet_document"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    library: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # Relative to the library folder, as the datasheet listing gives it.
+    path: Mapped[str] = mapped_column(String(500), nullable=False)
+    reference_no: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="engineer", server_default="engineer")
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class ProjectProposedMaterial(Base):

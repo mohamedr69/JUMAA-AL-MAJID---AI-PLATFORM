@@ -1,6 +1,7 @@
 import { Link, Outlet } from "react-router-dom";
 import { branding } from "../branding";
 import { useAuth } from "../context/AuthContext";
+import { DIVISIONS, divisionForRole } from "../lib/divisions";
 import { ROLE_LABELS } from "../lib/types";
 import { BrandMark } from "./BrandMark";
 
@@ -10,6 +11,7 @@ import { BrandMark } from "./BrandMark";
 // project.
 export function AppShell() {
   const { user, logout } = useAuth();
+  const division = divisionForRole(user?.role);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -17,6 +19,9 @@ export function AppShell() {
         <Link to="/" className="flex items-center gap-2">
           <BrandMark size={28} />
           <span className="text-sm font-bold text-navy-900">{branding.appName}</span>
+          <span className="hidden rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-600 sm:inline">
+            {division ? `${DIVISIONS[division].label} Team` : "Design Team"}
+          </span>
         </Link>
 
         <div className="flex items-center gap-4 text-sm">
