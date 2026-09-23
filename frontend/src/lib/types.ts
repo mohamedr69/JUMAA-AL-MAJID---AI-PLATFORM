@@ -1690,6 +1690,14 @@ export interface DatasheetFile {
   unreadable: boolean;
 }
 
+export interface DatasheetProposal {
+  library: string;
+  path: string;
+  filename: string;
+  part_no: string;
+  pages: number[];
+}
+
 
 /** A system on the Proposed Materials tab, with the brand its materials are for. */
 export interface ProposedSystem {

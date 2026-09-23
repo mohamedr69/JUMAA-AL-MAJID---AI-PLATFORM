@@ -54,6 +54,7 @@ async def lifespan(app: FastAPI):
         from app.services import datasheet_links
 
         datasheet_links.seed(db)
+        datasheet_links.remove_unconfirmed_library_links(db)
         from app.services import suppliers
 
         suppliers.seed(db)

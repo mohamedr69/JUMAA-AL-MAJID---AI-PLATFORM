@@ -212,9 +212,9 @@ def _index_file(path: Path, stat: os.stat_result | None = None) -> _Indexed:
         is_datasheet = bool(document_no) or "DATASHEET" in first.upper().replace(" ", "")
         texts: list[str] = []
         rows: list[tuple[int, str]] = []
-        if doc.page_count <= MAX_TEXT_INDEX_PAGES:
-            for number, page in enumerate(doc, start=1):
-                texts.append(page.get_text().upper())
+        for number, page in enumerate(doc, start=1):
+            texts.append(page.get_text().upper())
+            if doc.page_count <= MAX_TEXT_INDEX_PAGES:
                 rows += [(number, row) for row in _rows(page) if _CURRENT_RE.search(row)]
         return _Indexed(
             mtime, doc.page_count, is_datasheet, document_no.group(1) if document_no else None, texts, rows,
@@ -228,7 +228,7 @@ def _index_file(path: Path, stat: os.stat_result | None = None) -> _Indexed:
 # Bumped when what is read off a datasheet changes: a cache written by an
 # older reader is re-read, not trusted (4: battery sheets whose rating line
 # does not follow the model line).
-_CACHE_VERSION = 4
+_CACHE_VERSION = 5
 
 
 class DatasheetLibrary:
@@ -383,6 +383,33 @@ class DatasheetLibrary:
             ))
         files.sort(key=lambda f: (f.folder.lower(), f.filename.lower()))
         return files
+
+    def candidate_parts(self, relative: str) -> list[dict]:
+        """Return possible part numbers found inside one PDF, with pages.
+
+        These are deliberately proposals. Product names, document numbers and
+        accessories can all appear in the same datasheet, so no row is saved
+        until an engineer confirms it.
+        """
+        from app.services.part_catalog import _NOT_A_PART_RE, _PART_RE
+
+        spaced_model = re.compile(r"\b[A-Z]{1,8}\s+\d+(?:\.\d+)?\s*[-/]\s*\d+[A-Z]{0,3}\b")
+
+        file = self.resolve(relative)
+        if file is None:
+            return []
+        entry = self._refresh().get(file)
+        if entry is None or entry.error:
+            return []
+        pages: dict[str, list[int]] = {}
+        for page_number, text in enumerate(entry.page_texts, start=1):
+            candidates = _PART_RE.findall(text.upper())
+            candidates += [re.sub(r"\s+", "", candidate) for candidate in spaced_model.findall(text.upper())]
+            for candidate in candidates:
+                if _NOT_A_PART_RE.search(candidate) or len(candidate) < 3:
+                    continue
+                pages.setdefault(candidate, []).append(page_number)
+        return [{"part_no": part, "pages": found} for part, found in sorted(pages.items())]
 
     def find(self, part_no: str) -> list[DatasheetMatch]:
         key = part_key(part_no)
