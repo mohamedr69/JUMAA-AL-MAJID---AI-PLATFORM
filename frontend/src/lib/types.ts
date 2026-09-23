@@ -1,4 +1,25 @@
-export type Role = "admin" | "design_manager" | "design_engineer" | "estimation_engineer" | "fire_fighting_engineer" | "elv_engineer" | "draftsman" | "viewer";
+/** An engineer's role is their discipline and what they do in it: a fire
+ * alarm designer and a fire alarm estimator are not the same job, and
+ * neither is a fire alarm designer and an ELV one. Mirrors RoleEnum. */
+export type Role =
+  | "admin"
+  | "design_manager"
+  | "fire_alarm_design_engineer"
+  | "elv_design_engineer"
+  | "fire_fighting_design_engineer"
+  | "fire_alarm_estimation_engineer"
+  | "elv_estimation_engineer"
+  | "fire_fighting_estimation_engineer"
+  | "draftsman"
+  | "viewer";
+
+/** The three design roles, whatever their discipline. Mirrors
+ * DESIGN_ROLES in the backend's models. */
+export const DESIGN_ROLES: Role[] = [
+  "fire_alarm_design_engineer",
+  "elv_design_engineer",
+  "fire_fighting_design_engineer",
+];
 
 export interface User {
   id: number;
@@ -12,15 +33,17 @@ export interface User {
 
 /** Roles that can change a project's information and BOQ. Mirrors
  * CREATOR_ROLES in the backend's projects router. */
-export const PROJECT_EDITOR_ROLES: Role[] = ["admin", "design_manager", "design_engineer"];
+export const PROJECT_EDITOR_ROLES: Role[] = ["admin", "design_manager", ...DESIGN_ROLES];
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Admin",
   design_manager: "Design Manager",
-  design_engineer: "Design Engineer",
-  estimation_engineer: "Estimation Engineer",
-  fire_fighting_engineer: "Fire Fighting Engineer",
-  elv_engineer: "ELV Engineer",
+  fire_alarm_design_engineer: "Fire Alarm Design Engineer",
+  elv_design_engineer: "ELV Design Engineer",
+  fire_fighting_design_engineer: "Fire Fighting Design Engineer",
+  fire_alarm_estimation_engineer: "Fire Alarm Estimation Engineer",
+  elv_estimation_engineer: "ELV Estimation Engineer",
+  fire_fighting_estimation_engineer: "Fire Fighting Estimation Engineer",
   draftsman: "Draftsman",
   viewer: "Viewer",
 };
@@ -540,6 +563,10 @@ export interface Project {
   voice_evacuation_integrated: boolean;
   /** The project's systems under their effective codes; every tab reads these. */
   system_codes: string[];
+  /** Whether the shop drawings are ours on this project, from the DRF's
+   * own drawing column. False locks the Drawings tab: they are not work
+   * we owe, and no drawing folders are made for them. */
+  drawings_in_scope: boolean;
 }
 
 /** The AI check of project details against the DRF: suggestions only. */
@@ -895,6 +922,10 @@ export interface Submittal {
   updated_at: string;
   materials: number;
   materials_with_datasheet: number;
+  /** Found in the project folder rather than made here. Read-only: the
+   * form on the drive is the record, so the page must not offer to
+   * revise something it does not hold. */
+  from_folder: boolean;
 }
 
 export interface SubmittalEvent {

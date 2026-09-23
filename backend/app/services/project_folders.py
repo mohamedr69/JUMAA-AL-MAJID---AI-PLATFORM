@@ -7,15 +7,24 @@ folder a file sits in, what it is and which system it belongs to:
 
     01- Scan\                              the DRF and the Design Sheets (only
                                             when no scan / commercial folder exists)
-    02- Material Submittals\FA\R0\         one folder per system, a folder per revision
-    02- Material Submittals\ELS\R0\
-    02- Material Submittals\Approved\FA\   the stamped copies the consultant returns
-    02- Material Submittals\Approved\ELS\
+    02- Material Submittals\FA\R0\Submitted\  what we sent
+    02- Material Submittals\FA\R0\Received\   what came back, stamped
     03- Drawings\IFC\Electrical\{ACS, FA, Light, Power}\   the BOQ as per IFC files its FA drawings in FA
     03- Drawings\IFC\Mechanical\{FF, SM}\
     03- Drawings\IFC\RCP\                 03- Drawings\IFC\Builder Work\
     03- Drawings\SD\{FA, ELS}\             the shop drawings we submit
     03- Drawings\SD\Approved\
+
+Only the systems the project actually has: a fire-alarm-only job grows
+no ELS folder, because an empty one reads as a submittal we owe and
+have not sent. The drawing folders are made only when the shop drawings
+are ours (`system_rules.drawings_in_scope`, read off the DRF's own
+drawing column).
+
+A project already filed under the older shape -- the submittals loose
+under the system folder, the returned ones under "Approved" -- keeps it:
+moving an issued submittal would break the link to the transmittal that
+sent it. Both shapes are read; only new folders are made the new way.
 
 Folders are only ever added: nothing that exists is moved or renamed, and a
 project whose folder is not reachable on this PC is left as it is. Paths
@@ -42,17 +51,43 @@ APPROVED = "Approved"
 
 # The platform's system code -> the folder name the archive uses for it.
 SYSTEM_FOLDERS: dict[str, str] = {"FAS": "FA", "ELS": "ELS", "FRC": "FRC"}
-# The folders a full-package project has as well: the fire-rated cables' submittals.
-FULL_PACKAGE_STRUCTURE: tuple[str, ...] = (
-    f"{MATERIAL_SUBMITTALS}/FRC/R0",
-    f"{MATERIAL_SUBMITTALS}/{APPROVED}/FRC",
-)
 
-STRUCTURE: tuple[str, ...] = (
-    f"{MATERIAL_SUBMITTALS}/FA/R0",
-    f"{MATERIAL_SUBMITTALS}/ELS/R0",
-    f"{MATERIAL_SUBMITTALS}/{APPROVED}/FA",
-    f"{MATERIAL_SUBMITTALS}/{APPROVED}/ELS",
+# What we send the consultant, and what comes back from them. The archive
+# used to keep the outgoing submittals loose under the system's own folder
+# and the returned ones under "Approved"; the two halves are now named for
+# what they are.
+#
+# **Only new folders are made this way.** A project already filed under
+# the old shape keeps it -- moving a submittal that has been issued would
+# break the link between the file and the transmittal that sent it -- and
+# the scanner reads both (`submittal_scanner.APPROVAL_FOLDER_RE`).
+SUBMITTED = "Submitted"
+RECEIVED = "Received"
+APPROVED = "Approved"  # the old name for RECEIVED, still read
+
+
+def submittal_structure(codes: list[str]) -> list[str]:
+    """The submittal folders for the systems this project actually has.
+
+    A project with only a fire alarm has no business growing an ELS
+    folder: an empty folder in the archive reads as a system we owe a
+    submittal for and have not sent.
+    """
+    folders: list[str] = []
+    for code in codes:
+        name = SYSTEM_FOLDERS.get(code)
+        if not name:
+            continue
+        # Per revision, because a resubmission is answered separately:
+        # R0 has what we sent and what came back on it, R1 its own pair.
+        folders.append(f"{MATERIAL_SUBMITTALS}/{name}/R0/{SUBMITTED}")
+        folders.append(f"{MATERIAL_SUBMITTALS}/{name}/R0/{RECEIVED}")
+    return folders
+
+
+# The drawings we are given and the ones we produce. Made only when shop
+# drawings are ours on this project (`system_rules.drawings_in_scope`).
+DRAWINGS_STRUCTURE: tuple[str, ...] = (
     f"{DRAWINGS}/IFC/Electrical/ACS",
     f"{DRAWINGS}/IFC/Electrical/FA",
     f"{DRAWINGS}/IFC/Electrical/Light",
@@ -65,10 +100,21 @@ STRUCTURE: tuple[str, ...] = (
     # From the contractor before shop drawings start (Drawings > Actions Required).
     f"{DRAWINGS}/Title Block",
     f"{DRAWINGS}/SD Reference No",
-    f"{DRAWINGS}/SD/FA",
-    f"{DRAWINGS}/SD/ELS",
     f"{DRAWINGS}/SD/{APPROVED}",
 )
+
+
+def drawings_structure(codes: list[str]) -> list[str]:
+    """The drawing folders. The IFC tree is fixed -- those come from the
+    contractor and cover every trade, ours among them -- but the shop
+    drawings we produce follow the project's own systems, the same way
+    the submittals do."""
+    folders = list(DRAWINGS_STRUCTURE)
+    for code in codes:
+        name = SYSTEM_FOLDERS.get(code)
+        if name:
+            folders.append(f"{DRAWINGS}/SD/{name}")
+    return folders
 
 
 def _is_dir(path: Path) -> bool:
@@ -95,9 +141,12 @@ def ensure(project) -> list[str]:
     root = Path(project.source_folder_path)
     if not _is_dir(root):
         return []
-    wanted = list(STRUCTURE)
-    if system_rules.is_full_package(project):
-        wanted += list(FULL_PACKAGE_STRUCTURE)
+    # The submittal folders follow the project's own systems, and the
+    # drawing folders are made only when the drawings are ours.
+    codes = system_rules.project_codes(project)
+    wanted = submittal_structure(codes)
+    if system_rules.drawings_in_scope(project):
+        wanted += drawings_structure(codes)
     if not _has_scan_folder(root):
         wanted.insert(0, SCAN)
     created: list[str] = []

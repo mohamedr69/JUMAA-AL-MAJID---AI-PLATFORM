@@ -68,6 +68,33 @@ REV = re.compile(r"\b(?:MAS\s+|MAR\s+|SDW\s+|DWG\s+|SD\s+|SAR\s+)?REV(?:ISION)?\
 FOLDER_REV = re.compile(r"[\\/]R\.?\s?0*(\d{1,2})(?=[\\/]|$)", re.I)
 
 
+# Where a drawing we were *given* lives: the consultant's enquiry pack,
+# the tender set, the issued-for-construction drawings the contractor
+# hands over. A shop drawing is one we produced and submitted, and a
+# drawing sheet found in one of these folders is neither -- it is the
+# drawing we are designing against.
+GIVEN_TO_US = ("enquiry", "enquiries", "tender", "ifc", "issued for construction")
+
+
+def is_shop_drawing(row) -> bool:
+    """Whether a drawing record is one of ours to log.
+
+    The reader recognises a drawing sheet by its title block, and the
+    consultant's drawings have one too -- so without this the Drawings
+    Log fills with the enquiry pack and reports nineteen shop drawings
+    on a project that has produced none.
+
+    Matched on whole folder names rather than anywhere in the path:
+    "IFC" is a folder, and a project filed under "Pacific" is not an
+    issued-for-construction set.
+    """
+    if getattr(row, "category", None) != "drawings":
+        return True
+    path = str(getattr(row, "path", "") or "").replace("\\", "/")
+    folders = [part.strip().casefold() for part in path.split("/")[:-1]]
+    return not any(word in folder for folder in folders for word in GIVEN_TO_US)
+
+
 def folder_revision(path: str) -> str | None:
     found = FOLDER_REV.findall(path)
     return f"R{int(found[-1])}" if found else None

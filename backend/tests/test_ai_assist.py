@@ -158,7 +158,7 @@ def scripted_sheet_read(monkeypatch):
 def _project_with_sheet(db, tmp_path, rows, code="PAVA") -> tuple[Project, Path]:
     sheet = _ruled_sheet(tmp_path / f"EP-1 {code} Design.pdf", rows)
     SCRIPTED[str(sheet)] = list(rows)
-    user = db.query(User).first() or make_user(db, "e@x.com", RoleEnum.design_engineer)
+    user = db.query(User).first() or make_user(db, "e@x.com", RoleEnum.fire_alarm_design_engineer)
     project = Project(ep_number="40001", project_name="Test", created_by_id=user.id)
     project.design_sheets = [ProjectDesignSheet(system_code=code, document_path=str(sheet))]
     db.add(project)

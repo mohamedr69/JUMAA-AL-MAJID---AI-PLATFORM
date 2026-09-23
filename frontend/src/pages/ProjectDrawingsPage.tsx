@@ -230,6 +230,33 @@ const TABS = [
  *  replies in the project folder (Sync documents). */
 export function ProjectDrawingsPage() {
   const { project } = useProject();
+  // Reachable by its address even while the tab is locked, so it says the
+  // same thing here rather than loading a log of nothing.
+  if (project.drawings_in_scope === false) return <NotOurScope />;
+  return <DrawingsWorkspace />;
+}
+
+/** The DRF's Systems table says no drawing is required on any of this
+ * project's systems: we supply and commission it, someone else draws it.
+ * Said plainly, because an empty Drawings Log reads as work not started
+ * rather than work that is not ours. */
+function NotOurScope() {
+  return (
+    <div className="mx-auto max-w-xl rounded-xl border border-gray-200 bg-white p-6 text-center">
+      <h1 className="text-lg font-bold text-navy-900">Drawings are not in our scope</h1>
+      <p className="mt-2 text-sm text-gray-600">
+        The DRF marks no drawing against any system on this project, so the shop drawings are not ours to produce and
+        no drawing folders are made for it.
+      </p>
+      <p className="mt-3 text-xs text-gray-400">
+        If that is wrong, tick the drawing column for the system on Project Info and this tab opens.
+      </p>
+    </div>
+  );
+}
+
+function DrawingsWorkspace() {
+  const { project } = useProject();
   const { user } = useAuth();
   const canEdit = user !== null && PROJECT_EDITOR_ROLES.includes(user.role);
   const [log, setLog] = useState<DrawingsLog | null>(null);

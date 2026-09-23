@@ -102,7 +102,7 @@ def test_the_pipeline_records_the_flags_on_the_verdict(db_session):
 def test_compliance_remarks_with_links_are_dropped(db_session):
     from app.compliance import assist
 
-    user = db_session.query(User).first() or make_user(db_session, "c@x.com", RoleEnum.design_engineer)
+    user = db_session.query(User).first() or make_user(db_session, "c@x.com", RoleEnum.fire_alarm_design_engineer)
     project = Project(ep_number="40091", project_name="Guard", created_by_id=user.id)
     db_session.add(project)
     db_session.commit()
@@ -138,7 +138,7 @@ def _issue_with_proposals(db, project, proposals: list[tuple[str, str | None]], 
 
 
 def _project(db, ep="40092"):
-    user = db.query(User).first() or make_user(db, "m@x.com", RoleEnum.design_engineer)
+    user = db.query(User).first() or make_user(db, "m@x.com", RoleEnum.fire_alarm_design_engineer)
     project = Project(ep_number=ep, project_name="Metrics", created_by_id=user.id)
     db.add(project)
     db.commit()

@@ -23,14 +23,61 @@ from app.database import Base
 
 
 class RoleEnum(str, enum.Enum):
+    """Who someone is on the platform.
+
+    An engineer's role is their discipline and what they do in it -- a
+    fire alarm designer and a fire alarm estimator are not the same job,
+    and neither is a fire alarm designer and an ELV one. Kept as one flat
+    value rather than two columns because every permission in the
+    platform is asked as "is this user one of these roles", and the
+    helpers below are what keep that from becoming six names in every
+    list (`DESIGN_ROLES`, `ESTIMATION_ROLES`).
+    """
+
     admin = "admin"
     design_manager = "design_manager"
-    design_engineer = "design_engineer"
-    estimation_engineer = "estimation_engineer"
-    fire_fighting_engineer = "fire_fighting_engineer"
-    elv_engineer = "elv_engineer"
+
+    fire_alarm_design_engineer = "fire_alarm_design_engineer"
+    elv_design_engineer = "elv_design_engineer"
+    fire_fighting_design_engineer = "fire_fighting_design_engineer"
+
+    fire_alarm_estimation_engineer = "fire_alarm_estimation_engineer"
+    elv_estimation_engineer = "elv_estimation_engineer"
+    fire_fighting_estimation_engineer = "fire_fighting_estimation_engineer"
+
     draftsman = "draftsman"
     viewer = "viewer"
+
+
+# The three disciplines, and what each is called where a project area is
+# named (`app.deps`, and the frontend's DIVISIONS).
+FIRE_ALARM, ELV, FIRE_FIGHTING = "fire_alarm", "elv", "fire_fighting"
+DISCIPLINE_AREAS = {FIRE_ALARM: "estimation", ELV: "elv", FIRE_FIGHTING: "fire-fighting"}
+
+DESIGN_ROLES = (
+    RoleEnum.fire_alarm_design_engineer,
+    RoleEnum.elv_design_engineer,
+    RoleEnum.fire_fighting_design_engineer,
+)
+ESTIMATION_ROLES = (
+    RoleEnum.fire_alarm_estimation_engineer,
+    RoleEnum.elv_estimation_engineer,
+    RoleEnum.fire_fighting_estimation_engineer,
+)
+_DISCIPLINE_OF = {
+    RoleEnum.fire_alarm_design_engineer: FIRE_ALARM,
+    RoleEnum.fire_alarm_estimation_engineer: FIRE_ALARM,
+    RoleEnum.elv_design_engineer: ELV,
+    RoleEnum.elv_estimation_engineer: ELV,
+    RoleEnum.fire_fighting_design_engineer: FIRE_FIGHTING,
+    RoleEnum.fire_fighting_estimation_engineer: FIRE_FIGHTING,
+}
+
+
+def discipline_of(role: "RoleEnum") -> str | None:
+    """Which of the three systems this role designs or estimates, or None
+    for a role that is not tied to one (an admin, a manager, a viewer)."""
+    return _DISCIPLINE_OF.get(role)
 
 
 class User(Base):
@@ -40,7 +87,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[RoleEnum] = mapped_column(Enum(RoleEnum), nullable=False, default=RoleEnum.viewer)
+    role: Mapped[RoleEnum] = mapped_column(Enum(RoleEnum, length=40), nullable=False, default=RoleEnum.viewer)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
@@ -209,6 +256,12 @@ class Project(Base):
         from app.services import system_rules
 
         return system_rules.project_codes(self)
+
+    @property
+    def drawings_in_scope(self) -> bool:
+        from app.services import system_rules
+
+        return system_rules.drawings_in_scope(self)
 
 
 class ProjectDesign(Base):

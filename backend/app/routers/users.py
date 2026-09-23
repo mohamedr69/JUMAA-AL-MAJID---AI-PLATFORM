@@ -1,6 +1,7 @@
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
@@ -91,6 +92,81 @@ def update_user(
         activity.record(db, current_user, "user.updated", f"Changed the account of {user.full_name}",
                         entity_type="user", entity_id=user.id, detail=changes)
     return user
+
+
+# What a user cannot be deleted away from: the tables that name them and
+# will not take a null. The record of who did what outlives the account --
+# that is what `activity_events` is for -- so an account with any of these
+# is deactivated, never removed.
+HISTORY: tuple[tuple[str, str, str], ...] = (
+    ("activity_events", "user_id", "recorded action"),
+    ("projects", "created_by_id", "project created"),
+    ("project_boq_revisions", "issued_by_id", "BOQ revision issued"),
+    ("estimation_projects", "created_by", "estimation project"),
+    ("division_projects", "created_by", "division project"),
+)
+
+
+def _history_of(db: Session, user_id: int) -> dict[str, int]:
+    """What this account has left behind, by kind and count."""
+    found: dict[str, int] = {}
+    for table, column, label in HISTORY:
+        count = db.execute(
+            text(f"SELECT COUNT(*) FROM {table} WHERE {column} = :id"), {"id": user_id}
+        ).scalar_one()
+        if count:
+            found[label] = int(count)
+    return found
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+def delete_user(
+    user_id: int,
+    current_user: User = Depends(require_role(RoleEnum.admin)),
+    db: Session = Depends(get_db),
+) -> Response:
+    """Remove an account that has never been used.
+
+    An account that has done anything is not removed: the platform keeps
+    who did what after the thing itself is gone (`ActivityEvent`), and
+    deleting the account would either erase that record or leave rows
+    pointing at nobody. Such an account is deactivated instead -- it can
+    no longer sign in, and its history still reads correctly. The refusal
+    says what is in the way so the choice is an informed one.
+    """
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "self_delete", "message": "You cannot delete your own account"},
+        )
+    # No check for the last admin here, unlike a role change: only an
+    # admin may delete, and deleting yourself is already refused, so the
+    # caller is always a second active admin and the target never the last.
+
+    history = _history_of(db, user.id)
+    if history:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "user_has_history",
+                "message": (
+                    f"{user.full_name} has "
+                    + ", ".join(f"{count} {label}{'s' if count != 1 else ''}" for label, count in history.items())
+                    + " on the platform. Deactivate the account instead, so that record still reads correctly."
+                ),
+                "history": history,
+            },
+        )
+
+    name, email = user.full_name, user.email
+    db.delete(user)
+    db.commit()
+    activity.record(db, current_user, "user.deleted", f"Deleted the unused account of {name} ({email})",
+                    entity_type="user", entity_id=user_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # --- a user's record ------------------------------------------------------------

@@ -53,7 +53,7 @@ from app.core.config import get_settings
 from app.core.timeutils import utc_now
 from app.extraction import pipeline
 from app.models import DocumentReading, Project, ProjectSubmittal, ProjectSubmittalEvent, SubmittalStatus, User
-from app.services import document_control, submittal_scanner, system_rules
+from app.services import document_control, submittal_replies, submittal_scanner, system_rules
 
 PROMPT_VERSION = "submittal-2026-09-17.1"
 KIND = "submittal_form"
@@ -428,10 +428,35 @@ def _system_code(reading: dict, relative: str) -> str | None:
     return from_folder if from_folder or named != "OTHER" else None
 
 
-def build_map(readings: list[dict], *, systems_on_project: list[str] | None = None) -> dict:
+def build_map(readings: list[dict], *, systems_on_project: list[str] | None = None,
+              ep_number: str | None = None,
+              replies: list[tuple[str, str, str]] | None = None) -> dict:
     """`readings`: each a form reading plus "relative", "modified" (iso),
-    "in_approval_folder". Returns the map: systems, rows, cells, actions."""
-    forms = [r for r in readings if r.get("is_submittal") and r.get("reference")]
+    "in_approval_folder". Returns the map: systems, rows, cells, actions.
+
+    A form the model read as a submittal but that carries no reference is
+    one we prepared and have not numbered yet. It is given the name the
+    platform gives its own packages, so it takes a place in the map
+    instead of leaving the project reporting no submittal at all over one
+    sitting in its folder.
+    """
+    forms = []
+    for reading in readings:
+        if not reading.get("is_submittal"):
+            continue
+        if not reading.get("reference"):
+            if not ep_number:
+                continue
+            system = _system_code(reading, reading.get("relative", ""))
+            reading = {**reading,
+                       "reference": f"EP-{ep_number}-MAS-{system}" if system else f"EP-{ep_number}-MAS"}
+        # The consultant's answer is often a scan filed beside the form
+        # rather than a reply printed on it. Without this the map shows
+        # UR over a revision that has been answered, and the register --
+        # which is built from the map -- says the same.
+        if replies:
+            submittal_replies.apply_to(reading, replies)
+        forms.append(reading)
     chosen: dict[tuple[str, str | None, int], dict] = {}
     duplicates: dict[tuple[str, str | None, int], int] = {}
     for reading in forms:
@@ -559,7 +584,14 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
         relative = str(path.relative_to(root))
         readings.append({**reading, "relative": relative, "modified": datetime.fromtimestamp(stat.st_mtime).isoformat(),
                          "in_approval_folder": bool(submittal_scanner.APPROVAL_FOLDER_RE.search(str(Path(relative).parent)))})
-    submittal_map = build_map(readings, systems_on_project=system_rules.project_codes(project))
+    from app.models import ProjectDocument
+    from app.services import document_sync
+
+    filed = submittal_replies.on_file(db.query(ProjectDocument).filter(
+        ProjectDocument.project_id == project.id,
+        ProjectDocument.state != document_sync.REMOVED).all())
+    submittal_map = build_map(readings, systems_on_project=system_rules.project_codes(project),
+                              ep_number=project.ep_number, replies=filed)
     submittal_map["warnings"] = warnings + run.notes[:10]
     submittal_map["calls"] = run.calls
     submittal_map["reused"] = run.reused
@@ -584,6 +616,14 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
 def sync_register(db: Session, project: Project, submittal_map: dict, user: User | None) -> dict:
     """The register as the map says: one row per reference at its latest
     revision, where that revision stands."""
+    from app.routers.submittal import _maker
+    from app.services import brands
+
+    def maker_of(row: dict) -> str | None:
+        """The brand the form names, in the one spelling a brand is
+        recorded in: a form writes it as the letter does ("M/s. EDWARDS")."""
+        return brands.normalise(_maker(row.get("manufacturer") or row.get("supplier")))
+
     by_reference = {((s.reference or "").upper(), s.system_code): s for s in project.submittals if s.reference}
     created = updated = unchanged = 0
     for system in submittal_map["systems"]:
@@ -597,7 +637,7 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
             if submittal is None:
                 submittal = ProjectSubmittal(
                     project_id=project.id, title=row["title"] or row["reference"], reference=row["reference"],
-                    system_code=row["system_code"], manufacturer=row["manufacturer"] or row["supplier"] or None,
+                    system_code=row["system_code"], manufacturer=maker_of(row),
                     revision=revision, status=status, reply_code=letter, document_path=cell["file"], note=cell.get("evidence") or None,
                 )
                 submittal.events.append(ProjectSubmittalEvent(kind="ai_check", detail=detail, by_id=user.id if user else None, at=utc_now()))
@@ -608,7 +648,7 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
             changes = submittal.status != status or submittal.reply_code != letter or submittal.revision != revision
             submittal.status, submittal.reply_code, submittal.revision = status, letter, revision
             submittal.document_path = cell["file"]
-            submittal.manufacturer = submittal.manufacturer or row["manufacturer"] or row["supplier"] or None
+            submittal.manufacturer = submittal.manufacturer or maker_of(row)
             submittal.system_code = submittal.system_code or row["system_code"]
             if changes:
                 submittal.note = cell.get("evidence") or submittal.note

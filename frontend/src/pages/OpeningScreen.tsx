@@ -4,7 +4,7 @@ import { branding } from "../branding";
 import { BrandMark } from "../components/BrandMark";
 import { CitySkylineBackdrop } from "../components/CitySkylineBackdrop";
 import { useAuth } from "../context/AuthContext";
-import { ROLE_LABELS } from "../lib/types";
+import { DESIGN_ROLES, ROLE_LABELS } from "../lib/types";
 import { divisionForRole } from "../lib/divisions";
 import { EstimationDashboard } from "./EstimationPages";
 
@@ -23,7 +23,7 @@ import { EstimationDashboard } from "./EstimationPages";
  * carry instead.
  */
 
-const CREATOR_ROLES = ["admin", "design_manager", "design_engineer"];
+const CREATOR_ROLES = ["admin", "design_manager", ...DESIGN_ROLES];
 
 function Soon() {
   return (

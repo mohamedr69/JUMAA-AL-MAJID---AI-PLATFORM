@@ -62,7 +62,15 @@ SYSTEM_KEYWORDS = [
 FOLDER_SYSTEMS = [("FRC", r"\bFRC\b"),
                   ("ELS", r"\bEML\b|\bELS\b|\bCBS\b|\bCBU\b|\bELM\b|\bEL\b|emergency|central\s*batter"),
                   ("FAS", r"\bFA\b|\bFAS\b|fire\s*alarm")]
-APPROVAL_FOLDER_RE = re.compile(r"approval|approved", re.IGNORECASE)
+# Where a returned submittal is filed. "Received" is what the archive
+# calls it now; "Approved" is what it was called before, and the
+# projects filed that way are still read.
+APPROVAL_FOLDER_RE = re.compile(
+    # "recieved" is how the folder is spelled in the archive on at
+    # least one project; matched as found rather than as it should be.
+    r"approval|approved|received|recieved|returned",
+    re.IGNORECASE,
+)
 
 
 @dataclass

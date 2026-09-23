@@ -9,7 +9,7 @@ from app.database import get_db
 from app.deps import require_role
 from app.models import EstimationProject, RoleEnum, User
 
-access = require_role(RoleEnum.admin, RoleEnum.estimation_engineer)
+access = require_role(RoleEnum.admin, RoleEnum.fire_alarm_estimation_engineer)
 router = APIRouter(prefix="/estimation/projects", tags=["estimation"], dependencies=[Depends(access)])
 
 

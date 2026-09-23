@@ -82,15 +82,21 @@ export function ProjectLogsPage() {
   const integrated = project.voice_evacuation_integrated;
   const group = (value: string | null): string => systemGroup(value, integrated);
   const fullPackage = /full[ _-]*package/i.test(project.scope_of_work ?? "");
+  // The project's systems under their effective codes, not the DRF's row
+  // names: an Edwards panel's voice evacuation, fire telephone and smoke
+  // management are the fire alarm, and listing the rows gave a tab each.
   const systems = [ALL, ...Array.from(new Set([
-    ...project.systems.map((entry) => entry.name),
+    ...project.system_codes,
     ...(logs?.systems ?? []), ...(submittals?.systems ?? []),
     ...(fullPackage ? ["FRC"] : []),
   ].map(group).filter(Boolean)))];
   const selectedSystem = systems.includes(system) ? system : ALL;
   const matches = (code: string | null) => selectedSystem === ALL || group(code) === selectedSystem;
   // Fire-rated cable has no drawings of its own, but it does have a sample board.
-  const activeChild = selectedSystem === "FRC" && child === "drawings" ? "submittals" : child;
+  // Fire-rated cable has no drawings of its own, and neither has a
+  // project we do not draw: the tab is gone, so it cannot stay selected.
+  const noDrawings = selectedSystem === "FRC" || project.drawings_in_scope === false;
+  const activeChild = noDrawings && child === "drawings" ? "submittals" : child;
   const drawings = (logs?.drawings ?? []).filter((drawing) => matches(drawing.system_code));
   const directoryReferences = new Set((logs?.material_submittals ?? []).map((item) => item.reference?.replace(/-R\d+$/i, "").toUpperCase()));
   const items = (submittals?.items ?? []).filter((item) => matches(item.system_code) && !directoryReferences.has(item.reference?.replace(/-R\d+$/i, "").toUpperCase()));
@@ -192,7 +198,7 @@ export function ProjectLogsPage() {
       <div className="mt-7 flex flex-wrap gap-1">{systems.map((value) => <button key={value} onClick={() => { setSystem(value); setStatusFilter(""); if (value === "FRC") setChild("submittals"); }} className={`rounded-t-lg border border-gray-200 px-7 py-3 font-semibold ${selectedSystem === value ? "bg-brand-600 text-white" : "bg-gray-50 text-gray-500"}`}>{value === ALL ? "ALL" : systemLabel(value)}</button>)}</div>
       <div className="rounded-b-xl rounded-tr-xl border border-gray-200 bg-white p-4">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex gap-4">{((selectedSystem === "FRC" ? ["submittals", "samples"] : ["submittals", "drawings", "samples"]) as ChildTab[]).map((value) => <button key={value} onClick={() => { setChild(value); setStatusFilter(""); }} className={`border-b-2 px-2 py-3 text-sm font-semibold ${activeChild === value ? "border-brand-600 text-brand-600" : "border-transparent text-gray-500"}`}>{value === "submittals" ? "Material Submittals" : value === "drawings" ? "Drawings" : "Samples"}</button>)}</div>
+          <div className="flex gap-4">{((selectedSystem === "FRC" || project.drawings_in_scope === false ? ["submittals", "samples"] : ["submittals", "drawings", "samples"]) as ChildTab[]).map((value) => <button key={value} onClick={() => { setChild(value); setStatusFilter(""); }} className={`border-b-2 px-2 py-3 text-sm font-semibold ${activeChild === value ? "border-brand-600 text-brand-600" : "border-transparent text-gray-500"}`}>{value === "submittals" ? "Material Submittals" : value === "drawings" ? "Drawings" : "Samples"}</button>)}</div>
           <div className="flex flex-wrap items-center gap-3"><input aria-label="Search documents" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search documents..." className="input w-60" /><label className="flex items-center gap-2 text-sm">Status<select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">All statuses</option>{[...new Set(documents.map((doc) => doc.revisions[0].status))].sort().map((value) => <option key={value}>{value}</option>)}</select></label></div>
         </div>
         {activeChild === "samples" && <SampleBoardChecks checks={boardChecks} projectId={project.id} synced={Boolean(logs?.synced_at)} />}

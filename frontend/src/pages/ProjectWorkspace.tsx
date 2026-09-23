@@ -24,7 +24,9 @@ const SECTIONS = [
   { to: "calculations", label: "Calculations", end: false },
   { to: "compliance", label: "Compliance Statement", end: false },
   { to: "submittal", label: "Material Submittals", end: false },
-  { to: "drawings", label: "Drawings", end: false },
+  // Locked when the DRF says the shop drawings are not ours: the tab is
+  // shown and says so, rather than being hidden or opening an empty page.
+  { to: "drawings", label: "Drawings", end: false, needsDrawings: true },
   { to: "logs", label: "Logs", end: false },
   { to: "om-manual", label: "O&M Manual", end: false, soon: true },
   { to: "reports", label: "Reports", end: false, soon: true },
@@ -32,12 +34,21 @@ const SECTIONS = [
   { to: "settings", label: "Settings", end: false, soon: true },
 ];
 
+type Section = (typeof SECTIONS)[number];
+
 export function ProjectWorkspace() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  /** A section that is not work we owe on this project, and so is not
+   * part of this job's map at all. Drawings on a project we do not draw
+   * is not an empty tab -- there is nothing there to have. */
+  const outOfScope = (section: Section) =>
+    "needsDrawings" in section && section.needsDrawings === true && project?.drawings_in_scope === false;
+  const sections = SECTIONS.filter((section) => !outOfScope(section));
 
   useEffect(() => {
     let cancelled = false;
@@ -93,7 +104,7 @@ export function ProjectWorkspace() {
             value={currentSection(location.pathname, project.id)}
             onChange={(e) => navigate(e.target.value === "." ? `/projects/${project.id}` : `/projects/${project.id}/${e.target.value}`)}
           >
-            {SECTIONS.map((section) => (
+            {sections.map((section) => (
               <option key={section.label} value={section.to}>
                 {section.label}
                 {section.soon ? " (not available yet)" : ""}
@@ -103,7 +114,7 @@ export function ProjectWorkspace() {
         </label>
 
         <nav aria-label="Project sections" className="mt-3 hidden gap-1 lg:flex lg:flex-col">
-          {SECTIONS.map((section) => (
+          {sections.map((section) => (
             <NavLink
               key={section.label}
               to={section.to}

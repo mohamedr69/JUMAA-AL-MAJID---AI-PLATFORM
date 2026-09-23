@@ -15,7 +15,7 @@ def _actions(client, path="/auth/me/activity"):
 
 
 def _engineer_with_project(client, db_session):
-    make_user(db_session, "eng@ep-platform.com", RoleEnum.design_engineer)
+    make_user(db_session, "eng@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
     assert login(client, "eng@ep-platform.com").status_code == 200
     project = client.post("/projects", json=_payload_without_documents()).json()
     return project["id"]
@@ -95,7 +95,7 @@ def test_deleted_project_stays_in_the_record_of_who_worked_on_it(client, db_sess
 
 
 def test_only_an_admin_reads_another_users_record(client, db_session):
-    engineer = make_user(db_session, "eng@ep-platform.com", RoleEnum.design_engineer)
+    engineer = make_user(db_session, "eng@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "eng@ep-platform.com")
     assert client.get(f"/users/{engineer.id}/account").status_code == 403
 
@@ -131,13 +131,13 @@ def test_record_exports_as_a_workbook(client, db_session):
 
 
 def test_admin_changes_to_an_account_are_recorded(client, db_session):
-    engineer = make_user(db_session, "eng@ep-platform.com", RoleEnum.design_engineer)
+    engineer = make_user(db_session, "eng@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
     _login_admin(client)
     assert client.patch(f"/users/{engineer.id}", json={"role": "design_manager"}).status_code == 200
 
     event = db_session.query(ActivityEvent).filter(ActivityEvent.action == "user.updated").one()
     assert event.entity_id == engineer.id
-    assert event.detail == {"role": "design_engineer -> design_manager"}
+    assert event.detail == {"role": "fire_alarm_design_engineer -> design_manager"}
 
 
 def test_logout_is_recorded(client, db_session):

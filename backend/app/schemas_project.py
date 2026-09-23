@@ -298,6 +298,10 @@ class ProjectOut(BaseModel):
     # systems the project has under their effective codes. Every tab reads these.
     voice_evacuation_integrated: bool = False
     system_codes: list[str] = []
+    # Whether the shop drawings are ours on this project, from the DRF's
+    # own drawing column. False locks the Drawings tab and leaves the
+    # drawing folders unmade: they are not work we owe.
+    drawings_in_scope: bool = True
     # After an edit: what the change was carried into elsewhere on the project.
     propagated: list[str] = []
 

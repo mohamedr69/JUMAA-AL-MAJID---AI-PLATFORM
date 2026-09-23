@@ -78,7 +78,7 @@ def recording():
 
 
 def _project(db, sheet_path, ep="70001"):
-    user = db.query(User).filter(User.role == RoleEnum.design_engineer).first() or make_user(db, "e@x.com", RoleEnum.design_engineer)
+    user = db.query(User).filter(User.role == RoleEnum.fire_alarm_design_engineer).first() or make_user(db, "e@x.com", RoleEnum.fire_alarm_design_engineer)
     project = Project(ep_number=ep, project_name="Test", created_by_id=user.id)
     project.design_sheets = [ProjectDesignSheet(system_code="FAS", document_path=str(sheet_path))]
     db.add(project)

@@ -102,7 +102,7 @@ def test_identity_findings_take_a_manager_to_accept_and_then_stop_blocking(clien
     [row] = client.post(f"/projects/{pid}/documents/intake").json()
     client.put(f"/projects/{pid}/boq", json=[{"system_code": "FAS", "description": "CPU", "quantity": "1"}])
 
-    make_user(db_session, "eng@ep-platform.com", RoleEnum.design_engineer)
+    make_user(db_session, "eng@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "eng@ep-platform.com")
     base = f"/projects/{pid}/documents/intake/{row['id']}/acknowledge"
     assert client.post(base, json={"code": "EP_MISMATCH_FILENAME", "reason": "Misnamed by the estimator"}).status_code == 403

@@ -32,7 +32,7 @@ def test_login_nonexistent_email_rejected(client):
 
 
 def test_repeated_wrong_passwords_lock_the_account(client, db_session):
-    user = make_user(db_session, "design.eng@ep-platform.com", RoleEnum.design_engineer)
+    user = make_user(db_session, "design.eng@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
 
     for _ in range(3):
         resp = login(client, user.email, "wrong-password")

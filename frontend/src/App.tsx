@@ -33,6 +33,7 @@ import { UnderMaintenance } from "./components/UnderMaintenance";
 // ProjectVoiceEvacuationPage is deliberately not imported: the Amplifier tab
 // is marked "soon". The page is kept in src/pages for when it is released.
 import { DIVISIONS, type Division } from "./lib/divisions";
+import { DESIGN_ROLES } from "./lib/types";
 import { ProjectWorkspace } from "./pages/ProjectWorkspace";
 import { EstimationCreatePage, EstimationOpenPage, EstimationProjectPage } from "./pages/EstimationPages";
 
@@ -68,7 +69,7 @@ export default function App() {
           <Route
             path="/projects/new"
             element={
-              <RoleRoute roles={["admin", "design_manager", "design_engineer"]}>
+              <RoleRoute roles={["admin", "design_manager", ...DESIGN_ROLES]}>
                 <CreateProjectPage />
               </RoleRoute>
             }
@@ -81,7 +82,7 @@ export default function App() {
           <Route
             path="/datasheets"
             element={
-              <RoleRoute roles={["admin", "design_manager", "design_engineer", "draftsman", "viewer"]}>
+              <RoleRoute roles={["admin", "design_manager", ...DESIGN_ROLES, "draftsman", "viewer"]}>
                 <DatasheetEnginePage />
               </RoleRoute>
             }
@@ -159,7 +160,7 @@ export default function App() {
           <Route
             path="/admin/equipment-currents"
             element={
-              <RoleRoute roles={["admin", "design_manager", "design_engineer"]}>
+              <RoleRoute roles={["admin", "design_manager", ...DESIGN_ROLES]}>
                 <AdminEquipmentCurrentsPage />
               </RoleRoute>
             }

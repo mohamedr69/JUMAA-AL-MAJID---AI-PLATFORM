@@ -26,7 +26,14 @@ from app.core.config import get_settings
 from app.core.timeutils import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_role
-from app.models import Project, ProjectSubmittal, ProjectSubmittalEvent, SubmittalStatus, User
+from app.models import (
+    Project,
+    ProjectDocument,
+    ProjectSubmittal,
+    ProjectSubmittalEvent,
+    SubmittalStatus,
+    User,
+)
 from app.routers.projects import CREATOR_ROLES, DELETER_ROLES, XLSX_MEDIA_TYPE, _get_project_or_404
 from app.schemas_design import (
     ChecklistReadOut,
@@ -65,6 +72,7 @@ from app.services.submittal_package import (
     read_checklist,
 )
 from app.ai import submittal_reader
+from app.services import submittal_replies
 from app.services import jobs
 
 settings = get_settings()
@@ -230,6 +238,86 @@ def _storage(project: Project) -> list[StorageFolderOut]:
     return found
 
 
+# What the consultant's reply code means for a submittal's standing.
+REPLY_STATUS = {"A": SubmittalStatus.approved, "B": SubmittalStatus.approved,
+                "C": SubmittalStatus.rejected, "D": SubmittalStatus.rejected}
+
+
+def _maker(name: str | None) -> str | None:
+    """The manufacturer a submittal form names. The form writes it as the
+    letter does -- "M/s. EDWARDS" -- and the brand is what follows."""
+    if not name:
+        return None
+    return re.sub(r"^\s*m\s*/\s*s\.?\s*", "", name, flags=re.IGNORECASE).strip() or None
+
+
+def _filed_in_the_folder(db: Session, project: Project, held: set[str]) -> list[SubmittalOut]:
+    """The submittals on file that the register does not hold.
+
+    A submittal prepared outside the platform and filed in the project
+    folder is a submittal: the register that leaves it out says "no
+    material submittal is filed for this project" over one sitting in
+    `02- Material Submittals`. Read from the document index rather than
+    written into the register -- the form on the drive is the record, and
+    copying it in would leave two that drift apart.
+
+    `held` are the references the register already has, so a submittal
+    the platform built and filed is not listed twice.
+    """
+    from app.services import brands, document_sync
+
+    rows = db.query(ProjectDocument).filter(
+        ProjectDocument.project_id == project.id,
+        ProjectDocument.state != document_sync.REMOVED,
+    ).all()
+    replies = submittal_replies.on_file(rows)
+
+    found: dict[str, SubmittalOut] = {}
+    for row in rows:
+        if row.role != document_sync.ROLE_SUBMITTAL:
+            continue
+        reading = (row.extracted or {}).get("form") or {}
+        if not reading.get("is_submittal"):
+            continue
+        records = (row.extracted or {}).get("records") or []
+        reference = (records[0].get("reference") if records else None) or reading.get("reference") or ""
+        if not reference or reference in held:
+            continue
+        relative = (row.relative_path or "").replace("\\", "/")
+        system = submittal_reader._system_code(reading, relative)
+        revision = f"R{reading['revision']}" if reading.get("revision") is not None else "R0"
+        key = f"{reference}|{revision}"
+        if key in found:
+            continue
+        # The reply is filed in the revision's own folder, beside what it
+        # answers: .../FA/R0/Submitted holds the form, .../FA/R0/Received
+        # the consultant's comments on it.
+        status, text = submittal_replies.for_revision(
+            submittal_replies.revision_folder(relative) or "", replies)
+        code = submittal_reader.CODES.get(status or "", "")
+        code = submittal_reader.REGISTER.get(code, (None, None))[1] or (
+            (reading.get("reply") or {}).get("code") or "").strip().upper() or None
+        found[key] = SubmittalOut(
+            # Negative, so it cannot be mistaken for a register row's id
+            # by anything that would try to open or revise it.
+            id=-len(found) - 1,
+            title=reading.get("title") or Path(relative).stem,
+            reference=reference,
+            reply_code=code,
+            system_code=system_rules.effective_code(system, project),
+            manufacturer=brands.normalise(_maker(reading.get("manufacturer"))),
+            revision=f"R{int(reading.get('revision') or 0):02d}",
+            status=REPLY_STATUS.get(code or "", SubmittalStatus.under_review).value,
+            document_path=relative,
+            note=text,
+            created_by=None,
+            created_at=row.first_seen_at or utc_now(),
+            updated_at=row.last_seen_at or row.first_seen_at or utc_now(),
+            from_folder=True,
+        )
+    return list(found.values())
+
+
 @router.get("/{project_id}/submittals", response_model=SubmittalRegisterOut)
 def list_submittals(
     project_id: int,
@@ -240,10 +328,34 @@ def list_submittals(
     materials = _materials(project)
     by_system = _by_system(materials)
     items = [_out(s, by_system) for s in project.submittals]
+    # And the ones on file that were never entered here.
+    items += _filed_in_the_folder(db, project, {s.reference for s in project.submittals if s.reference})
+
+    # A reply comes back as a scan of the consultant's comments with no
+    # reference on it, so the form reader never sees it and the register
+    # row stays "under review" over an answer sitting in the folder. What
+    # ties them is the revision folder the reply was filed in.
+    from app.services import document_sync as _sync
+
+    replies = submittal_replies.on_file(db.query(ProjectDocument).filter(
+        ProjectDocument.project_id == project.id,
+        ProjectDocument.state != _sync.REMOVED).all())
+    for index, item in enumerate(items):
+        if item.reply_code or not item.document_path:
+            continue
+        status, text = submittal_replies.for_revision(
+            submittal_replies.revision_folder(item.document_path) or "", replies)
+        code = submittal_reader.REGISTER.get(submittal_reader.CODES.get(status or "", ""), (None, None))[1]
+        if code:
+            items[index] = item.model_copy(update={
+                "reply_code": code,
+                "status": REPLY_STATUS.get(code, SubmittalStatus.under_review).value,
+                "note": item.note or text,
+            })
 
     counts = {status.value: 0 for status in SubmittalStatus}
-    for submittal in project.submittals:
-        counts[submittal.status.value] += 1
+    for item in items:
+        counts[item.status] = counts.get(item.status, 0) + 1
     counts["total"] = len(items)
 
     # Sorted over the rows, not the output models, so the row id is available
@@ -270,7 +382,7 @@ def list_submittals(
     ]
 
     # A system the BOQ has materials for but the register has no submittal for.
-    covered = {s.system_code for s in project.submittals}
+    covered = {item.system_code for item in items}
     brands = {s.name.upper(): s.brand for s in project.systems if s.brand}
     suggestions = [
         SubmittalSuggestionOut(

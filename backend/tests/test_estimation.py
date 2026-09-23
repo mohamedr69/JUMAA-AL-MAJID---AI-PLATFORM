@@ -7,13 +7,13 @@ def test_admin_creates_estimation_account_and_engineer_uses_projects(client, db_
     login(client, "admin-est@example.com")
     response = client.post("/users", json={
         "email": "estimator@example.com", "full_name": "Estimation Engineer",
-        "password": "Estimate123!", "role": "estimation_engineer",
+        "password": "Estimate123!", "role": "fire_alarm_estimation_engineer",
     })
     assert response.status_code == 201
     assert "hashed_password" not in response.json()
     client.post("/auth/logout")
     assert login(client, "estimator@example.com", "wrong").status_code == 401
-    assert login(client, "estimator@example.com", "Estimate123!").json()["role"] == "estimation_engineer"
+    assert login(client, "estimator@example.com", "Estimate123!").json()["role"] == "fire_alarm_estimation_engineer"
     assert client.get("/auth/me").status_code == 200
     assert client.get("/estimation/projects").json() == []
     created = client.post("/estimation/projects", json={"reference": " est-001 ", "title": "Office", "client": "Client"})
@@ -32,7 +32,7 @@ def test_admin_creates_estimation_account_and_engineer_uses_projects(client, db_
 
 def test_estimation_area_requires_correct_team(client, db_session):
     assert client.get("/estimation/projects").status_code == 401
-    make_user(db_session, "design-est@example.com", RoleEnum.design_engineer)
+    make_user(db_session, "design-est@example.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "design-est@example.com")
     assert client.get("/projects").status_code == 200
     assert client.get("/estimation/projects").status_code == 403

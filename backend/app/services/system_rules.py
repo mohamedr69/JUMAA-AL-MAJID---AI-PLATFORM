@@ -30,6 +30,13 @@ from app.knowledge.policy import canonical_manufacturer
 FIRE_ALARM = "Fire Alarm"
 VOICE_EVACUATION = "Voice Evacuation"
 FIRE_TELEPHONE = "Fire Telephone"
+# An Edwards fire alarm runs the smoke management from the same panel, so
+# the DRF's "Smoke Management" row is the fire alarm's: one design sheet,
+# one BOQ, one submittal. Told apart by the brand -- a smoke management
+# system from another manufacturer is its own equipment and is not folded
+# in. (It is not a system of its own here yet either: no project has had
+# one. It would need its own code in CODE_ORDER.)
+SMOKE_MANAGEMENT = "Smoke Management"
 FAS_FAMILY_ROWS = (FIRE_ALARM, VOICE_EVACUATION, FIRE_TELEPHONE)
 
 # The platform's order, and the DRF rows each code stands for when nothing is integrated.
@@ -138,6 +145,19 @@ def drf_rows(code: str | None, project=None, *, integrated: bool | None = None) 
     return BASE_ROWS.get(result or "", ())
 
 
+def smoke_management_integrated(systems) -> bool:
+    """Whether the DRF's smoke management is the fire alarm's own.
+
+    The same panel carries it when it is the same make, which is how an
+    Edwards job reads: one system, and one material submittal for it.
+    """
+    if not _marked(systems, SMOKE_MANAGEMENT):
+        return False
+    smoke = (_brand(systems, SMOKE_MANAGEMENT) or "").strip().upper()
+    alarm = (_brand(systems, FIRE_ALARM) or "").strip().upper()
+    return bool(smoke) and smoke == alarm
+
+
 def codes_for_rows(systems, *, separate_panel: bool = False) -> list[str]:
     """The system codes a set of DRF rows amounts to, in the platform's order."""
     integrated = voice_evacuation_integrated(systems, separate_panel=separate_panel)
@@ -146,6 +166,9 @@ def codes_for_rows(systems, *, separate_panel: bool = False) -> list[str]:
         if any(_marked(systems, row) for row in rows):
             found.add(effective_code(code, integrated=integrated))
     if integrated and _marked(systems, VOICE_EVACUATION):
+        found.add("FAS")
+    # The smoke management an Edwards panel carries is the fire alarm.
+    if smoke_management_integrated(systems):
         found.add("FAS")
     return [code for code in CODE_ORDER if code in found]
 
@@ -198,6 +221,25 @@ def is_full_package(project) -> bool:
 
     scope = re.sub(r"[^a-z]", "", str(getattr(project, "scope_of_work", None) or "").lower())
     return scope == FULL_PACKAGE
+
+
+def drawings_in_scope(project) -> bool:
+    """Whether shop drawings are ours to produce on this project.
+
+    The DRF says so per system, in its Systems table's drawing column, and
+    a project whose rows all say no is one we supply and commission but do
+    not draw. Asked here rather than in each of the three places that need
+    it -- the Drawings tab, the dashboard, and the folder structure -- so
+    they cannot drift apart.
+
+    A project with no systems recorded yet is taken as in scope: an empty
+    Systems table means the DRF has not been read, not that there is
+    nothing to draw.
+    """
+    systems = list(getattr(project, "systems", None) or [])
+    if not systems:
+        return True
+    return any(bool(getattr(system, "drawing", False)) for system in systems)
 
 
 def project_codes(project) -> list[str]:

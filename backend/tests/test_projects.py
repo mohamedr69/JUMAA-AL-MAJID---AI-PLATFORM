@@ -204,7 +204,7 @@ def test_list_projects_is_scoped_to_the_user(client, db_session):
     client.post("/auth/logout")
 
     # A design engineer sees the project they created, and only that one.
-    make_user(db_session, "engineer2@ep-platform.com", RoleEnum.design_engineer)
+    make_user(db_session, "engineer2@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "engineer2@ep-platform.com")
     client.post("/projects", json=_valid_project_payload("31001"))
     assert [p["ep_number"] for p in client.get("/projects").json()] == ["31001"]
@@ -228,7 +228,7 @@ def test_only_asking_for_a_project_puts_it_on_your_list(client, db_session):
     created = client.post("/projects", json=_valid_project_payload("34000")).json()
     client.post("/auth/logout")
 
-    engineer = make_user(db_session, "engineer6@ep-platform.com", RoleEnum.design_engineer)
+    engineer = make_user(db_session, "engineer6@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
     project = db_session.query(Project).filter(Project.id == created["id"]).one()
 
     # A side effect of someone else's work, recorded against this user.
@@ -252,7 +252,7 @@ def test_a_taken_ep_number_offers_the_project_it_belongs_to(client, db_session):
     created = client.post("/projects", json=_valid_project_payload("33000")).json()
     client.post("/auth/logout")
 
-    make_user(db_session, "engineer5@ep-platform.com", RoleEnum.design_engineer)
+    make_user(db_session, "engineer5@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "engineer5@ep-platform.com")
 
     resp = client.post("/projects", json=_valid_project_payload("33000"))
@@ -278,7 +278,7 @@ def test_any_user_may_list_and_open_any_project(client, db_session):
     created = client.post("/projects", json=_valid_project_payload("32000")).json()
     client.post("/auth/logout")
 
-    make_user(db_session, "engineer3@ep-platform.com", RoleEnum.design_engineer)
+    make_user(db_session, "engineer3@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "engineer3@ep-platform.com")
 
     # Not theirs, so not in their own list...
@@ -290,7 +290,7 @@ def test_any_user_may_list_and_open_any_project(client, db_session):
 
     # A second user opening the same project is refused nothing.
     client.post("/auth/logout")
-    make_user(db_session, "engineer4@ep-platform.com", RoleEnum.design_engineer)
+    make_user(db_session, "engineer4@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "engineer4@ep-platform.com")
     assert client.get(f"/projects/{created['id']}").status_code == 200
 
@@ -679,7 +679,7 @@ def test_delete_project_denied_to_design_engineer(client, db_session):
     created = client.post("/projects", json=_valid_project_payload("32200")).json()
     client.post("/auth/logout")
 
-    make_user(db_session, "engineer@ep-platform.com", RoleEnum.design_engineer)
+    make_user(db_session, "engineer@ep-platform.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "engineer@ep-platform.com")
 
     assert client.delete(f"/projects/{created['id']}").status_code == 403

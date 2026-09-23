@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.database import get_db
 from app.deps import get_current_user, require_role
-from app.models import RoleEnum, User
+from app.models import DESIGN_ROLES, RoleEnum, User
 from app.services import ep_directory
 
 router = APIRouter(prefix="/archive", tags=["archive"])
@@ -26,7 +26,7 @@ router = APIRouter(prefix="/archive", tags=["archive"])
 # Anyone signed in may search -- it is how a project is found. Rebuilding
 # the index reads the whole archive, so it sits with the roles that own a
 # project's lifecycle.
-SCAN_ROLES = (RoleEnum.admin, RoleEnum.design_manager, RoleEnum.design_engineer)
+SCAN_ROLES = (RoleEnum.admin, RoleEnum.design_manager, *DESIGN_ROLES)
 
 
 class ArchiveSuggestionOut(BaseModel):

@@ -226,7 +226,7 @@ def test_the_search_endpoint_serves_suggestions_to_anyone_signed_in(client, db_s
 
 def test_the_status_endpoint_reports_what_is_indexed(client, db_session, archive):
     scan(db_session, archive)
-    make_user(db_session, "eng@example.com", RoleEnum.design_engineer)
+    make_user(db_session, "eng@example.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "eng@example.com")
 
     body = client.get("/archive/status").json()
@@ -242,7 +242,7 @@ def test_only_the_project_roles_may_rebuild_the_index(client, db_session, archiv
 
 
 def test_a_search_with_nothing_indexed_suggests_nothing_rather_than_failing(client, db_session, archive):
-    make_user(db_session, "eng@example.com", RoleEnum.design_engineer)
+    make_user(db_session, "eng@example.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "eng@example.com")
     assert client.get("/archive/search", params={"q": "294"}).json() == []
     assert client.get("/archive/status").json()["searchable"] is False
@@ -253,7 +253,7 @@ def test_a_search_with_nothing_indexed_suggests_nothing_rather_than_failing(clie
 
 def test_find_project_answers_from_the_index_without_walking(client, db_session, archive, monkeypatch):
     scan(db_session, archive)
-    make_user(db_session, "eng@example.com", RoleEnum.design_engineer)
+    make_user(db_session, "eng@example.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "eng@example.com")
 
     def refuse(*args, **kwargs):
@@ -268,7 +268,7 @@ def test_find_project_answers_from_the_index_without_walking(client, db_session,
 
 def test_a_number_added_since_the_last_scan_is_still_found_and_then_indexed(client, db_session, archive):
     scan(db_session, archive)
-    make_user(db_session, "eng@example.com", RoleEnum.design_engineer)
+    make_user(db_session, "eng@example.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "eng@example.com")
     (archive / "Client C" / "EP-31725 New Site").mkdir(parents=True)
 
@@ -283,7 +283,7 @@ def test_a_number_added_since_the_last_scan_is_still_found_and_then_indexed(clie
 
 def test_duplicate_ep_numbers_still_reach_the_folder_picker(client, db_session, archive):
     scan(db_session, archive)
-    make_user(db_session, "eng@example.com", RoleEnum.design_engineer)
+    make_user(db_session, "eng@example.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "eng@example.com")
 
     body = client.post("/projects/resolve", json={"ep_number": "29495"}).json()

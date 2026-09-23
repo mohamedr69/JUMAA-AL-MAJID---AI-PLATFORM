@@ -274,7 +274,7 @@ export function ProjectMaterialSubmittalPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {items.map((item, i) =>
-                    editing === item.id && canEdit ? (
+                    editing === item.id && canEdit && !item.from_folder ? (
                       <EditRow key={item.id} item={item} busy={busy} onCancel={() => setEditing(null)} onSave={async (changes) => {
                         await patch(item.id, changes);
                         setEditing(null);
@@ -288,6 +288,14 @@ export function ProjectMaterialSubmittalPage() {
                             {item.reference && <span className="font-mono">{item.reference} · </span>}
                             {item.materials} material{item.materials === 1 ? "" : "s"} · {item.materials_with_datasheet} with a datasheet
                             {item.note && <span title={item.note}> · note</span>}
+                            {item.from_folder && (
+                              <span
+                                className="ml-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-gray-600"
+                                title="Filed in the project folder, not created here. The form on the drive is the record."
+                              >
+                                on file
+                              </span>
+                            )}
                           </div>
                         </td>
                         <td className="px-3 py-2.5">
@@ -298,7 +306,7 @@ export function ProjectMaterialSubmittalPage() {
                         <td className="px-3 py-2.5 text-gray-700">{item.manufacturer ?? "—"}</td>
                         <td className="px-3 py-2.5 tabular-nums text-gray-700">{item.revision}</td>
                         <td className="px-3 py-2.5">
-                          {canEdit ? (
+                          {canEdit && !item.from_folder ? (
                             <select
                               value={item.status}
                               disabled={busy}
@@ -328,12 +336,12 @@ export function ProjectMaterialSubmittalPage() {
                           <Link to="../boq" title="The BOQ this submittal covers" className="mr-2 hover:text-brand-600">
                             <IconOpen />
                           </Link>
-                          {canEdit && (
+                          {canEdit && !item.from_folder && (
                             <button onClick={() => setEditing(item.id)} title="Edit" className="mr-2 hover:text-brand-600">
                               <IconPencil />
                             </button>
                           )}
-                          {canEdit && (
+                          {canEdit && !item.from_folder && (
                             <button onClick={() => remove(item)} title="Remove" className="hover:text-red-600">
                               <IconTrash />
                             </button>

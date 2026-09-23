@@ -373,7 +373,9 @@ def test_a_full_package_project_has_fire_rated_cables_as_a_system_with_nothing_i
     assert system_rules.project_codes(project) == ["FAS", "FRC"]
     assert system_rules.system_display_name(project, "FRC") == "Fire Rated Cables"
     # Its folders were made with the project.
-    assert (root / "02- Material Submittals" / "FRC" / "R0").is_dir() and (root / "02- Material Submittals" / "Approved" / "FRC").is_dir()
+    # The fire-rated cables get their pair like any other system now.
+    assert (root / "02- Material Submittals" / "FRC" / "R0" / "Submitted").is_dir()
+    assert (root / "02- Material Submittals" / "FRC" / "R0" / "Received").is_dir()
     assert project_folders.system_folder("FRC") == "FRC"
     # The tabs: proposed materials and the register both show FRC, empty.
     materials = client.get(f"/projects/{project_id}/materials").json()

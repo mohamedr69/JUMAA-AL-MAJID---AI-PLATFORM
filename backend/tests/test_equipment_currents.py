@@ -190,7 +190,7 @@ def test_the_table_is_written_by_editors_and_deleted_by_admins_only(client, db_s
     assert client.get("/design-rules/equipment-currents").status_code == 200
     assert client.post("/design-rules/equipment-currents", json={"part_no": "Z-9", "no_load": True, "source": "viewer"}).status_code == 403
 
-    make_user(db_session, "eng@x.com", RoleEnum.design_engineer)
+    make_user(db_session, "eng@x.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "eng@x.com")
     row = client.post("/design-rules/equipment-currents", json={"part_no": "Z-9", "no_load": True, "source": "engineer says so"}).json()
     assert client.delete(f"/design-rules/equipment-currents/{row['id']}").status_code == 403

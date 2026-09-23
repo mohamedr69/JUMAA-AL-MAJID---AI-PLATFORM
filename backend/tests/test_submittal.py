@@ -300,3 +300,129 @@ def test_scanning_needs_a_reachable_folder_and_an_editor(client, db_session, tmp
     make_user(db_session, "viewer@ep-platform.com", RoleEnum.viewer)
     login(client, "viewer@ep-platform.com")
     assert client.post(f"/projects/{no_folder}/submittals/scan").status_code == 403
+
+
+def test_a_submittal_filed_in_the_folder_shows_in_the_register(client, db_session, tmp_path):
+    """A submittal prepared outside the platform and filed in the project
+    folder is a submittal. The register that leaves it out reported "no
+    material submittal is filed" over one sitting in the folder."""
+    from datetime import datetime, timezone
+    from app.models import Project, ProjectDocument
+    from app.services import document_sync
+
+    login(client, settings.default_admin_email, settings.default_admin_password)
+    root = tmp_path / "EP-40100"
+    root.mkdir()
+    created = client.post("/projects", json={
+        "ep_number": "40100", "project_name": "Folder Filed", "source_folder_path": str(root),
+        "design_sheets": [],
+        "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": False}],
+    }).json()
+    project = db_session.query(Project).filter(Project.id == created["id"]).one()
+
+    # What the sync leaves behind for a form the model read: a submittal,
+    # with no reference on it because nobody has numbered it.
+    relative = "02- Material Submittals/FA/R0/Submitted/MS FAVE R00.pdf"
+    extracted: dict = {"records": [], "notes": [],
+                       "form": {"is_submittal": True, "reference": "", "revision": 0,
+                                "title": "Fire Alarm, Voice Evacuation & Fire Telephone",
+                                "system_code": "FAS", "reply": {"present": False}}}
+    assert document_sync.record_for_the_log(
+        extracted, extracted["form"], relative=relative,
+        modified=datetime(2026, 8, 25, tzinfo=timezone.utc), ep_number="40100") is True
+
+    db_session.add(ProjectDocument(
+        project_id=project.id, role=document_sync.ROLE_SUBMITTAL, path=str(root / relative),
+        relative_path=relative, filename="MS FAVE R00.pdf", state=document_sync.FRESH,
+        system_code="FAS", extracted=extracted))
+    db_session.commit()
+
+    register = client.get(f"/projects/{project.id}/submittals").json()
+    assert register["counts"]["total"] == 1
+    item = register["items"][0]
+    # Named the way the platform names its own packages, so the register
+    # keys them alike.
+    assert item["reference"] == "EP-40100-MAS-FAS"
+    assert item["system_code"] == "FAS"
+    # Read-only: the form on the drive is the record.
+    assert item["from_folder"] is True
+    # And the system no longer reads as one with nothing submitted.
+    assert [s["system_code"] for s in register["suggestions"]] == []
+
+
+def test_an_unnumbered_submittal_needs_the_project_to_name_it():
+    """Without the project's number there is nothing to call it, and a
+    record with no reference is worse than none: it cannot be matched to
+    a revision or a reply."""
+    from datetime import datetime, timezone
+    from app.services import document_sync
+
+    extracted: dict = {"records": []}
+    reading = {"is_submittal": True, "reference": "", "revision": 0, "system_code": "FAS"}
+    assert document_sync.record_for_the_log(
+        extracted, reading, relative="x.pdf",
+        modified=datetime(2026, 1, 1, tzinfo=timezone.utc), ep_number=None) is False
+    assert extracted["records"] == []
+
+
+def test_a_reply_filed_beside_a_submittal_answers_it():
+    """The consultant's answer comes back as a scan with no reference on
+    it. Where it sits is what ties it to what it answers: a reply under
+    `FA/R0` answers the R0 of FA, and the letter the file is filed under
+    is the code."""
+    from app.services import submittal_replies
+
+    class Row:
+        def __init__(self, relative, extracted=None):
+            self.relative_path = relative
+            self.filename = relative.rsplit("/", 1)[-1]
+            self.extracted = extracted or {}
+
+    filed = submittal_replies.on_file([
+        Row("02- Material Submittals/FA/R0/Received/23058.90-BHC-MAR-FF-0016_00_C.pdf"),
+        Row("02- Material Submittals/FA/R0/Submitted/MS FAVE R00.pdf"),   # not a reply
+    ])
+    assert len(filed) == 1
+
+    # The R0 of FA is answered; another system's R0 is not.
+    assert submittal_replies.for_revision("02- Material Submittals/FA/R0", filed)[0] == "resubmit"
+    assert submittal_replies.for_revision("02- Material Submittals/ELS/R0", filed)[0] is None
+
+    # The words win over the file name where a reading has them.
+    spoken = submittal_replies.on_file([Row(
+        "02- Material Submittals/FA/R1/Received/reply_A.pdf",
+        {"form": {"reply": {"evidence": "Approved as noted, work may proceed"}}},
+    )])
+    assert submittal_replies.for_revision("02- Material Submittals/FA/R1", spoken)[0] == "approved_as_noted"
+
+
+def test_the_map_shows_a_revision_that_has_been_answered():
+    """The map, the register and the logs all read the reply the same
+    way, so they cannot disagree about whether a submittal is still under
+    review. An answered R0 also asks for R1."""
+    from app.ai import submittal_reader
+    from app.services import submittal_replies
+
+    class Row:
+        relative_path = "02- Material Submittals/FA/R0/Received/x_00_C.pdf"
+        filename = "x_00_C.pdf"
+        extracted: dict = {}
+
+    readings = [{
+        "is_submittal": True, "reference": "EP-1-MAS-FAS", "revision": 0,
+        "title": "Fire Alarm", "system_code": "FAS", "manufacturer": "EDWARDS",
+        "relative": "02- Material Submittals/FA/R0/Submitted/MS.pdf",
+        "modified": "2026-08-25T00:00:00", "in_approval_folder": False,
+        "reply": {"present": False, "from_consultant": False, "status": "none"},
+    }]
+    # Without the filed reply the map can only say "under review".
+    plain = submittal_reader.build_map(readings=[dict(readings[0])], ep_number="1")
+    assert plain["systems"][0]["rows"][0]["latest_status"] == "UR"
+
+    answered = submittal_reader.build_map(
+        readings=[dict(readings[0])], ep_number="1",
+        replies=submittal_replies.on_file([Row()]))
+    row = answered["systems"][0]["rows"][0]
+    assert row["latest_status"] == "RR"
+    assert row["cells"]["R0"]["status"] == "RR"
+    assert any("R1 is not filed" in action for action in answered["actions"])

@@ -1,6 +1,6 @@
 import pytest
 
-from app.models import RoleEnum
+from app.models import DESIGN_ROLES, RoleEnum
 
 from .conftest import login, make_user
 
@@ -9,8 +9,11 @@ ALL_ROLES = list(RoleEnum)
 # module -> (roles expected to be allowed in)
 EXPECTATIONS = {
     "/modules/admin": {RoleEnum.admin},
-    "/modules/design": {RoleEnum.admin, RoleEnum.design_manager, RoleEnum.design_engineer, RoleEnum.draftsman},
-    "/modules/viewer": set(ALL_ROLES) - {RoleEnum.estimation_engineer, RoleEnum.fire_fighting_engineer, RoleEnum.elv_engineer},
+    # Every design engineer, whatever their discipline: the design module
+    # is the work they are here to do. Only the estimation roles are
+    # confined to their own area (app/deps.py).
+    "/modules/design": {RoleEnum.admin, RoleEnum.design_manager, *DESIGN_ROLES, RoleEnum.draftsman},
+    "/modules/viewer": set(ALL_ROLES) - {RoleEnum.fire_alarm_estimation_engineer, RoleEnum.fire_fighting_estimation_engineer, RoleEnum.elv_estimation_engineer},
 }
 
 
@@ -58,7 +61,7 @@ def test_admin_can_manage_users(client):
             "email": "new.engineer@ep-platform.com",
             "full_name": "New Engineer",
             "password": "StrongPass123!",
-            "role": "design_engineer",
+            "role": "fire_alarm_design_engineer",
         },
     )
     assert create_resp.status_code == 201

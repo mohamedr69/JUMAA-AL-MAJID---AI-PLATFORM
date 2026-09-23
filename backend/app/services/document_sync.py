@@ -220,7 +220,8 @@ def _record_dict(record, root: Path) -> dict:
     return data
 
 
-def record_for_the_log(extracted: dict, reading: dict, *, relative: str, modified: datetime) -> bool:
+def record_for_the_log(extracted: dict, reading: dict, *, relative: str, modified: datetime,
+                       ep_number: str | None = None) -> bool:
     """A submittal package is a scan of a form in front of a hundred
     datasheets, and the title block reader can come back from it with
     nothing at all. The log would then never hear of a form the model read
@@ -233,11 +234,21 @@ def record_for_the_log(extracted: dict, reading: dict, *, relative: str, modifie
     document itself). Returns whether a record was added."""
     from app.ai import submittal_reader
 
-    reference = reading.get("reference") or ""
-    if not reading.get("is_submittal") or not reference:
+    if not reading.get("is_submittal"):
         return False
     revision = f"R{reading['revision']}" if reading.get("revision") is not None else "R0"
     system = submittal_reader._system_code(reading, relative)
+    reference = reading.get("reference") or ""
+    if not reference:
+        # A submittal we prepared ourselves and have not numbered yet: the
+        # form is real, the covering letter simply carries no MAS
+        # reference. Dropping it reported "no material submittal is filed
+        # for this project" over a submittal sitting in the folder. Named
+        # the way the platform names its own packages, so the register
+        # keys them alike.
+        if not ep_number:
+            return False
+        reference = f"EP-{ep_number}-MAS-{system}" if system else f"EP-{ep_number}-MAS"
     # Strictly a fallback: where the page gave a submittal record of its own
     # -- even one whose reference it read short -- that record is the
     # document's, and a second entry from the model would be the same
@@ -294,7 +305,8 @@ def process(db: Session, project: Project, row: ProjectDocument, path: Path, roo
             row.status = submittal_reader._code(reading)
             row.system_code = submittal_reader._system_code(reading, row.relative_path or "") or row.system_code
             record_for_the_log(extracted, reading, relative=path.relative_to(root).as_posix(),
-                               modified=datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc))
+                               modified=datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc),
+                               ep_number=project.ep_number)
     row.extracted = extracted
     row.last_processed_at = utc_now()
     row.index_version = INDEX_VERSION
@@ -528,4 +540,43 @@ def log_records(db: Session, project: Project) -> tuple[list, list[str]]:
                 data["system_code"] = system_rules.effective_code(data["system_code"], project)
             records.append(document_control.ControlledDocument(**data))
         warnings.extend(extracted.get("notes") or [])
+
+    # The Drawings Log is the shop drawings we produced, not the ones we
+    # were given: the consultant's enquiry pack has title blocks too, and
+    # without this it fills the log. And a project whose DRF marks no
+    # drawing has no shop drawings at all -- an empty log, not a log of
+    # somebody else's drawings.
+    # The consultant's answer is filed beside the form rather than
+    # printed on it, so a submittal record built from the form alone says
+    # "under review" over a revision that has been answered. The logs
+    # read it the same way the map and the register do.
+    from app.services import submittal_replies
+
+    filed = submittal_replies.on_file(
+        db.query(ProjectDocument).filter(ProjectDocument.project_id == project.id,
+                                         ProjectDocument.state != REMOVED))
+    if filed:
+        from app.ai import submittal_reader
+
+        import dataclasses
+
+        for index, row in enumerate(records):
+            if row.category != "submittals" or (row.status or "") not in ("", "UR"):
+                continue
+            status, words = submittal_replies.for_revision(
+                submittal_replies.revision_folder(row.path) or "", filed)
+            if status:
+                # A ControlledDocument is frozen: the record is what was
+                # read, and this is a second reading put beside it.
+                records[index] = dataclasses.replace(
+                    row,
+                    status=submittal_reader.CODES.get(status, row.status),
+                    reply_text=row.reply_text or words,
+                )
+
+    ours = system_rules.drawings_in_scope(project)
+    records = [
+        row for row in records
+        if row.category != "drawings" or (ours and document_control.is_shop_drawing(row))
+    ]
     return document_control.combine(records), list(dict.fromkeys(warnings))

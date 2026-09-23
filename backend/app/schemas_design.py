@@ -672,6 +672,11 @@ class SubmittalOut(BaseModel):
     # Materials of this system in the BOQ, and how many have a datasheet.
     materials: int = 0
     materials_with_datasheet: int = 0
+    # Found in the project folder rather than made here: a submittal
+    # someone prepared outside the platform and filed. Read-only -- the
+    # form on the drive is the record, and the page must not offer to
+    # revise something it does not hold.
+    from_folder: bool = False
 
 
 class SubmittalSuggestionOut(BaseModel):

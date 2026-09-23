@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.security import decode_access_token
 from app.database import get_db
-from app.models import RoleEnum, User
+from app.models import DISCIPLINE_AREAS, ESTIMATION_ROLES, RoleEnum, User, discipline_of
 
 settings = get_settings()
 
@@ -24,10 +24,15 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
-    # These divisions currently have only their project area and self-service account.
-    # Enforce this on the server too, including design routes that allow any user.
+    # An estimation engineer has their project area and their own account,
+    # and nothing else yet; enforced here rather than route by route, so a
+    # design route that allows any user does not let them in by default.
+    #
+    # Design engineers are **not** confined: the design workflow -- the
+    # BOQ, the calculations, the compliance statements, the submittals --
+    # is the platform, and it is what they are here to do.
     path = request.url.path.rstrip("/")
-    area = {RoleEnum.estimation_engineer: "estimation", RoleEnum.fire_fighting_engineer: "fire-fighting", RoleEnum.elv_engineer: "elv"}.get(user.role)
+    area = DISCIPLINE_AREAS.get(discipline_of(user.role)) if user.role in ESTIMATION_ROLES else None
     if area and not (
         path == "/auth/me" or path.startswith("/auth/me/")
         or path == f"/{area}/projects" or path.startswith(f"/{area}/projects/")

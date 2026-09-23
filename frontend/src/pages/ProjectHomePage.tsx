@@ -71,9 +71,15 @@ export function ProjectHomePage() {
   const submittals = useMemo(() => summarise(logs?.material_submittals, integrated), [logs, integrated]);
   const drawings = useMemo(() => summarise(logs?.drawings, integrated), [logs, integrated]);
   const samples = useMemo(() => summarise(logs?.samples, integrated), [logs, integrated]);
+  // Drawings we do not owe are not progress we are missing: a project
+  // whose DRF marks no drawing is not 0% drawn, it is not drawing.
+  const drawn = project.drawings_in_scope !== false;
+  // Shop drawings only where they are ours: no card, no bar, no tab for
+  // a document this project will never have.
+  const shownKinds = useMemo(() => KINDS.filter((k) => k.key !== "drawings" || drawn), [drawn]);
   const kinds = useMemo<Record<Kind, Summary>>(() => ({ submittals, drawings, samples }), [submittals, drawings, samples]);
-  const overall = submittals.total + drawings.total + samples.total;
-  const approved = submittals.approved + drawings.approved + samples.approved;
+  const overall = submittals.total + (drawn ? drawings.total : 0) + samples.total;
+  const approved = submittals.approved + (drawn ? drawings.approved : 0) + samples.approved;
 
   const rows = useMemo(() => systemRows(systems, kinds, project.system_codes), [systems, kinds, project.system_codes]);
   const actions = useMemo(
@@ -137,7 +143,7 @@ export function ProjectHomePage() {
           <div className="mt-3 flex items-center gap-5">
             <Donut value={share(approved, overall)} />
             <div className="min-w-0 flex-1 space-y-2">
-              {KINDS.map(({ key, label, tint }) => (
+              {shownKinds.map(({ key, label, tint }) => (
                 <Bar key={key} label={label} tint={tint} approved={kinds[key].approved} total={kinds[key].total} />
               ))}
             </div>
@@ -147,7 +153,7 @@ export function ProjectHomePage() {
           </p>
         </section>
 
-        {KINDS.map(({ key, label, tint }) => (
+        {shownKinds.map(({ key, label, tint }) => (
           <StatCard key={key} label={label} tint={tint} summary={kinds[key]} onOpen={() => setTab(key)} />
         ))}
       </div>
@@ -450,6 +456,7 @@ function keyDocuments(
   documents: DocumentStatus | null,
 ) {
   const sheets = project.design_sheets;
+  const drawn = project.drawings_in_scope !== false;
   return [
     {
       label: "Design Sheet",
@@ -464,12 +471,16 @@ function keyDocuments(
       found: (logs?.material_submittals.length ?? 0) > 0,
       missing: "None filed",
     },
-    {
-      label: "Shop drawings",
-      detail: logs ? `${logs.drawings.length} filed` : null,
-      found: (logs?.drawings.length ?? 0) > 0,
-      missing: "None filed",
-    },
+    // Shop drawings appear only when they are ours: on a project we do
+    // not draw there is no such document to have, so no tile for it.
+    ...(drawn
+      ? [{
+          label: "Shop drawings",
+          detail: logs ? `${logs.drawings.length} filed` : null,
+          found: (logs?.drawings.length ?? 0) > 0,
+          missing: "None filed",
+        }]
+      : []),
     {
       label: "Sample boards",
       detail: logs ? `${logs.samples.length} filed` : null,

@@ -4,7 +4,7 @@ from app.models import RoleEnum
 from tests.conftest import login, make_user
 
 
-@pytest.mark.parametrize("division,role", [("fire-fighting", RoleEnum.fire_fighting_engineer), ("elv", RoleEnum.elv_engineer)])
+@pytest.mark.parametrize("division,role", [("fire-fighting", RoleEnum.fire_fighting_estimation_engineer), ("elv", RoleEnum.elv_estimation_engineer)])
 def test_division_account_and_projects(client, db_session, division, role):
     make_user(db_session, "division-admin@example.com", RoleEnum.admin)
     login(client, "division-admin@example.com")
@@ -39,7 +39,7 @@ def test_division_scoping_even_for_admin(client, db_session):
     assert client.get("/fire-fighting/projects").json() == [fire.json()]
     assert client.get("/elv/projects").json() == [elv.json()]
     assert client.get(f"/elv/projects/{fire.json()['id']}").status_code == 404
-    make_user(db_session, "design-div@example.com", RoleEnum.design_engineer)
+    make_user(db_session, "design-div@example.com", RoleEnum.fire_alarm_design_engineer)
     login(client, "design-div@example.com")
     assert client.get("/elv/projects").status_code == 403
     assert client.get("/fire-fighting/projects").status_code == 403

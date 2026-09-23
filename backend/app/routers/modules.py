@@ -1,12 +1,15 @@
 from fastapi import APIRouter, Depends
 
 from app.deps import require_role
-from app.models import RoleEnum, User
+from app.models import DESIGN_ROLES, RoleEnum, User
 
 router = APIRouter(prefix="/modules", tags=["modules"])
 
-DESIGN_ROLES = (RoleEnum.admin, RoleEnum.design_manager, RoleEnum.design_engineer, RoleEnum.draftsman)
-ALL_ROLES = (*DESIGN_ROLES, RoleEnum.viewer)
+# The design side of the platform: its manager, its engineers of any
+# discipline, and the draftsman.
+MODULE_ROLES = (RoleEnum.admin, RoleEnum.design_manager, *DESIGN_ROLES, RoleEnum.draftsman)
+# Everyone the design side holds, and the viewer who only reads.
+ALL_ROLES = (*MODULE_ROLES, RoleEnum.viewer)
 
 
 @router.get("/admin")
@@ -15,7 +18,7 @@ def admin_module(current_user: User = Depends(require_role(RoleEnum.admin))) -> 
 
 
 @router.get("/design")
-def design_module(current_user: User = Depends(require_role(*DESIGN_ROLES))) -> dict:
+def design_module(current_user: User = Depends(require_role(*MODULE_ROLES))) -> dict:
     return {"module": "design", "user": current_user.email}
 
 

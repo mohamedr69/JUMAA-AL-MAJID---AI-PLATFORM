@@ -13,6 +13,7 @@ from app.core.timeutils import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_role
 from app.models import (
+    DESIGN_ROLES,
     ActivityEvent,
     ProjectDocument,
     Project,
@@ -70,7 +71,7 @@ from app.services.log_scan_jobs import get_log_scan
 router = APIRouter(prefix="/projects", tags=["projects"])
 settings = get_settings()
 
-CREATOR_ROLES = (RoleEnum.admin, RoleEnum.design_manager, RoleEnum.design_engineer)
+CREATOR_ROLES = (RoleEnum.admin, RoleEnum.design_manager, *DESIGN_ROLES)
 
 # Deleting takes the project's documents, systems and BOQ with it, so it sits
 # with the roles that own a project's lifecycle rather than everyone who can
@@ -1301,9 +1302,11 @@ def project_logs(
 ) -> ProjectLogsOut:
     """Return the current drawing index from the project's archive folder."""
     project = _get_project_or_404(db, project_id)
-    systems = {(system.name or "").upper() for system in project.systems}
-    systems |= {(item.system_code or "").upper() for item in project.boq_items}
-    systems = {code for code in systems if code}
+    # The project's systems under their effective codes, not the DRF's own
+    # row names: an Edwards panel's voice evacuation, fire telephone and
+    # smoke management are the fire alarm, and listing them separately
+    # here gave the Logs tab four systems where the project has one.
+    systems = set(system_rules.project_codes(project))
     if not project.source_folder_path:
         return ProjectLogsOut(systems=sorted(systems), drawings=[], searched=None, warnings=["The project has no archive folder to search."])
     # From the index, never the folder: "Sync documents" reads what changed.
@@ -1317,7 +1320,8 @@ def project_logs(
     indexed = db.query(ProjectDocument).filter(ProjectDocument.project_id == project.id).count()
     return ProjectLogsOut(
         scanning=False, processed_files=indexed, total_files=indexed, synced_at=project.documents_synced_at,
-        systems=sorted(systems | {row.system_code for row in records if row.system_code}),
+        systems=sorted(systems | {system_rules.effective_code(row.system_code, project)
+                                  for row in records if row.system_code}),
         material_submittals=[output(row) for row in records if row.category == "submittals"],
         drawings=[output(row) for row in records if row.category == "drawings"],
         samples=[output(row) for row in records if row.category == "samples"],

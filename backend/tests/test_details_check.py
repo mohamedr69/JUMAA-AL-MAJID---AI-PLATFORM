@@ -129,5 +129,7 @@ def test_a_project_info_edit_reaches_the_boq_and_the_compliance_search(client, d
 
     lines = {i["description"]: i["manufacturer"] for i in client.get(f"/projects/{project_id}/boq").json()}
     # The line that carried the DRF brand follows it; the one an engineer typed stays theirs.
-    assert lines == {"Smoke detector": "Notifier", "Beam detector": "Fire Fighting Enterprises"}
+    # The propagated brand arrives in the one spelling a brand is recorded
+    # in (app/services/brands.py); the line an engineer typed is untouched.
+    assert lines == {"Smoke detector": "NOTIFIER", "Beam detector": "Fire Fighting Enterprises"}
     assert project_id not in compliance_router._cache

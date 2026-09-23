@@ -3,7 +3,20 @@ import { Link } from "react-router-dom";
 import { ApiError, api } from "../lib/api";
 import { ROLE_LABELS, type Role, type User } from "../lib/types";
 
-const ROLES: Role[] = ["admin", "design_manager", "design_engineer", "draftsman", "viewer", "estimation_engineer", "fire_fighting_engineer", "elv_engineer"];
+// The order the dropdown offers them: who runs the platform, then the
+// engineers by discipline, then the two roles that only read or draw.
+const ROLES: Role[] = [
+  "admin",
+  "design_manager",
+  "fire_alarm_design_engineer",
+  "elv_design_engineer",
+  "fire_fighting_design_engineer",
+  "fire_alarm_estimation_engineer",
+  "elv_estimation_engineer",
+  "fire_fighting_estimation_engineer",
+  "draftsman",
+  "viewer",
+];
 
 export function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -26,6 +39,30 @@ export function AdminUsersPage() {
   useEffect(() => {
     load();
   }, []);
+
+  /** Two clicks, because an account is gone for good. The confirmation
+   * is the row itself rather than a dialog, so the name being removed
+   * stays in front of whoever is removing it. */
+  const [confirming, setConfirming] = useState<number | null>(null);
+  const [removing, setRemoving] = useState<number | null>(null);
+
+  async function removeUser(user: User) {
+    setRemoving(user.id);
+    setError(null);
+    try {
+      await api.delete(`/users/${user.id}`);
+      setConfirming(null);
+      await load();
+    } catch (err) {
+      // An account that has done anything cannot be deleted away from
+      // its own record; the refusal says what is in the way, and
+      // disabling is what to do instead.
+      setError(err instanceof ApiError ? err.message : "The account could not be deleted");
+      setConfirming(null);
+    } finally {
+      setRemoving(null);
+    }
+  }
 
   async function toggleActive(user: User) {
     try {
@@ -104,10 +141,34 @@ export function AdminUsersPage() {
                     </Link>
                     <button
                       onClick={() => toggleActive(u)}
-                      className="text-xs font-medium text-brand-600 hover:underline"
+                      className="mr-4 text-xs font-medium text-brand-600 hover:underline"
                     >
                       {u.is_active ? "Disable" : "Enable"}
                     </button>
+                    {confirming === u.id ? (
+                      <>
+                        <button
+                          onClick={() => removeUser(u)}
+                          disabled={removing === u.id}
+                          className="mr-2 text-xs font-semibold text-red-600 hover:underline disabled:opacity-60"
+                        >
+                          {removing === u.id ? "Deleting..." : "Confirm delete"}
+                        </button>
+                        <button
+                          onClick={() => setConfirming(null)}
+                          className="text-xs font-medium text-gray-500 hover:underline"
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => setConfirming(u.id)}
+                        className="text-xs font-medium text-red-600 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
