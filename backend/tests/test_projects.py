@@ -216,6 +216,90 @@ def test_list_projects_is_scoped_to_the_user(client, db_session):
     assert {"31000", "31001"} <= numbers
 
 
+def test_only_asking_for_a_project_puts_it_on_your_list(client, db_session):
+    """Created, assigned, or asked for -- not merely touched. Opening a
+    project has side effects that are recorded against the user (its
+    folders being created, a document check), and those must not put a
+    project on the list of someone who never asked for it."""
+    from app.models import ActivityEvent, Project
+    from app.services import activity
+
+    _login_admin(client)
+    created = client.post("/projects", json=_valid_project_payload("34000")).json()
+    client.post("/auth/logout")
+
+    engineer = make_user(db_session, "engineer6@ep-platform.com", RoleEnum.design_engineer)
+    project = db_session.query(Project).filter(Project.id == created["id"]).one()
+
+    # A side effect of someone else's work, recorded against this user.
+    activity.record(db_session, engineer, "documents.checked", "Checked the documents", project=project)
+    login(client, "engineer6@ep-platform.com")
+    assert all(p["ep_number"] != "34000" for p in client.get("/projects", params={"scope": "mine"}).json())
+
+    # Asking for it is what counts.
+    assert client.get(f"/projects/{created['id']}").status_code == 200
+    assert any(e.action == "project.opened" for e in
+               db_session.query(ActivityEvent).filter(ActivityEvent.user_id == engineer.id).all())
+    assert any(p["ep_number"] == "34000" for p in client.get("/projects", params={"scope": "mine"}).json())
+
+
+def test_a_taken_ep_number_offers_the_project_it_belongs_to(client, db_session):
+    """An EP number is the job's number in the archive, so a second
+    engineer meeting it has been sent the job, not asked to start it
+    again. The refusal names the project, and opening it puts it in their
+    own list -- which is what they came for."""
+    _login_admin(client)
+    created = client.post("/projects", json=_valid_project_payload("33000")).json()
+    client.post("/auth/logout")
+
+    make_user(db_session, "engineer5@ep-platform.com", RoleEnum.design_engineer)
+    login(client, "engineer5@ep-platform.com")
+
+    resp = client.post("/projects", json=_valid_project_payload("33000"))
+    assert resp.status_code == 409
+    detail = resp.json()["detail"]
+    assert detail["code"] == "project_exists"
+    assert detail["project_id"] == created["id"]
+    assert detail["ep_number"] == "33000"
+
+    # Not in their own list yet...
+    assert all(p["ep_number"] != "33000" for p in client.get("/projects", params={"scope": "mine"}).json())
+    # ...and there after they open it.
+    assert client.get(f"/projects/{created['id']}").status_code == 200
+    assert any(p["ep_number"] == "33000" for p in client.get("/projects", params={"scope": "mine"}).json())
+
+
+def test_any_user_may_list_and_open_any_project(client, db_session):
+    """The scope is which projects are shown first, not which may be
+    opened. Anyone can ask for all of them, and anyone can open one
+    somebody else created -- two engineers may have the same project open
+    at once, and nothing reserves it for one of them."""
+    _login_admin(client)
+    created = client.post("/projects", json=_valid_project_payload("32000")).json()
+    client.post("/auth/logout")
+
+    make_user(db_session, "engineer3@ep-platform.com", RoleEnum.design_engineer)
+    login(client, "engineer3@ep-platform.com")
+
+    # Not theirs, so not in their own list...
+    assert all(p["ep_number"] != "32000" for p in client.get("/projects").json())
+    # ...but asking for all of them shows it, and it opens.
+    everything = client.get("/projects", params={"scope": "all"}).json()
+    assert any(p["ep_number"] == "32000" for p in everything)
+    assert client.get(f"/projects/{created['id']}").status_code == 200
+
+    # A second user opening the same project is refused nothing.
+    client.post("/auth/logout")
+    make_user(db_session, "engineer4@ep-platform.com", RoleEnum.design_engineer)
+    login(client, "engineer4@ep-platform.com")
+    assert client.get(f"/projects/{created['id']}").status_code == 200
+
+    # And an admin can still ask for only their own.
+    client.post("/auth/logout")
+    _login_admin(client)
+    assert any(p["ep_number"] == "32000" for p in client.get("/projects", params={"scope": "mine"}).json())
+
+
 def test_get_missing_project_404(client):
     _login_admin(client)
     resp = client.get("/projects/999999")
@@ -249,8 +333,11 @@ def test_update_project_corrects_details_and_replaces_systems(client):
     updated = resp.json()
     assert updated["client"] == "Samana Developers LLC"
     assert updated["plot_number"] is None
+    # "Edwards EST4" names the range as well as the maker; the brand is
+    # recorded as the maker, which is what the datasheet library and the
+    # submittal builder are keyed by (app/services/brands.py).
     assert [(s["name"], s["brand"], s["drawing"]) for s in updated["systems"]] == [
-        ("Fire Alarm", "Edwards EST4", False)
+        ("Fire Alarm", "EDWARDS", False)
     ]
     # the documents the resolver found are untouched
     assert updated["design_sheets"] == created["design_sheets"]

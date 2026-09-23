@@ -6,11 +6,18 @@ one row per part number found on a datasheet. This turns the rows that say
 naming a part the library's file names do not carry still finds its sheet
 (app/services/datasheet_links.py).
 
-Only `role == "primary"` rows are imported. A `related` row means the part
-merely appeared in another part's accessories or compatible-equipment
-table -- BC-1 is listed on the amplifier sheet, but the amplifier sheet is
-not what documents BC-1, and linking it there would answer the wrong
-question.
+By default only `role == "primary"` rows are imported. A `related` row
+means the part merely appeared in another part's accessories or
+compatible-equipment table -- BC-1 is listed on the amplifier sheet, but
+the amplifier sheet is not what documents BC-1, and linking it there
+would answer the wrong question.
+
+`--roles all` is for a brand where that does not hold. JSB's library is
+twelve product sheets and nothing else: a pictogram set or a recessed
+base has no sheet of its own, so the parent product's sheet *is* its
+documentation and the accessory rows belong here too. Checked rather
+than assumed -- of its ninety-four part numbers exactly one, BCM.1, has
+a file named for it, and that one needs no link at all.
 
 Three kinds of row are refused rather than guessed at, and named in the
 report so an engineer can settle them:
@@ -86,10 +93,15 @@ def _usable(part_no: str) -> bool:
     return bool(part_key(part_no)) and not _NOT_A_PART.search(part_no)
 
 
-def read_rows(csv_path: Path, library_root: Path) -> dict:
-    """Sort every primary row into what can be linked and what cannot."""
+def read_rows(csv_path: Path, library_root: Path, roles: set[str] | None = None) -> dict:
+    """Sort the rows worth linking into what can be linked and what cannot.
+
+    `roles` is which of the CSV's `role` values to take; None takes them
+    all, for a brand where the distinction does not apply.
+    """
     with csv_path.open(encoding="utf-8-sig", newline="") as handle:
-        rows = [r for r in csv.DictReader(handle) if (r.get("role") or "").strip() == "primary"]
+        rows = [r for r in csv.DictReader(handle)
+                if roles is None or (r.get("role") or "").strip().lower() in roles]
 
     by_key: dict[str, list[dict]] = defaultdict(list)
     for row in rows:
@@ -123,7 +135,7 @@ def read_rows(csv_path: Path, library_root: Path) -> dict:
 
 
 def report(found: dict) -> None:
-    print(f"primary rows read        : {found['primary']}")
+    print(f"rows read                : {found['primary']}")
     print(f"ready to link            : {len(found['linkable'])}")
     print(f"ambiguous (>1 datasheet) : {len(found['ambiguous'])}")
     print(f"datasheet file missing   : {len(found['missing'])}")
@@ -149,6 +161,10 @@ def report(found: dict) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--manufacturer", default="EDWARDS", help="the brand whose library and CSV to use")
+    parser.add_argument(
+        "--roles", default="primary",
+        help='which CSV role values to link ("primary", or "all" for a brand whose sheets do not distinguish)',
+    )
     parser.add_argument("--csv", type=Path, default=None)
     parser.add_argument("--library-root", type=Path, default=None)
     parser.add_argument("--dry-run", action="store_true", help="report what would change, write nothing")
@@ -181,8 +197,10 @@ def main() -> int:
             print(f"Library not found: {library_root}", file=sys.stderr)
             return 1
 
+        roles = None if args.roles.strip().lower() == "all" else {r.strip().lower() for r in args.roles.split(",")}
         print(f"manufacturer             : {manufacturer}")
-        found = read_rows(csv_path, library_root)
+        print(f"roles linked             : {args.roles}")
+        found = read_rows(csv_path, library_root, roles)
         report(found)
 
         held = {

@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, model_validator
 
 from app.models import ProjectStatus
+from app.services.brands import normalise as normalise_brand
 
 _EP_PREFIX_RE = re.compile(r"^EP[-_ ]*", re.IGNORECASE)
 
@@ -51,7 +52,11 @@ class ExtractedFieldOut(BaseModel):
 
 class ProjectSystemIn(BaseModel):
     name: str
-    brand: str | None = None
+    # Every system's brand is written here -- the DRF read, and the
+    # engineer's correction, both build one of these -- so normalising it
+    # on the way in is what keeps one supplier from being three
+    # (app/services/brands.py).
+    brand: Annotated[str | None, AfterValidator(normalise_brand)] = None
     method_statement: bool = False
     drawing: bool = False
 

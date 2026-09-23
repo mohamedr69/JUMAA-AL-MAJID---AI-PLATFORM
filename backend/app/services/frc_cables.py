@@ -20,6 +20,7 @@ import dataclasses
 from sqlalchemy.orm import Session
 
 from app.models import Project, ProjectFrcCables
+from app.services import brands
 
 BRANDS = ("FIREGUARD", "SOLARTI", "FRONTIER", "TIANJIE")
 SIZES = ("2Cx1.5mm", "2Cx2.5mm")
@@ -161,10 +162,10 @@ def save(db: Session, project: Project, user_id: int | None, *, brand: str | Non
     if row is None:
         row = ProjectFrcCables(project_id=project.id)
         db.add(row)
-    row.brand = brand.upper() if brand else None
+    row.brand = brands.normalise(brand)
     for field, size in sizes.items():
         setattr(row, field, size or None)
-    row.monitoring_brand = monitoring_brand.upper() if monitoring_brand else row.monitoring_brand
+    row.monitoring_brand = brands.normalise(monitoring_brand) or row.monitoring_brand
     row.monitoring_size = monitoring_size or row.monitoring_size
     row.updated_by_id = user_id
     db.commit()

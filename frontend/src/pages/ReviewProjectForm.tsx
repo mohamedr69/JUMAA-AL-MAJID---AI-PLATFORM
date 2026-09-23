@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Link } from "react-router-dom";
 import { DetailsCheckPanel } from "../components/DetailsCheckPanel";
 import { ProjectDetailsFields } from "../components/ProjectDetailsFields";
 import { ApiError, api } from "../lib/api";
@@ -87,6 +88,8 @@ export function ReviewProjectForm({
   );
 
   const [error, setError] = useState<string | null>(null);
+  /** The project that already holds this EP number, when one does. */
+  const [existing, setExisting] = useState<{ id: number; epNumber: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   function updateSheet(path: string, patch: Partial<SheetChoice>) {
@@ -98,6 +101,7 @@ export function ReviewProjectForm({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setExisting(null);
     setSubmitting(true);
 
     const payload: ProjectCreate = {
@@ -116,6 +120,13 @@ export function ReviewProjectForm({
       const created = await api.post<Project>("/projects", payload);
       onCreated(created);
     } catch (err) {
+      // An EP number is the job's number in the archive, so a second
+      // engineer meeting this has been sent the job, not asked to start
+      // it again. Offer the project rather than a dead end -- but do not
+      // navigate on their behalf: what they typed here would go with it.
+      if (err instanceof ApiError && err.code === "project_exists" && err.detail?.project_id) {
+        setExisting({ id: Number(err.detail.project_id), epNumber: String(err.detail.ep_number ?? "") });
+      }
       setError(err instanceof ApiError ? err.message : "Failed to create project");
     } finally {
       setSubmitting(false);
@@ -260,7 +271,25 @@ export function ReviewProjectForm({
           confidence={confidence}
         />
 
-        {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+        {error && (
+          <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+            {existing && (
+              <>
+                {" "}
+                <Link
+                  to={`/projects/${existing.id}`}
+                  className="font-semibold underline underline-offset-2 hover:no-underline"
+                >
+                  Open EP-{existing.epNumber}
+                </Link>
+                <span className="mt-1 block text-xs text-red-600/80">
+                  Opening it adds it to your projects. Anything you changed on this page is not carried over.
+                </span>
+              </>
+            )}
+          </div>
+        )}
 
         <button
           type="submit"

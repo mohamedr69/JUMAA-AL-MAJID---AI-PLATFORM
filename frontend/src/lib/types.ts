@@ -1711,6 +1711,70 @@ export interface DatasheetLibrarySummary {
   datasheets: number;
 }
 
+/** One job as the design manager's register holds it. Engineers and
+ * statuses are lists because a job can be split between two engineers, or
+ * carry two statuses at once -- which is what a review is looking for. */
+export interface RegisterProject {
+  ep_number: string;
+  project_name: string | null;
+  client: string | null;
+  consultant: string | null;
+  contractor: string | null;
+  scope: string | null;
+  engineers: string[];
+  statuses: string[];
+  systems: string[];
+  products: string[];
+  started: string | null;
+  last_action: string | null;
+  rows: number;
+}
+
+/** One engineer's work inside one division. A job split between two
+ * engineers counts for both, so these totals do not sum to the division's. */
+export interface EngineerLoad {
+  name: string;
+  /** No longer with the company; their jobs are still in the register. */
+  resigned: boolean;
+  total: number;
+  by_status: Record<string, number>;
+  latest: RegisterProject | null;
+}
+
+export interface RegisterDivision {
+  key: string;
+  label: string;
+  total: number;
+  by_status: Record<string, number>;
+  engineers: EngineerLoad[];
+  latest: RegisterProject | null;
+  /** Of `total`, how many are carried by someone who has left. */
+  resigned_total: number;
+}
+
+export interface RegisterPage {
+  available: boolean;
+  unavailable_reason: string | null;
+  updated_at: string | null;
+  total: number;
+  engineers: string[];
+  /** Every status the register holds, tiled ones first. */
+  statuses: string[];
+  projects: RegisterProject[];
+  divisions: RegisterDivision[];
+  tile_statuses: string[];
+  /** What the workbook was when this was read; a page holding an older
+   * one knows to read again. */
+  revision: string | null;
+}
+
+/** A `stat` of the workbook, for a page watching it change. */
+export interface RegisterRevision {
+  available: boolean;
+  revision: string | null;
+  updated_at: string | null;
+}
+
 /** One system's share of the datasheet library. The systems are the
  * platform's own (FAS, the two kinds of emergency lighting, FRC); a
  * manufacturer with `available: false` is one the company uses whose

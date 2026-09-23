@@ -15,16 +15,25 @@ export function OpenProjectPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  /* Which projects to list. Not a permission -- anyone may open any
+   * project, and two engineers may have the same one open at once -- just
+   * which set is shown first: an engineer's own, an admin's all. */
+  const [scope, setScope] = useState<"mine" | "all">(user?.role === "admin" ? "all" : "mine");
 
   const canDelete = user !== null && DELETER_ROLES.includes(user.role);
 
   useEffect(() => {
+    let live = true;
+    setLoading(true);
     api
-      .get<Project[]>("/projects")
-      .then(setProjects)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load projects"))
-      .finally(() => setLoading(false));
-  }, []);
+      .get<Project[]>(`/projects?scope=${scope}`)
+      .then((rows) => live && setProjects(rows))
+      .catch((err) => live && setError(err instanceof ApiError ? err.message : "Failed to load projects"))
+      .finally(() => live && setLoading(false));
+    return () => {
+      live = false;
+    };
+  }, [scope]);
 
   async function removeProject(id: number) {
     setDeletingId(id);
@@ -42,8 +51,31 @@ export function OpenProjectPage() {
 
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-xl font-bold text-navy-900">Open Project</h1>
-      <p className="mt-1 text-sm text-gray-500">Projects you created or are assigned to.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-navy-900">Open Project</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {scope === "mine"
+              ? "Projects you created or are assigned to."
+              : "Every project on the platform."}
+          </p>
+        </div>
+        <div className="flex overflow-hidden rounded-lg border border-gray-300 text-sm">
+          {(["mine", "all"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setScope(value)}
+              aria-pressed={scope === value}
+              className={`px-3 py-1.5 font-semibold ${
+                scope === value ? "bg-brand-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {value === "mine" ? "Mine" : "All projects"}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {error && <div className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
       {loading && <div className="mt-6 text-sm text-gray-400">Loading...</div>}

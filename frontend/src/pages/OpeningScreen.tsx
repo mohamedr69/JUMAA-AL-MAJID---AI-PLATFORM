@@ -43,6 +43,7 @@ const icon = (path: ReactNode) => (
 const IconHome = () => icon(<><path d="M3 10.5 12 3l9 7.5" /><path d="M5 9.5V21h14V9.5" /></>);
 const IconPlus = () => icon(<><path d="M12 5v14" /><path d="M5 12h14" /></>);
 const IconFolder = () => icon(<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />);
+const IconClipboard = () => icon(<><rect x="5" y="4" width="14" height="17" rx="2" /><path d="M9 4h6v3H9z" /><path d="M9 12h6M9 16h4" /></>);
 const IconSheet = () => icon(<><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" /><path d="M9 13h6M9 17h4" /></>);
 const IconTemplate = () => icon(<><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8M8 12h8M8 16h5" /></>);
 const IconBook = () => icon(<><path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" /><path d="M8 3v18" /></>);
@@ -64,6 +65,8 @@ interface Destination {
   soon?: boolean;
   adminOnly?: boolean;
   creatorOnly?: boolean;
+  /** The design manager's own tools. */
+  managerOnly?: boolean;
 }
 
 const PRIMARY: Destination[] = [
@@ -73,6 +76,7 @@ const PRIMARY: Destination[] = [
 ];
 
 const TOOLS: Destination[] = [
+  { label: "Project Register", description: "Every job and the engineer designing it.", icon: IconClipboard, to: "/register", managerOnly: true },
   { label: "Datasheets", description: "Search the manufacturers' datasheet library.", icon: IconSheet, to: "/datasheets" },
   { label: "Templates", description: "Standard documents and drawing templates.", icon: IconTemplate, soon: true },
   { label: "Knowledge Base", description: "Standards, codes, templates and guides.", icon: IconBook, soon: true },
@@ -96,8 +100,12 @@ export function OpeningScreen() {
   const division = divisionForRole(user?.role);
   if (division) return <EstimationDashboard division={division} />;
 
+  const isManager = user?.role === "design_manager";
   const available = (item: Destination) =>
-    !item.soon && !!item.to && (!item.adminOnly || isAdmin) && (!item.creatorOnly || canCreate);
+    !item.soon && !!item.to && (!item.adminOnly || isAdmin) && (!item.creatorOnly || canCreate)
+    // The register is the manager's review of the engineers' work. An
+    // admin may open it by its address; it is not on their rail.
+    && (!item.managerOnly || isManager);
 
   return (
     <div className="-m-6 flex min-h-[calc(100vh-57px)] bg-[#f5f7fb] text-navy-900">

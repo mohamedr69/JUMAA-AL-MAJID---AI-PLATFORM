@@ -13,6 +13,7 @@ from app.core.timeutils import utc_now
 from app.database import get_db
 from app.deps import get_current_user, require_role
 from app.models import (
+    ActivityEvent,
     ProjectDocument,
     Project,
     ProjectBoqItem,
@@ -337,13 +338,25 @@ def create_project(
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> Project:
-    conflict = HTTPException(
-        status_code=status.HTTP_409_CONFLICT,
-        detail=f"A project for EP number '{payload.ep_number}' already exists",
-    )
+    def conflict(found: Project | None) -> HTTPException:
+        """A project is one job, not one per engineer: an EP number is the
+        job's number in the archive. So this says which project already
+        holds it, and the caller opens that one rather than being left at
+        a dead end -- the engineer who meets it has usually been sent the
+        job, not asked to start it again."""
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "project_exists",
+                "message": f"A project for EP number '{payload.ep_number}' already exists",
+                "ep_number": payload.ep_number,
+                "project_id": found.id if found is not None else None,
+            },
+        )
+
     existing = db.query(Project).filter(Project.ep_number == payload.ep_number).first()
     if existing:
-        raise conflict
+        raise conflict(existing)
     _validate_source_paths(payload)
 
     project = Project(
@@ -367,7 +380,7 @@ def create_project(
         # A double-submitted form gets past the check above on both requests;
         # the unique constraint catches the second, which is still a conflict.
         db.rollback()
-        raise conflict
+        raise conflict(db.query(Project).filter(Project.ep_number == payload.ep_number).first())
     db.refresh(project)
     _ensure_project_folders(db, current_user, project)
     activity.record(db, current_user, "project.created", f"Created {activity.project_label(project)}",
@@ -400,16 +413,46 @@ def _for(user: User, project: Project) -> ProjectOut:
 
 @router.get("", response_model=list[ProjectOut])
 def list_projects(
+    scope: str | None = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[ProjectOut]:
-    """The projects this user may open: the ones they created or are the
-    assigned design engineer of. An admin sees every project."""
+    """The projects to list.
+
+    `scope="mine"` is the ones this user created, is the assigned design
+    engineer of, or has opened; `scope="all"` is every project on the
+    platform. Unasked,
+    an engineer gets their own and an admin gets all -- what each opens
+    first -- but neither is a permission: **any** user may list and open
+    any project, and two of them may have the same one open at once.
+    Nothing here reserves a project for one person.
+    """
+    mine = scope == "mine" or (scope is None and current_user.role != RoleEnum.admin)
     query = db.query(Project)
-    if current_user.role != RoleEnum.admin:
+    if mine:
+        # Opened, as well as created or assigned: a project reaches an
+        # engineer by being handed to them, and asking for it is what
+        # makes it theirs to come back to. Without this, a job someone was
+        # sent is missing from their list every time they return to it.
+        #
+        # Only "project.opened" -- the act of asking for the project --
+        # counts. Every other event carries a project id too, and the side
+        # effects of opening one (its folders being created, a document
+        # sync, an AI check) would otherwise put a project on the list of
+        # someone who never asked for it.
+        opened = (
+            db.query(ActivityEvent.project_id)
+            .filter(
+                ActivityEvent.user_id == current_user.id,
+                ActivityEvent.action == "project.opened",
+                ActivityEvent.project_id.isnot(None),
+            )
+            .distinct()
+        )
         query = query.filter(or_(
             Project.created_by_id == current_user.id,
             Project.design_engineer_id == current_user.id,
+            Project.id.in_(opened),
         ))
     return [_for(current_user, p) for p in query.order_by(Project.created_at.desc()).all()]
 

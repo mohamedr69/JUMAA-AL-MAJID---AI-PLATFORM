@@ -11,6 +11,7 @@ import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { CreateProjectPage } from "./pages/CreateProjectPage";
 import { LoginPage } from "./pages/LoginPage";
 import { DatasheetEnginePage } from "./pages/DatasheetEnginePage";
+import { ProjectRegisterPage } from "./pages/ProjectRegisterPage";
 import { OpenProjectPage } from "./pages/OpenProjectPage";
 import { OpeningScreen } from "./pages/OpeningScreen";
 import { ProjectBatteryPage } from "./pages/ProjectBatteryPage";
@@ -82,6 +83,17 @@ export default function App() {
             element={
               <RoleRoute roles={["admin", "design_manager", "design_engineer", "draftsman", "viewer"]}>
                 <DatasheetEnginePage />
+              </RoleRoute>
+            }
+          />
+          {/* The design manager's review of the work. An admin is allowed
+              too, so the platform's owner can see what a manager sees; the
+              rail entry is the manager's alone. */}
+          <Route
+            path="/register"
+            element={
+              <RoleRoute roles={["design_manager", "admin"]}>
+                <ProjectRegisterPage />
               </RoleRoute>
             }
           />

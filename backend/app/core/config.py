@@ -94,6 +94,14 @@ class Settings(BaseSettings):
     # Tests turn this off: their archives are the temporary folders they build.
     projects_root_autodetect: bool = True
 
+    # --- The project register (app/services/project_register.py) --------
+    # The company's own record of every job and the engineer designing it,
+    # kept as a workbook in the archive. Read, never written: it is the
+    # design manager's register, maintained outside the platform. Relative
+    # to the archive root, or absolute.
+    project_register: str = "Khaled Issa/Fire Alarm Project Details.xlsx"
+    project_register_sheet: str = "Sheet1"
+
     # --- The archive index (app/services/ep_directory.py) ---------------
     # The archive's EP folders, walked once and then searched in the
     # database, so typing an EP number suggests projects instead of

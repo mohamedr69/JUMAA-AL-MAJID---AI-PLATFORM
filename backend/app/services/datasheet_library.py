@@ -563,7 +563,7 @@ SYSTEM_LIBRARIES: tuple[dict, ...] = (
         "code": "ELS_SELF_CONTAINED",
         "label": "Monitored Self Contained",
         "description": "Emergency lighting (maintained/non-maintained), exit signs, luminaires.",
-        "manufacturers": ("MENVIER", "EATON", "JSB"),
+        "manufacturers": ("MENVIER", "EATON"),
     },
     {
         "code": "ELS_CENTRAL_BATTERY",
@@ -573,7 +573,7 @@ SYSTEM_LIBRARIES: tuple[dict, ...] = (
         # is that system's sheets. Listing it here too would report those
         # same four sheets as a central battery library the company does
         # not yet have.
-        "manufacturers": ("RP-TECHNIK", "EATON"),
+        "manufacturers": ("JSB", "RP-TECHNIK", "EATON"),
     },
     {
         "code": "FRC",

@@ -27,6 +27,7 @@ from app.routers import (
     knowledge,
     modules,
     projects,
+    register,
     readiness,
     submittal,
     users,
@@ -194,6 +195,7 @@ app.include_router(divisions.router)
 app.include_router(users.router)
 app.include_router(modules.router)
 app.include_router(projects.router)
+app.include_router(register.router)
 app.include_router(boq_review.router)
 app.include_router(readiness.router)
 app.include_router(jobs.router)
