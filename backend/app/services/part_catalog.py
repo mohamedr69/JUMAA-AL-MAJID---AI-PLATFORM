@@ -25,7 +25,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.extraction.identity import part_key
-from app.models import ProjectBoqItem
+from app.models import PartDatasheetLink, ProjectBoqItem
 from app.services import equipment_currents
 from app.services.datasheet_library import get_libraries
 
@@ -82,16 +82,12 @@ def catalog(db: Session, brand: str | None) -> list[PartEntry]:
         if source not in entry.sources:
             entry.sources.append(source)
 
-    for name, library in get_libraries().items():
-        if brand_key and name.upper() != brand_key:
-            continue
-        try:
-            files = library.listing()
-        except Exception:  # noqa: BLE001 -- an unreadable library adds nothing
-            continue
-        for file in files:
-            for part_no in _from_filename(file.filename):
-                add(part_no, None, "datasheet")
+    linked_query = db.query(PartDatasheetLink)
+    if brand_key:
+        linked_query = linked_query.filter(PartDatasheetLink.manufacturer == brand_key)
+    linked_rows = linked_query.all()
+    for row in linked_rows:
+        add(row.part_no, None, "datasheet")
 
     if not brand_key or brand_key == equipment_currents.MANUFACTURER.upper():
         for row in equipment_currents.all_rows(db):

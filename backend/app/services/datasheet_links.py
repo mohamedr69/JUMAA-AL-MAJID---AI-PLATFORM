@@ -96,3 +96,22 @@ def seed(db: Session) -> int:
     if added:
         db.commit()
     return added
+
+
+def sync_library_links(db: Session, libraries: dict) -> int:
+    """Retained for compatibility; library files require human confirmation.
+
+    Part numbers found in a PDF are proposals, not database mappings. Use the
+    review endpoint and ``link`` after an engineer confirms the relationship.
+    """
+    return 0
+
+
+def remove_unconfirmed_library_links(db: Session) -> int:
+    """Remove mappings created by the old filename-only indexer."""
+    rows = db.query(PartDatasheetLink).filter(PartDatasheetLink.source == "library").all()
+    for row in rows:
+        db.delete(row)
+    if rows:
+        db.commit()
+    return len(rows)

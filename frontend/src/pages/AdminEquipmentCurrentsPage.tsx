@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, api, apiUrl } from "../lib/api";
 import { formatApiDate } from "../lib/format";
-import type { EquipmentAudit, EquipmentCurrent } from "../lib/types";
+import type { DatasheetProposal, EquipmentAudit, EquipmentCurrent } from "../lib/types";
 
 const KIND: Record<EquipmentCurrent["kind"], { label: string; className: string }> = {
   mechanical: { label: "No load", className: "bg-gray-100 text-gray-700 ring-gray-300" },
@@ -48,6 +48,9 @@ export function AdminEquipmentCurrentsPage() {
   const [busy, setBusy] = useState(false);
   const [audit, setAudit] = useState<EquipmentAudit | null>(null);
   const [auditing, setAuditing] = useState(false);
+  const [proposals, setProposals] = useState<DatasheetProposal[] | null>(null);
+  const [loadingProposals, setLoadingProposals] = useState(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -138,6 +141,38 @@ export function AdminEquipmentCurrentsPage() {
     }
   }
 
+  async function loadProposals() {
+    setLoadingProposals(true);
+    setError(null);
+    try {
+      setProposals(await api.get<DatasheetProposal[]>("/design-rules/datasheets/proposals"));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "The datasheet proposals could not be read");
+    } finally {
+      setLoadingProposals(false);
+    }
+  }
+
+  async function confirmProposal(proposal: DatasheetProposal) {
+    const key = `${proposal.library}:${proposal.path}:${proposal.part_no}`;
+    setConfirming(key);
+    setError(null);
+    try {
+      await api.post("/design-rules/datasheets/proposals/confirm", {
+        manufacturer: proposal.library,
+        part_no: proposal.part_no,
+        library: proposal.library,
+        path: proposal.path,
+        pages: proposal.pages,
+      });
+      setProposals((current) => (current ?? []).filter((item) => `${item.library}:${item.path}:${item.part_no}` !== key));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "The datasheet link could not be saved");
+    } finally {
+      setConfirming(null);
+    }
+  }
+
   const draft = editing?.draft;
   const ready =
     !!draft &&
@@ -165,6 +200,13 @@ export function AdminEquipmentCurrentsPage() {
             title="Link every part to its datasheet in the library and re-read each figure off it"
           >
             {auditing ? "Reading the datasheets..." : "Audit datasheets"}
+          </button>
+          <button
+            onClick={() => void loadProposals()}
+            disabled={loadingProposals}
+            className="rounded-lg border border-brand-300 bg-brand-50 px-3 py-1.5 text-sm font-semibold text-brand-800 hover:bg-brand-100 disabled:opacity-60"
+          >
+            {loadingProposals ? "Finding part numbers..." : "Review PDF part numbers"}
           </button>
           <button
             onClick={() => setEditing({ id: null, draft: EMPTY })}
@@ -216,6 +258,41 @@ export function AdminEquipmentCurrentsPage() {
       </div>
 
       {error && <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
+
+      {proposals !== null && (
+        <section aria-label="Datasheet part proposals" className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-navy-900">Part numbers found inside datasheets</h2>
+              <p className="mt-1 text-xs text-gray-700">Confirm only when the PDF actually documents the material. Nothing here is saved until you confirm it.</p>
+            </div>
+            <span className="text-xs font-semibold text-amber-800">{proposals.length} awaiting review</span>
+          </div>
+          {proposals.length > 0 && (
+            <div className="mt-3 overflow-x-auto rounded-lg border border-amber-200 bg-white">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-gray-200 bg-gray-50 text-gray-500">
+                  <tr><th className="px-3 py-2">Manufacturer</th><th className="px-3 py-2">Part number</th><th className="px-3 py-2">Datasheet</th><th className="px-3 py-2">Pages</th><th className="px-3 py-2" /></tr>
+                </thead>
+                <tbody>
+                  {proposals.map((proposal) => {
+                    const key = `${proposal.library}:${proposal.path}:${proposal.part_no}`;
+                    return (
+                      <tr key={key} className="border-b border-gray-100 last:border-0">
+                        <td className="px-3 py-2 font-semibold text-navy-900">{proposal.library}</td>
+                        <td className="px-3 py-2 font-mono font-semibold text-navy-900">{proposal.part_no}</td>
+                        <td className="px-3 py-2"><a className="text-brand-700 hover:underline" href={`${apiUrl(`/design-rules/datasheets/file?${new URLSearchParams({ library: proposal.library, path: proposal.path })}`)}#page=${proposal.pages[0] ?? 1}`} target="_blank" rel="noreferrer">{proposal.filename}</a></td>
+                        <td className="px-3 py-2 text-gray-600">{proposal.pages.join(", ") || "-"}</td>
+                        <td className="px-3 py-2 text-right"><button onClick={() => void confirmProposal(proposal)} disabled={confirming !== null} className="rounded-md bg-emerald-600 px-2.5 py-1.5 font-semibold text-white hover:bg-emerald-700 disabled:opacity-60">{confirming === key ? "Saving..." : "Confirm material"}</button></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       {editing && draft && (
         <section aria-label={editing.id === null ? "Add a part" : `Edit ${draft.part_no}`} className="mt-4 rounded-xl border border-brand-200 bg-brand-50/40 p-4">

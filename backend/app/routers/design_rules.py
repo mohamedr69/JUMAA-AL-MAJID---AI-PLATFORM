@@ -10,6 +10,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -40,6 +41,60 @@ from app.services import datasheet_documents
 from app.services.datasheet_library import SYSTEM_LIBRARIES, get_libraries, libraries_for
 
 router = APIRouter(prefix="/design-rules", tags=["design rules"])
+
+
+class DatasheetLinkConfirmIn(BaseModel):
+    manufacturer: str = Field(min_length=1, max_length=64)
+    part_no: str = Field(min_length=1, max_length=120)
+    library: str = Field(min_length=1, max_length=64)
+    path: str = Field(min_length=1, max_length=500)
+    pages: list[int] = []
+
+
+@router.get("/datasheets/proposals")
+def datasheet_proposals(
+    manufacturer: str | None = None,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict]:
+    """Find part numbers inside PDFs for human review; save nothing."""
+    from app.services import datasheet_links
+
+    libraries = _libraries()
+    confirmed = {(row.manufacturer.upper(), row.key) for row in db.query(PartDatasheetLink).all()}
+    result: list[dict] = []
+    for library in libraries_for(manufacturer, libraries):
+        for sheet in library.listing():
+            for candidate in library.candidate_parts(sheet.path):
+                if (library.name.upper(), part_key(candidate["part_no"])) in confirmed:
+                    continue
+                result.append({
+                    "library": library.name,
+                    "path": sheet.path,
+                    "filename": sheet.filename,
+                    "part_no": candidate["part_no"],
+                    "pages": candidate["pages"],
+                })
+    return result
+
+
+@router.post("/datasheets/proposals/confirm")
+def confirm_datasheet_proposal(
+    payload: DatasheetLinkConfirmIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> dict:
+    from app.services import datasheet_links
+
+    libraries = _libraries()
+    library = next((lib for name, lib in libraries.items() if name.upper() == payload.library.upper()), None)
+    if library is None or library.resolve(payload.path) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="No such datasheet in the library")
+    row = datasheet_links.link(db, manufacturer=payload.manufacturer, part_no=payload.part_no,
+                               library=library.name, path=payload.path, user_id=current_user.id,
+                               source="engineer")
+    return {"manufacturer": row.manufacturer, "part_no": row.part_no, "library": row.library,
+            "path": row.path, "pages": payload.pages, "source": row.source}
 
 
 def rule_out(rule: DesignRule) -> DesignRuleOut:
@@ -274,6 +329,7 @@ def list_datasheet_systems(
 @router.post("/datasheet-libraries/reindex", response_model=list[DatasheetLibraryOut])
 def reindex_datasheet_libraries(
     _current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
 ) -> list[DatasheetLibraryOut]:
     """Re-read the libraries now.
 
@@ -282,8 +338,12 @@ def reindex_datasheet_libraries(
     This is the way to see a datasheet added a moment ago without waiting
     for that interval.
     """
-    for library in _libraries().values():
+    libraries = _libraries()
+    for library in libraries.values():
         library.reindex()
+    from app.services import datasheet_links
+
+    datasheet_links.sync_library_links(db, libraries)
     return list_datasheet_libraries(_current_user)
 
 
@@ -405,6 +465,7 @@ def find_datasheets(
     best first, with the rows of each that give a current. A sheet recorded
     for the part in the equipment table comes first."""
     from app.services import equipment_currents
+    from app.services import datasheet_links
 
     libraries = _libraries()
     matches = []
@@ -412,9 +473,17 @@ def find_datasheets(
     mapped = equipment_currents.mapped_match(row, libraries) if row is not None else None
     if mapped is not None:
         matches.append(mapped[1])
-    for library in libraries_for(manufacturer, libraries):
-        matches += [m for m in library.find(part_no)
-                    if not any(m.path == x.path and m.library == x.library for x in matches)]
+    if not matches:
+        linked = datasheet_links.lookup(db, manufacturer, part_no)
+        if linked is not None:
+            library = next((lib for name, lib in libraries.items() if name.upper() == linked.library.upper()), None)
+            mapped = library.match_for(linked.path, matched_on="filename") if library is not None else None
+            if mapped is not None:
+                matches.append(mapped)
+    if not matches:
+        for library in libraries_for(manufacturer, libraries):
+            matches += [m for m in library.find(part_no)
+                        if not any(m.path == x.path and m.library == x.library for x in matches)]
     return [
         DatasheetMatchOut(
             library=m.library,
