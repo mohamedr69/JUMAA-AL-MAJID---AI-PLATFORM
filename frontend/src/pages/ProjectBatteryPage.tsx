@@ -14,12 +14,11 @@ import {
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { useProject } from "./ProjectWorkspace";
 
-type SizingField = "standby_hours" | "alarm_minutes" | "spare_factor" | "panel_voltage";
+type SizingField = "standby_hours" | "alarm_minutes" | "panel_voltage";
 
 const SETTINGS: { field: SizingField; label: string; unit?: string; help: string; step: string }[] = [
   { field: "standby_hours", label: "Standby duration", unit: "h", help: "Duration the system must operate in standby mode.", step: "1" },
   { field: "alarm_minutes", label: "Alarm duration", unit: "min", help: "Duration the system must operate in alarm mode.", step: "1" },
-  { field: "spare_factor", label: "Design factor", help: "Additional capacity factor (e.g. ageing, temperature).", step: "0.05" },
   { field: "panel_voltage", label: "System voltage", unit: "V", help: "Nominal system voltage (DC).", step: "1" },
 ];
 
@@ -678,7 +677,7 @@ function PanelDetail({
             <CalcRow
               bold
               label="Required:"
-              formula={`(${fmt(standbyA * s.standby_hours)} + ${fmt(alarmA * alarmHours)}) × ${fmt(s.spare_factor)} =`}
+              formula={`${fmt(standbyA * s.standby_hours)} + ${fmt(alarmA * alarmHours)} =`}
               result={`${atLeast}${fmt(panel.required_ah)} Ah`}
             />
           </div>

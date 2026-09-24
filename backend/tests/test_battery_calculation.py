@@ -26,7 +26,7 @@ from app.services.battery_calculation import (
 )
 
 FIXTURES = Path(__file__).parent / "fixtures"
-SIZING = Sizing(standby_hours=24, alarm_minutes=30, spare_factor=1.2, panel_voltage=24)
+SIZING = Sizing(standby_hours=24, alarm_minutes=30, panel_voltage=24)
 
 # The ROCKET batteries EP-20779 selects from: 26, 42 and 65 Ah 12 V blocks.
 BATTERIES = {
@@ -42,20 +42,33 @@ EP20779_CURRENTS = {
 }
 CURRENTS = {part_key(p): PartCurrent(standby_ma=s, alarm_ma=a) for p, (s, a) in EP20779_CURRENTS.items()}
 
+# EP-20779's panels, as the engineers' workbook lists them:
+# (parts, standby mA, alarm mA, required Ah, battery selected).
+#
+# The currents and the standby/alarm totals are the workbook's own and are
+# what this checks. The required capacity is **not** the workbook's figure:
+# the workbook multiplied the load by 1.2 for ageing and temperature, and
+# the platform owner settled on 2026-09-24 that the required capacity is
+# the load itself. Each panel's workbook figure is noted beside it.
+#
+# On two of the three the battery still comes out as the engineers chose.
+# On FACP-02 it does not: 22.203 Ah is met by a 26 Ah block where the
+# workbook's 26.6436 Ah needed a 42 Ah one. That is the factor's removal
+# showing up in a selection, and it is intended.
 EP20779_PANELS = {
     "MFACP-01": (
         [("3-CPU3", 1), ("3-RS232", 1), ("3-RS485B", 1), ("3-SDDC1", 5), ("3-LCD", 1), ("3-ZA20B", 2),
          ("3-PPS/M-230", 1), ("3-12/S1RY", 2), ("3-ASU/FT", 1)],
-        2001, 4495, 60.3258, 65,
+        2001, 4495, 50.2715, 65,          # workbook: 60.3258 Ah, 65 Ah -- same battery
     ),
     "FACP-2": (
         [("3-CPU3", 1), ("3-RS232", 1), ("3-RS485B", 1), ("3-SDDC1", 2), ("3-LCD", 1), ("3-PPS/M-230", 1),
          ("3-12/S1RY", 3), ("3-FTCU", 1)],
-        1097, 1262, 32.3508, 42,
+        1097, 1262, 26.9590, 42,          # workbook: 32.3508 Ah, 42 Ah -- same battery
     ),
     "FACP-02": (
         [("3-CPU3", 1), ("3-RS485B", 1), ("3-SDDC1", 2), ("3-LCD", 1), ("3-PPS/M-230", 1), ("3-12/S1RY", 1)],
-        903, 1062, 26.6436, 42,
+        903, 1062, 22.2030, 26,           # workbook: 26.6436 Ah, 42 Ah -- a smaller battery now
     ),
 }
 
@@ -69,7 +82,10 @@ def _lines(parts, heading="EST3 Fire Alarm Control Panel", count=1, battery=None
 
 
 @pytest.mark.parametrize("name", EP20779_PANELS)
-def test_ep20779_panels_come_out_at_the_engineers_figures(name):
+def test_ep20779_panels_come_out_at_the_engineers_currents(name):
+    """The load is the engineers' own, part for part. What is carried on top
+    of it is not: see EP20779_PANELS for where the required capacity and one
+    of the three batteries now differ from the workbook."""
     parts, standby, alarm, required, selected = EP20779_PANELS[name]
     panel = calculate_panel(name, "FAS", _lines(parts), SIZING, CURRENTS, BATTERIES)
     assert (panel.standby_ma, panel.alarm_ma) == (standby, alarm)
@@ -238,5 +254,25 @@ def test_ep30784_main_panel_with_partial_currents_already_exceeds_its_battery():
     main = calculate_boq(_ep30784_lines(), SIZING, currents, {})[0][0]
     assert main.missing_parts == ["4-USBHUB", "4-COMREL"]
     assert (main.standby_ma, main.alarm_ma) == (3086, 6057)
-    assert main.required_ah == pytest.approx((3086 * 24 + 6057 * 0.5) / 1000 * 1.2)
+    assert main.required_ah == pytest.approx((3086 * 24 + 6057 * 0.5) / 1000)
     assert main.lower_bound and main.quoted_short and main.status == "incomplete"
+
+
+def test_the_required_capacity_is_the_load_with_no_design_factor_on_it():
+    """The workbooks carried 1.2 for ageing and temperature. The platform
+    owner settled that the required capacity is the load itself, so the
+    figure is the standby and alarm energy and nothing more -- and there
+    is no factor left to set."""
+    import dataclasses
+
+    currents = {part_key("4-CPU"): PartCurrent(200, 400)}
+    lines = [BoqLine("FAS", "EST4 Fire Alarm Panel", "4-CPU", "CPU", "1")]
+    panel = calculate_boq(lines, SIZING, currents, {})[0][0]
+
+    standby_ah = 200 * 24 / 1000
+    alarm_ah = 400 * (30 / 60) / 1000
+    assert panel.total_ah == pytest.approx(standby_ah + alarm_ah)
+    assert panel.required_ah == pytest.approx(panel.total_ah)
+
+    # Nothing to set it with: the field is gone from the sizing.
+    assert "spare_factor" not in {f.name for f in dataclasses.fields(SIZING)}

@@ -217,7 +217,6 @@ def _panel_page(doc, project: Project, panel, systems: str, manufacturer: str) -
     settings = panel.settings or {}
     hours = settings.get("standby_hours", 24)
     minutes = settings.get("alarm_minutes", 30)
-    spare = settings.get("spare_factor", 1.2)
     # ">=" rather than the sign: the base-14 PDF fonts have no U+2265 and
     # pymupdf substitutes a middle dot for it, which would turn "at least
     # 110 Ah" into what looks like a bulleted "110 Ah" on an issued sheet.
@@ -228,8 +227,7 @@ def _panel_page(doc, project: Project, panel, systems: str, manufacturer: str) -
         ("Alarm current", f"{at_least}{_number(panel.alarm_ma, 3)} mA"),
         (f"Standby, {_number(hours)} h", f"{at_least}{_number(panel.standby_mah / 1000 if panel.standby_mah else 0, 3)} Ah"),
         (f"Alarm, {_number(minutes)} min", f"{at_least}{_number(panel.alarm_mah / 1000 if panel.alarm_mah else 0, 3)} Ah"),
-        ("Base requirement", f"{at_least}{_number(panel.total_ah, 3)} Ah"),
-        (f"With {_number((spare - 1) * 100)}% spare", f"{at_least}{_number(panel.required_ah, 3)} Ah"),
+        ("Required capacity", f"{at_least}{_number(panel.required_ah, 3)} Ah"),
     ]
     y = 350
     for label, value in rows:

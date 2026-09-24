@@ -1021,7 +1021,7 @@ def test_the_battery_section_encloses_the_calculation(client, db_session, tmp_pa
 
     class _Panel:
         key, name, heading = "FAS|Panel|1", "FACP-01", "Panel"
-        lines, settings, notes = [], {"standby_hours": 24, "alarm_minutes": 30, "spare_factor": 1.2}, []
+        lines, settings, notes = [], {"standby_hours": 24, "alarm_minutes": 30}, []
         standby_ma = alarm_ma = standby_mah = alarm_mah = 0.0
         total_ah = required_ah = 0.0
         lower_bound = quoted_short = False

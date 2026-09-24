@@ -36,12 +36,14 @@ INITIAL_DESIGN_RULES = [
     {
         "category": BATTERY_SIZING_CATEGORY,
         "key": BATTERY_SIZING_KEY,
-        "data": {"standby_hours": 24, "alarm_minutes": 30, "spare_factor": 1.2, "panel_voltage": 24},
+        "data": {"standby_hours": 24, "alarm_minutes": 30, "panel_voltage": 24},
         "source": (
             "The engineers' FAS battery workbooks (EP-20779 '6. FAS Battery Calculation.xlsx', "
-            "EP-30784 'BC.xlsx'): required Ah = (standby mA x 24 h + alarm mA x 30 min) / 1000 x 1.2 "
-            "(20% spare); confirmed by the platform owner on 2026-09-11. Panels run on 24 V DC: the "
-            "BOQs quote their batteries as pairs of 12 V blocks (e.g. EP-30784's 2 x 12V65A)."
+            "EP-30784 'BC.xlsx'): required Ah = (standby mA x 24 h + alarm mA x 30 min) / 1000. "
+            "No design factor is applied -- the workbooks carried 1.2 for ageing and temperature, "
+            "and the platform owner settled on 2026-09-24 that the figure is the load itself. "
+            "Panels run on 24 V DC: the BOQs quote their batteries as pairs of 12 V blocks "
+            "(e.g. EP-30784's 2 x 12V65A)."
         ),
     },
     {

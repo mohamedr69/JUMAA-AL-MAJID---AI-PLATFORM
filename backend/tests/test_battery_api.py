@@ -42,7 +42,7 @@ def test_nothing_is_claimed_until_every_part_has_a_current(client):
     project_id = _project_with_boq(client)
 
     body = client.get(f"/projects/{project_id}/design/battery").json()
-    assert body["rule"]["data"] == {"standby_hours": 24, "alarm_minutes": 30, "spare_factor": 1.2, "panel_voltage": 24}
+    assert body["rule"]["data"] == {"standby_hours": 24, "alarm_minutes": 30, "panel_voltage": 24}
     assert [(g["heading"], g["treatment"]) for g in body["groups"]] == [
         (PANEL, "panel"),
         ("Booster Power Supply", "bps"),
@@ -60,9 +60,9 @@ def test_nothing_is_claimed_until_every_part_has_a_current(client):
     assert _current(client, "4-fil", 0, 0, source="No electrical load: blank filler plate").status_code == 200
 
     panel = client.get(f"/projects/{project_id}/design/battery").json()["panels"][0]
-    # (1531 x 24 + 1891 x 0.5) / 1000 x 1.2 = 45.23 Ah, against 26 Ah quoted.
+    # (1531 x 24 + 1891 x 0.5) / 1000 = 37.69 Ah, against 26 Ah quoted.
     assert (panel["standby_ma"], panel["alarm_ma"]) == (1531, 1891)
-    assert round(panel["required_ah"], 2) == 45.23
+    assert round(panel["required_ah"], 2) == 37.69
     assert not panel["lower_bound"] and panel["quoted_short"]
     # No ROCKET battery on file in the tests (no datasheet library): nothing to select.
     assert panel["status"] == "no_selection"
@@ -84,7 +84,10 @@ def test_battery_units_drive_the_proposal(client):
 
     body = client.get(f"/projects/{project_id}/design/battery").json()
     panel = body["panels"][0]
-    assert [(p["part_no"], p["units"], p["strings"]) for p in panel["selected"]] == [("12V65A", 2, 1)]
+    # A 42 Ah pair carries it. With the 1.2 design factor this took 65 Ah:
+    # dropping the factor is what moved it down a size.
+    assert [(p["part_no"], p["units"], p["strings"]) for p in panel["selected"]] == [("12V42A", 2, 1)]
+    assert panel["required_ah"] <= 42 and panel["required_ah"] > 26
     assert body["unlisted_batteries"] == []
 
 
@@ -240,7 +243,7 @@ def test_every_physical_panel_gets_its_own_card(client):
         ("FACP-02", "EST4 Fire Alarm Panel", 1),
         ("FACP-03", "EST4 Fire Alarm Panel", 2),
     ]
-    assert panels[0]["settings"] == {"standby_hours": 24, "alarm_minutes": 30, "spare_factor": 1.2, "panel_voltage": 24}
+    assert panels[0]["settings"] == {"standby_hours": 24, "alarm_minutes": 30, "panel_voltage": 24}
     assert panels[0]["overridden"] == []
 
 
@@ -263,9 +266,9 @@ def test_panel_settings_and_added_components_are_saved_and_recalculated(client):
     assert resp.status_code == 200, resp.text
     third = resp.json()["panels"][2]
     assert (third["name"], third["location"], third["overridden"]) == ("FACP-L20", "Level 20 electrical room", ["standby_hours"])
-    # 211 mA x 72 h + (211 + 1000) mA x 0.5 h = 15797.5 mAh -> x 1.2 = 18.957 Ah
+    # 211 mA x 72 h + (211 + 1000) mA x 0.5 h = 15797.5 mAh = 15.797 Ah
     assert (third["standby_ma"], third["alarm_ma"]) == (211, 1211)
-    assert round(third["required_ah"], 3) == 18.957
+    assert round(third["required_ah"], 3) == 15.797
     added = [line for line in third["lines"] if line["extra_index"] == 0]
     assert added and added[0]["total_alarm_ma"] == 1000
     # The identical panel beside it keeps the rule.
@@ -278,7 +281,7 @@ def test_panel_settings_and_added_components_are_saved_and_recalculated(client):
 def test_panel_settings_are_validated_and_editor_only(client, db_session):
     _login_admin(client)
     project_id = _two_panel_types(client)
-    bad = {"panels": {"x": {"spare_factor": 0.5}}}
+    bad = {"panels": {"x": {"standby_hours": 0}}}
     assert client.put(f"/projects/{project_id}/design/battery", json=bad).status_code == 422
     make_user(db_session, "viewer@ep-platform.com", RoleEnum.viewer)
     login(client, "viewer@ep-platform.com")
@@ -425,7 +428,7 @@ def test_the_pdf_export_follows_the_company_template(client, tmp_path, monkeypat
     for column in ("Part no.", "Description", "Qty", "Standby / unit", "Alarm / unit", "Standby total", "Alarm total"):
         assert column in text
     for row in ("Standby current", "Alarm current", "Standby, 24 h", "Alarm, 30 min",
-                "Base requirement", "With 20% spare", "SELECTED BATTERY"):
+                "Required capacity", "SELECTED BATTERY"):
         assert row in text
 
 

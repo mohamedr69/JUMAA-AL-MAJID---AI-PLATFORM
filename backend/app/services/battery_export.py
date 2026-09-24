@@ -116,7 +116,6 @@ def _write_panel(ws: Worksheet, project, panel: BatteryPanelOut, stamp: str) -> 
     settings = [
         ("Standby duration (h)", s.get("standby_hours")),
         ("Alarm duration (min)", s.get("alarm_minutes")),
-        ("Design factor", s.get("spare_factor")),
         ("System voltage (V)", s.get("panel_voltage")),
     ]
     cells = {}
@@ -130,7 +129,7 @@ def _write_panel(ws: Worksheet, project, panel: BatteryPanelOut, stamp: str) -> 
         ("Is = total standby mA x standby hours (mAh)", f"=F{total}*{cells['Standby duration (h)']}"),
         ("Ia = total alarm mA x alarm minutes / 60 (mAh)", f"=G{total}*{cells['Alarm duration (min)']}/60"),
         ("Sum of Is + Ia (Ah)", f"=(D{r}+D{r + 1})/1000"),
-        ("Required capacity (Ah)", f"=D{r + 2}*{cells['Design factor']}"),
+        ("Required capacity (Ah)", f"=D{r + 2}"),
     ]
     for label, formula in calc:
         ws.cell(row=r, column=2, value=label)

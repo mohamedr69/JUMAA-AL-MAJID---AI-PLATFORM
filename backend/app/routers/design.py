@@ -615,7 +615,7 @@ def confirm_no_load(
     return get_battery_calculation(project_id, current_user, db)
 
 
-SIZING_FIELDS = ("standby_hours", "alarm_minutes", "spare_factor", "panel_voltage")
+SIZING_FIELDS = ("standby_hours", "alarm_minutes", "panel_voltage")
 
 
 def _selectable_batteries(unit_rules: list[DesignRule], brand: str) -> dict[str, BatteryUnit]:

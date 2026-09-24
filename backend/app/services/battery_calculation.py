@@ -112,9 +112,15 @@ def _quantity(text: str | None) -> float | None:
 
 @dataclass
 class Sizing:
+    """What a panel is sized against.
+
+    There is no design factor: the required capacity is the load the panel
+    draws over the standby and alarm durations, and nothing is added to it
+    for ageing or temperature. A battery is chosen against that figure.
+    """
+
     standby_hours: float
     alarm_minutes: float
-    spare_factor: float
     panel_voltage: float
 
 
@@ -348,7 +354,7 @@ def calculate_panel(
     standby_mah = standby * sizing.standby_hours
     alarm_mah = alarm * sizing.alarm_minutes / 60
     total_ah = (standby_mah + alarm_mah) / 1000
-    required_ah = total_ah * sizing.spare_factor
+    required_ah = total_ah
     lower_bound = bool(missing) or unreadable
     # Every panel draws current. A group that adds up to nothing has not had
     # its modules itemized (a lump-sum line, rows lost to OCR) -- not a panel
