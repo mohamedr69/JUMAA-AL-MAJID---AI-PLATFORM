@@ -50,7 +50,11 @@ DESIGN = "03- Design"
 APPROVED = "Approved"
 
 # The platform's system code -> the folder name the archive uses for it.
-SYSTEM_FOLDERS: dict[str, str] = {"FAS": "FA", "ELS": "ELS", "FRC": "FRC"}
+# The folder a system is filed under. Only the fire alarm is filed under a
+# name other than its code; every other system uses the code itself, so a
+# system the platform gains gets a folder without being listed here.
+SYSTEM_FOLDERS: dict[str, str] = {"FAS": "FA"}
+
 
 # What we send the consultant, and what comes back from them. The archive
 # used to keep the outgoing submittals loose under the system's own folder
@@ -75,7 +79,7 @@ def submittal_structure(codes: list[str]) -> list[str]:
     """
     folders: list[str] = []
     for code in codes:
-        name = SYSTEM_FOLDERS.get(code)
+        name = system_folder(code)
         if not name:
             continue
         # Per revision, because a resubmission is answered separately:
@@ -111,7 +115,7 @@ def drawings_structure(codes: list[str]) -> list[str]:
     the submittals do."""
     folders = list(DRAWINGS_STRUCTURE)
     for code in codes:
-        name = SYSTEM_FOLDERS.get(code)
+        name = system_folder(code)
         if name:
             folders.append(f"{DRAWINGS}/SD/{name}")
     return folders
@@ -253,9 +257,18 @@ def file_ifc_drawing(project, name: str, content: bytes, *, stamp: str) -> str |
 
 def system_folder(system_code: str | None) -> str | None:
     """The archive's folder name for a system code, in any spelling the
-    platform knows (FAS, FA, ELS, EML, CBS ...); None for a system that has
-    no folder of its own."""
-    return SYSTEM_FOLDERS.get(system_rules.canonical(system_code) or "")
+    platform knows (FAS, FA, ELS, EML, CBS ...); None for something that is
+    not one of the project's systems at all.
+
+    Only the fire alarm is filed under a name other than its code. Listing
+    the rest one by one left the systems nobody had listed -- PA/VA, a
+    voice evacuation system of its own -- with no folder made for them and
+    no submittal or drawings tab that could find one, silently.
+    """
+    code = system_rules.canonical(system_code) or ""
+    if code in SYSTEM_FOLDERS:
+        return SYSTEM_FOLDERS[code]
+    return code if code in system_rules.CODE_ORDER else None
 
 
 def submittal_folder(project, system_code: str | None, revision: str) -> Path | None:

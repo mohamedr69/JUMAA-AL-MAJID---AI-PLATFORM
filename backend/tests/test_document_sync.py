@@ -249,3 +249,69 @@ def test_a_form_deleted_from_the_folder_leaves_the_map_not_the_sync(client, db_s
     assert [r["reference"] for s in submittal_map["systems"] for r in s["rows"]] == ["BBY006-GME-MAS-EL-FA-0001"]
     # The register follows: the reference with no form left is removed from it.
     assert [s["reference"] for s in client.get(f"/projects/{project_id}/submittals").json()["items"]] == ["BBY006-GME-MAS-EL-FA-0001"]
+
+
+def test_a_project_read_under_older_rules_reads_itself_again(client, db_session, tmp_path, monkeypatch):
+    """When the rules for reading documents change, the files on the drive
+    are unchanged, so nothing asks for them to be read again. Waiting for
+    somebody to press Sync documents on each project in turn meant a
+    correction reached whichever projects were opened and missed the rest.
+
+    A project that has never been synced is not swept up in it: its first
+    sync is a long job over a folder nobody has asked about yet."""
+    from app.core.timeutils import utc_now
+    from app.models import Project, ProjectDocument
+    from app.services import document_sync
+
+    login(client, settings.default_admin_email, settings.default_admin_password)
+
+    def project(ep, synced):
+        root = tmp_path / f"EP-{ep}"
+        root.mkdir(exist_ok=True)
+        made = client.post("/projects", json={
+            "ep_number": ep, "project_name": f"P{ep}", "source_folder_path": str(root),
+            "design_sheets": []}).json()
+        row = db_session.get(Project, made["id"])
+        row.documents_synced_at = utc_now() if synced else None
+        db_session.add(ProjectDocument(
+            project_id=row.id, role="document", path=str(root / "a.pdf"), filename="a.pdf",
+            relative_path="a.pdf", state="present", index_version="index-2020-01-01.1"))
+        db_session.commit()
+        return row.id
+
+    behind = project("41000", synced=True)
+    never_synced = project("41001", synced=False)
+
+    waiting = document_sync.projects_on_old_rules(db_session)
+    assert behind in waiting, "read under older rules"
+    assert never_synced not in waiting, "its first sync is a person's to start"
+
+    # Each one is read again, and one that fails does not stop the rest.
+    done = []
+
+    def fake_sync(session, target, **kwargs):
+        done.append(target.id)
+        if target.id == behind:
+            raise RuntimeError("OneDrive has not brought the folder down")
+        return {}
+
+    monkeypatch.setattr(document_sync, "sync", fake_sync)
+    counted = document_sync.reread_projects_on_old_rules()
+    assert behind in done
+    assert counted["failed"] == 1 and counted["projects"] >= 1
+
+    # And the setting turns the whole thing off. The settings are cached for
+    # the whole process, so the switch is turned here rather than through the
+    # environment: clearing that cache makes every test after this one
+    # re-read the environment and get a different answer.
+    from dataclasses import replace as _replace
+
+    from app.core.config import get_settings
+
+    live = get_settings()
+    try:
+        off = live.model_copy(update={"reread_on_rules_change": False})
+    except AttributeError:          # a dataclass, not a pydantic model
+        off = _replace(live, reread_on_rules_change=False)
+    monkeypatch.setattr(document_sync, "get_settings", lambda: off)
+    assert document_sync.start_catchup_thread() is None

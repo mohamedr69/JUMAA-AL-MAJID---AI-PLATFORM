@@ -5,6 +5,7 @@ import { useAuth } from "../context/AuthContext";
 import { PROJECT_EDITOR_ROLES } from "../lib/types";
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { RequiredDrawingsTab } from "../components/drawings/RequiredDrawingsTab";
+import { UnplacedDrawingsTable, type UnplacedDrawing } from "../components/UnplacedDrawingsTable";
 import { useProject } from "./ProjectWorkspace";
 
 type Status =
@@ -45,18 +46,10 @@ interface DrawingsLog {
   revisions: string[];
   rows: LogRow[];
   counts: Partial<Record<Status, number>>;
-  unplaced: {
-    reference: string;
-    revision: string;
-    floor_named: string | null;
-    status: Status;
-    label: string;
-    path: string;
-    page: number;
-    name: string;
-  }[];
+  unplaced: UnplacedDrawing[];
   submissions: number;
   system: string;
+  systems: string[];
   ifc: { id: number; filename: string; revision: string }[];
   synced_at: string | null;
   folder: string | null;
@@ -284,15 +277,21 @@ function DrawingsWorkspace() {
     }
   };
 
+  // Which of the project's systems is on show. The log was fixed to the
+  // fire alarm, so a project's emergency lighting drawings were read,
+  // indexed, and then never shown anywhere.
+  const [system, setSystem] = useState<string | null>(null);
+
   const load = useCallback(() => {
     setError("");
+    const asked = system ? `?system=${encodeURIComponent(system)}` : "";
     api
-      .get<DrawingsLog>(`/projects/${project.id}/drawings/log`)
+      .get<DrawingsLog>(`/projects/${project.id}/drawings/log${asked}`)
       .then(setLog)
       .catch((e) =>
         setError(`The drawings log could not be loaded: ${e.message}`),
       );
-  }, [project.id]);
+  }, [project.id, system]);
 
   useEffect(() => {
     load();
@@ -320,11 +319,13 @@ function DrawingsWorkspace() {
     }
   };
 
+  const shownSystem = log?.system ?? "FAS";
+
   const exportLog = () =>
     api
       .download(
-        `/projects/${project.id}/drawings/log/export.xlsx`,
-        `EP-${project.ep_number} Drawings Log FAS.xlsx`,
+        `/projects/${project.id}/drawings/log/export.xlsx?system=${encodeURIComponent(shownSystem)}`,
+        `EP-${project.ep_number} Drawings Log ${shownSystem}.xlsx`,
       )
       .catch((e) => setError(e.message));
 
@@ -589,40 +590,36 @@ function DrawingsWorkspace() {
               </div>
             )}
 
-            {log && log.unplaced.length > 0 && (
-              <div className="border-t border-gray-100 px-5 py-4 text-sm">
-                <div className="font-semibold text-navy-900">
-                  Shop drawings on no IFC floor ({log.unplaced.length})
-                </div>
-                <p className="text-xs text-gray-500">
-                  Their floor is not named on the drawing, or no IFC floor plan
-                  has it: listed here, not dropped.
-                </p>
-                <ul className="mt-2 space-y-1">
-                  {log.unplaced.map((u, i) => (
-                    <li key={i} className="flex flex-wrap items-center gap-2">
-                      <Chip cell={{ status: u.status, label: u.label }} />
-                      <span className="font-medium">{u.revision}</span>
-                      <span>{u.reference || u.name}</span>
-                      <span className="text-gray-500">
-                        {u.floor_named
-                          ? `floor on the drawing: ${u.floor_named}`
-                          : "no floor named"}
-                      </span>
-                      <a
-                        href={apiUrl(
-                          `/projects/${project.id}/logs/file?path=${encodeURIComponent(u.path)}#page=${u.page}`,
-                        )}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-brand-600 hover:underline"
-                      >
-                        View
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+            {log && log.systems.length > 1 && (
+              <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 px-5 pt-4">
+                <span className="text-xs font-medium text-gray-500">System</span>
+                {log.systems.map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    onClick={() => setSystem(code)}
+                    aria-pressed={code === log.system}
+                    className={`rounded-lg px-3 py-1.5 text-sm font-semibold ${
+                      code === log.system
+                        ? "bg-brand-600 text-white"
+                        : "border border-gray-300 bg-white text-navy-900 hover:bg-gray-50"
+                    }`}
+                  >
+                    {code}
+                  </button>
+                ))}
               </div>
+            )}
+
+            {log && log.unplaced.length > 0 && (
+              <UnplacedDrawingsTable
+                rows={log.unplaced}
+                fileHref={(path, page) =>
+                  apiUrl(
+                    `/projects/${project.id}/logs/file?path=${encodeURIComponent(path)}#page=${page}`,
+                  )
+                }
+              />
             )}
 
             <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-gray-200 bg-gray-50/60 px-5 py-4 text-sm">

@@ -130,7 +130,6 @@ class PanelSettings(BaseModel):
     location: str | None = Field(default=None, max_length=200)
     standby_hours: float | None = Field(default=None, gt=0, le=168)
     alarm_minutes: float | None = Field(default=None, gt=0, le=240)
-    spare_factor: float | None = Field(default=None, ge=1, le=3)
     panel_voltage: float | None = Field(default=None, gt=0, le=60)
     extra_components: list[ExtraComponent] = Field(default_factory=list)
 
@@ -679,6 +678,41 @@ class SubmittalOut(BaseModel):
     from_folder: bool = False
 
 
+class ReplyRow(BaseModel):
+    """One of the consultant's comments and our answer to it."""
+
+    sn: int = 1
+    comment: str = ""
+    reply: str = "Comply"
+    remark: str = ""
+
+
+class SubmittalReplyOut(BaseModel):
+    """The reply sheet for one submittal revision, as it will be sent."""
+
+    reference: str
+    revision: str
+    system_code: str | None = None
+    system_title: str = ""
+    project_name: str | None = None
+    manufacturer: str | None = None
+    consultant: str | None = None
+    # The company's own name, for the reply column's heading.
+    supplier: str = ""
+    rows: list[ReplyRow] = []
+    # False until it has been written and saved once: the sheet opens
+    # from the consultant's reply, and that is not yet an answer.
+    saved: bool = False
+    updated_at: datetime | None = None
+    updated_by: str | None = None
+
+
+class SubmittalReplyIn(BaseModel):
+    rows: list[ReplyRow] = []
+    consultant: str | None = None
+    manufacturer: str | None = None
+
+
 class SubmittalSuggestionOut(BaseModel):
     """A submittal the project's BOQ implies but the register does not have."""
 
@@ -984,6 +1018,9 @@ class ProjectLogDrawingOut(BaseModel):
     name: str
     path: str
     modified: datetime
+    # The revisions this one replaced, newest first ("R0 RR"): the floor is
+    # one row at the revision that stands, and this is its history.
+    superseded: list[str] = []
 
 
 class SampleBoardCheckOut(BaseModel):

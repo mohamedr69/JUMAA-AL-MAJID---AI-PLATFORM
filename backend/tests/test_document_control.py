@@ -74,8 +74,17 @@ def test_inline_ocr_stamp_and_conflicting_decisions():
 
 def test_floor_normalization():
     from app.services.document_control import normalize_floor
+
     assert normalize_floor("BASEMENT-4") == normalize_floor("B4")
     assert normalize_floor("3RD FLOOR") == normalize_floor("L3")
+    # The drawings pad the number and the schedules do not. Unpadded, B01
+    # and B1 were different floors and never matched each other.
+    assert normalize_floor("B01") == normalize_floor("BASEMENT-1")
+    assert normalize_floor("L01") == normalize_floor("1ST FLOOR")
+    assert normalize_floor("P01") == normalize_floor("PODIUM-1")
+    # And a padded number is not folded into a shorter one.
+    assert normalize_floor("B10") != normalize_floor("B1")
+    assert normalize_floor("L10") == normalize_floor("10TH FLOOR")
 
 
 def test_ocr_reply_updates_matching_revision(tmp_path, monkeypatch):
@@ -207,7 +216,9 @@ def test_the_submission_folder_gives_the_drawing_revision():
 def test_a_submission_read_off_two_pages_is_one_row(tmp_path):
     """A shop drawing is submitted as a form page plus the sheet. The form
     has the reference and the stamp, the sheet has the title and the floor;
-    keeping only the higher-ranked page lost the other half."""
+    keeping only the higher-ranked page lost the other half.
+
+    The floor is one row whichever page each half came off."""
     form = """Shop Drawing Submittal Form
 SDW Reference No. BBY006-GME-SDW-FP-FA-POD-BGF-010002
 SDW Rev.: 00
@@ -217,11 +228,18 @@ Consultant status: Approved as Noted
 
     rows, _ = scan_document_control(tmp_path, use_ocr=False)
 
+    # One row for the floor, as the log shows it.
     row, = [r for r in rows if r.category == "drawings"]
-    assert row.revision == "R1"
-    assert row.status == "ANN"          # from the form page
     assert row.name == "GROUND FLOOR PLAN"   # from the sheet
     assert row.floor == "GROUND FLOOR"       # from the sheet
+    # The form prints "SDW Rev.: 00" while the folder says R1, and the
+    # drawing is what the revision is read off: the stamped page is the R0
+    # it says it is, the sheet beside it the R1 the folder says. Before
+    # 2026-09-24 the folder won and both were R1, which made a consultant's
+    # verdict on R0 read as a verdict on R1. See the note in
+    # document_control.parse_page.
+    assert row.revision == "R1" and row.status == "UR"
+    assert [(r.revision, r.status) for r in row.superseded] == [("R0", "ANN")]
 
 
 def test_a_material_approval_request_and_a_shop_drawing_are_controlled_documents():
@@ -241,3 +259,138 @@ def test_a_material_approval_request_and_a_shop_drawing_are_controlled_documents
     drawing = parse_page(sheet, "sd.pdf", NOW, 1)
     assert [(r.reference, r.category) for r in drawing] == [("ICC-DLRC-SIG2-SD-MEP-0081", "drawings")]
     assert parse_page(statement, "ms.pdf", NOW, 1) == []
+
+
+def test_a_floor_is_one_drawing_at_the_revision_that_stands():
+    """Every revision was a row of its own, so a floor whose R0 came back
+    for revision was listed twice -- once rejected, once under review --
+    and the log read as two drawings for one floor. What came before is
+    kept on the row that replaced it."""
+    from dataclasses import replace
+
+    from app.services.document_control import ControlledDocument, combine
+
+    def drawing(reference, revision, status, floor):
+        return ControlledDocument(
+            system_code="FAS", name=f"{floor} FLOOR PLAN", path=f"{revision}/{reference}.pdf",
+            modified=NOW, reference=reference, revision=revision, status=status,
+            floor=floor, category="drawings")
+
+    rows = combine([
+        drawing("BBY006-GME-SDW-FP-FA-POD-BGF-010002", "R0", "RR", "GROUND FLOOR"),
+        drawing("BBY006-GME-SDW-FP-FA-POD-BGF-010002", "R1", "UR", "GROUND FLOOR"),
+        drawing("BBY006-GME-SDW-FP-FA-POD-P01-010003", "R0", "ANN", "PODIUM-1"),
+        # Filed again with nothing said about the first: one submission.
+        drawing("BBY006-GME-SDW-FP-FA-POD-P02-010004", "R0", "UR", "PODIUM-2"),
+        drawing("BBY006-GME-SDW-FP-FA-POD-P02-010004", "R1", "UR", "PODIUM-2"),
+    ])
+    drawings = [row for row in rows if row.category == "drawings"]
+    # One row per floor, at the revision that stands.
+    assert [(r.reference[-6:], r.revision, r.status) for r in drawings] == [
+        ("010002", "R1", "UR"), ("010003", "R0", "ANN"), ("010004", "R1", "UR")]
+    # The R0 the consultant answered is kept: it is what the R1 answers.
+    assert [(r.revision, r.status) for r in drawings[0].superseded] == [("R0", "RR")]
+    assert drawings[1].superseded == ()
+    # The R0 nobody answered is not a submission of its own. Listing it said
+    # the floor had been submitted twice when it was submitted once and
+    # re-issued.
+    assert drawings[2].superseded == ()
+
+
+def test_a_drawings_revision_is_the_one_printed_on_it_not_the_folder():
+    """A resubmission is filed with the comments it answers: a floor's R1
+    folder holds the R1 drawing and the stamped R0 sheet beside it.
+    Reading the revision off the folder made that sheet an R1, and its
+    'revise and resubmit' the verdict on a revision the consultant had
+    not seen. Settled by the platform owner on 2026-09-24.
+
+    The folder still says where the drawing prints nothing."""
+    printed = (
+        "DRAWING NO: BBY006-GME-SDW-FP-FA-POD-BGF-010002" + chr(10)
+        + "DRAWING TITLE: GROUND FLOOR PLAN - FIRE ALARM LAYOUT" + chr(10)
+        + "SDW Date: 19 August 2026 SDW Rev.: 00" + chr(10)
+        + "ENGINEERING CONSULTANT COMMENTS AND APPROVAL STATUS"
+    )
+    filed_under_r1 = "C:/p/04- Drawings/R1/05. Ground Floor/sheet.pdf"
+    assert [row.revision for row in parse_page(printed, filed_under_r1, NOW, 1)] == ["R0"]
+
+    # The drawing beside it prints no revision, so the folder still says.
+    silent = ("DRAWING NO: BBY006-GME-SDW-FP-FA-POD-BGF-010002" + chr(10)
+              + "DRAWING TITLE: GROUND FLOOR PLAN - FIRE ALARM LAYOUT")
+    beside = "C:/p/04- Drawings/R1/05. Ground Floor/dwg.pdf"
+    assert [row.revision for row in parse_page(silent, beside, NOW, 1)] == ["R1"]
+
+
+def test_a_floor_re_issued_under_another_number_is_still_one_drawing():
+    """A sheet re-issued for the next revision writes its own title block.
+    Where the first named the floor (...-ZZZ-L22-010009) the second can
+    carry the placeholder (...-ZZZ-ZZZ-010009): the same drawing of L22
+    under two numbers, which the log showed as two drawings of L22, one
+    answered and one under review.
+
+    A floor has one shop drawing per system -- but only within a system,
+    and only where the floor is known."""
+    from app.services.document_control import ControlledDocument, combine
+
+    def drawing(reference, revision, status, floor, system="FAS"):
+        return ControlledDocument(
+            system_code=system, name=f"{floor} PLAN", path=f"{reference}.pdf", modified=NOW,
+            reference=reference, revision=revision, status=status, floor=floor,
+            category="drawings")
+
+    rows = combine([
+        drawing("BBY006-GME-SDW-FP-FA-ZZZ-L22-010009", "R0", "rejected", "L22"),
+        drawing("BBY006-GME-SDW-FP-FA-ZZZ-ZZZ-010009", "R1", "UR", "L22"),
+        # The same floor of another system is a drawing of its own.
+        drawing("BBY006-GME-SDW-EL-LI-ZZZ-L22-010035", "R0", "ANN", "L22", system="ELS"),
+        # Two different floors that happen to share a drawing number stay
+        # two drawings: the number is not what identifies them.
+        drawing("BBY006-GME-SDW-FP-FA-BSM-B04-010025", "R1", "UR", "BASEMENT-4"),
+        drawing("BBY006-GME-SDW-FP-FA-ZZZ-L42-010025", "R0", "UR", "L42"),
+    ])
+    drawings = [r for r in rows if r.category == "drawings"]
+
+    fas = [r for r in drawings if r.system_code == "FAS"]
+    l22 = [r for r in fas if r.floor == "L22"]
+    assert len(l22) == 1, "L22 is one drawing, not one per number it was filed under"
+    assert l22[0].revision == "R1"
+    assert [(s.revision, s.status) for s in l22[0].superseded] == [("R0", "rejected")]
+
+    # The other system keeps its own L22.
+    assert len([r for r in drawings if r.system_code == "ELS" and r.floor == "L22"]) == 1
+    # And the shared number did not merge two floors.
+    assert {r.floor for r in fas} == {"L22", "BASEMENT-4", "L42"}
+
+
+def test_a_decision_marked_by_filling_a_box_is_read():
+    """The approval block lists every option -- Approved (A), Approved as
+    Noted (B), Re-Submit (C) -- and marks one by filling the box beside
+    it. As text that is a list of choices and settles nothing, so the
+    decision has to be read from what is drawn: an unchosen box is filled
+    white, the chosen one with a colour."""
+    import pymupdf
+
+    from app.services.document_control import boxed_decision
+
+    with pymupdf.open() as document:
+        page = document.new_page()
+        for y, label in ((100, "Approved (A)"), (130, "Approved as Noted (B)"), (160, "Re- Submit (C)")):
+            page.insert_text((70, y + 9), label)
+            page.draw_rect(pymupdf.Rect(50, y, 62, y + 12), color=(0, 0, 0),
+                           fill=(1, 1, 1))          # the boxes not chosen
+        # The one the consultant filled.
+        page.draw_rect(pymupdf.Rect(50, 130, 62, 142), color=(0, 0, 0), fill=(0.11, 0.16, 0.75))
+        reread = pymupdf.open(stream=document.tobytes(), filetype="pdf")
+
+    status, evidence = boxed_decision(reread[0])
+    assert status == "ANN"
+    assert "Approved as Noted" in evidence
+
+    # Two marks say no more than none.
+    with pymupdf.open() as document:
+        page = document.new_page()
+        for y, label in ((100, "Approved (A)"), (130, "Re- Submit (C)")):
+            page.insert_text((70, y + 9), label)
+            page.draw_rect(pymupdf.Rect(50, y, 62, y + 12), color=(0, 0, 0), fill=(0.11, 0.16, 0.75))
+        both = pymupdf.open(stream=document.tobytes(), filetype="pdf")
+    assert boxed_decision(both[0]) is None

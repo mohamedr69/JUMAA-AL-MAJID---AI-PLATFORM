@@ -29,10 +29,45 @@ from app.services import activity, drawing_log, project_folders, required_drawin
 
 router = APIRouter(tags=["drawings"])
 
-SHOP_DRAWINGS_FA = f"{project_folders.DRAWINGS}/SD/FA"
+def shop_drawings_folder(system: str | None) -> str:
+    """Where a system's shop drawings are filed.
+
+    Each system has its own folder -- FA, ELS, FRC -- and this was fixed to
+    the fire alarm's, so the page sent an engineer working on emergency
+    lighting to the fire alarm folder.
+    """
+    name = project_folders.system_folder(system)
+    return f"{project_folders.DRAWINGS}/SD/{name}" if name else f"{project_folders.DRAWINGS}/SD"
 
 
-def _log(db: Session, project) -> dict:
+def _first_system(project) -> str:
+    """The project's own first system, for a caller that named none."""
+    codes = list(system_rules.project_codes(project))
+    return codes[0] if codes else "FAS"
+
+
+def _systems_with_drawings(project, records) -> list[str]:
+    """The project's systems, in its own order, plus any a drawing on file
+    names that the project does not list.
+
+    The project decides, not the page: a job with fire alarm and emergency
+    lighting has a log for each, and one with only fire alarm has one. A
+    drawing found under a system the DRF never mentioned is still shown --
+    it is on the drive, and leaving it out reports no drawings over
+    drawings that exist.
+    """
+    integrated = system_rules.project_integrated(project)
+    codes = list(system_rules.project_codes(project))
+    for record in records:
+        if getattr(record, "category", None) != "drawings" or getattr(record, "source", None) == "drawing schedule":
+            continue
+        code = system_rules.effective_code(record.system_code, integrated=integrated)
+        if code and code not in codes:
+            codes.append(code)
+    return codes
+
+
+def _log(db: Session, project, system: str | None = None) -> dict:
     from app.routers.ifc_boq import _superseded
     from app.services import document_sync
 
@@ -49,39 +84,52 @@ def _log(db: Session, project) -> dict:
     if project.source_folder_path:
         records, warnings = document_sync.log_records(db, project)
     integrated = system_rules.project_integrated(project)
+    systems = _systems_with_drawings(project, records)
+    # The system asked for, or the project's first. Fixed to FAS before, so
+    # a project's emergency lighting drawings were read, indexed and then
+    # never shown.
+    wanted = (system or "").strip().upper() or (systems[0] if systems else "FAS")
     out = drawing_log.build(in_force, records,
-                            in_system=lambda code: system_rules.effective_code(code, integrated=integrated) == "FAS")
+                            in_system=lambda code: system_rules.effective_code(code, integrated=integrated) == wanted)
     if project.source_folder_path and project.documents_synced_at is None:
         warnings = ["The project folder has not been synced yet: sync the documents to read the shop drawings."] + warnings
     out.update({
         "project": {"id": project.id, "ep_number": project.ep_number, "name": project.project_name},
-        "system": "FAS",
+        "system": wanted,
+        "systems": systems,
         "ifc": [{"id": d["id"], "filename": d["filename"], "revision": d["revision"]} for d in in_force],
         "synced_at": project.documents_synced_at.isoformat() if project.documents_synced_at else None,
-        "folder": SHOP_DRAWINGS_FA if project.source_folder_path else None,
+        "folder": shop_drawings_folder(wanted) if project.source_folder_path else None,
         "warnings": warnings,
     })
     return out
 
 
 @router.get("/projects/{project_id}/drawings/log")
-def drawings_log(project_id: int, _current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def drawings_log(project_id: int, system: str | None = None,
+                 _current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Each floor plan of the IFC drawings in force, with its shop drawing's
-    status at every revision, read from the submissions in the project folder."""
-    return _log(db, _get_project_or_404(db, project_id))
+    status at every revision, read from the submissions in the project folder.
+
+    `system` picks which of the project's systems to show; left out, its
+    first. The systems it has are in the answer.
+    """
+    return _log(db, _get_project_or_404(db, project_id), system)
 
 
 @router.get("/projects/{project_id}/drawings/log/export.xlsx")
-def export_drawings_log(project_id: int, _current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def export_drawings_log(project_id: int, system: str | None = None,
+                        _current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
 
     project = _get_project_or_404(db, project_id)
-    log = _log(db, project)
+    # The system on show, not always the fire alarm.
+    log = _log(db, project, system)
     wb = Workbook()
     ws = wb.active
     ws.title = "Drawings Log"
-    ws.append([f"EP-{project.ep_number} {project.project_name or ''} - Drawings Log (FAS)"])
+    ws.append([f"EP-{project.ep_number} {project.project_name or ''} - Drawings Log ({log['system']})"])
     ws.append([f"Floors from {', '.join(f'{d['filename']} {d['revision']}' for d in log['ifc']) or 'no IFC drawing'}; "
                f"statuses from the shop drawings in the project folder, as of {datetime.now():%Y-%m-%d %H:%M}"])
     ws.append([])
@@ -135,7 +183,8 @@ def open_folder(project_id: int, body: OpenFolder, request: Request,
     if not project.source_folder_path:
         raise HTTPException(404, "This project has no folder")
     root = Path(project.source_folder_path).resolve()
-    target = (root / (body.path or SHOP_DRAWINGS_FA)).resolve()
+    # The folder of the system asked for, not always the fire alarm's.
+    target = (root / (body.path or shop_drawings_folder(getattr(body, "system", None)))).resolve()
     if not target.is_relative_to(root):
         raise HTTPException(403, "Outside the project folder")
     while not target.exists() and target != root:  # the nearest folder that is there
@@ -184,21 +233,28 @@ def _required(db: Session, project, system: str) -> dict:
 
 
 @router.get("/projects/{project_id}/drawings/required")
-def required(project_id: int, system: str = "FAS", _current_user: User = Depends(get_current_user),
+def required(project_id: int, system: str | None = None, _current_user: User = Depends(get_current_user),
              db: Session = Depends(get_db)):
     """Each item the contractor must hand over before a system's shop
-    drawings start, received when its folder in the project folder holds a file."""
-    return _required(db, _get_project_or_404(db, project_id), system.upper())
+    drawings start, received when its folder in the project folder holds a file.
+
+    `system` left out means the project's first, not the fire alarm's: a
+    project without one would otherwise be asked about a system it has not
+    got.
+    """
+    project = _get_project_or_404(db, project_id)
+    return _required(db, project, (system or _first_system(project)).upper())
 
 
 @router.get("/projects/{project_id}/drawings/required/export.xlsx")
-def export_required(project_id: int, system: str = "FAS", _current_user: User = Depends(get_current_user),
+def export_required(project_id: int, system: str | None = None,
+                    _current_user: User = Depends(get_current_user),
                     db: Session = Depends(get_db)):
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
 
     project = _get_project_or_404(db, project_id)
-    data = _required(db, project, system.upper())
+    data = _required(db, project, (system or _first_system(project)).upper())
     wb = Workbook()
     ws = wb.active
     ws.title = f"Actions Required {data['system']}"

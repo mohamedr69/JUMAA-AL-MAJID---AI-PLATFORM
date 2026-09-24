@@ -29,7 +29,9 @@ file's path is its id and its content hash its etag.
 from __future__ import annotations
 
 import hashlib
+import logging
 import os
+import threading
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -37,11 +39,15 @@ from stat import S_ISREG
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.timeutils import utc_now
+from app.database import SessionLocal
 from app.models import DocumentDependency, Project, ProjectDocument, User
 from app.services import document_control, spec_finder, submittal_scanner, transmittals
 
-INDEX_VERSION = "index-2026-09-18.1"   # the reference codes MAR and SD: every document is read again
+log = logging.getLogger(__name__)
+INDEX_VERSION = "index-2026-09-24.4"   # a consultant's decision is read from the box the form
+                                       # fills beside it: every document is read again
 MAX_FILES = 2000
 # The intake gate's rows (the DRF and the Design Sheets): indexed by it, watched here.
 INTAKE_ROLES = ("drf", "design_sheet")
@@ -256,10 +262,19 @@ def record_for_the_log(extracted: dict, reading: dict, *, relative: str, modifie
     records = extracted.setdefault("records", [])
     if any(record["category"] == "submittals" for record in records):
         return False
+    # A resubmission prints the comments it answers, so the reply the model
+    # read off an R1 form is usually the consultant's word on R0. Left as
+    # under review, the pass that reads the Received folders then gives this
+    # revision whatever really came back on it -- which for a revision no
+    # one has answered is nothing.
+    from app.services import submittal_replies
+
+    status = ("UR" if submittal_replies.answers_another_revision(reading)
+              else submittal_reader._code(reading))
     records.append(_record_dict(document_control.ControlledDocument(
         system_code=system, name=reading.get("title") or Path(relative).stem, path=relative,
-        modified=modified, reference=reference, revision=revision, status=submittal_reader._code(reading),
-        reply_text=(reading.get("reply") or {}).get("evidence") or None,
+        modified=modified, reference=reference, revision=revision, status=status,
+        reply_text=(reading.get("reply") or {}).get("evidence") if status != "UR" else None,
         source="submittal form", category="submittals"), Path(relative).parent))
     return True
 
@@ -302,7 +317,12 @@ def process(db: Session, project: Project, row: ProjectDocument, path: Path, roo
         if reading.get("is_submittal"):
             row.reference = reading.get("reference") or row.reference
             row.revision = f"R{reading['revision']}" if reading.get("revision") is not None else row.revision
-            row.status = submittal_reader._code(reading)
+            # The same vetting the log record gets: comments an R1 form
+            # carries because it answers them are R0's, not this one's.
+            from app.services import submittal_replies as _replies
+
+            row.status = ("UR" if _replies.answers_another_revision(reading)
+                          else submittal_reader._code(reading))
             row.system_code = submittal_reader._system_code(reading, row.relative_path or "") or row.system_code
             record_for_the_log(extracted, reading, relative=path.relative_to(root).as_posix(),
                                modified=datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc),
@@ -538,6 +558,9 @@ def log_records(db: Session, project: Project) -> tuple[list, list[str]]:
                 # voice evacuation of an integrated Edwards fire alarm is the
                 # fire alarm's sample board, not a second one.
                 data["system_code"] = system_rules.effective_code(data["system_code"], project)
+            # Never stored, and a record written before it existed has none:
+            # the collapse puts it back when these are combined.
+            data.pop("superseded", None)
             records.append(document_control.ControlledDocument(**data))
         warnings.extend(extracted.get("notes") or [])
 
@@ -580,3 +603,91 @@ def log_records(db: Session, project: Project) -> tuple[list, list[str]]:
         if row.category != "drawings" or (ours and document_control.is_shop_drawing(row))
     ]
     return document_control.combine(records), list(dict.fromkeys(warnings))
+
+
+# --- reading everything again when the rules change -------------------------------
+#
+# `INDEX_VERSION` says how documents are being read. Bumping it makes a
+# sync read every document again rather than only the ones that changed
+# on the drive -- which is what a change to the rules needs, because the
+# files are the same and only our reading of them is different.
+#
+# Until now that still waited for somebody to press Sync documents on
+# each project, one project at a time, remembering which ones. So a
+# corrected rule reached whichever projects happened to be opened and
+# quietly missed the rest. The projects catch themselves up instead: at
+# startup, every project already synced under older rules reads itself
+# again, in the background, one after another.
+#
+# Only projects that have been synced before. A project's first sync is a
+# long job over a folder nobody has asked the platform to look at yet,
+# and that stays something a person starts.
+
+
+def projects_on_old_rules(db: Session) -> list[int]:
+    """The projects whose documents were read under older rules, oldest
+    sync first -- so the one left longest is caught up first."""
+    rows = (db.query(Project.id)
+            .join(ProjectDocument, ProjectDocument.project_id == Project.id)
+            .filter(Project.source_folder_path.isnot(None),
+                    Project.documents_synced_at.isnot(None),
+                    ProjectDocument.index_version != INDEX_VERSION,
+                    ProjectDocument.state != REMOVED)
+            .order_by(Project.documents_synced_at)
+            .distinct().all())
+    return [row[0] for row in rows]
+
+
+def reread_projects_on_old_rules(*, stop: threading.Event | None = None) -> dict:
+    """Read every such project again, one at a time.
+
+    One at a time on purpose: a sync reads PDFs and runs OCR over a synced
+    drive, and several at once would make the machine unusable for the
+    engineer working on it. Each project gets its own session, and one
+    that fails -- an unreachable folder, a file OneDrive has not brought
+    down -- does not stop the ones after it.
+    """
+    counted = {"projects": 0, "read": 0, "failed": 0}
+    db = SessionLocal()
+    try:
+        pending = projects_on_old_rules(db)
+    finally:
+        db.close()
+    counted["projects"] = len(pending)
+    for project_id in pending:
+        if stop is not None and stop.is_set():
+            break
+        session = SessionLocal()
+        try:
+            project = session.get(Project, project_id)
+            if project is None:
+                continue
+            sync(session, project)
+            counted["read"] += 1
+            log.info("Read %s again under %s", project.ep_number or project_id, INDEX_VERSION)
+        except Exception as exc:  # noqa: BLE001 -- one project is not the rest
+            counted["failed"] += 1
+            log.warning("Could not read project %s again: %s", project_id, exc)
+        finally:
+            session.close()
+    return counted
+
+
+def start_catchup_thread(stop: threading.Event | None = None) -> threading.Thread | None:
+    """Catch the projects up in the background, if any need it.
+
+    Returns None when the setting is off or nothing is behind, so the
+    caller can say whether anything was started.
+    """
+    if not get_settings().reread_on_rules_change:
+        return None
+    db = SessionLocal()
+    try:
+        if not projects_on_old_rules(db):
+            return None
+    finally:
+        db.close()
+    thread = threading.Thread(target=reread_projects_on_old_rules, kwargs={"stop": stop},
+                              name="document-reread", daemon=True)
+    thread.start()
+    return thread

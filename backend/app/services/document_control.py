@@ -42,6 +42,17 @@ def _open_pdf(path: Path):
 def _ocr_page(page):
     import pytesseract
     from PIL import Image
+
+    # Tesseract is not on PATH on the engineers' machines; where it is runs
+    # in the settings. Set here rather than relied on: every other reader
+    # sets it at import, so whether this one could OCR came down to which
+    # module happened to be imported first -- and when none had been, every
+    # stamp went unread and every document came back "under review".
+    from app.core.config import get_settings
+
+    configured = get_settings().tesseract_cmd
+    if configured:
+        pytesseract.pytesseract.tesseract_cmd = configured
     dpi = min(200, 2600 * 72 / max(page.rect.width, page.rect.height))
     pixels = page.get_pixmap(matrix=pymupdf.Matrix(dpi / 72, dpi / 72))
     image = Image.open(io.BytesIO(pixels.tobytes("png")))
@@ -143,6 +154,86 @@ class ControlledDocument:
     source: str = "document"
     category: str = "submittals"
     group_reference: str | None = None
+    # The revisions this one replaced, newest first: a drawing is one row
+    # at the revision that stands, and these are the records that came
+    # before it, kept whole so the log can show each revision's own status
+    # and open its own file. Never stored -- the collapse runs when the
+    # records are read, not when they are written.
+    superseded: tuple = ()
+
+
+# The options a shop drawing submittal form offers, and what each means.
+# Longest first: "approved as noted" is not an approval.
+# Written as they read once the punctuation is out of the way: the forms
+# spell it "Re- Submit", "Re-Submit" and "Resubmit" between them.
+_OPTIONS: tuple[tuple[str, str], ...] = (
+    ("approved as noted", "ANN"),
+    ("as noted", "ANN"),
+    ("re submit", "rejected"),
+    ("resubmit", "rejected"),
+    ("not approved", "rejected"),
+    ("rejected", "rejected"),
+    ("approved", "approved"),
+)
+
+
+def _is_mark(shape) -> bool:
+    """Whether a drawn shape is a ticked box rather than part of the form.
+
+    The form draws a box per option and fills the one chosen. An unchosen
+    box is filled white; a chosen one is filled with a colour. Sized and
+    squared so that a rule, a table border or the sliver a glyph leaves
+    behind is not read as a decision.
+    """
+    fill = shape.get("fill")
+    if not fill or len(fill) < 3:
+        return False
+    rect = shape["rect"]
+    if not (5 <= rect.width <= 20 and 5 <= rect.height <= 20):
+        return False
+    if not (0.5 <= rect.width / max(rect.height, 0.01) <= 2):
+        return False
+    red, green, blue = fill[:3]
+    if min(red, green, blue) > 0.85:      # white: the boxes not chosen
+        return False
+    return max(red, green, blue) > 0.15   # near-black is the printing, not a mark
+
+
+def boxed_decision(page) -> tuple[str, str] | None:
+    """The consultant's decision where it is a filled box beside the
+    option rather than a word or a tick, as (status, evidence).
+
+    The engineering consultant's approval block lists every option --
+    Approved (A), Approved as Noted (B), Re-Submit (C) -- and marks one by
+    filling its box. Read as text that is a list of choices and settles
+    nothing, which is right: `read_decision` refuses to guess from it. The
+    decision is in the drawing, so it is read from there.
+
+    None when no box is filled, or when more than one is against a
+    different answer -- two marks say no more than none.
+    """
+    found: dict[str, str] = {}
+    for shape in page.get_drawings():
+        if not _is_mark(shape):
+            continue
+        rect = shape["rect"]
+        beside = page.get_text("text", clip=pymupdf.Rect(rect.x1, rect.y0 - 3, rect.x1 + 150, rect.y1 + 3))
+        # Only as far as this option's own letter: the next option's box
+        # sits a little further along the same line.
+        label = " ".join(beside.split())
+        cut = re.search(r"\([ABCD]\)", label)
+        if cut:
+            label = label[: cut.end()]
+        # "Re- Submit (C)" and "Re-Submit (C)" are the same answer.
+        plain = " ".join(re.sub(r"[^a-z0-9]+", " ", label.lower()).split())
+        for words, status in _OPTIONS:
+            if words in plain:
+                found[status] = label.strip()
+                break
+    if len(found) != 1:
+        return None
+    status, evidence = next(iter(found.items()))
+    return status, evidence
 
 
 def read_decision(text: str) -> tuple[str, str | None]:
@@ -195,11 +286,19 @@ def title_block(text: str, reference: str) -> tuple[str | None, str | None]:
     return usable(values[0] if values else None), usable(values[1] if len(values) > 1 else None)
 
 
-def floor_name(title: str) -> str | None:
-    for pattern in [r"TYPICAL\s+.*?FLOOR", r"BASEMENT[ -]*\d+", r"PODIUM[ -]*\d+", r"(?:\d+(?:ST|ND|RD|TH)\s+|GROUND\s+|.*?ROOF\s+)FLOOR", r"UNDER\s*GROUND", r"\b(?:B\d+|L\d+|GF|RF)\b"]:
+def floor_name(title: str, *, whole: bool = True) -> str | None:
+    # A sheet covering a run of floors names the run: keep it whole, so
+    # the floors between the ends are not left looking undrawn.
+    for pattern in [r"TYPICAL\s+.*?FLOOR", r"BASEMENT[ -]*\d{1,3}(?:\s*(?:,|&|AND)\s*[BPL]?\s*\d{1,3})*", r"PODIUM[ -]*\d{1,3}(?:\s*(?:,|&|AND)\s*[BPL]?\s*\d{1,3})*", r"(?:\d+(?:ST|ND|RD|TH)\s+|GROUND\s+|.*?ROOF\s+)FLOOR", r"\b[BPL]?\d{1,3}\s*(?:TO|&|AND)\s*[BPL]?\s*\d{1,3}\b", r"UNDER\s*GROUND", r"\b(?:B\d+|L\d+|GF|RF)\b"]:
         found = re.search(pattern, title, re.I)
-        if found: return found.group().strip()
-    return title if "FLOOR" in title.upper() else None
+        # A title block exports its runs separately, so a floor can come
+        # back with the gaps still in it ("LIFT MACHINE ROOM  FLOOR PLAN").
+        if found: return " ".join(found.group().split())
+    # Last resort: the whole line, where it is a floor and nothing else
+    # ("GROUND FLOOR PLAN"). Never for a file name -- a hundred characters
+    # of drawing number and description is not a floor, and printed as one
+    # it filled the column.
+    return " ".join(title.split()) if whole and "FLOOR" in title.upper() else None
 
 
 def parse_page(text: str, path: str, modified: datetime, page: int) -> list[ControlledDocument]:
@@ -245,9 +344,21 @@ def parse_page(text: str, path: str, modified: datetime, page: int) -> list[Cont
         return []
     revision_match = REV.search(text)
     suffix = re.search(r"-R(\d+)$", reference, re.I)
-    revision = f"R{int(revision_match.group(1) if revision_match else suffix.group(1) if suffix else 0)}"
-    if category == "drawings":
-        revision = folder_revision(path) or revision
+    # The drawing's own revision first; the folder only where it prints
+    # none. A resubmission is filed with the comments it answers -- a
+    # floor's R1 folder holds the R1 drawing *and* the stamped R0 sheet --
+    # so taking the revision off the folder made that sheet an R1 and its
+    # "revise and resubmit" the verdict on a revision no one had seen.
+    # Settled by the platform owner on 2026-09-24, reversing the rule that
+    # had the folder win.
+    if revision_match:
+        revision = f"R{int(revision_match.group(1))}"
+    elif suffix:
+        revision = f"R{int(suffix.group(1))}"
+    elif category == "drawings" and folder_revision(path):
+        revision = folder_revision(path)
+    else:
+        revision = "R0"
     reference = re.sub(r"-R\d+$", "", reference, flags=re.I)
     layout = None
     if category == "drawings" and not SUBMISSION_FORM.search(text):
@@ -275,7 +386,13 @@ def parse_page(text: str, path: str, modified: datetime, page: int) -> list[Cont
     if code is None and category == "drawings": return []
     if code is None: code = next((code for code, pattern in SYSTEMS if re.search(pattern, text, re.I)), None)
     decision, evidence = read_decision(text)
-    return [ControlledDocument(code, title, path, modified, reference, revision, decision, floor_name(title), evidence, page, category=category)]
+    # The floor off the sheet, and failing that off the file it came in.
+    # A submission covering several floors is titled for the drawing and
+    # names them only on the wrapper -- "Shop Drawing for Basement 4, 3, 2
+    # Floor Plan" -- so without this it reached the log as a drawing of no
+    # floor at all, and those basements looked undrawn.
+    floor = floor_name(title) or floor_name(Path(path).stem, whole=False)
+    return [ControlledDocument(code, title, path, modified, reference, revision, decision, floor, evidence, page, category=category)]
 
 
 def normalize_floor(value: str) -> str:
@@ -284,7 +401,11 @@ def normalize_floor(value: str) -> str:
     value = re.sub(r"PODIUM[ -]*(\d+)", r"P\1", value)
     value = re.sub(r"(\d+)(?:ST|ND|RD|TH)?\s+FLOOR", r"L\1", value)
     value = value.replace("GROUND FLOOR", "GF")
-    return re.sub(r"[ -]+", "", value)
+    value = re.sub(r"[ -]+", "", value)
+    # B01 and B1 are the same basement, L01 and the 1st floor the same
+    # floor: the drawings pad the number and the schedules do not, and
+    # without this they never matched each other.
+    return re.sub(r"\b([BPL])0+(\d)", r"\1\2", value)
 
 
 @lru_cache(maxsize=1024)
@@ -306,6 +427,16 @@ def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool) -> tuple[tupl
                     break
                 text = page.get_text()
                 found = parse_page(text, filename, modified, index + 1)
+                # The approval block lists every option and fills the box
+                # beside the one chosen. As text that is a list of choices
+                # and settles nothing -- rightly, since a list is not an
+                # answer -- so where nothing was decided the drawing is
+                # asked, before any OCR is attempted.
+                if found and all(row.status == "UR" for row in found):
+                    boxed = boxed_decision(page)
+                    if boxed is not None:
+                        decision, evidence = boxed
+                        found = [replace(row, status=decision, reply_text=evidence) for row in found]
                 # OCR title blocks of scanned pages and image stamps on forms.
                 candidate = bool(found) or pending is not None or (len(text.strip()) < 80 and bool(re.search(r"approval|submittal|drawing|[/\\]MS[/\\]", filename, re.I)))
                 if use_ocr and candidate and (page.get_images() or len(text.strip()) < 80):
@@ -329,7 +460,15 @@ def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool) -> tuple[tupl
                     # An attached reply without a different reference belongs to the preceding form.
                     references = REF.findall(text)
                     decision, evidence = read_decision(text)
-                    if not references and decision != "UR":
+                    # A resubmission is filed with the comments it answers, so
+                    # the reply attached to an R1 form is usually the
+                    # consultant's word on R0. Where the comments name the
+                    # revision they are on, they settle that one, not this.
+                    from app.services.submittal_replies import commented_revision
+
+                    said = commented_revision(text)
+                    answers_this = said is None or said == _revision_number(records[pending].revision)
+                    if not references and decision != "UR" and answers_this:
                         records[pending] = replace(records[pending], status=decision, reply_text=evidence, page=index + 1)
                 else:
                     pending = None
@@ -443,6 +582,69 @@ def combine(records: list[ControlledDocument]) -> list[ControlledDocument]:
         key = (row.category, row.system_code, row.reference.upper())
         if row.status == "UR" and _revision_number(row.revision) < latest[key]:
             rows[i] = replace(row, status="SUPERSEDED")
+
+    # A floor has one shop drawing, at the revision that stands. Every
+    # revision of it was a row of its own, so a floor whose R0 came back
+    # for revision was listed twice -- once rejected and once under review
+    # -- and the log read as two drawings for one floor. The earlier
+    # revisions go onto the row that replaced them.
+    # The floor each drawing number is of, from whichever of its sheets
+    # named one: a submission's form page carries the number and no title
+    # block, and the sheet behind it carries the floor.
+    floor_of_reference: dict[tuple, str] = {}
+    for row in rows:
+        if row.category != "drawings":
+            continue
+        floor = normalize_floor(row.floor or "")
+        if floor:
+            floor_of_reference.setdefault((row.system_code, row.reference.upper()), floor)
+
+    def drawing_key(row) -> tuple:
+        """What makes two records the same drawing: the floor it is of.
+
+        Not the drawing number. A sheet re-issued for the next revision
+        writes its own title block, and where the first named the floor
+        ("...-ZZZ-L22-010009") the second can carry the placeholder
+        ("...-ZZZ-ZZZ-010009") -- the same drawing of the same floor under
+        two numbers, which the log then showed as two drawings of L22, one
+        answered and one under review.
+
+        A floor has one shop drawing per system; a sheet whose floor was
+        never read has nothing to be matched on and keeps its own number.
+        """
+        floor = (normalize_floor(row.floor or "")
+                 or floor_of_reference.get((row.system_code, row.reference.upper()), ""))
+        return (row.system_code, floor) if floor else (row.system_code, row.reference.upper())
+
+    standing: dict[tuple, ControlledDocument] = {}
+    history: dict[tuple, list[ControlledDocument]] = {}
+    for row in rows:
+        if row.category != "drawings":
+            continue
+        key = drawing_key(row)
+        history.setdefault(key, []).append(row)
+        held = standing.get(key)
+        if held is None or _revision_number(row.revision) > _revision_number(held.revision):
+            standing[key] = row
+    if standing:
+        collapsed = []
+        for row in rows:
+            if row.category != "drawings":
+                collapsed.append(row)
+                continue
+            key = drawing_key(row)
+            if standing.get(key) is not row:
+                continue
+            # Only the revisions the consultant actually answered. One that
+            # came and went without a decision on it is the same drawing
+            # filed again, not a submission of its own, and listing it said
+            # the floor had been submitted twice when it had been submitted
+            # once and re-issued.
+            earlier = sorted((r for r in history[key]
+                              if r is not row and r.status not in ("UR", "SUPERSEDED")),
+                             key=lambda r: _revision_number(r.revision), reverse=True)
+            collapsed.append(replace(row, superseded=tuple(earlier)))
+        rows = collapsed
     rows.extend(sent)
     return sorted(rows, key=lambda row: (row.category, row.system_code or "", row.reference, row.revision))
 

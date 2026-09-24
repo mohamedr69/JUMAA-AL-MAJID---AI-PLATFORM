@@ -107,6 +107,11 @@ class Settings(BaseSettings):
     # database, so typing an EP number suggests projects instead of
     # walking a synced drive. Off means every Find Project walks the
     # archive as it used to.
+    # When the rules for reading documents change, every project that has
+    # already been synced reads itself again -- once, in the background,
+    # at startup. Off, a project keeps what it was read as until someone
+    # presses Sync documents on it.
+    reread_on_rules_change: bool = True
     archive_index_enabled: bool = True
     # Scan on server start when the index has never been built, or has
     # gone stale, so a new machine needs nothing done to it.

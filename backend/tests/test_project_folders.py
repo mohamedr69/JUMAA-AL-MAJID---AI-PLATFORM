@@ -87,7 +87,16 @@ def test_where_a_submittal_is_filed():
     project = Project(ep_number="30880", project_name="Titania", source_folder_path=None)
     assert project_folders.system_folder("FAS") == "FA" and project_folders.system_folder("FA") == "FA"
     assert project_folders.system_folder("EML") == "ELS" and project_folders.system_folder("CBS") == "ELS"
-    assert project_folders.system_folder("PAVA") is None
+    # Every system the platform knows is filed, under its own code where it
+    # has no name of its own. Listing only FA, ELS and FRC left a project
+    # with PA/VA, or a voice evacuation system separate from the fire
+    # alarm, with no folder made for it and nowhere for its submittal to
+    # go -- and nothing said so. Settled by the platform owner on
+    # 2026-09-24: a change is for every system, not the ones in front of us.
+    assert project_folders.system_folder("PAVA") == "PAVA"
+    assert project_folders.system_folder("VES") == "VES"
+    # Something that is not a system of the project's still has no folder.
+    assert project_folders.system_folder("nonsense") is None
     assert project_folders.submittal_folder(project, "FAS", "R1") is None
 
 
