@@ -1,0 +1,8 @@
+INFO:     Will watch for changes in these directories: ['C:\\dev\\ep-platform\\backend\\app']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [12692] using WatchFiles
+INFO:     Started server process [27940]
+INFO:     Waiting for application startup.
+Database backed up to C:\dev\ep-platform\backend\backups\ep_platform-before-d1f5b0c7e432-20260921-124619.db before migrating c0e4a9b6d321 -> d1f5b0c7e432
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'app\routers\projects.py'. Reloading...

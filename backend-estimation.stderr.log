@@ -1,0 +1,8 @@
+INFO:     Will watch for changes in these directories: ['C:\\dev\\ep-platform\\backend\\app']
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [21912] using WatchFiles
+INFO:     Started server process [17692]
+INFO:     Waiting for application startup.
+Database backed up to C:\dev\ep-platform\backend\backups\ep_platform-before-b9d3f8a5c210-20260921-122635.db before migrating a8c2e7f4b109 -> b9d3f8a5c210
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'alembic\versions\c0e4a9b6d321_estimation_role_length.py'. Reloading...

@@ -1,0 +1,102 @@
+10:59:26 AM [vite] (client) [Unhandled error] Error: useAuth must be used within AuthProvider
+ > useAuth src/context/AuthContext.tsx:53:18
+    51 |  export function useAuth() {
+    52 |    const ctx = useContext(AuthContext);
+    53 |    if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+       |                    ^
+    54 |    return ctx;
+    55 |  }
+ > ProtectedRoute src/components/ProtectedRoute.tsx?t=1790060365490:9:28
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+
+10:59:26 AM [vite] (client) [console.warn] An error occurred in the <ProtectedRoute> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+10:59:34 AM [vite] (client) [Unhandled error] Error: useAuth must be used within AuthProvider
+ > useAuth src/context/AuthContext.tsx:53:18
+    51 |  export function useAuth() {
+    52 |    const ctx = useContext(AuthContext);
+    53 |    if (!ctx) throw new Error("useAuth must be used within AuthProvider");
+       |                    ^
+    54 |    return ctx;
+    55 |  }
+ > LoginRoute src/App.tsx:38:28
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:28571:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:8030:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10569:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:12205:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:1045:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:19176:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:19004:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:18985:10
+
+10:59:34 AM [vite] (client) [console.warn] An error occurred in the <LoginRoute> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+11:34:32 AM [vite] (client) [Unhandled rejection] Error: Error
+ > errorFrom src/lib/api.ts:46:9
+    44 |      // no JSON body
+    45 |    }
+    46 |    return new ApiError(res.status, message, code, detail);
+       |           ^
+    47 |  }
+    48 |  
+ > requestFull src/lib/api.ts:65:21
+ > request src/lib/api.ts:73:10
+ > src/context/AuthContext.tsx:40:6
+
+3:22:56 PM [vite] http proxy error: /auth/me
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+3:22:56 PM [vite] http proxy error: /auth/me
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+3:22:57 PM [vite] http proxy error: /auth/login
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+3:32:32 PM [vite] (client) [console.error] Encountered two children with the same key, `12V65A is not in the battery catalogue; its 65 Ah is as the BOQ describes it.`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+3:33:41 PM [vite] (client) [console.error] Encountered two children with the same key, `12V65A is not in the battery catalogue; its 65 Ah is as the BOQ describes it.`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version.
+4:12:46 PM [vite] http proxy error: /design-rules/datasheet-libraries
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+4:12:46 PM [vite] http proxy error: /design-rules/datasheet-libraries
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+8:32:24 AM [vite] http proxy error: /projects
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+8:41:34 AM [vite] http proxy error: /projects?scope=mine
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+8:41:34 AM [vite] http proxy error: /projects?scope=mine
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+8:41:37 AM [vite] http proxy error: /auth/me
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+8:41:37 AM [vite] http proxy error: /auth/me
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+8:41:38 AM [vite] http proxy error: /auth/login
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+8:49:47 AM [vite] (client) [console.error] [vite] ReferenceError: IconClipboard is not defined
+    at http://localhost:5173/src/pages/OpeningScreen.tsx?t=1790138987613:285:9
+8:49:47 AM [vite] (client) [console.error] [vite] Failed to reload /src/pages/OpeningScreen.tsx. This could be due to syntax errors or importing non-existent modules. (see errors above)
+8:50:17 AM [vite] http proxy error: /auth/login
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)
+8:50:21 AM [vite] http proxy error: /auth/login
+Error: connect ECONNREFUSED 127.0.0.1:8000
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)

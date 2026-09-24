@@ -1,0 +1,95 @@
+﻿part_number,description,datasheet_path,brand,role,source
+40071361600,ACU module Control module for top-hat rail installation,ACU Module.pdf,JSB,,pdf_table
+40071361540,BCM.1 module Battery control module for component rack installation,BCM.1 module.pdf,JSB,,pdf_table
+BCM.1,"Degree of protection IP20 Protection class II Ambient temperature range -5°C – +55°C Relative humidity 10% – 95%, non-condensing Air pressure 795…1080 hPa Pollution level 2 Electromagnetic compatibility Industrial EN 61000-6-2, Commercial EN 61000-6-3 HMI",BCM.1 module.pdf,JSB,,pdf_table
+40071361580,CM.1 1.7A 1.7A charging module for component rack installa- tion,charging module.pdf,JSB,,pdf_table
+40071360370,CM 3.4A 3.4A charging module for component rack installa- tion,charging module.pdf,JSB,,pdf_table
+40071361550,SKU.1 CG-S 4 x 1.5A Circuit switching 4 x 1.5A for component rack instal- lation,circuit switching.pdf,JSB,,pdf_table
+CW-19021CGS-J,"CrystalWay 19021 CG-S JSB including pictogram set (Arrow right, left, down, up, blank)",CrystalWay.pdf,JSB,,pdf_table
+LUM10560,"Wire suspension kit, 20 m + 30 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10561,"Recessed base, for ceiling mounting, 20 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10563,"Recessed base with cover, for ceiling mounting, 20 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10563S,"Recessed base with cover, for combination with wire suspension, 20 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10565,"Concrete box (suitable for recessed base with cover), 20 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10567,"Add-on housing for CrystalWay 20 m for expanded spatial conditions, for wiring and cable infeed",CrystalWay.pdf,JSB,,pdf_table
+LUM10573,"Pictogram PU, ISO 7010, 20 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10574,"Pictogram PL, ISO 7010, 20 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10575,"Pictogram PR, ISO 7010, 20 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10577,"Pictogram PA, ISO 7010, 20 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10584,"Pictogram PU vertical, ISO 7010, 20 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10585,"Pictogram PL vertical, ISO 7010, 20 m",CrystalWay.pdf,JSB,,pdf_table
+LUM10586,"Pictogram PR vertical, ISO 7010, 20 m",CrystalWay.pdf,JSB,,pdf_table
+FT2ED4ICGS,"FlexiTech ED CG-S, 20 m including pictogram set",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-VL,"Viewing distance 20 m Luminous fl ux ΦE/ΦN at end of rated operating time 100 % Housing material Polycarbonat Housing colour White RAL 9003 Weight 0.4 kg Type of mounting Wall and ceiling mounting Connection terminals 2 x 3 x 2.5 mm2 Connection voltage 220 – 240 V AC, 50/60 Hz 176 – 275 V DC Power c",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-VR,"EATON FlexiTech 20m, Picto, ISO7010-E001 VL, Exit Vertical Left",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-VD,"EATON FlexiTech 20m, Picto, ISO7010-E002 VR, Exit Vertical Right",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-UR,"EATON FlexiTech 20m, Picto, ISO7010-E002 VD, Exit Vertical Down",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-DR,"EATON FlexiTech 20m, Picto, ISO7010-E002 U/R, Exit Up Right",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-DL,"EATON FlexiTech 20m, Picto, ISO7010-E002 D/R, Exit Down Right",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-UL,"EATON FlexiTech 20m, Picto, ISO7010-E001 D/L, Exit Down Left",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-DMD,"EATON FlexiTech 20m, Picto, ISO7010-E001 U/L, Exit Up Left",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-DML,"EATON FlexiTech 20m, Picto, FDX08-040-3 T28, Man in wheel chair door & arrow down",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-DMR,"EATON FlexiTech 20m, Picto, FDX08-040-3 T28, Man in wheel chair door & arrow left",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-DML1,"EATON FlexiTech 20m, Picto, FDX08-040-3 T28, Man in wheel chair door arrow right",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-DMR1,"EATON FlexiTech 20m, Picto, DIN4844, Man in wheel chair & arrow left",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-DMD1,"EATON FlexiTech 20m, Picto, DIN4844, Man in wheel chair & arrow right",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-MP,"EATON FlexiTech 20m, Picto, DIN4844, Man in wheel chair & arrow down",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-H,"EATON FlexiTech 20m, Picto, ISO7010-E007, Meeting Point",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-CR,"EATON FlexiTech 20m, Picto, Hydrant",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-FEX,"EATON FlexiTech 20m, Picto, ISO7010-E003, First-Aid",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-FHO,"EATON FlexiTech 20m, Picto, ISO7010-F001, Fire Extinguisher",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-INFO,"EATON FlexiTech 20m, Picto, ISO7010-F002, Fire Hose",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-WC,"EATON FlexiTech 20m, Picto, ISO7001/P-I PF001, INFO",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-EWL,"EATON FlexiTech 20m, Picto, ISO7001/P-I PF003, WC",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-EWR,"EATON FlexiTech 20m, Picto, ISO7010-E016, Escape Window Left",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-EWD,"EATON FlexiTech 20m, Picto, ISO7010-E016, Escape Window Right",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-RWL,"EATON FlexiTech 20m, Picto, ISO7010-E016, Escape Window Down",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-RWR,"EATON FlexiTech 20m, Picto, ISO7010-E017, Rescue Window Left",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-PICTO-RWD,"EATON FlexiTech 20m, Picto, ISO7010-E017, Rescue Window Right",FlexiTech ED.pdf,JSB,,pdf_table
+FT2-RKC,"EATON FlexiTech 20m, Picto, ISO7010-E017, Rescue Window Down Accessories",FlexiTech ED.pdf,JSB,,pdf_table
+FT2-WG,"Recessed Kit for Ceiling, compatible with FlexiTech SE and FlexiTech ED (ceiling position)",FlexiTech ED.pdf,JSB,,pdf_table
+FT2ED-4I,"Wire Guard, compatible with FlexiTech SE and FlexiTech ED",FlexiTech ED.pdf,JSB,,pdf_table
+40071356730,"GuideLed SL 13011.2 CG-S GuideLed SL 13011.2 CG-S, round recessed mounting lumi- naire, with asymmetric optics for exit route lighting, 4000 K, LED-Supply and CG-S technology (20 addresses) in a plastic enclosure* with strain relief",GuideLed SL.pdf,JSB,,pdf_table
+40071356731,"GuideLed SL 13021.2 CG-S GuideLed SL 13021.2 CG-S, round recessed mounting luminai- re, with symmetric optics for anti-panic or open area lighting, 4000 K, LED-Supply and CG-S technology (20 addresses) in a plastic enclosure* with strain relief",GuideLed SL.pdf,JSB,,pdf_table
+40071354488,Square bezel Square bezel GuideLed SL 130x1.x CG-S,GuideLed SL.pdf,JSB,,pdf_table
+40071353169,"Plastic enclosure Plastic enclosure for installation in concrete (suitable from 160 mm ceiling depth), for GuideLed SL 130x1.x CG-S",GuideLed SL.pdf,JSB,,pdf_table
+40071361644,"HMI module 4.3"" SP 4.3"" TFT touch display for door installation",HMI module.pdf,JSB,,pdf_table
+40071361654,"HMI module 7"" SP 7"" TFT touch display for door installation",HMI module.pdf,JSB,,pdf_table
+40071362319,"Protection class, external IP65 Ambient temperature range 0 – 50°C Electromagnetic compatibility Industrial EN 61000-6-2, Commercial EN 61000-6-3 Relative humidity 10 – 95%, non-condensing Pollution level 2 Max. power consumption 9.5W PC Programming Software LoadStar-S Programming software on pre-co",HMI module.pdf,JSB,,pdf_table
+40071362694,USB stick For saving the device configuration,HMI module.pdf,JSB,,pdf_table
+40071362670,"LoadStar-S 20 Free-standing cabinet with optimized wiring system for central battery system LoadStar-S 20, equipped with battery control module (BCM.1), advanced control unit (ACU) and power supply unit (PSU). For installing a 4.3"" or 7"" TFT touch display. With extra space for adding a maximum of 84",LOAD_STAR.pdf,JSB,,pdf_table
+40071362671,"LoadStar-S 20C6 Compact cabinet for central battery system LoadStar-S 20C6, equipped with battery control module (BCM.1), advanced control unit (ACU) and power supply unit (PSU). For installing a 4.3"" or 7"" TFT touch display. With extra space for adding a maximum of 68 final circuits, or a maximum o",LOAD_STAR.pdf,JSB,,pdf_table
+40071362672,"LoadStar-S12C4 Compact cabinet for central battery system LoadStar-S 12C4, equipped with battery control module (BCM.1), advanced control unit (ACU) and power supply unit (PSU). For installing a 4.3"" or 7"" TFT touch display. With extra space for adding a maximum of 48 final circuits, or a maximum of",LOAD_STAR.pdf,JSB,,pdf_table
+40071362673,"LoadStar-S US 7 Wall cabinet for LoadStar-S/US-S 7 sub-stations, equipped with advanced control unit (ACU) and power supply unit (PSU). For installing a 4.3"" or 7"" TFT touch display. With extra space for adding a maximum of 28 final circuits, or a maximum of 7 variable circuit boards. Please note! T",LOAD_STAR.pdf,JSB,,pdf_table
+40071362675,LoadStar-S SOU2 sub-station SOU2 model sub-station including 2 x SOU CG-S 2 x 4A,LOAD_STAR.pdf,JSB,,pdf_table
+40071362674,LoadStar-S SOU1 sub-station SOU1 model sub-station including 1 x SOU CG-S 2 x 4 A,LOAD_STAR.pdf,JSB,,pdf_table
+40071362676,,LOAD_STAR.pdf,JSB,,pdf_table
+BCM.1,1 1 1 1 1-2 1-2 1 1 1 1 1 1 0-202 0-202 0-12 0-5 0-1 0-1 0-2 1 0-6 0-2 – – 0-4 0-1 0-4 0 0-4 0-1 0-4 0 1-2 1-2 1 0 400/230V 400/230V 230V 230V 50/60 Hz 50/60 Hz 50/60 Hz 50/60 Hz TN-C-S/IT TN-C-S/IT TN-C-S/IT TN-C-S/IT -5°C to +35°C -5°C to +35°C -5°C to +35°C -5°C to +35°C I I I I IP21 IP21 IP21 IP,LOAD_STAR.pdf,JSB,,pdf_table
+40071361590,PSU module Power supply module for component rack installation,PSU Module.pdf,JSB,,pdf_table
+SL23A,"Set of 3 adhesive pictograms (L, R, D) ISO format, 20 m",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL23I,"Set of 3 pictogram foils to insert inside luminaire (L, R, D) ISO format, 20 m",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2CD,"Cone diffuser*, 20 m",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2RB,"Recessed Base, Plastic, RAL 9003, 20 m",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2PG,"Wire guard, 20 m",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2-M65F0FCGS-J,"SafeLite CG-S JSB (200 lm) Luminaire housing IP65, including LED-supply with CG-S  technology and LED-circuit board, for exit route lighting or exit signage with optional pictograms *",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2-M65J0JCGS-J,"SafeLite CG-S JSB (400 lm) Luminaire housing IP65, including LED-supply with CG-S technology and LED-circuit board, for exit route lighting",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL3RB,"SafeLite 20m, RecesBase",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2RBRC,"SafeLite 30m, RecesBase",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2WB,"SafeLite 20m, RecesBase Round Corner Recessed box",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2OP,"SafeLite 20m, Wall Base Opal diffuser",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+EL-BR1,SafeLite Opal Diffuser** Wall bracket,SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL3CD,"SafeLite 20m, Cone Diffuser*",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2DC3I,"SafeLite 30m, Cone Diffuser*",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2PPD,"SafeLite 20m, Cone Diffuser, 3 Inside pictograms included Double side plexi diffuser",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2PPDD,"SafeLite 20m, Plexi Plate, one side, Down",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL2PPLR,"SafeLite 20m, Plexi Plate, double side, Down",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL3PPD,"SafeLite 20m, Plexi Plate, double side, Left & Right",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL3PPDD,"SafeLite 30m, Plexi Plate,one side, Down",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL3PPLR,"SafeLite 30m, Plexi Plate,double side, Down",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL33A,"SafeLite ISO 20m, 3x Adh (Left, Right, Down)",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL24A,"SafeLite ISO 30m, 3x Adh (Left, Right, Down)",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL34A,"SafeLite ISO 20m, 4x Adh (Left, Right, Down, Up)",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+SL210DI,"SafeLite ISO 30m, 4x Adh (Left, Right, Down, Up)",SafeLite CG-S JSB.pdf,JSB,,pdf_table
+40071361670,3-PM-IO module with test button Module for DIN support rail installation,subcircuit monitoring module.pdf,JSB,,pdf_table
+40071361680,3-PM-IO-INV module with test button Module for DIN support rail installation with inverted input logic,subcircuit monitoring module.pdf,JSB,,pdf_table
+40071347125,DIN support rails 4 DIN support rails for mounting external modules in the switch cabinet including mounting material,subcircuit monitoring module.pdf,JSB,,pdf_table

@@ -1,0 +1,41 @@
+........................................................................ [  8%]
+........................................................................ [ 17%]
+........................................................................ [ 26%]
+....................................ssssssssssssss...........s.......... [ 35%]
+................sssssss................................................. [ 44%]
+..........sss........................................................... [ 53%]
+........F............................................................... [ 62%]
+.........................................s.............................. [ 71%]
+......................s................................................. [ 80%]
+.....................................s.................................. [ 89%]
+........................................................................ [ 98%]
+........sssss                                                            [100%]
+================================== FAILURES ===================================
+____________ test_migrations_build_the_schema_the_models_describe _____________
+
+client = <starlette.testclient.TestClient object at 0x0000025B42828D10>
+
+    def test_migrations_build_the_schema_the_models_describe(client):
+        """A model change without a migration fails here rather than in the
+        running app, where it shows up as a query against a column that isn't
+        there. The `client` fixture has just built the database by running the
+        migrations; any difference from the models is a missing migration --
+        `alembic revision --autogenerate` writes it."""
+        with engine.connect() as connection:
+            context = MigrationContext.configure(connection, opts={"compare_type": True})
+>           assert compare_metadata(context, Base.metadata) == []
+E           AssertionError: assert [('remove_col..._floor_boq>))] == []
+E             
+E             Left contains one more item: ('remove_column', None, 'project_floor_boq', Column('location_rules', JSON(), table=<project_floor_boq>))
+E             Use -v to get more diff
+
+tests\test_migrations.py:15: AssertionError
+============================== warnings summary ===============================
+venv\Lib\site-packages\starlette\testclient.py:40
+  C:\dev\ep-platform\backend\venv\Lib\site-packages\starlette\testclient.py:40: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = typing.Callable[[], typing.ContextManager[anyio.abc.BlockingPortal]]
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_migrations.py::test_migrations_build_the_schema_the_models_describe
+1 failed, 771 passed, 33 skipped, 1 warning in 342.81s (0:05:42)

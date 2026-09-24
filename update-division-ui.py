@@ -1,0 +1,22 @@
+﻿from pathlib import Path
+p=Path('frontend/src/pages/EstimationPages.tsx'); s=p.read_text(encoding='utf-8'); s=s.replace('import { api, ApiError } from "../lib/api";', 'import { api, ApiError } from "../lib/api";\nimport { DIVISIONS, type Division } from "../lib/divisions";')
+for name in ['EstimationDashboard','EstimationCreatePage','EstimationOpenPage','EstimationProjectPage']:
+    s=s.replace(f'export function {name}() {{', f'export function {name}({{ division = "estimation" }}: {{ division?: Division }}) {{\n  const label = DIVISIONS[division].label;\n  const base = `/${{division}}/projects`;')
+s=s.replace('"/estimation/projects/new"', '`${base}/new`').replace('"/estimation/projects"', 'base').replace('`/estimation/projects/${project.id}`','`${base}/${project.id}`').replace('`/estimation/projects/${id}`','`${base}/${id}`')
+s=s.replace('to=base','to={base}').replace('to=`${base}/new`','to={`${base}/new`}')
+s=s.replace('Estimation Team</p>', '{label} Team</p>').replace('Estimation Dashboard</h1>', '{label} Dashboard</h1>').replace('Estimation Dashboard</Link>', '{label} Dashboard</Link>')
+s=s.replace('existing estimation project.', 'existing {label} project.').replace('"Browse and open your team\'s estimation projects."', '`Browse and open your team\'s ${label} projects.`').replace('"Start a new estimation project."', '`Start a new ${label} project.`')
+s=s.replace('aria-label="Search estimation projects"', 'aria-label={`Search ${label} projects`}').replace('"No estimation projects yet. Create a new project to get started."', '`No ${label} projects yet. Create a new project to get started.`').replace('Estimation · {project.reference}', '{label} · {project.reference}')
+s=s.replace('  }, []);', '  }, [base]);').replace('  }, [id]);', '  }, [id, base]);')
+p.write_text(s,encoding='utf-8')
+p=Path('frontend/src/App.tsx'); s=p.read_text(); s=s.replace('import { ProjectWorkspace }', 'import { DIVISIONS, type Division } from "./lib/divisions";\nimport { ProjectWorkspace }'); start=s.index('          <Route path="/estimation/projects"'); end=s.index('\n          <Route', s.index('path="/estimation/projects/:id"',start)); s=s[:start]+'''          {(Object.keys(DIVISIONS) as Division[]).map(division => (
+            <Route key={division} path={`/${division}/projects`}>
+              <Route index element={<RoleRoute roles={["admin", DIVISIONS[division].role]}><EstimationOpenPage key={division} division={division} /></RoleRoute>} />
+              <Route path="new" element={<RoleRoute roles={["admin", DIVISIONS[division].role]}><EstimationCreatePage key={division} division={division} /></RoleRoute>} />
+              <Route path=":id" element={<RoleRoute roles={["admin", DIVISIONS[division].role]}><EstimationProjectPage key={division} division={division} /></RoleRoute>} />
+            </Route>
+          ))}'''+s[end:]; p.write_text(s)
+p=Path('frontend/src/pages/OpeningScreen.tsx'); s=p.read_text(encoding='utf-8').replace('import { EstimationDashboard }', 'import { divisionForRole } from "../lib/divisions";\nimport { EstimationDashboard }').replace('  if (user?.role === "estimation_engineer") return <EstimationDashboard />;', '  const division = divisionForRole(user?.role);\n  if (division) return <EstimationDashboard division={division} />;'); p.write_text(s,encoding='utf-8')
+p=Path('frontend/src/components/ProtectedRoute.tsx'); s=p.read_text().replace('import type { Role }', 'import { divisionForRole } from "../lib/divisions";\nimport type { Role }').replace('  if (user.role === "estimation_engineer" &&', '  const division = divisionForRole(user.role);\n  if (division &&').replace('!location.pathname.startsWith("/estimation/")','!location.pathname.startsWith(`/${division}/`)'); p.write_text(s)
+p=Path('frontend/src/components/AppShell.tsx'); s=p.read_text().replace('import { ROLE_LABELS }', 'import { DIVISIONS, divisionForRole } from "../lib/divisions";\nimport { ROLE_LABELS }').replace('  const { user, logout } = useAuth();','  const { user, logout } = useAuth();\n  const division = divisionForRole(user?.role);').replace('user?.role === "estimation_engineer" ? "Estimation Team" : "Design Team"','division ? `${DIVISIONS[division].label} Team` : "Design Team"'); p.write_text(s)
+p=Path('backend/tests/test_rbac.py'); s=p.read_text().replace('{RoleEnum.estimation_engineer}', '{RoleEnum.estimation_engineer, RoleEnum.fire_fighting_engineer, RoleEnum.elv_engineer}'); p.write_text(s)
