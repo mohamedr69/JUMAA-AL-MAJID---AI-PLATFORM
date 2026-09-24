@@ -12,7 +12,11 @@ import type { Capabilities, Comparison, DeviceType, Drawing, DrawingSummary, Rev
  *  is where it is, `progress.eta_seconds` its estimate of the time left. */
 export type ReadJob = Job & {
   progress: Job['progress'] & { stage?: string; eta_seconds?: number; file?: string }
-  result: { drawing_id?: number; filename?: string; revision?: string } | null
+  result: { drawing_id?: number; filename?: string; revision?: string;
+            archive?: string; drawings?: number
+            read?: { drawing_id: number; filename: string; revision: string }[]
+            failed?: { filename: string; reason: string }[]
+            skipped?: string[] } | null
 }
 
 const drawings = (projectId: number) => `/projects/${projectId}/ifc-drawings`
@@ -68,12 +72,35 @@ export const api = {
       if (issue.supersedes_id !== null) body.append('supersedes_id', String(issue.supersedes_id))
       xhr.send(body)
     }),
+  /** A zip of the building: every drawing in it is read, a floor at a
+   *  time, as one job the tab follows like a single read. */
+  startZipRead: (projectId: number, file: File, onSent: (loaded: number, total: number) => void): Promise<ReadJob> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', `${API_BASE_URL}${drawings(projectId)}/zip/jobs`)
+      xhr.withCredentials = true
+      xhr.upload.onprogress = (e) => e.lengthComputable && onSent(e.loaded, e.total)
+      xhr.onload = () => {
+        let body: { detail?: unknown } & Partial<ReadJob> = {}
+        try {
+          body = JSON.parse(xhr.responseText)
+        } catch {
+          /* no JSON body */
+        }
+        if (xhr.status >= 200 && xhr.status < 300) resolve(body as ReadJob)
+        else reject(new ApiError(xhr.status, typeof body.detail === 'string' ? body.detail : xhr.statusText || 'The archive could not be sent'))
+      }
+      xhr.onerror = () => reject(new ApiError(0, 'The archive could not be sent: the platform did not answer'))
+      const body = new FormData()
+      body.append('file', file)
+      xhr.send(body)
+    }),
   comparison: (projectId: number) => platform.get<Comparison>(`/projects/${projectId}/ifc-comparison`),
   getJob: (id: number) => platform.get<ReadJob>(`/jobs/${id}`),
   cancelJob: (id: number) => platform.post<ReadJob>(`/jobs/${id}/cancel`),
   runningRead: async (projectId: number): Promise<ReadJob | null> =>
     (await platform.get<ReadJob[]>(`/projects/${projectId}/jobs`)).find(
-      (j) => j.kind === 'ifc_read' && (j.status === 'queued' || j.status === 'running'),
+      (j) => (j.kind === 'ifc_read' || j.kind === 'ifc_read_zip') && (j.status === 'queued' || j.status === 'running'),
     ) ?? null,
   exportUrl: (projectId: number, id: number) => apiUrl(`${drawings(projectId)}/${id}/export`),
   setFloors: (projectId: number, id: number, sheet: string, multiplier: number | null) =>

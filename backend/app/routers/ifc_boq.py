@@ -27,10 +27,12 @@ drawing -- on any project -- recognises it.
 
 from __future__ import annotations
 
+import io
 import re
 import uuid
+import zipfile
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
@@ -263,6 +265,17 @@ def _superseded(db: Session, project_id: int) -> dict[int, ProjectIfcDrawing]:
     rows = (db.query(ProjectIfcDrawing)
             .filter(ProjectIfcDrawing.project_id == project_id, ProjectIfcDrawing.supersedes_id.isnot(None)).all())
     return {d.supersedes_id: d for d in rows}
+
+
+def _in_force_named(db: Session, project_id: int, filename: str) -> ProjectIfcDrawing | None:
+    """The drawing of this name that nothing has revised yet, if any. What
+    makes a file in an archive a revision rather than a new floor."""
+    superseded = _superseded(db, project_id)
+    rows = (db.query(ProjectIfcDrawing)
+            .filter(ProjectIfcDrawing.project_id == project_id,
+                    func.lower(ProjectIfcDrawing.filename) == filename.lower())
+            .order_by(ProjectIfcDrawing.id.desc()).all())
+    return next((d for d in rows if superseded.get(d.id) is None), None)
 
 
 def _revision_plan(db: Session, project, revision: str | None,
@@ -531,6 +544,167 @@ async def start_reading_drawing(project_id: int, file: UploadFile = File(...),
         return {"drawing_id": drawing.id, "filename": name, "revision": rev}
 
     job = jobs.start(db, kind="ifc_read", project_id=project_id_, user_id=user_id, work=work,
+                     run_inline=jobs_router.RUN_INLINE)
+    return jobs_router._out(job)
+
+
+# --- a zip of the whole building -------------------------------------------------
+#
+# A project's drawings arrive as one archive, a file per floor. Each file
+# becomes a drawing of its own, read one after another, so the tab can say
+# which floor it is on and a single broken file does not lose the rest.
+
+MAX_MEMBERS = 200
+# Checked against the *uncompressed* sizes the archive declares, before
+# anything is written: a zip bomb is small until it is opened.
+MAX_UNPACKED_BYTES = MAX_BYTES
+
+
+def _by_floor_then_name(pair: tuple[str, bytes]) -> list:
+    """Level 2 before Level 10: the digits in a name count as a number."""
+    return [int(part) if part.isdigit() else part
+            for part in re.split(r"(\d+)", pair[0].lower())]
+
+
+def _drawings_in_a_zip(data: bytes) -> tuple[list[tuple[str, bytes]], list[str]]:
+    """The DWG and DXF files an archive holds, and what was left out.
+
+    Nothing is written to disk: the members are read into memory one at a
+    time, the same way a single upload is. A member is refused rather
+    than trusted -- an archive is a list of paths someone else wrote, and
+    a path that climbs out of the folder it is unpacked into is the
+    oldest trick there is.
+    """
+    skipped: list[str] = []
+    found: list[tuple[str, bytes]] = []
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        raise HTTPException(422, "This file is not a zip archive")
+    with archive:
+        members = [m for m in archive.infolist() if not m.is_dir()]
+        if len(members) > MAX_MEMBERS:
+            raise HTTPException(422, f"The archive holds {len(members)} files; {MAX_MEMBERS} is the most that can be "
+                                     f"read at once")
+        wanted = []
+        unpacked = 0
+        for member in members:
+            # One normalised spelling, checked once: a path rooted with a
+            # backslash is the same path as one rooted with a slash.
+            path = member.filename.replace("\\", "/")
+            name = PurePosixPath(path).name
+            parts = PurePosixPath(path).parts
+            ext = name.lower().rsplit(".", 1)[-1] if "." in name else ""
+            if (path.startswith("/") or ".." in parts or ":" in path
+                    or any(part.startswith("__MACOSX") for part in parts) or name.startswith(".")):
+                skipped.append(member.filename)
+                continue
+            if ext not in ("dwg", "dxf"):
+                skipped.append(member.filename)
+                continue
+            unpacked += member.file_size
+            if unpacked > MAX_UNPACKED_BYTES:
+                raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                                    detail=f"The drawings in this archive come to more than "
+                                           f"{MAX_UNPACKED_BYTES // (1024 * 1024)} MB unpacked")
+            wanted.append((member, name, ext))
+
+        for member, name, ext in wanted:
+            with archive.open(member) as handle:
+                content = handle.read(member.file_size + 1)
+            if ext == "dwg" and not content.startswith(b"AC10"):
+                # Named .dwg and is not one: the same check a single
+                # upload gets, so a renamed file is caught here too.
+                skipped.append(member.filename)
+                continue
+            found.append((name, content))
+    if not found:
+        raise HTTPException(422, "This archive holds no DWG or DXF drawings")
+    # Only the file name is kept, so two floors filed under different
+    # folders but the same name would land on one drawing -- the second
+    # superseding the first inside a single import, quietly. Say so
+    # instead: the archive is the one that needs fixing.
+    seen: set[str] = set()
+    for name, _ in found:
+        if name.lower() in seen:
+            raise HTTPException(422, f"Two files in the archive are both called {name}. Give each floor a name of "
+                                     f"its own -- the folders they sit in are not kept.")
+        seen.add(name.lower())
+    # Read in the order the floors are named, so the tab walks the
+    # building rather than the archive's own ordering, counting the
+    # numbers in a name so that Level 2 comes before Level 10.
+    found.sort(key=_by_floor_then_name)
+    return found, skipped
+
+
+async def _received_zip(file: UploadFile) -> tuple[str, bytes]:
+    name = Path(file.filename or "drawings.zip").name
+    if not name.lower().endswith(".zip"):
+        raise HTTPException(415, "Upload a zip archive of DWG or DXF drawings")
+    size = 0
+    chunks = []
+    while chunk := await file.read(1 << 20):
+        size += len(chunk)
+        if size > MAX_BYTES:
+            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"{name} is larger than 250 MB")
+        chunks.append(chunk)
+    return name, b"".join(chunks)
+
+
+@router.post("/projects/{project_id}/ifc-drawings/zip/jobs", status_code=status.HTTP_202_ACCEPTED)
+async def start_reading_zip(project_id: int, file: UploadFile = File(...),
+                            current_user: User = Depends(require_role(*CREATOR_ROLES)),
+                            db: Session = Depends(get_db)):
+    """Read a zip of the building's drawings, a floor at a time.
+
+    Each file in the archive becomes a drawing of its own. A file whose
+    name matches a drawing already in force revises that one; every other
+    file is a new drawing at R0 -- an archive is the building, not a
+    revision of one drawing, so there is no single revision to issue it
+    at.
+
+    Floors still come from the sheets inside each drawing (and the floors
+    endpoint corrects them). Nothing here reads a floor off a file name.
+    """
+    from app.models import Project
+    from app.routers import jobs as jobs_router
+    from app.services import jobs
+
+    project = _get_project_or_404(db, project_id)
+    archive_name, data = await _received_zip(file)
+    drawings, skipped = _drawings_in_a_zip(data)
+
+    # Once, before the loop: twelve conversions that cannot work should
+    # fail now and not after reading nothing.
+    if any(name.lower().endswith(".dwg") for name, _ in drawings) and convert.find_converter() is None:
+        raise HTTPException(422, "Could not convert the DWGs to DXF: no DWG converter on this PC. Install AutoCAD, or "
+                                 "the free ODA File Converter, or put DXF files in the archive instead.")
+    project_id_, user_id = project.id, current_user.id
+    total = len(drawings)
+
+    def work(session: Session, ctx: jobs.JobContext) -> dict:
+        read: list[dict] = []
+        failed: list[dict] = []
+        for index, (name, content) in enumerate(drawings):
+            ctx.check()
+            ctx.progress(index, total, f"Reading {name}", stage="read", file=name)
+            ext = name.lower().rsplit(".", 1)[-1]
+            # Per file: one that revises a drawing already in force takes
+            # that drawing's next revision; the rest are new at R0.
+            previous = _in_force_named(session, project_id_, name)
+            revision = f"R{revision_number(previous.revision) + 1}" if previous is not None else "R0"
+            try:
+                drawing = _read_drawing(session, session.get(Project, project_id_), session.get(User, user_id),
+                                        name, ext, content, revision=revision, supersedes=previous)
+                read.append({"drawing_id": drawing.id, "filename": name, "revision": revision})
+            except ReadError as exc:
+                # One unreadable file does not lose the other eleven.
+                failed.append({"filename": name, "reason": str(exc)})
+        ctx.progress(total, total, "Read", stage="done", eta_seconds=0)
+        return {"archive": archive_name, "read": read, "failed": failed, "skipped": skipped,
+                "drawings": len(read)}
+
+    job = jobs.start(db, kind="ifc_read_zip", project_id=project_id_, user_id=user_id, work=work,
                      run_inline=jobs_router.RUN_INLINE)
     return jobs_router._out(job)
 

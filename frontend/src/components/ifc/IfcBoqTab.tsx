@@ -43,6 +43,16 @@ function stem(name: string) {
   return name.replace(/\.(dwg|dxf)$/i, '').replace(/[\s_-]*(\(.*\)|R(EV)?\.?\s*\d+)\s*$/i, '').trim().toUpperCase()
 }
 
+/** What a zip import did, in one line: a file that could not be read, or
+ *  one left behind, is named rather than quietly missing from the list. */
+const readFromZip = (r: NonNullable<ReadJob['result']>) => {
+  const floors = r.read?.length ?? 0
+  const parts = [`Read ${floors} ${floors === 1 ? 'drawing' : 'drawings'} from ${r.archive ?? 'the archive'}.`]
+  if (r.failed?.length) parts.push(`Could not read ${r.failed.map((f) => f.filename).join(', ')}.`)
+  if (r.skipped?.length) parts.push(`Left behind ${r.skipped.length} file${r.skipped.length === 1 ? '' : 's'} that ${r.skipped.length === 1 ? 'is' : 'are'} not a drawing: ${r.skipped.join(', ')}.`)
+  return parts.join(' ')
+}
+
 /** The BOQ page's "As per IFC Drawings" tab: the drawing in force opens by
  *  itself, on its Verify Symbols step until every symbol on its floor plans
  *  is answered. A new file is imported as a revision -- of the drawing
@@ -66,6 +76,7 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
   const [dragOver, setDragOver] = useState(false)
   const [caps, setCaps] = useState<Capabilities | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  const zipInput = useRef<HTMLInputElement>(null)
   // The drawing in force opens by itself once; after "Back" the list stays.
   const autoOpened = useRef(false)
 
@@ -127,8 +138,18 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
         clearInterval(timer)
         setReading(null)
         load()
-        if (job.status === 'succeeded' && job.result?.drawing_id) setOpen(job.result.drawing_id)
-        else if (job.status === 'cancelled') setNotice(`Stopped reading ${job.progress.file ?? 'the drawing'}: nothing was kept.`)
+        if (job.status === 'succeeded' && job.result?.read) {
+          setNotice(readFromZip(job.result))
+          // Start floor wise: the first floor opens on Verify Symbols,
+          // the way a single import does.
+          const first = job.result.read[0]
+          if (first) setOpen(first.drawing_id)
+        }
+        else if (job.status === 'succeeded' && job.result?.drawing_id) setOpen(job.result.drawing_id)
+        else if (job.status === 'cancelled') setNotice(
+          job.kind === 'ifc_read_zip'
+            ? `Stopped at ${job.progress.file ?? 'a floor'}: the floors read before it were kept.`
+            : `Stopped reading ${job.progress.file ?? 'the drawing'}: nothing was kept.`)
         else setError((job.error ?? 'The drawing could not be read').replace(/^\w+(Error|Exception): /, ''))
       } catch (e) {
         if (live) setError(`Lost track of the read: ${(e as Error).message}`)
@@ -150,11 +171,33 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
     return Array.from({ length: previous ? 10 : 21 }, (_, i) => `R${from + i}`)
   }
 
+  /** A zip is the building, not a revision of one drawing: every file in
+   *  it is read as its own drawing, so there is nothing to choose first. */
+  const uploadZip = async (file: File) => {
+    setError('')
+    setNotice('')
+    setOpen(null)
+    setReading({ filename: file.name, revision: '', sent: { loaded: 0, total: file.size, started: Date.now() }, job: null, polledAt: 0 })
+    try {
+      const job = await api.startZipRead(projectId, file, (loaded, total) =>
+        setReading((r) => (r && r.sent ? { ...r, sent: { ...r.sent, loaded, total } } : r)),
+      )
+      setReading((r) => (r ? { ...r, sent: null, job, polledAt: Date.now() } : r))
+    } catch (e) {
+      setReading(null)
+      setError((e as Error).message)
+    }
+  }
+
   const choose = (file: File) => {
     setError('')
     const lower = file.name.toLowerCase()
+    if (lower.endsWith('.zip')) {
+      void uploadZip(file)
+      return
+    }
     if (!lower.endsWith('.dxf') && !lower.endsWith('.dwg')) {
-      setError('Upload a DWG or DXF drawing.')
+      setError('Upload a DWG or DXF drawing, or a zip of them.')
       return
     }
     if (lower.endsWith('.dwg') && caps && !caps.dwg) {
@@ -339,19 +382,37 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
               </div>
             )}
             <div className="text-sm text-slate-600">{inForce.length > 0 ? 'Drag the revised DWG or DXF here, or' : 'Drag a DWG or DXF file here, or'}</div>
-            <Button onClick={() => input.current?.click()}>{inForce.length > 0 ? 'Import revised revision' : 'Choose drawing'}</Button>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button onClick={() => input.current?.click()}>{inForce.length > 0 ? 'Import revised revision' : 'Choose drawing'}</Button>
+              <Button variant="ghost" onClick={() => zipInput.current?.click()}>
+                Import a zip of all floors
+              </Button>
+            </div>
             <div className="text-xs text-slate-500">
               {caps === null
                 ? ''
                 : caps.dwg
                   ? `DWG files are converted to DXF by ${caps.dwg_converter}.`
                   : 'DWG needs AutoCAD or the ODA File Converter on the server PC. DXF always works.'}
-              {' '}Symbols drawn without a block (exploded, or drawn in lines) are found by what they look like.
+              {' '}Symbols drawn without a block (exploded, or drawn in lines) are found by what they look
+              like. A zip is read a file at a time, each one its own drawing; floors still come from the
+              sheets inside them.
             </div>
+            <input
+              ref={zipInput}
+              type="file"
+              accept=".zip"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) choose(f)
+                e.target.value = ''
+              }}
+            />
             <input
               ref={input}
               type="file"
-              accept=".dwg,.dxf"
+              accept=".dwg,.dxf,.zip"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0]
