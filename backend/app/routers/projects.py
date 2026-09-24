@@ -1,3 +1,4 @@
+import os
 import threading
 from pathlib import Path
 from urllib.parse import quote
@@ -29,6 +30,9 @@ from app.schemas_project import (
     BoqChangeOut,
     BoqCompareOut,
     BoqEnsureResponse,
+    BoqPasteIn,
+    BoqPasteOut,
+    PastedBoqLineOut,
     BoqRevisionIssue,
     BoqRevisionOut,
     BoqRevisionSummaryOut,
@@ -704,6 +708,51 @@ def replace_project_boq(
     return project.boq_items
 
 
+@router.post("/{project_id}/boq/paste", response_model=BoqPasteOut)
+def paste_project_boq(
+    project_id: int,
+    payload: BoqPasteIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> BoqPasteOut:
+    """Read a BOQ copied out of a spreadsheet into lines.
+
+    For the project whose BOQ never came as a Design Sheet: the engineer
+    copies the range out of Excel and the block is read here -- headings
+    carried down the lines under them, quantities through the same parser
+    the extractor uses.
+
+    **Nothing is saved.** The lines go back to the BOQ page, where they are
+    looked over and saved with everything else, so a paste read wrongly
+    costs a glance and not a revision.
+    """
+    from app.services import boq_paste
+
+    _get_project_or_404(db, project_id)
+    read = boq_paste.read(payload.text, columns=payload.columns)
+    system = (payload.system_code or "").strip() or None
+    return BoqPasteOut(
+        lines=[PastedBoqLineOut(
+            system_code=system,
+            group_heading=line.group_heading,
+            manufacturer=line.manufacturer,
+            catalog_no=line.catalog_no,
+            description=line.description,
+            quantity=line.quantity,
+            unit=line.unit,
+            unit_price=boq_paste.price(line.unit_price),
+            total_price=boq_paste.price(line.total_price),
+            remarks=line.remarks,
+            problems=line.problems,
+        ) for line in read.lines],
+        columns=read.columns,
+        headings=read.headings,
+        header_row=read.header_row,
+        heading_rows=read.heading_rows,
+        skipped_rows=read.skipped_rows,
+    )
+
+
 @router.post("/{project_id}/boq/ensure", response_model=BoqEnsureResponse)
 def ensure_project_boq(
     project_id: int,
@@ -1371,6 +1420,15 @@ def project_log_file(
         raise HTTPException(403, detail="File is outside the project directory")
     if target.suffix.lower() not in {".pdf", ".dwg", ".dxf", ".doc", ".docx", ".xls", ".xlsx", ".zip"}:
         raise HTTPException(400, detail="Unsupported log file type")
-    if not target.is_file():
+    # Windows stops at 260 characters unless a path is given in its
+    # extended-length form, and a shop drawing inside a synced project
+    # folder is easily past that: "04- Drawings/08-Shop Drawing/1.FAVE/R1/
+    # 04. Basement-1/BBY006-GME-SDW-FP-FA-BSM-B01-010001 Shop Drawing for
+    # ...". Asked the ordinary way the file simply is not there, and the
+    # page said it had been deleted over a file sitting on the drive.
+    from app.services.document_control import _os_path
+
+    reachable = _os_path(target)
+    if not os.path.isfile(reachable):
         raise HTTPException(404, detail="File is no longer available")
-    return FileResponse(target, filename=target.name, content_disposition_type="inline")
+    return FileResponse(reachable, filename=target.name, content_disposition_type="inline")

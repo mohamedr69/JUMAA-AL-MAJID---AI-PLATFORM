@@ -3,7 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
 from app.models import ProjectStatus
 from app.services.brands import normalise as normalise_brand
@@ -148,6 +148,36 @@ class ProjectBoqItemOut(ProjectBoqItemIn):
         elif self.origin in ("extracted", "ai_accepted", "review_accepted", "manual", "legacy"):
             self.status = self.origin  # type: ignore[assignment]
         return self
+
+
+class BoqPasteIn(BaseModel):
+    """A block copied out of a spreadsheet, and the columns to read it by."""
+
+    text: str = Field(max_length=2_000_000)
+    # Field name -> the column holding it, for a paste whose header the
+    # engineer corrected. Left out, the header is read where there is one.
+    columns: dict[str, int] | None = None
+    # The system the lines belong to. None leaves them unassigned, which is
+    # what the page shows until one is chosen.
+    system_code: str | None = None
+
+
+class PastedBoqLineOut(ProjectBoqItemIn):
+    """A line as it was read, with what is worth a look before it is saved."""
+
+    problems: list[str] = []
+
+
+class BoqPasteOut(BaseModel):
+    """What the paste came to. Nothing is saved: the lines go back to the
+    page, where the engineer looks them over and saves them with the rest."""
+
+    lines: list[PastedBoqLineOut]
+    columns: dict[str, int]
+    headings: list[str] = []
+    header_row: bool = False
+    heading_rows: int = 0
+    skipped_rows: int = 0
 
 
 class BoqEnsureResponse(BaseModel):

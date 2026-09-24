@@ -26,6 +26,7 @@ import { ExtractionReview } from "../components/ExtractionReview";
 import { AiCheckBadge, AiVerificationPanel } from "../components/AiVerificationPanel";
 import { StaleWriteNotice } from "../components/StaleWriteNotice";
 import { BoqGroupedView } from "../components/BoqGroupedView";
+import { BoqPasteDialog } from "../components/BoqPasteDialog";
 import { boqGroupKey, groupBoqRows, type IndexedRow } from "../lib/boqGroups";
 import { useProject } from "./ProjectWorkspace";
 
@@ -397,6 +398,30 @@ export function ProjectBoqPage() {
     touched();
   }
 
+  // The BOQ that never came as a Design Sheet: pasted out of the
+  // engineer's spreadsheet rather than typed a line at a time.
+  const [pasting, setPasting] = useState(false);
+
+  function addPasted(lines: ProjectBoqItemInput[]) {
+    setPasting(false);
+    if (!lines.length) return;
+    const added = lines.map(toRow);
+    setRows((prev) => [...prev, ...added]);
+    // New lines would be hidden by a filter left on, or by another tab.
+    setFilter("");
+    setStatusFilter("all");
+    setGroupFilter("");
+    setManufacturerFilter("");
+    setSource("design");
+    const landed = added[0].system_code ?? UNASSIGNED;
+    setSelectedTab(landed);
+    setExpanded((was) => ({
+      ...was,
+      ...Object.fromEntries(added.map((row) => [`${landed}|${boqGroupKey(row)}`, true])),
+    }));
+    touched();
+  }
+
   function addRow() {
     const added = toRow({ system_code: activeTab === UNASSIGNED ? null : activeTab, description: "" });
     setRows((prev) => [...prev, added]);
@@ -471,6 +496,15 @@ export function ProjectBoqPage() {
 
   return (
     <div>
+      {pasting && (
+        <BoqPasteDialog
+          projectId={project.id}
+          systems={tabs.filter((tab) => tab !== UNASSIGNED)}
+          system={activeTab === UNASSIGNED ? null : activeTab}
+          onAdd={addPasted}
+          onCancel={() => setPasting(false)}
+        />
+      )}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-xs text-gray-400">
@@ -509,6 +543,13 @@ export function ProjectBoqPage() {
           </button>
           {canEdit && (
             <>
+              <button
+                onClick={() => setPasting(true)}
+                className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-navy-900 hover:bg-gray-50"
+                title="Copy the BOQ rows in Excel and paste them in"
+              >
+                Paste from Excel
+              </button>
               <button
                 onClick={addRow}
                 className="flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
