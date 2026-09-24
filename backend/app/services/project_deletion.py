@@ -38,6 +38,7 @@ from app.models import (
     ProjectIfcDrawing,
     ProjectProposedMaterial,
     ResultCache,
+    SubmittalReply,
 )
 
 
@@ -66,7 +67,7 @@ def delete_project(db: Session, project: Project) -> None:
     # `test_a_project_carrying_every_kind_of_row_can_still_be_deleted`
     # is here to catch when the next per-project table is added.
     # Documents go after the rows that point at them.
-    for model in (AiVerification, DocumentDependency, DocumentReading, BatteryPanelResult,
+    for model in (AiVerification, DocumentDependency, DocumentReading, BatteryPanelResult, SubmittalReply,
                   ProjectFrcCables, ProjectProposedMaterial, ProjectFloorSchedule, ProjectAmplifierDesign, ProjectIfcDrawing,
                   BoqCandidate, BoqSnapshot, ProjectDocument, BackgroundJob, ResultCache):
         db.execute(delete(model).where(model.project_id == project_id))

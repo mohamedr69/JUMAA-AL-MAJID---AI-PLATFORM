@@ -426,3 +426,500 @@ def test_the_map_shows_a_revision_that_has_been_answered():
     assert row["latest_status"] == "RR"
     assert row["cells"]["R0"]["status"] == "RR"
     assert any("R1 is not filed" in action for action in answered["actions"])
+
+
+def test_the_reply_sheet_is_kept_and_exported(client, db_session, tmp_path):
+    """A returned submittal is answered comment by comment. The sheet is
+    written, saved, come back to, and exported as the workbook the
+    company sends."""
+    import io
+    import pymupdf
+    from openpyxl import load_workbook
+
+    login(client, settings.default_admin_email, settings.default_admin_password)
+    root = tmp_path / "EP-40200"
+    root.mkdir()
+    created = client.post("/projects", json={
+        "ep_number": "40200", "project_name": "Reply Sheet", "source_folder_path": str(root),
+        "design_sheets": [], "consultant": "M/s. Silver Stone",
+        "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": False}],
+    }).json()
+    base = f"/projects/{created['id']}/submittals/EP-40200-MAS-FAS/R00/reply"
+
+    opened = client.get(base).json()
+    assert opened["saved"] is False
+    assert opened["consultant"] == "M/s. Silver Stone"
+    assert opened["reference"] == "EP-40200-MAS-FAS"
+    # Nothing was read from a consultant, so it opens with a row to fill.
+    assert len(opened["rows"]) == 1
+
+    rows = [
+        {"sn": 1, "comment": "Monitoring panels shall be distributed across each tower.",
+         "reply": "Comply", "remark": "As per DCD requirements."},
+        {"sn": 2, "comment": "Luminaires in wet areas must be IP65.", "reply": "Comply", "remark": ""},
+    ]
+    saved = client.put(base, json={"rows": rows}).json()
+    assert saved["saved"] is True and len(saved["rows"]) == 2
+
+    # Come back to it: what was written is still there.
+    again = client.get(base).json()
+    assert again["rows"][0]["remark"] == "As per DCD requirements."
+    assert again["saved"] is True
+
+    # And edited again, rather than started over.
+    client.put(base, json={"rows": rows[:1]})
+    assert len(client.get(base).json()["rows"]) == 1
+
+    export = client.get(f"{base}.xlsx")
+    assert export.status_code == 200
+    sheet = load_workbook(io.BytesIO(export.content)).active
+    assert sheet.cell(row=1, column=1).value == "Reply to Consultant Comments on Fire Alarm submittal"
+    assert sheet.cell(row=3, column=1).value == "Ref No : EP-40200-MAS-FAS - R00"
+    assert sheet.cell(row=5, column=1).value == "Consultant : M/s. Silver Stone"
+    assert sheet.cell(row=6, column=2).value == "Consultant Comments"
+    assert sheet.cell(row=7, column=3).value == "Comply"
+
+    # And as the PDF the consultant is given: the same sheet, read rather
+    # than edited, which is what the Export button sends.
+    as_pdf = client.get(f"{base}.pdf")
+    assert as_pdf.status_code == 200
+    assert as_pdf.headers["content-type"] == "application/pdf"
+    assert as_pdf.content[:5] == b"%PDF-"
+    page = pymupdf.open(stream=as_pdf.content, filetype="pdf")[0].get_text()
+    assert "Reply to Consultant Comments on Fire Alarm submittal" in page
+    assert "EP-40200-MAS-FAS - R00" in page
+    assert "M/s. Silver Stone" in page
+    assert "Monitoring panels shall be distributed" in " ".join(page.split())
+
+
+def test_saving_a_reply_does_not_move_the_submittal_on():
+    """Writing the answer is not filing the next revision: what the
+    consultant said still stands until that revision appears."""
+    from app.services import reply_sheet
+
+    # The sheet opens from the consultant's own words, split to answer.
+    rows = reply_sheet.seed_rows("COO of the products is not as per the vendor list. Re-submit the document.")
+    assert [r["sn"] for r in rows] == [1, 2]
+    assert rows[0]["reply"] == "Comply"
+    # Nothing said: one row to fill rather than an invented one.
+    assert reply_sheet.seed_rows(None) == [{"sn": 1, "comment": "", "reply": "Comply", "remark": ""}]
+    # The company's name for the reply column, not the salutation.
+    assert reply_sheet.supplier_name("M/S. ALARABIA FOR SAFETY AND SECURITY LLC.") == "Alarabia For Safety And Security"
+    assert reply_sheet.supplier_name(None) == reply_sheet.DEFAULT_SUPPLIER
+
+
+def test_a_long_reply_sheet_carries_its_headings_on_to_every_page():
+    """Forty comments run on to more than one page, and a page of bare
+    rows would reach the consultant with no idea what the columns are."""
+    import pymupdf
+
+    from app.services import reply_sheet
+
+    rows = [{"sn": n, "comment": f"Comment {n}: " + "the submitted document does not comply. " * 4,
+             "reply": "Comply", "remark": "Revised and attached."} for n in range(1, 41)]
+    content = reply_sheet.pdf(project_name="Tower", reference="EP-1-MAS-FAS", revision="R00",
+                              system_title="Fire Alarm", manufacturer="EDWARDS",
+                              consultant="SSH", supplier=None, rows=rows)
+    document = pymupdf.open(stream=content, filetype="pdf")
+    assert document.page_count > 1
+    pages = [page.get_text() for page in document]
+    assert all("Consultant Comments" in page and "REMARKS" in page for page in pages)
+    # The heading block belongs to the first page only.
+    assert sum("MANUFACTURER" in page for page in pages) == 1
+    # Every comment is there, and each one whole rather than cut in two.
+    whole = " ".join(" ".join(pages).split())
+    assert all(f"Comment {n}:" in whole for n in (1, 20, 40))
+
+
+def test_a_comment_written_with_angle_brackets_is_text_not_markup():
+    """The comments and remarks are typed by an engineer and the page is
+    built from HTML, so what they write is escaped rather than obeyed."""
+    import unicodedata
+
+    import pymupdf
+
+    from app.services import reply_sheet
+
+    rows = [{"sn": 1, "comment": "Use <b>IP65</b> fittings & seals", "reply": "Comply",
+             "remark": "R&D confirmed <see attached>"}]
+    content = reply_sheet.pdf(project_name="T", reference="EP-1-MAS-FAS", revision="R00",
+                              system_title="Fire Alarm", manufacturer=None, consultant=None,
+                              supplier=None, rows=rows)
+    # The PDF font sets "fi" as one glyph, so the text comes back with
+    # ligatures in it; NFKC puts them back to the letters written.
+    drawn = pymupdf.open(stream=content, filetype="pdf")[0].get_text()
+    page = " ".join(unicodedata.normalize("NFKC", drawn).split())
+    assert "Use <b>IP65</b> fittings & seals" in page
+    assert "R&D confirmed <see attached>" in page
+
+
+def test_a_remark_written_over_several_lines_keeps_them():
+    """The cells on screen are textareas, so a remark arrives with real
+    line breaks in it. They are the engineer's own paragraphing and the
+    PDF keeps them rather than running the lines together."""
+    import pymupdf
+
+    from app.services import reply_sheet
+
+    rows = [{"sn": 1, "comment": "First point." + chr(10) + "Second point.", "reply": "Comply",
+             "remark": "Letter attached." + chr(10) + "Datasheet revised."}]
+    content = reply_sheet.pdf(project_name="T", reference="EP-1-MAS-FAS", revision="R00",
+                              system_title="Fire Alarm", manufacturer=None, consultant=None,
+                              supplier=None, rows=rows)
+    drawn = pymupdf.open(stream=content, filetype="pdf")[0].get_text().splitlines()
+    assert "First point." in drawn and "Second point." in drawn
+    assert "Letter attached." in drawn and "Datasheet revised." in drawn
+
+
+def test_a_resubmission_is_not_answered_by_the_comments_it_answers():
+    """An R1 form prints the consultant's remarks on R0 -- that is what
+    it is answering -- and the reader takes them off the page. Read
+    plainly that marks R1 'revise and resubmit' before the consultant
+    has seen it. The comments name the revision they are on, and
+    nothing has come back into R1's Received folder, so R1 is still
+    under review and R0 keeps the answer that is really its own."""
+    from app.ai import submittal_reader
+    from app.services import submittal_replies
+
+    class Row:
+        def __init__(self, relative):
+            self.relative_path = relative
+            self.filename = relative.rsplit("/", 1)[-1]
+            self.extracted: dict = {}
+
+    # As the reader stored it on EP-29387.
+    evidence = ("Employer's Representative's Consultant's Comments (on the attached MAR sheet, Reference No. 23058.90-BHC-GEC-SSH-MAR-FF-0016, Revision 0, dated 02.09.2026): 'COO of majority of the products is not as per the project Vendor list. Re-submit the document with full compliance to the project Specifications for further review.'")
+    def form(revision, reply):
+        return {"is_submittal": True, "reference": "EP-1-MAS-FAS", "revision": revision,
+                "title": "Fire Alarm", "system_code": "FAS", "manufacturer": "EDWARDS",
+                "relative": f"02- Material Submittals/FA/R{revision}/Submitted/MS R{revision}.pdf",
+                "modified": "2026-09-24T00:00:00", "in_approval_folder": False, "reply": reply}
+
+    readings = [
+        form(0, {"present": False, "from_consultant": False, "status": "none"}),
+        form(1, {"present": True, "from_consultant": True, "status": "resubmit", "code": "C",
+                 "consultant": "M/s SSHIC", "date": "19/09/26", "evidence": evidence}),
+    ]
+    # Only R0 was answered: R1's Received folder is empty.
+    filed = submittal_replies.on_file([Row("02- Material Submittals/FA/R0/Received/x_00_C.pdf")])
+    built = submittal_reader.build_map(readings=readings, ep_number="1", replies=filed)
+    cells = built["systems"][0]["rows"][0]["cells"]
+    assert cells["R0"]["status"] == "RR"
+    assert cells["R1"]["status"] == "UR", "R1 has not been answered"
+    assert built["systems"][0]["rows"][0]["latest_status"] == "UR"
+    # Nothing of the earlier answer is left printed beside R1.
+    assert cells["R1"]["reply_code"] == "" and cells["R1"]["evidence"] == ""
+    assert cells["R1"]["consultant"] == ""
+    # And it does not ask for an R2 over a revision no one has answered.
+    assert not any("R2" in action for action in built["actions"])
+
+
+def test_comments_naming_this_revision_are_its_own_answer():
+    """The check is against the revision the comments name, not against
+    the form carrying them: a reply on R1 still answers R1."""
+    from app.services import submittal_replies
+
+    on_this_one = {"revision": 1,
+                   "relative": "02- Material Submittals/FA/R1/Submitted/MS R1.pdf",
+                   "reply": {"present": True, "from_consultant": True, "status": "resubmit",
+                             "evidence": "Comments on MAR sheet, Revision 1, dated 02.10.2026"}}
+    assert submittal_replies.carried_over(on_this_one, []) is False
+    assert submittal_replies.vetted(on_this_one, [])["reply"]["status"] == "resubmit"
+
+    # "revise and resubmit" is not a revision number.
+    assert submittal_replies.commented_revision("revise and resubmit") is None
+    assert submittal_replies.commented_revision("on MAR sheet, Revision 0, dated x") == 0
+
+
+def test_an_old_project_without_a_received_folder_keeps_its_reply():
+    """A project that files the form loose in the revision folder has no
+    Received folder to be empty, so the reply read off the form is all
+    there is and it stands."""
+    from app.services import submittal_replies
+
+    loose = {"revision": 1, "relative": "02- Material Submittals/FA/R1/MS R1.pdf",
+             "reply": {"present": True, "from_consultant": True, "status": "approved",
+                       "evidence": "Approved, work may proceed"}}
+    assert submittal_replies.carried_over(loose, []) is False
+
+    # But where the project does file the two halves, an empty Received
+    # folder means the comments on the form came in with it.
+    halves = {"revision": 1, "relative": "02- Material Submittals/FA/R1/Submitted/MS R1.pdf",
+              "reply": {"present": True, "from_consultant": True, "status": "approved",
+                        "evidence": "Approved, work may proceed"}}
+    assert submittal_replies.carried_over(halves, []) is True
+
+
+def test_a_reply_sheet_is_seeded_from_its_own_revisions_comments(client, db_session, tmp_path):
+    """Opening the R1 sheet must not hand the engineer R0's remarks to
+    answer a second time. R0's sheet opens with the comments that came
+    back on R0; R1's opens empty, because nothing has come back yet."""
+    from pathlib import Path
+
+    from app.models import Project, ProjectDocument
+    from app.routers.submittal import _consultant_words
+
+    login(client, settings.default_admin_email, settings.default_admin_password)
+    root = tmp_path / "EP-40300"
+    root.mkdir()
+    created = client.post("/projects", json={
+        "ep_number": "40300", "project_name": "Two Revisions", "source_folder_path": str(root),
+        "design_sheets": [], "consultant": "M/s. Silver Stone",
+        "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": False}],
+    }).json()
+
+    comments = ("Comments on the attached MAR sheet, Revision 0: COO of majority of the "
+                "products is not as per the vendor list. Re-submit for further review.")
+    filed = [
+        # The R0 form, and the consultant's answer that came back on it.
+        ("submittal_form", "02- Material Submittals/FA/R0/Submitted/MS R00.pdf",
+         {"form": {"reference": "EP-40300-MAS-FAS", "revision": 0}}),
+        ("document", "02- Material Submittals/FA/R0/Received/x_00_C.pdf",
+         {"form": {"reply": {"evidence": comments}}}),
+        # The R1 form, which prints those same comments because it answers
+        # them. Nothing has come back into R1.
+        ("submittal_form", "02- Material Submittals/FA/R1/Submitted/MS R01.pdf",
+         {"form": {"reference": "EP-40300-MAS-FAS", "revision": 1,
+                   "reply": {"present": True, "from_consultant": True, "status": "resubmit",
+                             "evidence": comments}}}),
+    ]
+    for role, relative, extracted in filed:
+        db_session.add(ProjectDocument(
+            project_id=created["id"], role=role, path=str(root / relative), filename=Path(relative).name,
+            relative_path=relative, extracted=extracted, state="present"))
+    db_session.commit()
+
+    project = db_session.get(Project, created["id"])
+    assert "COO of majority" in (_consultant_words(db_session, project, "EP-40300-MAS-FAS", "R00") or "")
+    assert _consultant_words(db_session, project, "EP-40300-MAS-FAS", "R01") is None
+
+    # And the sheet the engineer opens follows: R1 opens with a row to fill.
+    opened = client.get(f"/projects/{created['id']}/submittals/EP-40300-MAS-FAS/R01/reply").json()
+    assert len(opened["rows"]) == 1 and opened["rows"][0]["comment"] == ""
+
+
+def test_a_map_drawn_by_older_rules_is_out_of_date_though_no_file_moved(monkeypatch, tmp_path):
+    """The folder can be untouched and the map still be wrong: what the
+    platform makes of the same forms changes when the rules do. Without
+    this a project keeps showing a map no one can refresh, because
+    nothing in the folder has changed to ask for it."""
+    from app.ai import submittal_reader
+    from app.models import Project
+
+    root = tmp_path / "EP-1"
+    root.mkdir()
+    (root / "a.pdf").write_bytes(b"%PDF-")
+    project = Project(id=1, ep_number="1", project_name="T", source_folder_path=str(root))
+    listing = submittal_reader.listing_fingerprint(root)[0]
+
+    def stored(version):
+        monkeypatch.setattr(submittal_reader, "latest_map",
+                            lambda db, p: {"listing_sha256": listing, "map_version": version})
+
+    # Drawn by the rules in force: the folder is unchanged, so is the map.
+    stored(submittal_reader.MAP_VERSION)
+    assert submittal_reader.changes(None, project)["changed"] is False
+
+    # The very same folder, drawn by older rules: out of date.
+    stored("map-2026-01-01.1")
+    outcome = submittal_reader.changes(None, project)
+    assert outcome["changed"] is True
+    assert "reads submittals differently" in outcome["reason"]
+
+def test_the_register_note_empties_when_the_revision_has_no_comments():
+    """The note is the consultant's words for the revision on show. When
+    a revision turns out not to have been answered, the words that were
+    there described a different revision and must not stay on it."""
+    from app.ai import submittal_reader
+    from app.models import Project, ProjectSubmittal
+
+    class FakeQuery:
+        """No forms left in the folder, as far as this stands in for."""
+        def filter(self, *conditions):
+            return self
+        def all(self):
+            return []
+
+    class FakeDb:
+        def __init__(self):
+            self.deleted = []
+        def add(self, row):
+            pass
+        def delete(self, row):
+            self.deleted.append(row)
+        def query(self, *columns):
+            return FakeQuery()
+        def commit(self):
+            pass
+
+    project = Project(id=1, ep_number="1", project_name="T")
+    standing = ProjectSubmittal(
+        project_id=1, title="Fire Alarm", reference="EP-1-MAS-FAS", system_code="FAS",
+        revision="R01", status="rejected", reply_code="C",
+        note="Comments on MAR sheet, Revision 0: re-submit for review.")
+    project.submittals = [standing]
+
+    # The map now says R1 is under review, with no words of its own.
+    built = {"systems": [{"rows": [{
+        "reference": "EP-1-MAS-FAS", "system_code": "FAS", "title": "Fire Alarm",
+        "manufacturer": "EDWARDS", "latest": "R1", "latest_status": "UR",
+        "cells": {"R1": {"status": "UR", "file": "x.pdf", "evidence": ""}},
+    }]}]}
+    counts = submittal_reader.sync_register(FakeDb(), project, built, None)
+    assert counts["updated"] == 1
+    assert standing.status.value if hasattr(standing.status, "value") else standing.status
+    assert standing.note is None, "R0's comments do not belong on R1"
+    assert standing.reply_code in (None, "")
+
+
+def test_a_submittal_just_filed_is_not_deleted_by_the_map_drawn_after_it(client, db_session, tmp_path):
+    """Filing a package enters it in the register and redraws the map in
+    the same breath. If anything stops the new form being read, the map
+    comes back without it -- and the register row made a moment earlier
+    must not be swept away with it. The folder is what decides: the form
+    is still in it."""
+    from app.ai import submittal_reader
+    from app.models import Project, ProjectDocument, ProjectSubmittal
+    from app.services import document_sync
+
+    login(client, settings.default_admin_email, settings.default_admin_password)
+    root = tmp_path / "EP-40400"
+    root.mkdir()
+    created = client.post("/projects", json={
+        "ep_number": "40400", "project_name": "Filed", "source_folder_path": str(root),
+        "design_sheets": [],
+        "systems": [{"name": "Fire Alarm", "brand": "EDWARDS", "method_statement": True, "drawing": False}],
+    }).json()
+    project = db_session.get(Project, created["id"])
+
+    # The form is in the folder and in the index, as filing leaves it.
+    relative = "02- Material Submittals/FA/R0/Submitted/MS R00.pdf"
+    db_session.add(ProjectDocument(
+        project_id=project.id, role=document_sync.ROLE_SUBMITTAL, path=str(root / relative),
+        filename="MS R00.pdf", relative_path=relative, reference="EP-40400-MAS-FAS",
+        state="present"))
+    db_session.add(ProjectSubmittal(
+        project_id=project.id, title="Fire Alarm", reference="EP-40400-MAS-FAS",
+        system_code="FAS", revision="R00", status="under_review", document_path=relative))
+    db_session.commit()
+
+    # A map that came back without it -- the reading did not call it a form.
+    counts = submittal_reader.sync_register(db_session, project, {"systems": []}, None)
+    assert counts["removed"] == 0, "the form is still in the folder"
+    kept = db_session.query(ProjectSubmittal).filter_by(project_id=project.id).all()
+    assert [s.reference for s in kept] == ["EP-40400-MAS-FAS"]
+
+    # Once the form really has left the folder, the row goes with it.
+    for row in db_session.query(ProjectDocument).filter_by(project_id=project.id).all():
+        row.state = document_sync.REMOVED
+    db_session.commit()
+    counts = submittal_reader.sync_register(db_session, project, {"systems": []}, None)
+    assert counts["removed"] == 1
+    assert db_session.query(ProjectSubmittal).filter_by(project_id=project.id).count() == 0
+
+
+def test_the_log_record_of_a_resubmission_is_not_answered_by_the_comments_it_carries():
+    """The logs are built from the document index, not from the map, so
+    the same carried-over comments have to be caught again here. An R1
+    form printing R0's remarks is logged under review, and the pass that
+    reads the Received folders then says what really came back on it."""
+    from datetime import datetime, timezone
+
+    from app.services import document_sync
+
+    evidence = ("Employer's Representative's Consultant's Comments (on the attached MAR sheet, Reference No. 23058.90-BHC-GEC-SSH-MAR-FF-0016, Revision 0, dated 02.09.2026): 'Re-submit the document with full compliance for further review.'")
+
+    def logged(revision):
+        extracted: dict = {}
+        reading = {"is_submittal": True, "reference": "EP-1-MAS-FAS", "revision": revision,
+                   "title": "Fire Alarm",
+                   "reply": {"present": True, "from_consultant": True, "status": "resubmit",
+                             "code": "C", "evidence": evidence}}
+        document_sync.record_for_the_log(
+            extracted, reading,
+            relative=f"02- Material Submittals/FA/R{revision}/Submitted/MS.pdf",
+            modified=datetime.now(timezone.utc), ep_number="1")
+        return extracted["records"][0]
+
+    # The R1 form carries R0's comments: it is not itself answered.
+    one = logged(1)
+    assert one["status"] == "UR" and one["reply_text"] is None
+    # The R0 form carries its own answer, which stands.
+    zero = logged(0)
+    assert zero["status"] == "RR" and zero["reply_text"]
+
+
+def test_one_system_has_one_submittal_however_many_forms_are_on_file():
+    """A submittal is filed twice over: the copy we prepared, under our
+    own reference, and the one that came back from the consultant under
+    the main contractor's. They are one submittal, and listing both
+    showed the system twice -- once under review and once answered.
+
+    What separates two real submittals of one system is the supplier:
+    fire rated cables are quoted from two makers at the same revision."""
+    from app.routers.submittal import same_submittal, submittal_supplier
+
+    # Menvier is Eaton's name for monitored self-contained emergency
+    # lighting, so a form saying either is the same supplier.
+    assert submittal_supplier("MENVIER") == submittal_supplier("EATON")
+    assert same_submittal("ELS", "R00", "MENVIER") == same_submittal("ELS", "R0", "EATON")
+    assert same_submittal("FAS", "R00", "EDWARDS") == same_submittal("FAS", "R0", "EDWARDS")
+
+    # Two makers of fire rated cable at the same revision are two
+    # submittals, and a brand the knowledge base does not know keeps its
+    # own name rather than folding in with every other unknown one.
+    assert submittal_supplier("FIREGUARD") == "FIREGUARD"
+    assert submittal_supplier("TIANJIE") == "TIANJIE"
+    assert same_submittal("FRC", "R00", "TIANJIE") != same_submittal("FRC", "R00", "FRONTIER")
+    # A revision apart is a revision apart.
+    assert same_submittal("FRC", "R00", "FIREGUARD") != same_submittal("FRC", "R01", "FIREGUARD")
+
+
+def test_the_form_we_filed_is_not_listed_beside_the_one_that_came_back(client, db_session, tmp_path):
+    """The register holds the answered submittal. The folder also holds
+    our own copy of the same form, under our reference and with no reply
+    on it. Only the answered one is listed -- it is the one carrying what
+    the consultant said."""
+    from pathlib import Path
+
+    from app.models import Project, ProjectDocument, ProjectSubmittal
+    from app.routers.submittal import _filed_in_the_folder, same_submittal
+    from app.services import document_sync
+
+    login(client, settings.default_admin_email, settings.default_admin_password)
+    root = tmp_path / "EP-40600"
+    root.mkdir()
+    created = client.post("/projects", json={
+        "ep_number": "40600", "project_name": "Two Forms", "source_folder_path": str(root),
+        "design_sheets": [],
+        "systems": [{"name": "Monitored Emergency Lighting", "brand": "MENVIER",
+                     "method_statement": True, "drawing": False}],
+    }).json()
+    project = db_session.get(Project, created["id"])
+
+    # What the consultant answered, in the register.
+    db_session.add(ProjectSubmittal(
+        project_id=project.id, title="Monitored Self Contained Emergency Lighting",
+        reference="BBY006-GME-MAS-EL-LI-0001", system_code="ELS", revision="R00",
+        status="approved", reply_code="B", manufacturer="EATON"))
+
+    # Our own copy of the same form, on file under our own reference.
+    for reference, relative, maker in [
+        ("EP-40600/SK/EM/201", "03- MS/02- EML/MS EML R0.pdf", "M/s. MENVIER"),
+        # A different maker of the same system is a submittal of its own.
+        ("BBY006-GME-MAS-EL-FA-0003", "03- MS/03- FRC/Frontier R0.pdf", "M/s. FRONTIER"),
+    ]:
+        db_session.add(ProjectDocument(
+            project_id=project.id, role=document_sync.ROLE_SUBMITTAL, path=str(root / relative),
+            filename=Path(relative).name, relative_path=relative, state="present",
+            extracted={"form": {"is_submittal": True, "reference": reference, "revision": 0,
+                                "title": "Material Submittal", "manufacturer": maker,
+                                "system_code": "ELS" if "EML" in relative else "FRC"}}))
+    db_session.commit()
+
+    covered = {same_submittal(s.system_code, s.revision, s.manufacturer) for s in project.submittals}
+    listed = _filed_in_the_folder(
+        db_session, project, {s.reference for s in project.submittals if s.reference}, covered=covered)
+    references = [row.reference for row in listed]
+    assert "EP-40600/SK/EM/201" not in references, "our copy of the answered submittal"
+    assert "BBY006-GME-MAS-EL-FA-0003" in references, "a different maker is its own submittal"

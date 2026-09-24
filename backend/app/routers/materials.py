@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
 from urllib.parse import quote
@@ -311,7 +312,11 @@ def link_datasheet(
     if library is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"No datasheet library named {payload.library}")
     target = library.folder / payload.path
-    if not target.is_file():
+    # The long-path form: a datasheet library nested under a synced folder
+    # runs past what Windows will open by name alone.
+    from app.services import document_control
+
+    if not os.path.isfile(document_control._os_path(target)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"{payload.path} is not in the {library.name} library")
     row = datasheet_links.link(db, manufacturer=payload.manufacturer, part_no=payload.part_no, library=library.name,
                                path=payload.path, note=payload.note, user_id=current_user.id)

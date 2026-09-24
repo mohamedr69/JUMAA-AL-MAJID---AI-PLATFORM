@@ -869,7 +869,6 @@ export interface PanelSettings {
   location?: string | null;
   standby_hours?: number | null;
   alarm_minutes?: number | null;
-  spare_factor?: number | null;
   panel_voltage?: number | null;
   extra_components: ExtraComponent[];
 }
@@ -926,6 +925,32 @@ export interface Submittal {
    * form on the drive is the record, so the page must not offer to
    * revise something it does not hold. */
   from_folder: boolean;
+}
+
+/** One of the consultant's comments and our answer to it. */
+export interface ReplyRow {
+  sn: number;
+  comment: string;
+  reply: string;
+  remark: string;
+}
+
+/** The reply sheet for one submittal revision, as it will be sent. */
+export interface SubmittalReply {
+  reference: string;
+  revision: string;
+  system_code: string | null;
+  system_title: string;
+  project_name: string | null;
+  manufacturer: string | null;
+  consultant: string | null;
+  /** The company's own name, for the reply column's heading. */
+  supplier: string;
+  rows: ReplyRow[];
+  /** False until it has been written and saved once. */
+  saved: boolean;
+  updated_at: string | null;
+  updated_by: string | null;
 }
 
 export interface SubmittalEvent {

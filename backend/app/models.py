@@ -976,6 +976,46 @@ class ProjectSubmittal(Base):
     )
 
 
+class SubmittalReply(Base):
+    """Our answer to the consultant's comments on one submittal revision.
+
+    The consultant returns a submittal with remarks; the reply sheet takes
+    them one by one and says how each is met. It is a document the
+    engineer writes and re-writes until it is sent, so it is kept here and
+    exported, not assembled fresh each time.
+
+    Keyed by the submittal's **reference and revision**, not by a register
+    row: most of the submittals that need one were prepared outside the
+    platform and are read from the project folder, where they have no row
+    of their own. The reference is what both kinds share.
+
+    `rows` is the sheet as the engineer edits it -- a list of
+    `{sn, comment, reply, remark}` -- kept whole rather than a table of
+    lines, because that is how it is written and how it is exported.
+    """
+
+    __tablename__ = "submittal_replies"
+    __table_args__ = (
+        UniqueConstraint("project_id", "reference", "revision", name="uq_submittal_reply"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    # As the submittal's own form carries it, matching ProjectSubmittal.
+    reference: Mapped[str] = mapped_column(String(64), nullable=False)
+    revision: Mapped[str] = mapped_column(String(16), nullable=False, default="R00")
+    system_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    # The sheet's own heading, where it differs from the project's.
+    consultant: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    manufacturer: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    rows: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+
 class ProjectSubmittalEvent(Base):
     """What happened to a submittal: created, revised, or its status changed."""
 

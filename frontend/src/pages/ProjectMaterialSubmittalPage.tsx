@@ -21,6 +21,25 @@ const STATUS: Record<SubmittalStatus, { label: string; chip: string; dot: string
 
 const STATUS_ORDER: SubmittalStatus[] = ["not_submitted", "under_review", "approved", "rejected"];
 
+/** What the consultant actually wrote, where they wrote a code.
+ *
+ *  The four codes collapse into two statuses -- A and B are both
+ *  "approved", C and D both "rejected" -- so the chip alone says less
+ *  than the comments sheet did. A submittal returned B is approved as
+ *  noted and a revision follows it; one returned C has to be
+ *  resubmitted. The map has always shown A/ANN/RR/REJ, and this is the
+ *  same distinction in the register, the logs and the home page. */
+const REPLY_LABEL: Record<string, string> = {
+  A: "Approved",
+  B: "Approved as noted",
+  C: "Revise & Resubmit",
+  D: "Rejected",
+};
+
+function statusLabel(item: { status: SubmittalStatus; reply_code?: string | null }): string {
+  return REPLY_LABEL[(item.reply_code ?? '').toUpperCase()] ?? STATUS[item.status].label;
+}
+
 /** The API sends naive UTC; without a zone the browser reads it as local. */
 function when(value: string, withTime = false): string {
   const date = new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`);
@@ -321,7 +340,7 @@ export function ProjectMaterialSubmittalPage() {
                             </select>
                           ) : (
                             <span className={`rounded-full px-2 py-1 text-xs font-semibold ${STATUS[item.status].chip}`}>
-                              {STATUS[item.status].label}
+                              {statusLabel(item)}
                             </span>
                           )}
                           {item.reply_code && (
@@ -333,6 +352,21 @@ export function ProjectMaterialSubmittalPage() {
                         </td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-gray-600">{when(item.updated_at)}</td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-gray-400">
+                          {/* A submittal that came back to be revised has
+                            * comments to answer; the reply sheet is written
+                            * beside the consultant's own, so it opens in a
+                            * window of its own. */}
+                          {item.status === "rejected" && item.reference && (
+                            <a
+                              href={`/projects/${project.id}/submittals/${encodeURIComponent(item.reference)}/${encodeURIComponent(item.revision)}/reply`}
+                              target="_blank"
+                              rel="noreferrer"
+                              title="Reply to the consultant's comments"
+                              className="mr-2 rounded bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-100"
+                            >
+                              Reply
+                            </a>
+                          )}
                           <Link to="../boq" title="The BOQ this submittal covers" className="mr-2 hover:text-brand-600">
                             <IconOpen />
                           </Link>

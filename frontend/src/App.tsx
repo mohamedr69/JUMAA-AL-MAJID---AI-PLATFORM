@@ -12,6 +12,7 @@ import { CreateProjectPage } from "./pages/CreateProjectPage";
 import { LoginPage } from "./pages/LoginPage";
 import { DatasheetEnginePage } from "./pages/DatasheetEnginePage";
 import { ProjectRegisterPage } from "./pages/ProjectRegisterPage";
+import { SubmittalReplyPage } from "./pages/SubmittalReplyPage";
 import { OpenProjectPage } from "./pages/OpenProjectPage";
 import { OpeningScreen } from "./pages/OpeningScreen";
 import { ProjectBatteryPage } from "./pages/ProjectBatteryPage";
@@ -95,6 +96,17 @@ export default function App() {
             element={
               <RoleRoute roles={["design_manager", "admin"]}>
                 <ProjectRegisterPage />
+              </RoleRoute>
+            }
+          />
+          {/* The reply to a consultant's comments opens in a window of
+              its own: it is written beside their sheet, not inside the
+              register. Outside the workspace, so it has the whole page. */}
+          <Route
+            path="/projects/:id/submittals/:reference/:revision/reply"
+            element={
+              <RoleRoute roles={["admin", "design_manager", ...DESIGN_ROLES, "draftsman", "viewer"]}>
+                <SubmittalReplyPage />
               </RoleRoute>
             }
           />

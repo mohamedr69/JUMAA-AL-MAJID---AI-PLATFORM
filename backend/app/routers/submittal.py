@@ -31,6 +31,7 @@ from app.models import (
     ProjectDocument,
     ProjectSubmittal,
     ProjectSubmittalEvent,
+    SubmittalReply,
     SubmittalStatus,
     User,
 )
@@ -45,7 +46,10 @@ from app.schemas_design import (
     PackageSectionOut,
     SubmittalMapOut,
     StorageFolderOut,
+    ReplyRow,
     SubmittalEventOut,
+    SubmittalReplyIn,
+    SubmittalReplyOut,
     SubmittalIn,
     SubmittalOut,
     SubmittalPatch,
@@ -72,7 +76,7 @@ from app.services.submittal_package import (
     read_checklist,
 )
 from app.ai import submittal_reader
-from app.services import submittal_replies
+from app.services import brands, reply_sheet, submittal_replies
 from app.services import jobs
 
 settings = get_settings()
@@ -251,7 +255,39 @@ def _maker(name: str | None) -> str | None:
     return re.sub(r"^\s*m\s*/\s*s\.?\s*", "", name, flags=re.IGNORECASE).strip() or None
 
 
-def _filed_in_the_folder(db: Session, project: Project, held: set[str]) -> list[SubmittalOut]:
+def submittal_supplier(name: str | None) -> str | None:
+    """The supplier behind a brand, in one spelling.
+
+    A submittal is filed under the brand on its cover, and the same
+    supplier is written more than one way: Menvier is Eaton's name for
+    monitored self-contained emergency lighting, so a form saying MENVIER
+    and one saying EATON are the same supplier. A brand the knowledge
+    base does not know keeps its own normalised spelling rather than
+    folding into everything else unknown.
+    """
+    from app.knowledge.policy import canonical_manufacturer
+    from app.services import brands
+
+    return canonical_manufacturer(name) or brands.normalise(name) or None
+
+
+def same_submittal(system_code: str | None, revision: str | None, manufacturer: str | None) -> tuple:
+    """What makes two forms one submittal: the system, the revision and
+    the supplier.
+
+    A system does not have two submittals of one revision from one
+    supplier -- what it has is the form we prepared and the form that came
+    back, filed under our reference and the main contractor's. It does
+    have two from *different* suppliers, which is how fire rated cables
+    are quoted, so the supplier is part of the key and not left out of it.
+    """
+    from app.services.submittal_filing import _revision_number
+
+    return (system_code or "", _revision_number(revision or ""), submittal_supplier(manufacturer))
+
+
+def _filed_in_the_folder(db: Session, project: Project, held: set[str],
+                        *, covered: set[tuple] | None = None) -> list[SubmittalOut]:
     """The submittals on file that the register does not hold.
 
     A submittal prepared outside the platform and filed in the project
@@ -262,7 +298,11 @@ def _filed_in_the_folder(db: Session, project: Project, held: set[str]) -> list[
     copying it in would leave two that drift apart.
 
     `held` are the references the register already has, so a submittal
-    the platform built and filed is not listed twice.
+    the platform built and filed is not listed twice. `covered` is the
+    same thing said by system, revision and supplier rather than by
+    reference: our own copy of a form and the one the consultant answered
+    carry different references -- ours and the main contractor's -- and
+    are one submittal, not two.
     """
     from app.services import brands, document_sync
 
@@ -284,10 +324,21 @@ def _filed_in_the_folder(db: Session, project: Project, held: set[str]) -> list[
         if not reference or reference in held:
             continue
         relative = (row.relative_path or "").replace("\\", "/")
+        # The same vetting the map does: a resubmission prints the comments
+        # it answers, and the code read off an R1 form is usually the
+        # consultant's word on R0. Without this the logs say RR over a
+        # revision the map has already worked out is still under review.
+        reading = submittal_replies.vetted({**reading, "relative": relative}, replies)
         system = submittal_reader._system_code(reading, relative)
         revision = f"R{reading['revision']}" if reading.get("revision") is not None else "R0"
         key = f"{reference}|{revision}"
         if key in found:
+            continue
+        maker = brands.normalise(_maker(reading.get("manufacturer")))
+        # The same submittal as one the register already holds: our copy of
+        # the form beside the one that came back answered. The register row
+        # is the one to show -- it carries the consultant's reply.
+        if covered and same_submittal(system_rules.effective_code(system, project), revision, maker) in covered:
             continue
         # The reply is filed in the revision's own folder, beside what it
         # answers: .../FA/R0/Submitted holds the form, .../FA/R0/Received
@@ -305,7 +356,7 @@ def _filed_in_the_folder(db: Session, project: Project, held: set[str]) -> list[
             reference=reference,
             reply_code=code,
             system_code=system_rules.effective_code(system, project),
-            manufacturer=brands.normalise(_maker(reading.get("manufacturer"))),
+            manufacturer=maker,
             revision=f"R{int(reading.get('revision') or 0):02d}",
             status=REPLY_STATUS.get(code or "", SubmittalStatus.under_review).value,
             document_path=relative,
@@ -329,7 +380,14 @@ def list_submittals(
     by_system = _by_system(materials)
     items = [_out(s, by_system) for s in project.submittals]
     # And the ones on file that were never entered here.
-    items += _filed_in_the_folder(db, project, {s.reference for s in project.submittals if s.reference})
+    # A form on file that is the same submittal as a register row -- our
+    # own copy beside the one the consultant answered -- is not a second
+    # submittal, and listing it as one shows the system twice, once under
+    # review and once answered.
+    items += _filed_in_the_folder(
+        db, project, {s.reference for s in project.submittals if s.reference},
+        covered={same_submittal(s.system_code, s.revision, s.manufacturer) for s in project.submittals},
+    )
 
     # A reply comes back as a scan of the consultant's comments with no
     # reference on it, so the form reader never sees it and the register
@@ -624,6 +682,201 @@ def submittal_map(
                               if k in SubmittalMapOut.model_fields and k not in ("available", "reason", "changed", "listing_files", "change_reason")})
 
 
+# --- the reply to the consultant's comments -------------------------------------
+
+
+def _reply_context(db: Session, project: Project, reference: str) -> dict:
+    """What the sheet's heading says, from the submittal it answers."""
+    wanted = reference.strip().upper()
+    found = next((s for s in project.submittals if (s.reference or "").upper() == wanted), None)
+    supplier = None
+    manufacturer = found.manufacturer if found is not None else None
+    for row in db.query(ProjectDocument).filter(
+            ProjectDocument.project_id == project.id,
+            ProjectDocument.role == "submittal_form",
+            ProjectDocument.state != "removed").all():
+        reading = (row.extracted or {}).get("form") or {}
+        records = (row.extracted or {}).get("records") or []
+        seen = (records[0].get("reference") if records else None) or reading.get("reference") or ""
+        if seen.upper() != wanted:
+            continue
+        supplier = supplier or reading.get("supplier")
+        manufacturer = manufacturer or brands.normalise(_maker(reading.get("manufacturer")))
+    system = found.system_code if found is not None else None
+    if not system:
+        # The platform names its own packages for the system they cover
+        # ("EP-29387-MAS-FAS"), so the reference says which when there is
+        # no register row to ask.
+        tail = system_rules.canonical(reference.strip().upper().rsplit("-", 1)[-1])
+        system = tail if tail in system_rules.CODE_NAMES else None
+    title = system_rules.system_display_name(project, system) if system else (found.title if found else reference)
+    return {"system_code": system, "system_title": title, "manufacturer": manufacturer,
+            "consultant": project.consultant, "supplier": supplier}
+
+
+def _consultant_words(db: Session, project: Project, reference: str, revision: str) -> str | None:
+    """What the consultant said on **this revision** of this submittal.
+
+    The revision matters: a resubmission is filed with the comments it
+    answers, so seeding an R1 sheet from whatever comments the project
+    holds would hand the engineer R0's remarks to answer twice.
+    """
+    from app.services.submittal_filing import _revision_number
+
+    wanted = _revision_number(revision)
+    rows = db.query(ProjectDocument).filter(
+        ProjectDocument.project_id == project.id, ProjectDocument.state != "removed").all()
+    replies = submittal_replies.on_file(rows)
+    for row in rows:
+        if row.role != "submittal_form":
+            continue
+        reading = (row.extracted or {}).get("form") or {}
+        records = (row.extracted or {}).get("records") or []
+        seen = (records[0].get("reference") if records else None) or reading.get("reference") or ""
+        if seen.upper() != reference.strip().upper():
+            continue
+        folder = submittal_replies.revision_folder(row.relative_path)
+        if _revision_number(Path(folder).name if folder else "") != wanted:
+            continue
+        said = submittal_replies.for_revision(folder or "", replies)[1]
+        # A reply filed as a scan has no reading, so its own page is read.
+        return said or submittal_replies.words_of(rows, folder or "")
+    return None
+
+
+@router.get("/{project_id}/submittals/{reference}/{revision}/reply", response_model=SubmittalReplyOut)
+def get_submittal_reply(
+    project_id: int,
+    reference: str,
+    revision: str,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SubmittalReplyOut:
+    """The reply sheet for one submittal revision: the saved one, or a new
+    one opened from the consultant's own words."""
+    project = _get_project_or_404(db, project_id)
+    held = (db.query(SubmittalReply)
+            .filter(SubmittalReply.project_id == project.id,
+                    SubmittalReply.reference == reference,
+                    SubmittalReply.revision == revision).one_or_none())
+    rows = list(held.rows or []) if held is not None else reply_sheet.seed_rows(
+        _consultant_words(db, project, reference, revision))
+    context = _reply_context(db, project, reference)
+    return SubmittalReplyOut(
+        reference=reference,
+        revision=revision,
+        project_name=project.project_name,
+        system_code=context["system_code"],
+        system_title=context["system_title"],
+        manufacturer=(held.manufacturer if held else None) or context["manufacturer"],
+        consultant=(held.consultant if held else None) or context["consultant"],
+        supplier=reply_sheet.supplier_name(context["supplier"]),
+        rows=[ReplyRow(**row) for row in rows],
+        saved=held is not None,
+        updated_at=held.updated_at if held else None,
+    )
+
+
+@router.put("/{project_id}/submittals/{reference}/{revision}/reply", response_model=SubmittalReplyOut)
+def save_submittal_reply(
+    project_id: int,
+    reference: str,
+    revision: str,
+    payload: SubmittalReplyIn,
+    current_user: User = Depends(require_role(*CREATOR_ROLES)),
+    db: Session = Depends(get_db),
+) -> SubmittalReplyOut:
+    """Keep the sheet as it stands, to come back to.
+
+    Saving a reply is not submitting the next revision: the submittal's
+    status, and the action asking for the next revision, are left alone
+    until that revision is actually filed.
+    """
+    project = _get_project_or_404(db, project_id)
+    held = (db.query(SubmittalReply)
+            .filter(SubmittalReply.project_id == project.id,
+                    SubmittalReply.reference == reference,
+                    SubmittalReply.revision == revision).one_or_none())
+    if held is None:
+        held = SubmittalReply(project_id=project.id, reference=reference, revision=revision,
+                              created_by_id=current_user.id)
+        db.add(held)
+    context = _reply_context(db, project, reference)
+    held.system_code = context["system_code"]
+    held.consultant = payload.consultant or context["consultant"]
+    held.manufacturer = payload.manufacturer or context["manufacturer"]
+    held.rows = [row.model_dump() for row in payload.rows]
+    db.commit()
+    db.refresh(held)
+    activity.record(db, current_user, "submittal.reply_saved",
+                    f"Saved the reply to {reference} {revision} ({len(held.rows)} comments)",
+                    project=project, entity_type="submittal_reply", entity_id=held.id)
+    return get_submittal_reply(project_id, reference, revision, _current_user=current_user, db=db)
+
+
+@router.get("/{project_id}/submittals/{reference}/{revision}/reply.xlsx")
+def export_submittal_reply(
+    project_id: int,
+    reference: str,
+    revision: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """The reply sheet as the workbook the company sends."""
+    project = _get_project_or_404(db, project_id)
+    sheet = get_submittal_reply(project_id, reference, revision, _current_user=current_user, db=db)
+    content = reply_sheet.workbook(
+        project_name=sheet.project_name or "",
+        reference=sheet.reference,
+        revision=sheet.revision,
+        system_title=sheet.system_title,
+        manufacturer=sheet.manufacturer,
+        consultant=sheet.consultant,
+        supplier=sheet.supplier,
+        rows=[row.model_dump() for row in sheet.rows],
+    )
+    activity.record(db, current_user, "submittal.reply_exported",
+                    f"Exported the reply to {reference} {revision}", project=project,
+                    entity_type="submittal_reply")
+    name = f"EP-{project.ep_number} Reply - {reference} {revision}.xlsx"
+    disposition = 'attachment; filename="reply.xlsx"; ' + f"filename*=UTF-8''{quote(name)}"
+    return Response(content, media_type=XLSX_MEDIA_TYPE, headers={"Content-Disposition": disposition})
+
+
+@router.get("/{project_id}/submittals/{reference}/{revision}/reply.pdf")
+def export_submittal_reply_pdf(
+    project_id: int,
+    reference: str,
+    revision: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    """The reply sheet as the PDF sent back with the next revision.
+
+    The same sheet as the workbook beside it: that one is for an engineer
+    who wants to work on it in Excel, this is the one the consultant is
+    given.
+    """
+    project = _get_project_or_404(db, project_id)
+    sheet = get_submittal_reply(project_id, reference, revision, _current_user=current_user, db=db)
+    content = reply_sheet.pdf(
+        project_name=sheet.project_name or "",
+        reference=sheet.reference,
+        revision=sheet.revision,
+        system_title=sheet.system_title,
+        manufacturer=sheet.manufacturer,
+        consultant=sheet.consultant,
+        supplier=sheet.supplier,
+        rows=[row.model_dump() for row in sheet.rows],
+    )
+    activity.record(db, current_user, "submittal.reply_exported",
+                    f"Exported the reply to {reference} {revision}", project=project,
+                    entity_type="submittal_reply")
+    name = f"EP-{project.ep_number} Reply - {reference} {revision}.pdf"
+    disposition = 'attachment; filename="reply.pdf"; ' + f"filename*=UTF-8''{quote(name)}"
+    return Response(content, media_type="application/pdf", headers={"Content-Disposition": disposition})
+
+
 @router.get("/{project_id}/submittals/export.xlsx")
 def export_submittals(
     project_id: int,
@@ -706,7 +959,13 @@ def _specs_for(project: Project, system_code: str | None) -> list[tuple[str, str
         if match.member or match.filename.lower() in seen:
             continue
         full = folder / match.path
-        if full.suffix.lower() != ".pdf" or not full.is_file():
+        from app.services import document_control
+
+        # Past 260 characters Windows needs the extended-length form, and a
+        # datasheet deep in a synced project folder is easily past it. Asked
+        # the ordinary way it is not there, and it would drop out of the
+        # package without a word.
+        if full.suffix.lower() != ".pdf" or not os.path.isfile(document_control._os_path(full)):
             continue
         seen.add(match.filename.lower())
         documents.append((full.name, str(full)))

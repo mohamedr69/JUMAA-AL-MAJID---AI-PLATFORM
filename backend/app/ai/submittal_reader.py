@@ -58,6 +58,11 @@ from app.services import document_control, submittal_replies, submittal_scanner,
 PROMPT_VERSION = "submittal-2026-09-17.1"
 KIND = "submittal_form"
 MAP_KIND = "submittal_map"
+# How the map is *derived* from the readings, as against how the forms
+# are read. A stored map drawn by older rules is out of date even when
+# not one file in the folder has moved, so this is bumped whenever the
+# rules change and a project re-checks itself off the back of it.
+MAP_VERSION = "map-2026-09-24.1"
 JOB_KIND = "submittal_check"
 TASK = "read_submittal_form"
 MAX_PDFS = submittal_scanner.MAX_PDFS
@@ -236,6 +241,11 @@ def changes(db: Session, project: Project) -> dict:
     fingerprint, count = listing_fingerprint(root)
     if latest is None:
         return {"changed": True, "listing_files": count, "reason": "never checked"}
+    if latest.get("map_version") != MAP_VERSION:
+        # The folder can be untouched and the map still be out of date:
+        # what the platform makes of the same forms has changed.
+        return {"changed": True, "listing_files": count,
+                "reason": "the platform reads submittals differently since this map was drawn"}
     changed = fingerprint != latest.get("listing_sha256")
     return {"changed": changed, "listing_files": count,
             "reason": "files added, replaced or removed since the last check" if changed else "unchanged since the last check"}
@@ -454,6 +464,11 @@ def build_map(readings: list[dict], *, systems_on_project: list[str] | None = No
         # rather than a reply printed on it. Without this the map shows
         # UR over a revision that has been answered, and the register --
         # which is built from the map -- says the same.
+        # A resubmission prints the comments it answers, so the reply the
+        # reader took off an R1 form is usually the consultant's word on
+        # R0. Taken off before the filed replies are looked at, so a
+        # revision that really has been answered still picks its own up.
+        reading = submittal_replies.vetted(reading, replies)
         if replies:
             submittal_replies.apply_to(reading, replies)
         forms.append(reading)
@@ -600,6 +615,7 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
     # the listing to it and checks again only when something changed.
     submittal_map["listing_sha256"] = listing_sha
     submittal_map["listing_files"] = listing_files
+    submittal_map["map_version"] = MAP_VERSION
 
     if ctx is not None:
         ctx.progress(len(files), max(len(files), 1), "Bringing the register up to the map")
@@ -645,13 +661,18 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
                 by_reference[(row["reference"].upper(), row["system_code"])] = submittal
                 created += 1
                 continue
-            changes = submittal.status != status or submittal.reply_code != letter or submittal.revision != revision
+            # The note carries the consultant's words for the revision on
+            # show, so it has to be able to empty as well as fill: the
+            # words on an R1 that turned out to answer R0 belong to R0.
+            note = cell.get("evidence") or None
+            changes = (submittal.status != status or submittal.reply_code != letter
+                       or submittal.revision != revision or submittal.note != note)
             submittal.status, submittal.reply_code, submittal.revision = status, letter, revision
             submittal.document_path = cell["file"]
             submittal.manufacturer = submittal.manufacturer or maker_of(row)
             submittal.system_code = submittal.system_code or row["system_code"]
             if changes:
-                submittal.note = cell.get("evidence") or submittal.note
+                submittal.note = note
                 submittal.updated_at = utc_now()
                 submittal.events.append(ProjectSubmittalEvent(kind="ai_check", detail=detail, by_id=user.id if user else None, at=utc_now()))
                 updated += 1
@@ -660,10 +681,26 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
     # A reference the map no longer has -- its forms gone from the folder --
     # leaves the register too: the register says what the folder holds. A
     # row the engineer typed in by hand (no reference) is not the map's to remove.
+    #
+    # Off the map is not the same as gone from the folder, and the
+    # difference loses work: a submittal filed through the platform is
+    # entered here and the map redrawn in the same breath, so anything
+    # that stopped its form being read -- a reading that came back as not
+    # a form, a system code that landed differently -- would delete the
+    # row a moment after it was made. So the folder is asked as well, and
+    # only a reference with no form left in it goes.
+    from app.models import ProjectDocument
+    from app.services import document_sync
+
     on_map = {(row["reference"].upper(), row["system_code"]) for system in submittal_map["systems"] for row in system["rows"]}
+    still_filed = {(reference or "").upper() for (reference,) in db.query(ProjectDocument.reference).filter(
+        ProjectDocument.project_id == project.id,
+        ProjectDocument.role == document_sync.ROLE_SUBMITTAL,
+        ProjectDocument.state != document_sync.REMOVED,
+        ProjectDocument.reference.isnot(None)).all()}
     removed = 0
     for key, submittal in list(by_reference.items()):
-        if key not in on_map:
+        if key not in on_map and key[0] not in still_filed:
             db.delete(submittal)
             removed += 1
     db.commit()
