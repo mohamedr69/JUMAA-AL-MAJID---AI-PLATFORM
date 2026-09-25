@@ -459,8 +459,12 @@ def sync(db: Session, project: Project, *, user: User | None = None, ctx=None, p
             # what was read from it (the BOQ, Project Info) stale.
             _watch_intake(db, row, path, size, mtime, counts)
             continue
+        # A file OneDrive had not brought down is tried again every time:
+        # making the folder available offline changes neither its size nor
+        # its time, so it would otherwise stay unread for ever.
         if (row is not None and row.size == size and row.mtime is not None and abs(row.mtime - mtime) < 1e-6
-                and row.index_version == INDEX_VERSION and row.state in (FRESH, FAILED, STALE)):
+                and row.index_version == INDEX_VERSION and row.state in (FRESH, FAILED, STALE)
+                and not _was_unavailable(row)):
             counts["unchanged"] += 1
             row.last_seen_at = now
             continue
@@ -468,7 +472,7 @@ def sync(db: Session, project: Project, *, user: User | None = None, ctx=None, p
         # Not a row still marked processing: a sync stopped half-way through
         # reading it, and the content hash is written before the reading is.
         if (row is not None and sha and row.sha256 == sha and row.index_version == INDEX_VERSION
-                and row.state != PROCESSING):
+                and row.state != PROCESSING and not _was_unavailable(row)):
             # Touched, not changed (a re-sync, a copy): the same content.
             row.size, row.mtime, row.last_seen_at = size, mtime, now
             counts["unchanged"] += 1
@@ -633,6 +637,115 @@ def status(db: Session, project: Project) -> dict:
         "by_state": by_state,
         "failed": [{"path": r.relative_path or r.filename, "error": r.error} for r in rows if r.state == FAILED][:50],
         "stale": stale_dependencies(db, project),
+    }
+
+
+# --- File Sync: what the last sync did with each file --------------------------------------
+#
+# Read off the index, not kept separately: every file the sync found is a row,
+# its reading notes say what could not be read, and the last successful sync
+# job says when the sync ran and who asked for it.
+
+FILE_STATUSES = ("processed", "unchanged", "partial", "unavailable", "failed")
+
+
+def _was_unavailable(row: ProjectDocument) -> bool:
+    return any(document_control.describe_note(note)[0] == "unavailable"
+               for note in (row.extracted or {}).get("notes") or [])
+
+
+def file_status(row: ProjectDocument, window: tuple | None) -> tuple[str, str | None]:
+    """(status, reason) of one indexed file, as File Sync shows it.
+
+    failed       reading it raised an error, or it is not a readable PDF
+    unavailable  online-only in OneDrive: nothing could be read
+    partial      read, but not all of it (pages not checked, not OCRed)
+    processed    new or changed, and read by the last sync (`window`, its
+                 start and end); a Design Sheet or the DRF that changed --
+                 watched, not read here -- counts too, since what was read
+                 from it is now marked out of date
+    unchanged    the same as when it was last read
+    """
+    if row.state == FAILED:
+        return "failed", (row.error or "The file could not be processed.")[:500]
+    found = {}
+    for note in (row.extracted or {}).get("notes") or []:
+        kind, reason = document_control.describe_note(note)
+        found.setdefault(kind, reason)
+    for kind in ("failed", "unavailable", "partial"):
+        if kind in found:
+            return kind, found[kind]
+    if row.role in INTAKE_ROLES and row.state == STALE:
+        return "processed", "Changed: what was read from it is marked out of date until it is read again."
+    if window and row.last_processed_at and window[0] <= row.last_processed_at <= window[1]:
+        return "processed", None
+    return "unchanged", None
+
+
+def _last_sync_job(db: Session, project: Project):
+    from app.models import BackgroundJob
+
+    return (db.query(BackgroundJob)
+            .filter(BackgroundJob.project_id == project.id, BackgroundJob.kind == SYNC_JOB_KIND,
+                    BackgroundJob.status == "succeeded")
+            .order_by(BackgroundJob.finished_at.desc(), BackgroundJob.id.desc()).first())
+
+
+def folder_display(project: Project) -> str | None:
+    """The project folder as the engineers know it: below the synced archive
+    (OneDrive), or the whole path when it is somewhere else."""
+    if not project.source_folder_path:
+        return None
+    root = get_settings().projects_root
+    if root:
+        try:
+            return "/" + Path(project.source_folder_path).relative_to(Path(root)).as_posix()
+        except ValueError:
+            pass
+    return project.source_folder_path
+
+
+def sync_files(db: Session, project: Project) -> list[dict]:
+    """Every file the index holds for the project (not the ones removed from
+    the folder), with its File Sync status, by path."""
+    job = _last_sync_job(db, project)
+    window = (job.started_at, job.finished_at) if job and job.started_at and job.finished_at else None
+    rows = (db.query(ProjectDocument)
+            .filter(ProjectDocument.project_id == project.id, ProjectDocument.state != REMOVED)
+            .order_by(ProjectDocument.relative_path).all())
+    files = []
+    for row in rows:
+        status, reason = file_status(row, window)
+        files.append({"name": row.filename, "path": row.relative_path or row.filename, "status": status,
+                      "reason": reason, "role": row.role})
+    return files
+
+
+def sync_summary(db: Session, project: Project) -> dict:
+    """What File Sync shows at the top: where the files come from, the last
+    sync -- when, who asked, how long it took -- and how many files are in
+    each status."""
+    job = _last_sync_job(db, project)
+    files = sync_files(db, project)
+    counts = {status: 0 for status in FILE_STATUSES}
+    for file in files:
+        counts[file["status"]] += 1
+    started_by = None
+    if job is not None and job.created_by_id:
+        user = db.get(User, job.created_by_id)
+        started_by = user.full_name if user else None
+    duration = (job.finished_at - job.started_at).total_seconds() if job and job.started_at and job.finished_at else None
+    return {
+        "source": "OneDrive",
+        "folder": project.source_folder_path,
+        "folder_display": folder_display(project),
+        "synced_at": project.documents_synced_at,
+        "started_by": started_by,
+        "automatic": job is not None and job.created_by_id is None,
+        "duration_s": round(duration) if duration is not None else None,
+        "removed": (job.result or {}).get("removed", 0) if job else 0,
+        "total": len(files),
+        "counts": counts,
     }
 
 

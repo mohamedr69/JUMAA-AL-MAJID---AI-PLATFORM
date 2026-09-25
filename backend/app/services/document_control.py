@@ -564,12 +564,36 @@ def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool,
         # It is not a corrupt document and saying so sends the reader to the
         # wrong problem: the fix is to make the folder available offline.
         if exc.errno == 22 or "cloud" in str(exc).lower():
-            warnings.append(f"{path.name} is not downloaded from OneDrive; make the project folder available offline, then refresh.")
+            warnings.append(f"{path.name} {NOT_DOWNLOADED}; make the project folder available offline, then refresh.")
         else:
-            warnings.append(f"Could not read {path.name}.")
+            warnings.append(f"{UNREADABLE}{path.name}.")
     except Exception:
-        warnings.append(f"Could not read {path.name}.")
+        warnings.append(f"{UNREADABLE}{path.name}.")
     return tuple(records), tuple(dict.fromkeys(warnings))
+
+
+# The notes `_read_pdf` leaves on a document, as File Sync reports them
+# (document_sync.file_status): what kind of trouble each is, and what to say.
+NOT_DOWNLOADED = "is not downloaded from OneDrive"
+UNREADABLE = "Could not read "
+
+
+def describe_note(note: str) -> tuple[str, str]:
+    """(kind, reason) for a reading note. `kind` is "unavailable" (online
+    only in OneDrive: nothing could be read), "failed" (the file could not
+    be opened as a PDF) or "partial" (read, but not all of it)."""
+    if NOT_DOWNLOADED in note:
+        return "unavailable", "File is online-only in OneDrive and could not be processed."
+    if note.startswith(UNREADABLE):
+        return "failed", "The file could not be opened as a PDF (damaged or protected)."
+    page = re.match(r"Could not OCR .*, page (\d+)\.$", note)
+    if page:
+        return "partial", f"Page {page[1]} could not be OCRed; a stamp on it may be unread."
+    if "only the first 12 pages were checked" in note:
+        return "partial", "Only the first 12 pages were checked for consultant replies."
+    if note.startswith("OCR limit reached"):
+        return "partial", "Only the first 12 scanned pages were OCRed; some replies may need verification."
+    return "partial", note
 
 
 def _merge(old: ControlledDocument, new: ControlledDocument) -> ControlledDocument:
