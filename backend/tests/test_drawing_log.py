@@ -102,6 +102,27 @@ def test_an_earlier_revision_is_never_not_submitted_once_a_later_one_exists():
     assert b2["cells"]["R0"]["path"] is None and "R2 was submitted" in b2["cells"]["R0"]["note"]
 
 
+def test_no_earlier_revision_is_ever_open_or_unsubmitted_once_a_later_one_exists():
+    """The rule, over every shape of history: for a shop drawing standing at
+    Rn, no revision before it reads "Not Submitted" or "Under Review" --
+    with or without the IFC drawings, whatever the folder holds of it."""
+    import itertools
+
+    statuses = ("UR", "rejected", "ANN", "approved", None)          # None: that revision is not in the folder
+    histories = [h for h in itertools.product(statuses, repeat=3) if h[-1] is not None]
+    for n, history in enumerate(histories):
+        records = [_doc("Ground Floor", f"R{i}", status, day=1 + i, ref=f"EP-SDW-FA-{n:03d}")
+                   for i, status in enumerate(history) if status is not None]
+        for out in (build([], records), build(IFC, records)):
+            for row in (r for r in out["rows"] if r["source"] == "shop_drawing"):
+                top = int(row["latest_revision"][1:])
+                earlier = {rev: row["cells"][rev]["status"] for rev in out["revisions"] if int(rev[1:]) < top}
+                assert not set(earlier.values()) & {"not_submitted", "under_review"}, (history, earlier)
+                for i, status in enumerate(history[:-1]):
+                    if status in ("rejected", "ANN", "approved"):    # an answer on file is shown as filed
+                        assert row["cells"][f"R{i}"]["status"] != "reply_not_found", (history, i)
+
+
 def test_revisions_grow_with_what_was_submitted():
     out = build(IFC, [_doc("Ground Floor", "R4", "UR")])
     assert out["revisions"] == ["R0", "R1", "R2", "R3", "R4"]
