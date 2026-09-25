@@ -315,3 +315,39 @@ def test_a_project_read_under_older_rules_reads_itself_again(client, db_session,
         off = _replace(live, reread_on_rules_change=False)
     monkeypatch.setattr(document_sync, "get_settings", lambda: off)
     assert document_sync.start_catchup_thread() is None
+
+
+def test_the_log_carries_a_drawings_answered_revisions_under_the_one_that_stands(client, db_session, tmp_path, ai):
+    """A floor is one row at the revision that stands, with the revisions the
+    consultant answered kept under it as whole records. Sending them out as
+    revision names lost the page their status and their file; sending them
+    out as records broke the response outright, and the Logs tab died
+    for every project whose floor had ever been round once."""
+    from datetime import datetime, timezone
+
+    from app.services.document_control import ControlledDocument
+
+    folder = tmp_path / "EP-30811"
+    project_id = _project(client, folder)
+    now = datetime(2026, 9, 24, 12, 0, tzinfo=timezone.utc)
+
+    def drawing(revision, status, filename):
+        row = ControlledDocument(system_code="FAS", name="GROUND FLOOR PLAN", path=f"05- Drawings/{filename}",
+                                 modified=now, reference="BBY006-GME-SDW-FP-FA-POD-BGF-010002", revision=revision,
+                                 status=status, floor="GROUND FLOOR", category="drawings")
+        return document_sync._record_dict(row, folder)
+
+    for revision, status, filename in [("R0", "RR", "R0/BGF.pdf"), ("R1", "UR", "R1/BGF.pdf")]:
+        db_session.add(ProjectDocument(project_id=project_id, role="document", path=str(folder / "05- Drawings" / filename),
+                                       relative_path=f"05- Drawings/{filename}", filename=Path(filename).name, state="fresh",
+                                       extracted={"records": [drawing(revision, status, filename)], "notes": []}))
+    db_session.query(Project).filter(Project.id == project_id).update({"documents_synced_at": now})
+    db_session.commit()
+
+    response = client.get(f"/projects/{project_id}/logs")
+    assert response.status_code == 200, response.text
+    drawings = response.json()["drawings"]
+    assert [(d["revision"], d["status"], d["path"]) for d in drawings] == [("R1", "UR", "05- Drawings/R1/BGF.pdf")]
+    # The answered R0 travels whole: its own status and its own file.
+    assert [(s["revision"], s["status"], s["path"], s["superseded"]) for s in drawings[0]["superseded"]] == [
+        ("R0", "RR", "05- Drawings/R0/BGF.pdf", [])]

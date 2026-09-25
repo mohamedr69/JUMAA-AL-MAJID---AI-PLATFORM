@@ -108,7 +108,15 @@ export function ProjectLogsPage() {
       // A transmittal's sample is filed as "Sample Board" per system: the
       // system goes in the title so the ALL view tells them apart.
       ? samples.map((file) => ({ ...directoryRevision(file), title: file.source === "transmittal" ? `${file.name} / ${systemLabel(group(file.system_code))}` : file.name }))
-      : drawings.filter((file) => group(file.system_code) !== "FRC").map(directoryRevision);
+      // A drawing comes as the revision that stands with its history under
+      // it. The history is expanded into revision rows here, pinned to the
+      // standing drawing's reference: a re-issued sheet can carry another
+      // number ("...-ZZZ-..." for "...-L22-..."), and grouping it on its own
+      // number would split the floor the backend just brought together.
+      : drawings.filter((file) => group(file.system_code) !== "FRC").flatMap((file) => {
+        const groupReference = file.group_reference ?? file.reference ?? file.name;
+        return [directoryRevision(file), ...(file.superseded ?? []).map((earlier) => ({ ...directoryRevision(earlier), groupReference }))];
+      });
   const documents = groupRevisions(rows, integrated);
   // The material submittals the log lists, by reference: these can be
   // deleted for good from here (the files included), after the warning.

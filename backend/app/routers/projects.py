@@ -1365,7 +1365,12 @@ def project_logs(
     if project.documents_synced_at is None:
         warnings = ["The project folder has not been synced yet: sync the documents to fill the logs."] + warnings
     def output(row):
-        return ProjectLogDrawingOut(**{key: value for key, value in vars(row).items() if key != "category"})
+        # The history a drawing carries is records, not names: each earlier
+        # revision goes out as a row of its own so the page can show its
+        # status and open its file.
+        data = {key: value for key, value in vars(row).items() if key != "category"}
+        data["superseded"] = [output(earlier) for earlier in row.superseded]
+        return ProjectLogDrawingOut(**data)
     indexed = db.query(ProjectDocument).filter(ProjectDocument.project_id == project.id).count()
     return ProjectLogsOut(
         scanning=False, processed_files=indexed, total_files=indexed, synced_at=project.documents_synced_at,

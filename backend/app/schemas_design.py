@@ -1018,9 +1018,10 @@ class ProjectLogDrawingOut(BaseModel):
     name: str
     path: str
     modified: datetime
-    # The revisions this one replaced, newest first ("R0 RR"): the floor is
-    # one row at the revision that stands, and this is its history.
-    superseded: list[str] = []
+    # The revisions this one replaced, newest first, each a whole record: the
+    # floor is one row at the revision that stands, and this is its history,
+    # so the log can show each revision's own status and open its own file.
+    superseded: list["ProjectLogDrawingOut"] = Field(default_factory=list)
 
 
 class SampleBoardCheckOut(BaseModel):
