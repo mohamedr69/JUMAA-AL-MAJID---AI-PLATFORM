@@ -1,7 +1,6 @@
 import json
 import logging
 import re
-import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -34,7 +33,6 @@ from app.routers import (
     verification,
 )
 from app.seed import seed_default_admin, seed_design_rules
-from app.services.datasheet_library import get_libraries
 
 settings = get_settings()
 
@@ -76,39 +74,18 @@ async def lifespan(app: FastAPI):
         fail_interrupted(db)
     finally:
         db.close()
-    # Reading every datasheet takes a while over a synced drive; do it in
-    # the background now rather than on the first lookup.
-    for library in get_libraries().values():
-        threading.Thread(target=library.warm, daemon=True).start()
     # A new machine's first start: the knowledge base in `data base` is
     # imported in the background, so Auto-fill works without a setting.
     from app.knowledge import importer
 
     importer.import_on_start()
-    # The archive index: the EP folders in the synced archive, so typing a
-    # number suggests projects instead of walking OneDrive. Built and kept
-    # fresh in the background -- a first scan takes minutes over a synced
-    # drive and nothing waits for it.
-    from app.services import ep_directory
-
-    if settings.archive_index_enabled:
-        ep_directory.start_refresh_thread(scan_now=settings.archive_index_scan_on_start)
-    # A project read under older rules reads itself again. The rules change
-    # when a document turns out to have been read wrongly -- a drawing's
-    # revision taken off its folder rather than off the drawing -- and the
-    # files on the drive are unchanged, so nothing else would ask for it.
-    # Waiting for somebody to press Sync documents on each project in turn
-    # meant the correction reached whichever projects were opened and
-    # quietly missed the rest. One project at a time, in the background.
-    from app.services import document_sync
-
-    stop_rereading = threading.Event()
-    document_sync.start_catchup_thread(stop_rereading)
-    try:
-        yield
-    finally:
-        stop_rereading.set()
-        ep_directory.stop_refresh()
+    # The heavy background reading -- the document syncs, the catch-up syncs
+    # after a change to the reading rules, the datasheet libraries' index and
+    # the archive index's scans -- is the worker's (app.workers.sync_worker),
+    # a process of its own, so this one is free for pages the moment it is up.
+    # The datasheet index is loaded from the worker's cache file on the first
+    # lookup here.
+    yield
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)

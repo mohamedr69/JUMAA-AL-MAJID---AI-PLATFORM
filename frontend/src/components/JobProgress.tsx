@@ -4,8 +4,9 @@ function capitalised(text: string): string {
   return text ? text[0].toUpperCase() + text.slice(1) : text;
 }
 
-/** A job's progress as a bar with its sentence, and a way to stop it. */
-export function JobProgress({ job, onCancel, what }: { job: Job; onCancel?: () => void; what: string }) {
+/** A job's progress as a bar with its sentence, and a way to stop it.
+ * `hint` is a line under the heading while the job is active. */
+export function JobProgress({ job, onCancel, what, hint }: { job: Job; onCancel?: () => void; what: string; hint?: string }) {
   const total = job.progress.total ?? 0;
   const done = job.progress.done ?? 0;
   const percent = total > 0 ? Math.min(100, Math.round((100 * done) / total)) : null;
@@ -13,7 +14,9 @@ export function JobProgress({ job, onCancel, what }: { job: Job; onCancel?: () =
   const heading = active
     ? job.cancel_requested
       ? `Stopping ${what}...`
-      : `${capitalised(what)} in progress`
+      : job.status === "queued"
+        ? `${capitalised(what)} queued`
+        : `${capitalised(what)} in progress`
     : job.status === "succeeded"
       ? `${capitalised(what)} finished`
       : job.status === "cancelled"
@@ -35,6 +38,7 @@ export function JobProgress({ job, onCancel, what }: { job: Job; onCancel?: () =
           </button>
         )}
       </div>
+      {active && hint && <div className="mt-1 text-xs text-gray-600">{hint}</div>}
       {active && (
         <div
           className="mt-2 h-2 overflow-hidden rounded-full bg-gray-100"

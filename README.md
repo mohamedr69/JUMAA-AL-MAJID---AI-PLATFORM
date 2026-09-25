@@ -24,7 +24,7 @@ git config --global core.longpaths true    # once per PC, before cloning (see be
 git clone https://github.com/mohamedr69/JUMAA-AL-MAJID---AI-PLATFORM.git
 cd JUMAA-AL-MAJID---AI-PLATFORM
 setup.bat        # once: Python packages, backend\.env with a new secret key, npm packages
-start.bat        # every time: API on :8000, web app on :5173, opens the browser
+start.bat        # every time: API on :8000, the background worker, web app on :5173, opens the browser
 ```
 
 The `core.longpaths` line matters on Windows: the company library keeps the
@@ -56,9 +56,24 @@ Nothing else needs setting:
   Windows user that runs the platform.
 
 Projects, statements and approvals live in each PC's own database; they are not
-shared by the repository. To carry them to another PC, stop the API and copy
-`backend/ep_platform.db` (with `backend/uploads/` if documents were uploaded)
-into the same place on the other machine; it is migrated on the next start.
+shared by the repository. To carry them to another PC, stop the API *and the
+worker* (close both windows) and copy `backend/ep_platform.db` (with
+`backend/uploads/` if documents were uploaded) into the same place on the other
+machine; it is migrated on the next start. While either is running the database
+is three files (`ep_platform.db`, `-wal`, `-shm`: write-ahead-log mode, so pages
+read while a sync writes) and the `.db` alone is not the whole of it; once both
+have stopped it is one file again. The Backups page copies it safely at any time.
+
+**The background worker.** Every document sync -- the Sync documents button,
+a project's first open, the catch-up after a change to the reading rules --
+runs in a second process, `python -m app.workers.sync_worker`, which
+`start.bat` starts in its own window below normal priority. The API only
+queues the sync and answers at once, so the pages stay quick while a folder
+is read; the Jobs panel follows it from the database. A project has at most
+one sync queued or running, however many times, tabs or people ask; the
+database refuses a second one. One sync runs at a time across all projects.
+Without the worker window a sync waits in the queue, and the page says so.
+The worker has no hot reload: after changing backend code, restart it.
 
 ## Setting up on a machine
 
@@ -75,6 +90,7 @@ python -m venv venv
 .\venv\Scripts\pip install -r requirements.txt
 copy .env.example .env      # set SECRET_KEY and the AI key (see the comments)
 .\venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+.\venv\Scripts\python -m app.workers.sync_worker     # a second window: runs the document syncs
 
 cd ..\frontend
 npm install

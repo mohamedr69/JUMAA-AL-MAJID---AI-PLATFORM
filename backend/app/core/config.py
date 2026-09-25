@@ -108,10 +108,24 @@ class Settings(BaseSettings):
     # walking a synced drive. Off means every Find Project walks the
     # archive as it used to.
     # When the rules for reading documents change, every project that has
-    # already been synced reads itself again -- once, in the background,
-    # at startup. Off, a project keeps what it was read as until someone
-    # presses Sync documents on it.
+    # already been synced reads itself again -- once, in the background:
+    # the worker queues a sync for each when it starts. Off, a project keeps
+    # what it was read as until someone presses Sync documents on it.
     reread_on_rules_change: bool = True
+
+    # The background worker (app.workers.sync_worker), a process of its own
+    # that runs the document syncs so they never slow the pages down.
+    # How often an idle worker looks for a queued sync.
+    worker_poll_seconds: float = 1.5
+    # Run the worker below normal Windows priority, so the engineer's own
+    # programs and the API are served first.
+    worker_below_normal_priority: bool = True
+    # How many documents one sync reads at the same time, each in a process
+    # of its own. Four, not one per core: a shop drawing's page takes a few
+    # hundred MB to read, and these PCs have 16 GB shared with everything
+    # else. 0 or 1 reads them one after another in the worker itself. The
+    # AI reads forms one at a time whatever this is.
+    sync_file_workers: int = 4
     archive_index_enabled: bool = True
     # Scan on server start when the index has never been built, or has
     # gone stale, so a new machine needs nothing done to it.

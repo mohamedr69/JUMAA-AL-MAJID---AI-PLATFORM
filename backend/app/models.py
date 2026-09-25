@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     Float,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -851,15 +852,30 @@ class AiVerification(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
 
+_ACTIVE_SYNC = "kind = 'sync_documents' AND status IN ('queued', 'running')"
+
+
 class BackgroundJob(Base):
     """Long work the server runs and keeps: its progress, whether a stop was
-    asked for, and how it ended (app.services.jobs)."""
+    asked for, and how it ended (app.services.jobs).
+
+    Most kinds run on a thread of the API. A document sync runs in the
+    worker process (app.workers.sync_worker), which claims it from this
+    table: the table is the queue, and the one place both processes agree
+    on what is running."""
 
     __tablename__ = "background_jobs"
+    # One queued-or-running sync per project, refused by the database itself:
+    # a check in Python lets two requests both see "none running" and both
+    # insert one (app.services.jobs.enqueue).
+    __table_args__ = (
+        Index("uq_background_jobs_one_active_sync", "project_id", "kind", unique=True,
+              sqlite_where=text(_ACTIVE_SYNC), postgresql_where=text(_ACTIVE_SYNC)),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"), nullable=True, index=True)
-    # "boq_reread" | "documents_intake"
+    # "boq_reread" | "documents_intake" | "sync_documents" | ...
     kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     # "queued" | "running" | "succeeded" | "failed" | "cancelled"
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="queued", index=True)
@@ -872,6 +888,29 @@ class BackgroundJob(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    # The worker holding the job, and when it last said it was alive: a
+    # running job whose heartbeat stops was left by a worker that died.
+    worker_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    # How many times a worker has started it; a job that keeps taking its
+    # worker down is failed rather than restarted for ever.
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+
+class BackgroundWorker(Base):
+    """A worker process (app.workers.sync_worker) and its heartbeat, so the
+    API can tell a sync that is waiting its turn from one that has no
+    worker to run it."""
+
+    __tablename__ = "background_workers"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    pid: Mapped[int] = mapped_column(Integer, nullable=False)
+    hostname: Mapped[str] = mapped_column(String(255), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    stopped_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    current_job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class ProjectBoqRevision(Base):

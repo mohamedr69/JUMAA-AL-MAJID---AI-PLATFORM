@@ -13,6 +13,9 @@ export interface Job {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  /** On a start request: the job returned was already queued or running
+   * (another click, another tab, a colleague) rather than a new one. */
+  already_active?: boolean;
 }
 
 const POLL_MS = 1500;

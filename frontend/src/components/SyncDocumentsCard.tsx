@@ -71,6 +71,15 @@ export function SyncDocumentsCard({
     if (status?.job && !active) follow(status.job);
   }, [status, active, follow]);
 
+  // While the sync waits in the queue, look again now and then: whether a
+  // worker is running to take it can change (start.bat run, a window closed).
+  const queued = sync.job?.status === "queued";
+  useEffect(() => {
+    if (!queued) return;
+    const timer = window.setInterval(() => void load(), 5000);
+    return () => window.clearInterval(timer);
+  }, [queued, load]);
+
   // The first sync is the project's initial processing: started once, by
   // itself, when the project has never been synced. Never again on an open.
   useEffect(() => {
@@ -82,6 +91,11 @@ export function SyncDocumentsCard({
 
   if (!status) return error ? <div className="text-xs text-red-700">{error}</div> : null;
   const stale = status.stale;
+  // The sync runs in the worker process: the pages keep working from the
+  // index as it stands, and are refreshed when it finishes.
+  const hint = queued && !status.worker_running
+    ? "Waiting: the background worker is not running on this PC. Start the platform with start.bat."
+    : "Syncing in the background: keep working, the pages show the current index until it finishes.";
 
   if (header) {
     return (
@@ -107,7 +121,7 @@ export function SyncDocumentsCard({
         </div>
         {sync.job && (active || sync.job.status === "failed") && (
           <div className="mt-2 text-left">
-            <JobProgress job={sync.job} onCancel={sync.cancel} what="the document sync" />
+            <JobProgress job={sync.job} onCancel={sync.cancel} what="the document sync" hint={hint} />
           </div>
         )}
         {sync.error && <div className="mt-1 text-xs text-red-700">{sync.error}</div>}
@@ -138,7 +152,7 @@ export function SyncDocumentsCard({
           </button>
         )}
       </div>
-      {sync.job && (active || sync.job.status === "failed") && <JobProgress job={sync.job} onCancel={sync.cancel} what="the document sync" />}
+      {sync.job && (active || sync.job.status === "failed") && <JobProgress job={sync.job} onCancel={sync.cancel} what="the document sync" hint={hint} />}
       {sync.error && <div className="mt-1 text-xs text-red-700">{sync.error}</div>}
       {stale.length > 0 && (
         <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">

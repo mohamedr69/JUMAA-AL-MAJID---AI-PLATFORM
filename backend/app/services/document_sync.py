@@ -31,7 +31,6 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
-import threading
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,6 +56,8 @@ ROLE_DOCUMENT = "document"
 # A Word transmittal in the project's Transmittal folder: read for the samples it sent.
 ROLE_TRANSMITTAL = "transmittal"
 FRESH, STALE, PROCESSING, FAILED, REMOVED = "fresh", "stale", "processing", "failed", "removed"
+# The job kind a sync runs as (app.services.jobs.WORKER_KINDS).
+SYNC_JOB_KIND = "sync_documents"
 
 
 class SyncError(Exception):
@@ -615,9 +616,9 @@ def log_records(db: Session, project: Project) -> tuple[list, list[str]]:
 # Until now that still waited for somebody to press Sync documents on
 # each project, one project at a time, remembering which ones. So a
 # corrected rule reached whichever projects happened to be opened and
-# quietly missed the rest. The projects catch themselves up instead: at
-# startup, every project already synced under older rules reads itself
-# again, in the background, one after another.
+# quietly missed the rest. The projects catch themselves up instead: when
+# the worker starts, it queues a sync for every project already synced
+# under older rules, and runs them one after another.
 #
 # Only projects that have been synced before. A project's first sync is a
 # long job over a folder nobody has asked the platform to look at yet,
@@ -638,56 +639,25 @@ def projects_on_old_rules(db: Session) -> list[int]:
     return [row[0] for row in rows]
 
 
-def reread_projects_on_old_rules(*, stop: threading.Event | None = None) -> dict:
-    """Read every such project again, one at a time.
+def queue_projects_on_old_rules(db: Session) -> list[int]:
+    """Queue a sync for every such project, oldest sync first, and return
+    the jobs. The worker runs them one at a time, like any other sync -- a
+    sync reads PDFs and runs OCR over a synced drive, and several at once
+    would make the machine unusable for the engineer working on it. A
+    project that already has a sync queued or running keeps that one, and
+    one that fails -- an unreachable folder, a file OneDrive has not brought
+    down -- is failed on its own without stopping the ones after it.
 
-    One at a time on purpose: a sync reads PDFs and runs OCR over a synced
-    drive, and several at once would make the machine unusable for the
-    engineer working on it. Each project gets its own session, and one
-    that fails -- an unreachable folder, a file OneDrive has not brought
-    down -- does not stop the ones after it.
-    """
-    counted = {"projects": 0, "read": 0, "failed": 0}
-    db = SessionLocal()
-    try:
-        pending = projects_on_old_rules(db)
-    finally:
-        db.close()
-    counted["projects"] = len(pending)
-    for project_id in pending:
-        if stop is not None and stop.is_set():
-            break
-        session = SessionLocal()
-        try:
-            project = session.get(Project, project_id)
-            if project is None:
-                continue
-            sync(session, project)
-            counted["read"] += 1
-            log.info("Read %s again under %s", project.ep_number or project_id, INDEX_VERSION)
-        except Exception as exc:  # noqa: BLE001 -- one project is not the rest
-            counted["failed"] += 1
-            log.warning("Could not read project %s again: %s", project_id, exc)
-        finally:
-            session.close()
-    return counted
+    Returns [] when the setting is off."""
+    from app.services import jobs
 
-
-def start_catchup_thread(stop: threading.Event | None = None) -> threading.Thread | None:
-    """Catch the projects up in the background, if any need it.
-
-    Returns None when the setting is off or nothing is behind, so the
-    caller can say whether anything was started.
-    """
     if not get_settings().reread_on_rules_change:
-        return None
-    db = SessionLocal()
-    try:
-        if not projects_on_old_rules(db):
-            return None
-    finally:
-        db.close()
-    thread = threading.Thread(target=reread_projects_on_old_rules, kwargs={"stop": stop},
-                              name="document-reread", daemon=True)
-    thread.start()
-    return thread
+        return []
+    queued = []
+    for project_id in projects_on_old_rules(db):
+        job, created = jobs.enqueue(db, kind=SYNC_JOB_KIND, project_id=project_id, user_id=None,
+                                    message="Queued: documents are read again under updated rules")
+        if created:
+            log.info("Queued job %s to read project %s again under %s", job.id, project_id, INDEX_VERSION)
+        queued.append(job.id)
+    return queued

@@ -1,7 +1,8 @@
 """The project's document index (app.services.document_sync).
 
   GET  /projects/{id}/documents/status        when the folder was last synced, what is stale, what failed
-  POST /projects/{id}/jobs/sync-documents     sync now: stat the folder, read only new or changed files
+  POST /projects/{id}/jobs/sync-documents     queue a sync: the worker process stats the folder and reads
+                                              only new or changed files (app.workers.sync_worker)
 """
 
 from __future__ import annotations
@@ -14,15 +15,15 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user, require_role
-from app.models import Project, User
+from app.models import BackgroundJob, User
 from app.routers import jobs as jobs_router
-from app.routers.jobs import JobOut, _out, _refuse_duplicate
+from app.routers.jobs import JobOut, _out
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404
-from app.services import activity, document_sync, jobs
+from app.services import document_sync, jobs
 
 router = APIRouter(prefix="/projects", tags=["documents"])
 
-JOB_KIND = "sync_documents"
+JOB_KIND = document_sync.SYNC_JOB_KIND
 
 
 class StaleOut(BaseModel):
@@ -49,6 +50,9 @@ class DocumentStatusOut(BaseModel):
     job: JobOut | None
     folder: str | None
     folder_reachable: bool
+    # Whether the background worker that runs syncs is alive. A queued sync
+    # with no worker waits until one starts (start.bat starts it).
+    worker_running: bool = True
 
 
 @router.get("/{project_id}/documents/status", response_model=DocumentStatusOut)
@@ -65,7 +69,8 @@ def document_status(
     folder = Path(project.source_folder_path) if project.source_folder_path else None
     return DocumentStatusOut(**document_sync.status(db, project), syncing=running is not None,
                              job=_out(running) if running else None, folder=project.source_folder_path,
-                             folder_reachable=bool(folder and folder.is_dir()))
+                             folder_reachable=bool(folder and folder.is_dir()),
+                             worker_running=jobs.worker_running(db))
 
 
 @router.post("/{project_id}/jobs/sync-documents", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
@@ -74,27 +79,27 @@ def start_sync(
     current_user: User = Depends(require_role(*CREATOR_ROLES)),
     db: Session = Depends(get_db),
 ) -> JobOut:
-    """Sync the index with the folder, as a job: every file's size and time
-    is checked, only new or changed content is read, and what depends on a
-    changed document is marked stale."""
+    """Queue a sync of the index with the folder and answer at once. The
+    worker process runs it: every file's size and time is checked, only new
+    or changed content is read, and what depends on a changed document is
+    marked stale. Nothing heavy happens in this request.
+
+    Asked again while the project's sync is queued or running -- a second
+    click, another tab, a colleague -- it answers with that same job,
+    `already_active` set, and starts nothing. The database refuses a second
+    active sync of a project (app.services.jobs.enqueue), so this holds for
+    requests that arrive together too."""
     project = _get_project_or_404(db, project_id)
     if not project.source_folder_path:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="The project has no archive folder to sync")
-    _refuse_duplicate(db, project, JOB_KIND)
-    user_id = current_user.id
+    job, created = jobs.enqueue(db, kind=JOB_KIND, project_id=project.id, user_id=current_user.id)
+    if created and jobs_router.RUN_INLINE:
+        # Tests: run it here, through the worker's own code, so they need not poll.
+        from app.workers.sync_worker import Worker
 
-    def work(session: Session, ctx: jobs.JobContext) -> dict:
-        target = session.get(Project, project_id)
-        actor = session.get(User, user_id)
-        result = document_sync.sync(session, target, user=actor, ctx=ctx)
-        activity.record(session, actor, "documents.synced",
-                        f"Synced the project folder: {result['files']} file{'s' if result['files'] != 1 else ''}, "
-                        f"{result['new']} new, {result['changed']} changed, {result['unchanged']} unchanged, "
-                        f"{result['removed']} removed; {result['read_by_ai']} read by the AI",
-                        project=target, entity_type="project", entity_id=project_id,
-                        detail={k: v for k, v in result.items() if isinstance(v, (int, bool))})
-        return result
-
-    job = jobs.start(db, kind=JOB_KIND, project_id=project.id, user_id=current_user.id, work=work,
-                     run_inline=jobs_router.RUN_INLINE)
-    return _out(job)
+        Worker().run_claimed(job.id)
+        db.expire_all()
+        job = db.get(BackgroundJob, job.id)
+    out = _out(job)
+    out.already_active = not created
+    return out

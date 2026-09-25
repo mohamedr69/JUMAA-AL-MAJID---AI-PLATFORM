@@ -286,19 +286,17 @@ def test_a_project_read_under_older_rules_reads_itself_again(client, db_session,
     assert behind in waiting, "read under older rules"
     assert never_synced not in waiting, "its first sync is a person's to start"
 
-    # Each one is read again, and one that fails does not stop the rest.
-    done = []
+    # Each one gets a sync of its own, queued for the worker -- once: a
+    # worker started again while those are still waiting queues nothing more.
+    from app.models import BackgroundJob
 
-    def fake_sync(session, target, **kwargs):
-        done.append(target.id)
-        if target.id == behind:
-            raise RuntimeError("OneDrive has not brought the folder down")
-        return {}
-
-    monkeypatch.setattr(document_sync, "sync", fake_sync)
-    counted = document_sync.reread_projects_on_old_rules()
-    assert behind in done
-    assert counted["failed"] == 1 and counted["projects"] >= 1
+    queued = document_sync.queue_projects_on_old_rules(db_session)
+    jobs_for = {j.project_id: j for j in db_session.query(BackgroundJob).filter(BackgroundJob.id.in_(queued))}
+    assert behind in jobs_for and never_synced not in jobs_for
+    assert jobs_for[behind].kind == "sync_documents" and jobs_for[behind].status == "queued"
+    assert jobs_for[behind].created_by_id is None, "nobody asked: the rules changed"
+    assert document_sync.queue_projects_on_old_rules(db_session) == queued
+    assert db_session.query(BackgroundJob).filter(BackgroundJob.project_id == behind).count() == 1
 
     # And the setting turns the whole thing off. The settings are cached for
     # the whole process, so the switch is turned here rather than through the
@@ -314,7 +312,7 @@ def test_a_project_read_under_older_rules_reads_itself_again(client, db_session,
     except AttributeError:          # a dataclass, not a pydantic model
         off = _replace(live, reread_on_rules_change=False)
     monkeypatch.setattr(document_sync, "get_settings", lambda: off)
-    assert document_sync.start_catchup_thread() is None
+    assert document_sync.queue_projects_on_old_rules(db_session) == []
 
 
 def test_the_log_carries_a_drawings_answered_revisions_under_the_one_that_stands(client, db_session, tmp_path, ai):

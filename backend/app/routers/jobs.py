@@ -39,6 +39,9 @@ class JobOut(BaseModel):
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    # On a start request: true when the job returned is one that was already
+    # queued or running (another click, another tab, a colleague), not a new one.
+    already_active: bool = False
 
 
 def _out(job: BackgroundJob) -> JobOut:

@@ -159,6 +159,9 @@ export interface DocumentStatus {
   job: import("./useJob").Job | null;
   folder: string | null;
   folder_reachable: boolean;
+  /** Whether the background worker that runs syncs is alive; a queued sync
+   * with no worker waits until start.bat starts one. */
+  worker_running: boolean;
 }
 
 /** Whether a system has had its sample board sent, read off the
