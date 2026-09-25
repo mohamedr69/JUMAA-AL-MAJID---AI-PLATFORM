@@ -152,6 +152,33 @@ def test_a_floor_is_matched_on_its_full_title_level_and_name_alike():
         "2nd Mechanical Floor", "Top of Lift Machine Floor"]
 
 
+def test_the_log_runs_from_the_lowest_floor_to_the_top():
+    """Basements downwards first, ground, podiums, the levels, the roofs --
+    and a floor named in words where the IFC drawing's sheets put it: the
+    structural floor above the mechanical level it follows, the lift machine
+    floor above the top roof, a lift pit below the lowest basement."""
+    def sheet(name, floor_name):
+        return {"name": name, "title": f"{floor_name} PLAN FIRE ALARM LAYOUT", "kind": "plan", "floor_name": floor_name,
+                "floors": [], "multiplier": 1}
+
+    ifc = [{"id": 1, "filename": "FIRE ALARM LAYOUT.dwg", "revision": "R0", "sheets": [
+        sheet("FA 100", "WALK IN LIFT PIT LEVEL"), sheet("FA 101", "BASEMENT-2"), sheet("FA 102", "BASEMENT-1"),
+        sheet("FA 103", "GROUND FLOOR"), sheet("FA 104", "PODIUM-1"), sheet("FA 105", "L01"),
+        sheet("FA 106", "1ST MECHANICAL FLOOR"), sheet("FA 107", "1ST STRUCTURAL (NON ACCESSIBLE) FLOOR"),
+        sheet("FA 108", "L03"), sheet("FA 109", "ROOF"), sheet("FA 110", "TOP ROOF"),
+        sheet("FA 111", "LIFT MACHINE FLOOR"), sheet("FA 112", "TOP OF LIFT MACHINE FLOOR"),
+    ]}]
+    records = [_doc("L02", "R0", "UR", ref="SD-L02"), _doc("LIFT MACHINE ROOM FLOOR", "R0", "UR", ref="SD-LMR"),
+               _doc("BASEMENT-1", "R0", "UR", ref="SD-B01"), _doc("L03", "R0", "UR", ref="SD-L03")]
+    records = [r.__class__(**{**r.__dict__, "name": {"SD-L02": "L02- 1ST MECHANICAL FLOOR PLAN"}.get(r.reference, r.name)})
+               for r in records]
+    order = [row["floor"] for row in build(ifc, records)["rows"]]
+    assert order == [
+        "Walk In Lift Pit Level", "Basement-2", "Basement-1", "Ground Floor", "Podium-1", "L01",
+        "L02 - 1st Mechanical Floor", "1st Structural (Non Accessible) Floor", "L03", "Roof", "Top Roof",
+        "Lift Machine Room Floor", "Top of Lift Machine Floor"]
+
+
 def test_revisions_grow_with_what_was_submitted():
     out = build(IFC, [_doc("Ground Floor", "R4", "UR")])
     assert out["revisions"] == ["R0", "R1", "R2", "R3", "R4"]

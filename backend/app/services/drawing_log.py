@@ -371,6 +371,69 @@ def answered_revisions(revisions: dict[str, dict]) -> dict[str, dict]:
     return out
 
 
+# Where a floor with no level of its own sits when no IFC sheet places it:
+# on or above the roof when its name says so, otherwise above the levels.
+_DOWN_BELOW = re.compile(r"PIT|SUMP|UNDER\s*GROUND|FOUNDATION|RAFT", re.I)
+_UP_TOP = re.compile(r"ROOF|LIFT|MACHINE|TOP|PARAPET|HELI", re.I)
+_ROOF = 100_000.0
+
+
+def _elevation(key: str) -> float | None:
+    """A floor's height in the building's order, where its key says it:
+    basements downwards, ground, podiums, then the levels; roofs over all.
+    None for a floor named in words, which the IFC sheets place."""
+    match = re.fullmatch(r"([BPL])(\d+)", key)
+    if match:
+        kind, n = match.group(1), int(match.group(2))
+        return -float(n) if kind == "B" else (n / 1000.0 if kind == "P" else float(n))
+    return {"GF": 0.0, "RF": _ROOF, "TRF": _ROOF + 1}.get(key)
+
+
+def floor_heights(sheets: list[Row]) -> dict[str, float]:
+    """Every floor's place from the ground up. The levels by their number;
+    a floor named in words ("1ST STRUCTURAL (NON ACCESSIBLE) FLOOR", "LIFT
+    MACHINE FLOOR") where the IFC drawing's own sheet sequence puts it --
+    just above the sheet before it, which the designer drew in building
+    order from the lowest floor up."""
+    heights: dict[str, float] = {}
+    ordered = sorted(sheets, key=lambda s: s.order)
+    known = [[h for h in (_elevation(k) for k in sheet.keys) if h is not None] for sheet in ordered]
+    # Sheets before the first one with a level are below it: a lift pit
+    # drawn ahead of the lowest basement.
+    first = next((i for i, h in enumerate(known) if h), None)
+    if first is None:
+        return heights
+    for i in range(first):
+        for key in ordered[i].keys:
+            heights.setdefault(key, min(known[first]) - 0.001 * (first - i))
+    last = max(known[first])
+    for sheet, levels in zip(ordered[first:], known[first:]):
+        if levels:
+            last = max(levels)
+            continue
+        last += 0.001
+        for key in sheet.keys:
+            heights.setdefault(key, last)
+    return heights
+
+
+def _height(keys: list[str], heights: dict[str, float]) -> tuple:
+    """A row's place: its lowest floor. A floor named in words that no IFC
+    sheet places goes above the levels, or above the roof when its name
+    says it is up there; a drawing naming no floor goes last."""
+    if not keys:
+        return (2, 0.0, "")
+    found = []
+    for key in keys:
+        height = _elevation(key)
+        if height is None:
+            height = heights.get(key)
+        if height is None:
+            height = (-_ROOF if _DOWN_BELOW.search(key) else _ROOF + 50 if _UP_TOP.search(key) else _ROOF - 1)
+        found.append(height)
+    return (0, min(found), keys[0])
+
+
 def build(drawings: list[dict], records: list, in_system=lambda code: (code or "").upper() in ("FAS", "FA")) -> dict:
     """`drawings`: the IFC drawings in force, resolved -- read for their
     floors only. `records`: document control records
@@ -447,9 +510,10 @@ def build(drawings: list[dict], records: list, in_system=lambda code: (code or "
             "latest_page": 1,
         })
 
-    # Building order, lowest floor first; a drawing naming no floor last.
-    rows.sort(key=lambda row: (not row["floor_keys"],
-                               _floor_order(row["floor_keys"][0]) if row["floor_keys"] else ()))
+    # Building order, from the lowest floor to the top; a drawing naming no
+    # floor last.
+    heights = floor_heights(_rows(drawings, aliases))
+    rows.sort(key=lambda row: _height(row["floor_keys"], heights))
     counts: dict[str, int] = {}
     for row in rows:
         counts[row["latest_status"]] = counts.get(row["latest_status"], 0) + 1
