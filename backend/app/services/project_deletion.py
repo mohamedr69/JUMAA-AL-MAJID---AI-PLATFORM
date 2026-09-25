@@ -30,8 +30,10 @@ from app.models import (
     ExtractionIssue,
     ExtractionRun,
     Project,
+    ProjectAction,
     ProjectAmplifierDesign,
     ProjectBoqItem,
+    ProjectChange,
     ProjectDocument,
     ProjectFloorSchedule,
     ProjectFrcCables,
@@ -69,7 +71,7 @@ def delete_project(db: Session, project: Project) -> None:
     # Documents go after the rows that point at them.
     for model in (AiVerification, DocumentDependency, DocumentReading, BatteryPanelResult, SubmittalReply,
                   ProjectFrcCables, ProjectProposedMaterial, ProjectFloorSchedule, ProjectAmplifierDesign, ProjectIfcDrawing,
-                  BoqCandidate, BoqSnapshot, ProjectDocument, BackgroundJob, ResultCache):
+                  BoqCandidate, BoqSnapshot, ProjectDocument, BackgroundJob, ResultCache, ProjectAction, ProjectChange):
         db.execute(delete(model).where(model.project_id == project_id))
     db.expire(project, ["boq_items"])
     db.delete(project)

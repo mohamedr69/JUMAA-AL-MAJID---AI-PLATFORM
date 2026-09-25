@@ -1356,8 +1356,16 @@ def project_logs(
     # smoke management are the fire alarm, and listing them separately
     # here gave the Logs tab four systems where the project has one.
     systems = set(system_rules.project_codes(project))
+    # The Material Submittal Log is the register -- the records the Material
+    # Submittals page edits -- never a second reading of the folder with a
+    # status of its own (app.services.project_state).
+    from app.services import project_state
+
+    material_log = project_state.material_log(db, project)
     if not project.source_folder_path:
-        return ProjectLogsOut(systems=sorted(systems), drawings=[], searched=None, warnings=["The project has no archive folder to search."])
+        return ProjectLogsOut(systems=sorted(systems | {row["system_code"] for row in material_log if row["system_code"]}),
+                              drawings=[], material_submittals=material_log, searched=None,
+                              warnings=["The project has no archive folder to search."])
     # From the index, never the folder: "Sync documents" reads what changed.
     from app.services import document_sync
 
@@ -1375,8 +1383,9 @@ def project_logs(
     return ProjectLogsOut(
         scanning=False, processed_files=indexed, total_files=indexed, synced_at=project.documents_synced_at,
         systems=sorted(systems | {system_rules.effective_code(row.system_code, project)
-                                  for row in records if row.system_code}),
-        material_submittals=[output(row) for row in records if row.category == "submittals"],
+                                  for row in records if row.system_code and row.category != "submittals"}
+                       | {row["system_code"] for row in material_log if row["system_code"]}),
+        material_submittals=material_log,
         drawings=[output(row) for row in records if row.category == "drawings"],
         samples=[output(row) for row in records if row.category == "samples"],
         # Not before the first sync: an unread folder is not a missing board.

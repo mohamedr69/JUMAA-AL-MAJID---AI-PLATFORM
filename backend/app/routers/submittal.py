@@ -36,6 +36,7 @@ from app.models import (
     User,
 )
 from app.routers.projects import CREATOR_ROLES, DELETER_ROLES, XLSX_MEDIA_TYPE, _get_project_or_404
+from app.services import project_state
 from app.services.submittal_identity import brand_key
 from app.schemas_design import (
     SubmittalRevisionOut,
@@ -198,10 +199,11 @@ def _revisions_out(submittal: ProjectSubmittal) -> list[SubmittalRevisionOut]:
         return [SubmittalRevisionOut(revision=submittal.revision, status=submittal.status.value,
                                      reply_code=submittal.reply_code, reference=submittal.reference,
                                      manufacturer=submittal.manufacturer, document_path=submittal.document_path,
-                                     note=submittal.note)]
+                                     note=submittal.note, updated_at=submittal.updated_at)]
     return [SubmittalRevisionOut(revision=r.revision, status=r.status.value, reply_code=r.reply_code,
                                  reference=r.reference, also_filed_as=list(r.also_filed_as or []),
-                                 manufacturer=r.manufacturer, document_path=r.document_path, note=r.note)
+                                 manufacturer=r.manufacturer, document_path=r.document_path, note=r.note,
+                                 updated_at=r.updated_at)
             for r in rows]
 
 
@@ -259,6 +261,7 @@ def _one_per_brand(found: list[SubmittalOut], held: set[tuple[str, str]]) -> lis
         revisions = [SubmittalRevisionOut(revision=f"R{n:02d}", status=best[n].status, reply_code=best[n].reply_code,
                                           reference=best[n].reference, manufacturer=best[n].manufacturer,
                                           document_path=best[n].document_path, note=best[n].note,
+                                          updated_at=best[n].updated_at,
                                           also_filed_as=sorted({i.reference for i in items
                                                                 if _revision_number(i.revision) == n and i.reference
                                                                 and i.reference != best[n].reference}))
@@ -439,15 +442,15 @@ def _filed_in_the_folder(db: Session, project: Project, held: set[str],
     return list(found.values())
 
 
-@router.get("/{project_id}/submittals", response_model=SubmittalRegisterOut)
-def list_submittals(
-    project_id: int,
-    _current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> SubmittalRegisterOut:
-    project = _get_project_or_404(db, project_id)
-    materials = _materials(project)
-    by_system = _by_system(materials)
+def register_items(db: Session, project: Project, materials: list[MaterialItemOut] | None = None) -> list[SubmittalOut]:
+    """The project's material submittals: one per system and brand, each at
+    its latest revision with every revision it has been filed at.
+
+    The one read of them. The Material Submittals register, the Material
+    Submittal Log, Project Home, the drawings' material-approval
+    prerequisite and the project's actions all come from this, so no page
+    works out a submittal's status for itself (app.services.project_state)."""
+    by_system = _by_system(materials if materials is not None else _materials(project))
     items = [_out(s, by_system) for s in project.submittals]
     # And the ones on file that were never entered here.
     # A form on file that is the same submittal as a register row -- our
@@ -489,6 +492,19 @@ def list_submittals(
                 "note": item.note or text,
                 "revisions": revisions,
             })
+    return items
+
+
+@router.get("/{project_id}/submittals", response_model=SubmittalRegisterOut)
+def list_submittals(
+    project_id: int,
+    _current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SubmittalRegisterOut:
+    project = _get_project_or_404(db, project_id)
+    materials = _materials(project)
+    by_system = _by_system(materials)
+    items = register_items(db, project, materials)
 
     counts = _counts(items)
     counts_by_system = {system or "": _counts([i for i in items if (i.system_code or "") == (system or "")])
@@ -620,6 +636,8 @@ def create_submittal(
     _log(submittal, "created", f"Created {submittal.revision}", current_user)
     _set_revision(submittal, submittal.revision, submittal.status, current_user, source="manual")
     db.add(submittal)
+    db.flush()
+    project_state.submittals_changed(db, project, [("created", submittal.id, submittal.system_code)])
     db.commit()
     activity.record(db, current_user, "submittal.created", f"Created submittal \"{submittal.title}\" {submittal.revision}",
                     project=project, entity_type="submittal", entity_id=submittal.id,
@@ -673,6 +691,9 @@ def update_submittal(
     # place, its old status kept in its history.
     _set_revision(submittal, submittal.revision, submittal.status, current_user, source="manual")
     submittal.updated_at = utc_now()
+    # The revision, its history, the submittal, the actions and the change
+    # row in one transaction: every page reads the same record after it.
+    project_state.submittals_changed(db, project, [("updated", submittal.id, submittal.system_code)])
     db.commit()
     if changed:
         activity.record(db, current_user, "submittal.updated",
@@ -705,7 +726,9 @@ def _delete_for_good(db: Session, project: Project, user: User, *, reference: st
     if reference:
         result = submittal_filing.delete_submittal(db, project, user, reference=reference)
     else:
+        gone = [("deleted", submittal.id, submittal.system_code)]
         db.delete(submittal)
+        project_state.submittals_changed(db, project, gone)
         db.commit()
         result = {"reference": None, "files": [], "missing": [], "register_rows": 1, "map_rebuilt": False}
     activity.record(db, user, "submittal.deleted",
@@ -798,6 +821,54 @@ def scan_submittals(
     return JobOut.model_validate(_out(job).model_dump())
 
 
+def _as_the_register_stands(db: Session, project: Project, drawn: dict) -> dict:
+    """The map as drawn, each revision at the status the register holds for
+    it now and the actions the project holds now.
+
+    The map is what the AI read off the forms when it was drawn; the
+    register is the record. A status changed on the page since, or a reply
+    filed since, is the register's, and the map shown beside the register
+    must not say otherwise -- nor list an action that has been resolved."""
+    import copy
+
+    if not drawn:
+        return drawn
+    out = copy.deepcopy(drawn)
+    submittals = project_state.items(db, project)
+    by_reference: dict[str, SubmittalOut] = {}
+    for item in submittals:
+        names = {item.reference} | {r.reference for r in item.revisions} | {
+            ref for r in item.revisions for ref in r.also_filed_as}
+        for name in names:
+            if name:
+                by_reference.setdefault(name.upper(), item)
+    open_by_submittal: dict[int, str] = {}
+    actions = project_state.open_actions(db, project.id)
+    for action in actions:
+        if action.entity_type == "submittal" and action.entity_id:
+            open_by_submittal[action.entity_id] = action.text
+    from app.services.submittal_filing import _revision_number
+
+    for system in out.get("systems") or []:
+        for row in system.get("rows") or []:
+            item = next((by_reference[r.upper()] for r in [row.get("reference"), *(row.get("references") or [])]
+                         if r and r.upper() in by_reference), None)
+            if item is None:
+                continue
+            revisions = {_revision_number(r.revision): r for r in item.revisions}
+            for label, cell in (row.get("cells") or {}).items():
+                rev = revisions.get(_revision_number(label))
+                code = project_state.cell_code(rev.status, rev.reply_code) if rev else "NS"
+                if code != "NS":
+                    cell["status"] = code
+            latest = (row.get("cells") or {}).get(row.get("latest") or "")
+            if latest:
+                row["latest_status"] = latest["status"]
+            row["action"] = open_by_submittal.get(item.id)
+    out["actions"] = [a.text for a in actions]
+    return out
+
+
 @router.get("/{project_id}/submittals/map", response_model=SubmittalMapOut)
 def submittal_map(
     project_id: int,
@@ -808,7 +879,7 @@ def submittal_map(
     whether a check can run now."""
     project = _get_project_or_404(db, project_id)
     reason = submittal_reader.available(project)
-    latest = submittal_reader.latest_map(db, project) or {}
+    latest = _as_the_register_stands(db, project, submittal_reader.latest_map(db, project) or {})
     # From the database only: whether the folder changed is the shared
     # document sync's business (app.services.document_sync), never an open's.
     delta = {"changed": False, "listing_files": int(latest.get("listing_files") or 0), "reason": ""}

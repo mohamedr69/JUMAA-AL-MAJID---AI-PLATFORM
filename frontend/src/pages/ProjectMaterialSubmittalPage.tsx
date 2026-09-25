@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api, apiUrl } from "../lib/api";
-import { PROJECT_EDITOR_ROLES, type MaterialItem, type MaterialSubmittal, type StorageFolder, type Submittal, type SubmittalRegister, type SubmittalCellStatus, type SubmittalMap, type SubmittalStatus, type SubmittalSuggestion, type SubmittalDeleted, type SubmittalRevision } from "../lib/types";
+import { PROJECT_EDITOR_ROLES, type MaterialItem, type MaterialSubmittal, type StorageFolder, type Submittal, type SubmittalRegister, type SubmittalCellStatus, type SubmittalMap, type SubmittalStatus, type SubmittalSuggestion, type SubmittalDeleted, type SubmittalRevision, type ProjectAction } from "../lib/types";
+import { useOnProjectChange } from "../lib/projectChanges";
 import { SubmittalPackageBuilder } from "../components/SubmittalPackageBuilder";
 import { JobProgress } from "../components/JobProgress";
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
@@ -61,13 +62,22 @@ export function ProjectMaterialSubmittalPage() {
   const [creating, setCreating] = useState<SubmittalSuggestion | null>(null);
   const [editing, setEditing] = useState<number | null>(null);
   const [map, setMap] = useState<SubmittalMap | null>(null);
+  const [actions, setActions] = useState<ProjectAction[]>([]);
 
   const load = useCallback(
-    () =>
+    () => {
+      // The project's actions are held once by the backend and listed here
+      // and on Project Home alike; filing the revision an action asks for
+      // resolves it on both.
       api
+        .get<ProjectAction[]>(`/projects/${project.id}/actions`)
+        .then((all) => setActions(all.filter((a) => a.link === "submittal")))
+        .catch(() => setActions([]));
+      return api
         .get<SubmittalRegister>(`/projects/${project.id}/submittals`)
         .then(setData)
-        .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load the submittals")),
+        .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load the submittals"));
+    },
     [project.id]
   );
   const loadMap = useCallback(
@@ -78,6 +88,13 @@ export function ProjectMaterialSubmittalPage() {
   // The AI check of the project folder runs as a job the page follows; when
   // it ends the map and the register are read again.
   const check = useJob(project.id, "submittal_check", `/projects/${project.id}/submittals/scan`, () => {
+    void load();
+    void loadMap();
+  });
+
+  // A submittal, an action or the folder changed -- on another page, by
+  // another user, or by the sync worker: read the register again.
+  useOnProjectChange(["submittal", "documents", "action"], () => {
     void load();
     void loadMap();
   });
@@ -103,6 +120,7 @@ export function ProjectMaterialSubmittalPage() {
       await api.post(`/projects/${project.id}/submittals`, values);
       setCreating(null);
       await load();
+      void loadMap();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not create the submittal");
     } finally {
@@ -115,7 +133,9 @@ export function ProjectMaterialSubmittalPage() {
     setError(null);
     try {
       await api.patch(`/projects/${project.id}/submittals/${id}`, changes);
+      // The map shows each revision as the register holds it: read it again too.
       await load();
+      void loadMap();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Could not save the change");
     } finally {
@@ -231,12 +251,12 @@ export function ProjectMaterialSubmittalPage() {
         <JobProgress job={check.job} onCancel={check.cancel} what="the AI check of the material submittals" />
       )}
       {check.error && <div className="mt-2 text-xs text-red-700">{check.error}</div>}
-      {map && map.actions.length > 0 && (
+      {actions.length > 0 && (
         <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900" role="alert">
           <div className="font-semibold">Action required</div>
           <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">
-            {map.actions.map((action) => (
-              <li key={action}>{action}</li>
+            {actions.map((action) => (
+              <li key={action.id}>{action.text}</li>
             ))}
           </ul>
         </div>

@@ -25,7 +25,7 @@ from app.deps import get_current_user, require_role
 from app.ifc.resolve import resolved_drawing
 from app.models import ActivityEvent, ProjectIfcDrawing, User
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404
-from app.services import activity, drawing_log, project_folders, required_drawings, system_rules
+from app.services import activity, drawing_log, project_folders, project_state, required_drawings, system_rules
 
 router = APIRouter(tags=["drawings"])
 
@@ -229,6 +229,25 @@ def _required(db: Session, project, system: str) -> dict:
             item["ifc"] = [{"filename": d.filename, "revision": d.revision or "R0"} for d in in_force]
             item["remarks"] = ("IFC set " + ", ".join(d.revision or "R0" for d in in_force)
                                + " (BOQ as per IFC) · " + item["remarks"])
+    # And what is not a file from the contractor: the system's material,
+    # approved. A shop drawing is drawn to the approved material, so this
+    # waits on the material submittal register (app.services.project_state)
+    # -- "missing" turns "received" when the consultant's approval is
+    # recorded there, with nothing ticked here.
+    approval = project_state.material_approval(db, project, system)
+    submittal = approval["submittal"]
+    out["groups"].insert(0, {"key": "approvals", "name": "Approvals", "items": [{
+        "key": "material_approval", "kind": "approval", "group": "approvals",
+        "name": "Material Submittal Approval",
+        "purpose": f"The approved {required_drawings.SYSTEMS[system].lower()} material the shop drawings are drawn to",
+        "folder": "", "format": "Approval", "received": approval["received"],
+        "received_date": submittal["updated"].isoformat(timespec="seconds") if submittal and submittal["updated"] else None,
+        "files": [], "file_count": 0, "folder_exists": True, "requested_at": None, "remarks": approval["remarks"],
+        "submittal": {k: v for k, v in submittal.items() if k != "updated"} if submittal else None,
+    }]})
+    out["total"] += 1
+    out["received"] += 1 if approval["received"] else 0
+    out["not_received"] += 0 if approval["received"] else 1
     return out
 
 

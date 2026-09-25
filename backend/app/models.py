@@ -1089,6 +1089,57 @@ class ProjectSubmittalStatusChange(Base):
     changed_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
+class ProjectAction(Base):
+    """Something the project is waiting on, held once and shown by every
+    page that lists it (Home, Material Submittals): "BBY006-...-FA-0003 R0
+    was returned; R1 is not filed". Opened and resolved by
+    app.services.project_state from the project's own records, never by a
+    page: when R1 is filed the one row is resolved and it is gone
+    everywhere at once."""
+
+    __tablename__ = "project_actions"
+    __table_args__ = (UniqueConstraint("project_id", "key", name="uq_project_actions_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    # What the action is for, the same every time it is worked out:
+    # "submittal:FRC|FRONTIER:R01", "system:ELS:no-submittal".
+    key: Mapped[str] = mapped_column(String(200), nullable=False)
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    system_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    entity_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False, default="warning")
+    # The page that deals with it, relative to the project ("submittal").
+    link: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ProjectChange(Base):
+    """PROJECT_DATA_CHANGED: one row per change to a project's records, in
+    the transaction that made it. A page asks for the changes after the
+    last one it saw (GET /projects/{id}/changes?since=) and reloads what
+    they touch -- the only way a change made by the worker process, or by
+    another user, reaches a page already open."""
+
+    __tablename__ = "project_changes"
+    # Ids never reused once old rows are pruned: a page's "since" stays true.
+    __table_args__ = {"sqlite_autoincrement": True}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    # "submittal", "documents", "action", "drawing".
+    entity_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    entity_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    system_code: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # "created", "updated", "deleted", "synced", "opened", "resolved".
+    change_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False, index=True)
+
+
 class SubmittalReply(Base):
     """Our answer to the consultant's comments on one submittal revision.
 

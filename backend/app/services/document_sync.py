@@ -563,8 +563,18 @@ def sync(db: Session, project: Project, *, user: User | None = None, ctx=None, p
                               ProjectDocument.state != REMOVED)]
         submittal_reader.check(db, project, user, ctx=None, provider=provider, files=sorted(set(form_paths)))
         settle(db, project, "submittal")
+    first_sync = project.documents_synced_at is None
     project.documents_synced_at = now
     project.documents_listing_sha256 = fingerprint
+    # What the folder changed reaches every page: the logs, the drawings and
+    # the register's forms on file are read from this index, and the
+    # project's actions are brought up to it -- in this commit.
+    from app.services import project_state
+
+    if first_sync or forms_changed or any(counts[k] for k in ("new", "changed", "removed")):
+        project_state.record_change(db, project.id, "documents", "synced")
+        project_state.reconcile_actions(db, project)
+    project_state.prune_changes(db, project.id)
     db.commit()
     counts["synced_at"] = now.isoformat()
     counts["forms_changed"] = forms_changed

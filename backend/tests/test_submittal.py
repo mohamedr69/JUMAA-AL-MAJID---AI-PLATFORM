@@ -726,7 +726,7 @@ def test_a_map_drawn_by_older_rules_is_out_of_date_though_no_file_moved(monkeypa
     assert outcome["changed"] is True
     assert "reads submittals differently" in outcome["reason"]
 
-def test_the_register_note_empties_when_the_revision_has_no_comments():
+def test_the_register_note_empties_when_the_revision_has_no_comments(monkeypatch):
     """The note is the consultant's words for the revision on show. When
     a revision turns out not to have been answered, the words that were
     there described a different revision and must not stay on it."""
@@ -751,7 +751,13 @@ def test_the_register_note_empties_when_the_revision_has_no_comments():
             return FakeQuery()
         def commit(self):
             pass
+        def flush(self):
+            pass
 
+    # The actions and change rows are app.services.project_state's, tested
+    # with a real session (tests/test_project_state.py).
+    from app.services import project_state
+    monkeypatch.setattr(project_state, "submittals_changed", lambda *a, **k: None)
     project = Project(id=1, ep_number="1", project_name="T")
     standing = ProjectSubmittal(
         project_id=1, title="Fire Alarm", reference="EP-1-MAS-FAS", system_code="FAS",

@@ -120,11 +120,17 @@ def delete_submittal(db: Session, project: Project, user: User | None, *, refere
         row.state, row.last_seen_at = document_sync.REMOVED, now
         document_sync.mark_stale(db, row, f"{row.filename} deleted by {user.full_name if user else 'the platform'}")
     register_rows = 0
+    gone = []
     for submittal in list(project.submittals):
         if (submittal.reference or "").upper() == reference.upper():
+            gone.append(("deleted", submittal.id, submittal.system_code))
             db.delete(submittal)
             register_rows += 1
     db.flush()
+    # The deletion, its change rows and the actions it settles, together.
+    from app.services import project_state
+
+    project_state.submittals_changed(db, project, gone)
     map_rebuilt = False
     if submittal_reader.available(project) is None and root is not None and root.is_dir():
         forms = [Path(r.path) for r in db.query(ProjectDocument)
@@ -271,6 +277,12 @@ def file_package(db: Session, project: Project, user: User | None, *, pdf: bytes
         submittal.reference = reference
         submittal.manufacturer = submittal.manufacturer or manufacturer
     _filed_revision(submittal, number, reference, manufacturer, str(path), user)
+    # The revision, its history, the index row, the actions it settles ("R1
+    # is not filed") and the change row: one commit.
+    from app.services import project_state
+
+    db.flush()
+    project_state.submittals_changed(db, project, [("filed", submittal.id, submittal.system_code)])
     db.commit()
 
     # The map, drawn again from every form the index holds -- readings all

@@ -14,9 +14,10 @@ import {
   type ProjectLogDrawing,
   type ProjectLogs,
   type ProposedMaterials,
+  type ProjectState,
   type Readiness,
-  type SubmittalMap,
 } from "../lib/types";
+import { useOnProjectChange } from "../lib/projectChanges";
 import { useProject } from "./ProjectWorkspace";
 
 /** The project at a glance: what is submitted and where it stands, per
@@ -38,7 +39,7 @@ export function ProjectHomePage() {
   const [readinessError, setReadinessError] = useState<string | null>(null);
   const [logs, setLogs] = useState<ProjectLogs | null>(null);
   const [systems, setSystems] = useState<ProposedMaterials["systems"] | null>(null);
-  const [submittalMap, setSubmittalMap] = useState<SubmittalMap | null>(null);
+  const [projectState, setProjectState] = useState<ProjectState | null>(null);
   const [documents, setDocuments] = useState<DocumentStatus | null>(null);
   const [tab, setTab] = useState<Kind>("submittals");
 
@@ -55,13 +56,27 @@ export function ProjectHomePage() {
   const loadBoard = useCallback(() => {
     api.get<ProjectLogs>(`/projects/${project.id}/logs`).then(setLogs).catch(() => setLogs(null));
     api.get<ProposedMaterials>(`/projects/${project.id}/materials`).then((m) => setSystems(m.systems)).catch(() => setSystems(null));
-    api.get<SubmittalMap>(`/projects/${project.id}/submittals/map`).then(setSubmittalMap).catch(() => setSubmittalMap(null));
+    // Each system's material submittal, shop drawing and sample status and
+    // the project's actions -- worked out by the backend from the same
+    // records Material Submittals, Drawings and Logs show.
+    api.get<ProjectState>(`/projects/${project.id}/state`).then(setProjectState).catch(() => setProjectState(null));
   }, [project.id]);
 
   useEffect(() => {
     loadReadiness();
     loadBoard();
   }, [loadReadiness, loadBoard]);
+
+  // A record changed -- on another page, by another user, or by the sync
+  // worker: read the summary again, without clearing what is on screen.
+  useOnProjectChange(["submittal", "documents", "action", "drawing"], () => {
+    loadReadiness();
+    loadBoard();
+  });
+  const stateBySystem = useMemo(
+    () => new Map((projectState?.systems ?? []).map((s) => [s.code, s])),
+    [projectState],
+  );
 
   const intake = useJob(project.id, "documents_intake", `/projects/${project.id}/jobs/documents-intake`, () => loadReadiness());
 
@@ -83,8 +98,8 @@ export function ProjectHomePage() {
 
   const rows = useMemo(() => systemRows(systems, kinds, project.system_codes), [systems, kinds, project.system_codes]);
   const actions = useMemo(
-    () => openActions(readiness, submittalMap, documents),
-    [readiness, submittalMap, documents],
+    () => openActions(readiness, projectState, documents),
+    [readiness, projectState, documents],
   );
 
   return (
@@ -182,6 +197,7 @@ export function ProjectHomePage() {
                     <td className="px-4 py-2.5 font-medium text-navy-900">
                       {row.title}
                       {row.brand && <span className="ml-2 text-xs font-normal text-gray-500">{row.brand}</span>}
+                      <SystemStatusLine state={stateBySystem.get(row.code)} />
                     </td>
                     {KINDS.map((k) => (
                       <td key={k.key} className="px-4 py-2.5">
@@ -508,12 +524,19 @@ interface OpenAction {
  * it, a file that could not be read. */
 function openActions(
   readiness: Readiness | null,
-  map: SubmittalMap | null,
+  state: ProjectState | null,
   documents: DocumentStatus | null,
 ): OpenAction[] {
   const actions: OpenAction[] = [];
-  for (const action of map?.actions ?? []) {
-    actions.push({ kind: "Material submittal", text: action, severity: "warning", link: "submittal" });
+  // The project's actions, held once by the backend: the same records the
+  // Material Submittals page lists, resolved there and here together.
+  for (const action of state?.actions ?? []) {
+    actions.push({
+      kind: action.kind.startsWith("material_submittal") ? "Material submittal" : action.kind,
+      text: action.text,
+      severity: action.severity === "blocked" ? "blocked" : "warning",
+      link: action.link,
+    });
   }
   for (const check of readiness?.checks ?? []) {
     if (check.status === "ok") continue;
@@ -538,6 +561,40 @@ function openActions(
     });
   }
   return actions;
+}
+
+const STATE_TONE: Record<string, string> = {
+  approved: "text-green-700",
+  under_review: "text-amber-700",
+  returned: "text-rose-700",
+  not_submitted: "text-gray-500",
+  missing: "text-gray-500",
+};
+
+/** "Material submittal: Approved · Shop drawings: Under Review" -- where the
+ * system stands, from the backend's summary of its records. */
+function SystemStatusLine({ state }: { state: ProjectState["systems"][number] | undefined }) {
+  if (!state) return null;
+  const brands = state.material.submittals.length > 1
+    ? ` (${state.material.submittals.map((s) => `${s.brand ?? s.reference ?? s.title} ${s.revision} ${s.code}`).join(", ")})`
+    : "";
+  return (
+    <span className="mt-0.5 block text-xs font-normal text-gray-500">
+      Material submittal: <span className={`font-semibold ${STATE_TONE[state.material.status] ?? ""}`}>{state.material.label}</span>
+      {brands && <span className="text-gray-400">{brands}</span>}
+      {state.shop_drawings && (
+        <>
+          {" · "}Shop drawings:{" "}
+          <span className={`font-semibold ${STATE_TONE[state.shop_drawings.total ? state.shop_drawings.status : "not_submitted"] ?? ""}`}>
+            {state.shop_drawings.total ? state.shop_drawings.label : "Not Submitted"}
+          </span>
+          {state.shop_drawings.total > 0 && (
+            <span className="text-gray-400"> ({state.shop_drawings.approved}/{state.shop_drawings.total} approved)</span>
+          )}
+        </>
+      )}
+    </span>
+  );
 }
 
 function share(part: number, whole: number): number {

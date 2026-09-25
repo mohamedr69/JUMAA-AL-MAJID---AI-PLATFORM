@@ -684,6 +684,7 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
             by_key.setdefault(submittal_key(s.system_code, s.brand_key, s.reference), s)
     by_id = user.id if user else None
     created = updated = unchanged = 0
+    touched: list[tuple[str, ProjectSubmittal]] = []
     for system in submittal_map["systems"]:
         for row in system["rows"]:
             brand = row.get("brand") or ""
@@ -765,11 +766,13 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
             if new:
                 submittal.events.append(ProjectSubmittalEvent(kind="ai_check", detail=detail, by_id=by_id, at=utc_now()))
                 created += 1
+                touched.append(("created", submittal))
             elif changes:
                 submittal.updated_at = utc_now()
                 submittal.events.append(ProjectSubmittalEvent(
                     kind="ai_check", detail=f"{'; '.join(changes)} — {detail}", by_id=by_id, at=utc_now()))
                 updated += 1
+                touched.append(("updated", submittal))
             else:
                 unchanged += 1
     # A reference the map no longer has -- its forms gone from the folder --
@@ -794,12 +797,21 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
         ProjectDocument.state != document_sync.REMOVED,
         ProjectDocument.reference.isnot(None)).all()}
     removed = 0
+    gone: list[tuple[str, int | None, str | None]] = []
     for key, submittal in list(by_key.items()):
         filed_as = {(submittal.reference or "").upper()} | {(r.reference or "").upper() for r in submittal.revisions}
         filed_as |= {str(ref).upper() for r in submittal.revisions for ref in (r.also_filed_as or [])}
         filed_as.discard("")
         if key not in on_map and filed_as and not filed_as & still_filed:
+            gone.append(("deleted", submittal.id, submittal.system_code))
             db.delete(submittal)
             removed += 1
-    db.commit()
+    # Not committed here: the caller commits the register, each revision's
+    # history, the project's actions and the change rows together with the
+    # map they came from (app.services.project_state), or none of them.
+    from app.services import project_state
+
+    db.flush()
+    project_state.submittals_changed(
+        db, project, [(kind, s.id, s.system_code) for kind, s in touched] + gone)
     return {"created": created, "updated": updated, "unchanged": unchanged, "removed": removed}

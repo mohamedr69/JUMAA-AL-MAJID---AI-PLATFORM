@@ -1,7 +1,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { ApiError, api, apiUrl } from "../lib/api";
-import type { ProjectLogs, SampleBoardCheck, SubmittalRegister } from "../lib/types";
-import { directoryRevision, registerRevision, groupRevisions, systemGroup, type LogDocument, type LogRevision } from "../lib/projectLog";
+import type { ProjectLogDrawing, ProjectLogs, SampleBoardCheck } from "../lib/types";
+import { directoryRevision, groupRevisions, systemGroup, type LogDocument, type LogRevision } from "../lib/projectLog";
+import { useOnProjectChange } from "../lib/projectChanges";
 import { useAuth } from "../context/AuthContext";
 import { PROJECT_EDITOR_ROLES } from "../lib/types";
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
@@ -29,7 +30,6 @@ export function ProjectLogsPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [refresh, setRefresh] = useState(0);
   const [logs, setLogs] = useState<ProjectLogs | null>(null);
-  const [submittals, setSubmittals] = useState<SubmittalRegister | null>(null);
   const [system, setSystem] = useState(ALL);
   const [child, setChild] = useState<ChildTab>("submittals");
   const [error, setError] = useState<string | null>(null);
@@ -37,18 +37,14 @@ export function ProjectLogsPage() {
   useEffect(() => {
     let cancelled = false;
     setLogs(null);
-    setSubmittals(null);
     setError(null);
-    // From the index only: opening the logs reads the database. The folder
-    // is read by "Sync documents", which reloads this when it ends.
-    Promise.all([
-      api.get<ProjectLogs>(`/projects/${project.id}/logs`),
-      api.get<SubmittalRegister>(`/projects/${project.id}/submittals`),
-    ])
-      .then(([directory, register]) => {
+    // From the database only: the drawings and samples from the document
+    // index, the Material Submittal Log from the register -- the records the
+    // Material Submittals page edits, never a status of this page's own.
+    api.get<ProjectLogs>(`/projects/${project.id}/logs`)
+      .then((directory) => {
         if (cancelled) return;
         setLogs(directory);
-        setSubmittals(register);
       })
       .catch((err) => {
         if (!cancelled) setError(err instanceof ApiError ? err.message : "Failed to load project logs");
@@ -78,6 +74,12 @@ export function ProjectLogsPage() {
 
   useEffect(() => { setSystem(ALL); }, [project.id]);
 
+  // A submittal changed, or the folder was synced -- here, on another page,
+  // or by the worker: read the log again without clearing the table.
+  useOnProjectChange(["submittal", "documents"], () => {
+    api.get<ProjectLogs>(`/projects/${project.id}/logs`).then(setLogs).catch(() => undefined);
+  });
+
   // An Edwards fire alarm carries voice evacuation and fire telephone (backend system rules).
   const integrated = project.voice_evacuation_integrated;
   const group = (value: string | null): string => systemGroup(value, integrated);
@@ -87,7 +89,7 @@ export function ProjectLogsPage() {
   // management are the fire alarm, and listing the rows gave a tab each.
   const systems = [ALL, ...Array.from(new Set([
     ...project.system_codes,
-    ...(logs?.systems ?? []), ...(submittals?.systems ?? []),
+    ...(logs?.systems ?? []),
     ...(fullPackage ? ["FRC"] : []),
   ].map(group).filter(Boolean)))];
   const selectedSystem = systems.includes(system) ? system : ALL;
@@ -98,12 +100,17 @@ export function ProjectLogsPage() {
   const noDrawings = selectedSystem === "FRC" || project.drawings_in_scope === false;
   const activeChild = noDrawings && child === "drawings" ? "submittals" : child;
   const drawings = (logs?.drawings ?? []).filter((drawing) => matches(drawing.system_code));
-  const directoryReferences = new Set((logs?.material_submittals ?? []).map((item) => item.reference?.replace(/-R\d+$/i, "").toUpperCase()));
-  const items = (submittals?.items ?? []).filter((item) => matches(item.system_code) && !directoryReferences.has(item.reference?.replace(/-R\d+$/i, "").toUpperCase()));
   const samples = (logs?.samples ?? []).filter((file) => matches(file.system_code));
   const boardChecks = (logs?.sample_boards ?? []).filter((check) => matches(check.system_code));
   const materials = (logs?.material_submittals ?? []).filter((item) => matches(item.system_code));
-  const rows = activeChild === "submittals" ? [...items.map(registerRevision), ...materials.map(directoryRevision)]
+  // A submittal comes as its latest revision with the earlier ones under
+  // it, all pinned to the submittal's own reference (a revision can be on
+  // file under another number: our copy, the main contractor's).
+  const withHistory = (file: ProjectLogDrawing) => {
+    const groupReference = file.group_reference ?? file.reference ?? file.name;
+    return [{ ...directoryRevision(file), groupReference }, ...(file.superseded ?? []).map((earlier) => ({ ...directoryRevision(earlier), groupReference }))];
+  };
+  const rows = activeChild === "submittals" ? materials.flatMap(withHistory)
     : activeChild === "samples"
       // A transmittal's sample is filed as "Sample Board" per system: the
       // system goes in the title so the ALL view tells them apart.
@@ -155,7 +162,7 @@ export function ProjectLogsPage() {
   // been opened yet, and shows a submittal as UR because the page carrying
   // the consultant's stamp is still ahead of it -- both read as fact and
   // neither is one. So nothing is shown until the scan has finished.
-  const ready = Boolean(logs && submittals && !logs.scanning);
+  const ready = Boolean(logs && !logs.scanning);
   const total = logs?.total_files ?? 0;
   const done = Math.min(logs?.processed_files ?? 0, total || (logs?.processed_files ?? 0));
   const percent = total ? Math.round((done / total) * 100) : 0;

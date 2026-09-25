@@ -937,6 +937,49 @@ export interface Submittal {
 }
 
 /** One revision of a material submittal and where it stands now. */
+/** Something the project is waiting on, held once by the backend
+ * (app.services.project_state) and shown by every page that lists it. */
+export interface ProjectAction {
+  id: number;
+  key: string;
+  kind: string;
+  system_code: string | null;
+  entity_type: string | null;
+  entity_id: number | null;
+  text: string;
+  severity: string;
+  link: string | null;
+  created_at: string;
+  resolved_at: string | null;
+  resolution: string | null;
+}
+
+export interface SystemMaterialState {
+  submittals: { id: number | null; reference: string | null; title: string; brand: string | null; revision: string;
+    status: string; code: string; path: string | null }[];
+  status: "approved" | "under_review" | "returned" | "not_submitted" | "missing";
+  label: string;
+  approved: boolean;
+}
+
+export interface DocumentKindState {
+  total: number;
+  approved: number;
+  under_review: number;
+  returned: number;
+  status: string;
+  label: string;
+}
+
+/** Project Home's summary, worked out from the records every page shows. */
+export interface ProjectState {
+  systems: { code: string; name: string; material: SystemMaterialState; shop_drawings: DocumentKindState | null;
+    samples: DocumentKindState }[];
+  actions: ProjectAction[];
+  synced_at: string | null;
+  latest_change: number;
+}
+
 export interface SubmittalRevision {
   revision: string;
   status: SubmittalStatus;

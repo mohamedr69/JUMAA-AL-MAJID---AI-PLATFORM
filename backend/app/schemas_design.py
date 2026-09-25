@@ -664,6 +664,8 @@ class SubmittalRevisionOut(BaseModel):
     manufacturer: str | None = None
     document_path: str | None = None
     note: str | None = None
+    # When this revision's status last changed.
+    updated_at: datetime | None = None
 
 
 class SubmittalOut(BaseModel):

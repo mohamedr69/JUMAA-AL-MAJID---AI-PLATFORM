@@ -226,6 +226,9 @@ from app.routers import ifc_boq as ifc_boq_router  # noqa: E402
 app.include_router(ifc_boq_router.router)
 from app.routers import drawings as drawings_router  # noqa: E402
 app.include_router(drawings_router.router)
+# The project's state for every page: the Home summary, actions, changes.
+from app.routers import project_state as project_state_router  # noqa: E402
+app.include_router(project_state_router.router)
 
 # Search the archive's EP folders from the index rather than walking it.
 from app.routers import archive as archive_router  # noqa: E402

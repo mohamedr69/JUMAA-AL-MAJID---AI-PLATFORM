@@ -7,6 +7,7 @@ import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { RequiredDrawingsTab } from "../components/drawings/RequiredDrawingsTab";
 import { UnplacedDrawingsTable, type UnplacedDrawing } from "../components/UnplacedDrawingsTable";
 import { useProject } from "./ProjectWorkspace";
+import { useOnProjectChange } from "../lib/projectChanges";
 
 type Status =
   | "approved"
@@ -296,6 +297,10 @@ function DrawingsWorkspace() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // The shop drawings are read from the document index: a folder sync --
+  // by this page, another, or the worker -- reloads the log here.
+  useOnProjectChange(["documents", "drawing"], load);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();

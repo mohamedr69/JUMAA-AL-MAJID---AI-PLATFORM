@@ -1,5 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, apiUrl } from "../../lib/api";
+import { useOnProjectChange } from "../../lib/projectChanges";
 
 interface RequiredFile {
   path: string;
@@ -9,6 +11,10 @@ interface RequiredFile {
 
 interface RequiredItem {
   key: string;
+  /** "approval": not a file from the contractor but the system's material
+   * approved, read from the material submittal register -- nothing to
+   * request and no folder. */
+  kind?: "approval";
   group: string;
   name: string;
   purpose: string;
@@ -181,6 +187,10 @@ export function RequiredDrawingsTab({
     load();
   }, [load]);
 
+  // The material approval is the register's and the files are the folder
+  // sync's: when either changes, "missing" turns "received" here by itself.
+  useOnProjectChange(["submittal", "documents"], load);
+
   const choose = (code: string) => {
     setSystem(code);
     setOpenFiles(null);
@@ -252,7 +262,7 @@ export function RequiredDrawingsTab({
     );
 
   const items = data.groups.flatMap((g) => g.items);
-  const missing = items.filter((i) => !i.received);
+  const missing = items.filter((i) => !i.received && i.kind !== "approval");
 
   // --- pieces both views use -------------------------------------------------------------------
 
@@ -541,12 +551,18 @@ export function RequiredDrawingsTab({
                               <div className="font-medium text-navy-900">
                                 {i.name}
                               </div>
-                              <div
-                                className="truncate text-xs text-gray-500"
-                                title={i.folder}
-                              >
-                                {i.folder}
-                              </div>
+                              {i.kind === "approval" ? (
+                                <div className="text-xs text-gray-500">
+                                  From the material submittal register
+                                </div>
+                              ) : (
+                                <div
+                                  className="truncate text-xs text-gray-500"
+                                  title={i.folder}
+                                >
+                                  {i.folder}
+                                </div>
+                              )}
                               {fileList(i)}
                             </td>
                             <td className="px-3 py-3 text-gray-700">
@@ -568,7 +584,16 @@ export function RequiredDrawingsTab({
                               {i.remarks}
                             </td>
                             <td className="relative px-3 py-3">
-                              {actions(i, true)}
+                              {i.kind === "approval" ? (
+                                <Link
+                                  to={`/projects/${projectId}/submittal`}
+                                  className="inline-flex items-center justify-center whitespace-nowrap rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-brand-700 hover:bg-gray-50"
+                                >
+                                  Open register
+                                </Link>
+                              ) : (
+                                actions(i, true)
+                              )}
                             </td>
                           </tr>
                         );

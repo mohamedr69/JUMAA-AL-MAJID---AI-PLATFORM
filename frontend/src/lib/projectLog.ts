@@ -1,4 +1,4 @@
-import type { ProjectLogDrawing, Submittal } from "./types";
+import type { ProjectLogDrawing } from "./types";
 
 export interface LogRevision {
   title: string; reference: string; revision: string; status: string; groupReference?: string | null;
@@ -27,11 +27,6 @@ export function directoryRevision(file: ProjectLogDrawing): LogRevision {
   return { title: file.name, reference: file.reference ?? file.name, revision: file.revision ?? "R0",
     status: file.status ?? "UR", path: file.path, system: file.system_code, updated: file.modified,
     floor: file.floor ?? "Not recorded", page: file.page, evidence: file.reply_text, source: file.source, groupReference: file.group_reference };
-}
-export function registerRevision(item: Submittal): LogRevision {
-  return { title: item.title, reference: item.reference ?? item.title, revision: item.revision.replace(/^R0+(\d)/i, "R$1"),
-    status: item.reply_code === "B" ? "ANN" : item.reply_code ? item.status.replaceAll("_", " ") : "UR",
-    path: item.document_path, system: item.system_code, updated: item.updated_at, floor: "Not recorded" };
 }
 export function groupRevisions(rows: LogRevision[], voiceEvacuationIntegrated = false): LogDocument[] {
   const groups = new Map<string, LogDocument>();

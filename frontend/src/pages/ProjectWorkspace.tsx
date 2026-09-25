@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, Outlet, useLocation, useNavigate, useOutletContext, useParams } from "react-router-dom";
 import { ApiError, api } from "../lib/api";
 import type { Project } from "../lib/types";
+import { ProjectChangesProvider } from "../lib/projectChanges";
 
 export interface ProjectContext {
   project: Project;
@@ -149,7 +150,11 @@ export function ProjectWorkspace() {
       </aside>
 
       <div className="min-w-0 flex-1">
-        <Outlet context={context} />
+        {/* Every page below is a view of the project's records; this tells
+            them when a record changed, wherever it was changed. */}
+        <ProjectChangesProvider projectId={project.id}>
+          <Outlet context={context} />
+        </ProjectChangesProvider>
       </div>
     </div>
   );
