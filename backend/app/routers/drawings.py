@@ -67,9 +67,10 @@ def _systems_with_drawings(project, records) -> list[str]:
     return codes
 
 
-def _log(db: Session, project, system: str | None = None) -> dict:
+def in_force_drawings(db: Session, project) -> list[dict]:
+    """The IFC drawings in force, resolved -- read by the logs for their
+    floors (identity and building order) only."""
     from app.routers.ifc_boq import _superseded
-    from app.services import document_sync
 
     later = _superseded(db, project.id)
     in_force = []
@@ -79,6 +80,13 @@ def _log(db: Session, project, system: str | None = None) -> dict:
             continue
         r = resolved_drawing(db, d, with_occurrences=False)
         in_force.append({**r, "id": d.id, "filename": d.filename, "revision": d.revision or "R0"})
+    return in_force
+
+
+def _log(db: Session, project, system: str | None = None) -> dict:
+    from app.services import document_sync
+
+    in_force = in_force_drawings(db, project)
 
     records, warnings = ([], [])
     if project.source_folder_path:

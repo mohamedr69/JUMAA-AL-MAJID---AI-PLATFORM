@@ -1386,7 +1386,8 @@ def project_logs(
                                   for row in records if row.system_code and row.category != "submittals"}
                        | {row["system_code"] for row in material_log if row["system_code"]}),
         material_submittals=material_log,
-        drawings=[output(row) for row in records if row.category == "drawings"],
+        drawings=[output(row) for row in _in_building_order(db, project,
+                                                            [r for r in records if r.category == "drawings"])],
         samples=[output(row) for row in records if row.category == "samples"],
         # Not before the first sync: an unread folder is not a missing board.
         sample_boards=sample_board_checks(project, [row for row in records if row.category == "samples"])
@@ -1396,6 +1397,16 @@ def project_logs(
     )
 
 
+
+
+def _in_building_order(db: Session, project: Project, drawings: list) -> list:
+    """Drawings from the lowest floor to the top, as the Drawings Log has
+    them (app.services.drawing_log.building_order): every project, every
+    system."""
+    from app.routers.drawings import in_force_drawings
+    from app.services.drawing_log import building_order
+
+    return sorted(drawings, key=building_order(drawings, in_force_drawings(db, project)))
 
 
 def sample_board_checks(project: Project, samples: list) -> list[SampleBoardCheckOut]:

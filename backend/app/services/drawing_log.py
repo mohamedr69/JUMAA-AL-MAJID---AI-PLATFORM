@@ -179,6 +179,8 @@ def floor_label(name: str) -> str:
     a sheet number carried in from the title dropped ('119 STRUCTURAL SLAB')."""
     text = re.sub(r"^\d{2,}\s+(?=[A-Z])", "", name.strip(), flags=re.I)
     text = re.sub(r"\b(\d+)(St|Nd|Rd|Th)\b", lambda m: m.group(1) + m.group(2).lower(), text.title())
+    # A floor written as its code stays one: "GF", "LG", "RF", not "Gf".
+    text = re.sub(r"\b(Gf|Lg|Ug|Rf|Trf|Mep)\b", lambda m: m.group(1).upper(), text)
     return re.sub(r"(?<=\s)(To|And|Of)(?=\s)", lambda m: m.group(1).lower(), text)
 
 
@@ -252,6 +254,35 @@ def _spelled(key: str) -> str:
     number = digits.group() if digits else ""
     word = {"B": "Basement", "P": "Podium", "L": "Level"}.get(key[:1])
     return f"{word} {number}" if word and number else floor_label(key)
+
+
+def _floors_in_words(keys, called: dict[str, str]) -> str:
+    """The floors a drawing stands for, in words: a run of three or more
+    consecutive levels as a run ("Level 4 to 21"), not one name per floor."""
+    ordered = sorted(keys, key=_floor_order)
+    parts: list[str] = []
+    run: list[tuple[str, int]] = []
+
+    def flush():
+        if len(run) >= 3:
+            parts.append(f"{called.get(run[0][0]) or _spelled(run[0][0])} to {run[-1][1]}")
+        else:
+            parts.extend(called.get(k) or _spelled(k) for k, _ in run)
+        run.clear()
+
+    for key in ordered:
+        match = re.fullmatch(r"([BPL])(\d+)", key)
+        number = int(match.group(2)) if match else None
+        if run and match and key[0] == run[-1][0][0] and abs(number - run[-1][1]) == 1:
+            run.append((key, number))
+            continue
+        flush()
+        if match:
+            run.append((key, number))
+        else:
+            parts.append(called.get(key) or _spelled(key))
+    flush()
+    return ", ".join(parts)
 
 
 def _floor_order(key: str) -> tuple:
@@ -334,9 +365,7 @@ def _by_floor(unmatched: list, aliases: dict[str, str] | None = None) -> list[di
         # not claim floors it no longer covers.
         covers = floor_identity(latest.floor, latest.name, aliases) if latest.floor else set()
         held_all = covers and covers == set(keys)
-        label = (latest.floor if held_all
-                 else ", ".join(called.get(k) or _spelled(k)
-                                for k in sorted(keys, key=_floor_order)))
+        label = latest.floor if held_all else _floors_in_words(keys, called)
         rows.append(_unplaced_row(latest, floor=label, cells=revisions, floors=len(keys), keys=set(keys)))
     rows.sort(key=lambda row: _floor_order(sorted(floors_named(row["floor_named"]) or {""},
                                                   key=_floor_order)[0] or ""))
@@ -432,6 +461,22 @@ def _height(keys: list[str], heights: dict[str, float]) -> tuple:
             height = (-_ROOF if _DOWN_BELOW.search(key) else _ROOF + 50 if _UP_TOP.search(key) else _ROOF - 1)
         found.append(height)
     return (0, min(found), keys[0])
+
+
+def building_order(records: list, drawings: list[dict]):
+    """A sort key putting drawing records in building order, from the
+    lowest floor to the top -- the same order the Drawings Log uses, for
+    any list of drawings (the Logs page's Drawings tab)."""
+    aliases = floor_aliases(
+        [(r.floor, r.name) for entry in records for r in (entry, *getattr(entry, "superseded", ()))]
+        + [(sheet.get("floor_name"), sheet.get("title")) for d in drawings for sheet in d.get("sheets") or []
+           if sheet.get("kind") == "plan"])
+    heights = floor_heights(_rows(drawings, aliases))
+
+    def key(record) -> tuple:
+        keys = sorted(floor_identity(record.floor, record.name, aliases), key=_floor_order) if record.floor else []
+        return (*_height(keys, heights), record.reference or "")
+    return key
 
 
 def build(drawings: list[dict], records: list, in_system=lambda code: (code or "").upper() in ("FAS", "FA")) -> dict:

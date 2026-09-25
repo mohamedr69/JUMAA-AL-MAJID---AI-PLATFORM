@@ -49,7 +49,8 @@ def floor_key(label: str) -> tuple[str, float, str]:
     t = re.sub(r"[_\-.]", " ", str(label).upper())
     t = " ".join(t.split())
     n = _number(t)
-    if re.search(r"\bBASEMENT\b|\bB\s?\d\b", t):
+    # "B4" and "B05" alike: a basement number may be written with its zero.
+    if re.search(r"\bBASEMENT\b|\bB\s?\d{1,2}\b", t):
         n = n or 1
         return f"B{n}", -float(n), f"Basement {n}"
     if re.search(r"\bLOWER\s+GROUND\b|\bLG\b", t):

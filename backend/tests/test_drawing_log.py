@@ -179,6 +179,27 @@ def test_the_log_runs_from_the_lowest_floor_to_the_top():
         "Lift Machine Room Floor", "Top of Lift Machine Floor"]
 
 
+def test_every_system_and_project_runs_bottom_to_top():
+    """The order is the building's, for any system: "B05" is basement 5
+    (below B4, not level 5), a floor code stays a code ("GF"), and a run of
+    floors reads as a run."""
+    from app.ifc.comparison import floor_key
+    from app.services.drawing_log import building_order
+
+    assert floor_key("B05")[0] == "B5" and floor_key("B4")[0] == "B4" and floor_label("GF") == "GF"
+    records = [_doc("L32", "R0", "UR", system="ELS", ref="E-L32"), _doc("GF", "R0", "UR", system="ELS", ref="E-GF"),
+               _doc("B4", "R0", "UR", system="ELS", ref="E-B4"), _doc("B05", "R0", "UR", system="ELS", ref="E-B05"),
+               _doc("L01", "R0", "UR", system="ELS", ref="E-L01")]
+    out = build([], records, in_system=lambda code: code == "ELS")
+    assert [r["floor"] for r in out["rows"]] == ["B05", "B4", "GF", "L01", "L32"]
+    assert [r.reference for r in sorted(records, key=building_order(records, []))] == [
+        "E-B05", "E-B4", "E-GF", "E-L01", "E-L32"]
+    # A typical drawing whose first floor another drawing took: the rest, as a run.
+    run = build([], [_doc("TYPICAL 3RD TO 21ST FLOOR", "R0", "UR", ref="SD-TYP"),
+                     _doc("Level 3", "R1", "UR", ref="SD-L03")])
+    assert [r["floor"] for r in run["rows"]] == ["Level 3", "Level 4 to 21"]
+
+
 def test_revisions_grow_with_what_was_submitted():
     out = build(IFC, [_doc("Ground Floor", "R4", "UR")])
     assert out["revisions"] == ["R0", "R1", "R2", "R3", "R4"]
