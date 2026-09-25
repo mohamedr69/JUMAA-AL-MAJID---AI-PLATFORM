@@ -213,7 +213,7 @@ def test_one_sync_runs_at_a_time_across_projects(file_db):
     b, _ = jobs.enqueue(db, kind=SYNC, project_id=2, user_id=None)
     c, _ = jobs.enqueue(db, kind=SYNC, project_id=3, user_id=None)
     first = jobs.claim_next(db, "worker-1")
-    assert first.id == a.id and first.status == "running" and first.attempts == 1
+    assert first.id == a.id and first.status == "running" and first.worker_id == "worker-1"
     assert jobs.claim_next(db, "worker-2") is None, "B waits while A runs"
     _set_status(db, a.id, "succeeded")
     second = jobs.claim_next(db, "worker-2")
@@ -339,12 +339,13 @@ def test_a_worker_shutdown_puts_the_running_job_back_in_the_queue(file_db):
     db.expire_all()
     job = db.get(BackgroundJob, queued.id)
     assert job.status == "queued" and job.worker_id is None and "carry on" in job.progress["message"]
+    assert job.attempts == 0, "a proper stop is not counted against the job"
     db.close()
 
 
 def test_a_job_left_running_by_a_dead_worker_is_recovered(file_db):
-    """Test 13: requeued once; failed when it keeps taking the worker down;
-    left alone while its worker is alive."""
+    """Test 13: requeued, and counted; failed when it keeps taking the
+    worker down; left alone while its worker is alive."""
     db = file_db()
     long_ago = utc_now() - timedelta(minutes=5)
     dead = BackgroundJob(kind=SYNC, project_id=20, status="running", progress={}, heartbeat_at=long_ago,
@@ -363,9 +364,10 @@ def test_a_job_left_running_by_a_dead_worker_is_recovered(file_db):
     assert db.get(BackgroundJob, dead.id).status == "queued" and db.get(BackgroundJob, dead.id).worker_id is None
     assert "not started again" in db.get(BackgroundJob, again.id).error
     assert db.get(BackgroundJob, alive.id).status == "running"
-    # The requeued one is claimed again, and counted.
+    # The requeued one is counted, and claimed again.
+    assert db.get(BackgroundJob, dead.id).attempts == 2
     _set_status(db, alive.id, "succeeded")
-    assert jobs.claim_next(db, "new-worker").attempts == 2
+    assert jobs.claim_next(db, "new-worker").id == dead.id
     db.close()
 
 

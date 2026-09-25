@@ -892,8 +892,9 @@ class BackgroundJob(Base):
     # running job whose heartbeat stops was left by a worker that died.
     worker_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
-    # How many times a worker has started it; a job that keeps taking its
-    # worker down is failed rather than restarted for ever.
+    # How many times a worker died while running it (app.services.jobs.
+    # recover_stale); a job that keeps taking its worker down is failed
+    # rather than restarted for ever.
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
 

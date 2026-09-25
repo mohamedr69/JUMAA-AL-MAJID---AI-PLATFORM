@@ -62,7 +62,8 @@ QUEUED_MESSAGE = "Queued: waiting for the background worker"
 # heartbeat is older than STALE_AFTER was left by a worker that died.
 HEARTBEAT_SECONDS = 10
 STALE_AFTER = timedelta(seconds=90)
-# Started this many times and never finished: failed, not restarted again.
+# Left running this many times by a worker that died: the next time, failed
+# rather than queued again -- something in it keeps taking the worker down.
 MAX_ATTEMPTS = 2
 
 
@@ -257,8 +258,7 @@ def claim(db: Session, job_id: int, worker_id: str, kinds: tuple[str, ...] = WOR
         update(table)
         .where(table.c.id == job_id, table.c.status == "queued", table.c.kind.in_(kinds),
                ~exists(select(other.c.id).where(other.c.kind.in_(kinds), other.c.status == "running")))
-        .values(status="running", started_at=now, heartbeat_at=now, worker_id=worker_id,
-                attempts=table.c.attempts + 1)
+        .values(status="running", started_at=now, heartbeat_at=now, worker_id=worker_id)
     ).rowcount
     db.commit()
     if claimed != 1:
@@ -301,10 +301,12 @@ def recover_stale(db: Session, *, stale_after: timedelta = STALE_AFTER, max_atte
     """Running worker jobs whose worker stopped saying it was alive -- a PC
     switched off, a worker window closed. A sync reads only what is not in
     the index yet, so starting it again carries on where it stopped: such a
-    job goes back in the queue, unless it has already been started
-    `max_attempts` times (something in it keeps taking the worker down), in
-    which case it is failed and says why. A stop that was asked for is
-    honoured. Returns (job id, what was done) for each."""
+    job goes back in the queue, counted in `attempts`. One already left
+    behind `max_attempts` times is failed instead and says why: something in
+    it keeps taking the worker down. (A worker that is stopped properly puts
+    its job back itself, uncounted -- closing it at the end of the day
+    costs a sync nothing.) A stop that was asked for is honoured. Returns
+    (job id, what was done) for each."""
     table = BackgroundJob.__table__
     cutoff = utc_now() - stale_after
     stale = db.query(BackgroundJob).filter(
@@ -320,11 +322,12 @@ def recover_stale(db: Session, *, stale_after: timedelta = STALE_AFTER, max_atte
             action = "cancelled"
         elif (job.attempts or 0) >= max_attempts:
             values = {"status": "failed", "finished_at": utc_now(),
-                      "error": f"The worker stopped while running this job {job.attempts} times, so it was not "
-                               "started again. Start the sync again once the cause is fixed."}
+                      "error": f"The worker stopped without finishing this job {job.attempts + 1} times, so it "
+                               "was not started again. Start the sync again once the cause is fixed."}
             action = "failed"
         else:
             values = {"status": "queued", "started_at": None, "worker_id": None, "heartbeat_at": None,
+                      "attempts": (job.attempts or 0) + 1,
                       "progress": {"done": 0, "total": 0,
                                    "message": "Interrupted when the worker stopped; queued to carry on"}}
             action = "requeued"
