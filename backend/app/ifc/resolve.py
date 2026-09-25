@@ -16,7 +16,7 @@ from app.models import ProjectIfcDrawing as Drawing
 from . import hints
 from .dxf import matcher
 from .dxf.extract import _XREF_NAME
-from .dxf.sheets import OUTSIDE, floor_count, floor_name, parse_floors, refresh_floors
+from .dxf.sheets import NOT_IDENTIFIED, OUTSIDE, floor_count, floor_name, parse_floors, refresh_floors
 
 MODEL = "Model"
 
@@ -27,21 +27,41 @@ def library(db: Session) -> tuple[list[Symbol], dict[str, int]]:
     return symbols, aliases
 
 
+def name_floor(sheet: dict) -> None:
+    """The floor a plan sheet is of, from its drawing title: set as
+    "floor_name", with "floor_identified". A title that names no floor is not
+    given one -- the sheet is "Floor not identified" and says why, so its
+    devices are counted under that, not under a guess."""
+    if sheet["kind"] != "plan":
+        sheet["floor_name"], sheet["floor_identified"] = sheet["title"], True
+        return
+    name = floor_name(sheet["title"])
+    sheet["floor_name"], sheet["floor_identified"] = name or NOT_IDENTIFIED, name is not None
+    if name is None:
+        why = (f'the drawing title "{sheet["title"]}" names no floor' if sheet["title"]
+               else "no drawing title was found on the sheet")
+        sheet["note"] = (sheet.get("note") + "; " if sheet.get("note") else "") + f"{NOT_IDENTIFIED}: {why}"
+
+
 def floor_sheets(drawing: Drawing) -> tuple[list[dict], bool]:
     """The drawing's sheets with the floor multiplier in force (the title's
     reading, or the user's override). Returns (sheets, single_floor): when
-    no floor-plan sheet shows any device the whole drawing is one floor,
-    named by its file."""
+    no floor-plan sheet shows any device the whole drawing is one floor --
+    named by its one floor-plan sheet's title, never by its file name; a
+    drawing with several plan sheets and none showing a device cannot say
+    which floor it is, and says so."""
     meta = drawing.meta or {}
     overrides = meta.get("floor_overrides") or {}
     sheets = refresh_floors([dict(s) for s in meta.get("sheets") or []])
     used = {o.get("sheet") for g in drawing.groups or [] for o in g.get("occurrences", [])}
     plans_used = [s for s in sheets if s["kind"] == "plan" and s["name"] in used]
     if not plans_used:
-        title = drawing.filename.rsplit(".", 1)[0]
+        plans = [s for s in sheets if s["kind"] == "plan"]
+        title = plans[0]["title"] if len(plans) == 1 else ""
+        source = plans[0].get("title_source", "") if len(plans) == 1 else ""
         floors = parse_floors(title)
         sheets = [{"name": MODEL, "title": title, "kind": "plan", "floors": floors,
-                   "multiplier": floor_count(title, floors), "note": ""}]
+                   "multiplier": floor_count(title, floors), "note": "", "title_source": source}]
         single = True
     else:
         single = False
@@ -147,6 +167,7 @@ def floor_boq(groups: list[dict], plans: list[dict], order: dict[int, int]) -> d
                     for i in ids if count[s["name"], i]]
             floors.append({
                 "sheet": s["name"], "title": s["title"], "floor_name": s["floor_name"],
+                "floor_identified": s.get("floor_identified", True),
                 "floors": s["floors"], "multiplier": s["multiplier"], "rows": rows,
                 "per_floor": sum(r["per_floor"] for r in rows), "qty": sum(r["qty"] for r in rows),
             })
@@ -215,12 +236,13 @@ def resolved_drawing(db: Session, drawing: Drawing, with_occurrences: bool = Tru
         "mode": mode,
         "plans": len(plans_considered),
         "floors": floors_total,
-        "floor_name": floor_name(plans_considered[0]["title"]) if len(plans_considered) == 1 else None,
+        "floor_name": ((floor_name(plans_considered[0]["title"]) or NOT_IDENTIFIED)
+                       if len(plans_considered) == 1 else None),
         "excluded_sheets": [f'{s["name"]} {s["title"]}' for s in sheets if s["kind"] == "diagram"],
         "architecture_found": bool(arch.get("found")),
     }
     for s in all_sheets:
-        s["floor_name"] = floor_name(s["title"]) if s["kind"] == "plan" else s["title"]
+        name_floor(s)
     order = {t.id: t.sort_order for t in db.query(DeviceType).all()}
     boq = floor_boq(groups, [s for s in sheets if s["kind"] == "plan"], order)
 

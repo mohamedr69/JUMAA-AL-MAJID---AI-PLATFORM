@@ -537,11 +537,104 @@ def test_quantities_are_listed_floor_by_floor(client):
     assert rows[-1][3] == "TOTAL" and rows[-1][7] == 19
 
 
-def test_one_plan_for_several_floors_is_multiplied(client):
+def test_a_drawing_with_no_title_block_is_not_given_a_floor_from_its_file_name(client):
+    """The floor comes from the drawing's title block, never its file name:
+    a drawing with no sheet to read a title from is "Floor not identified"
+    and counted once, however many floors its file name mentions."""
     d = upload(client, make_dxf(_TMP / "257-Sheet - FA-105 - TYP(1ST TO 14TH) FLOORS FIRE ALARM LAYOUT.dxf", [("SD", smoke, 0, 0, 0), ("SD", smoke, 900, 0, 0)]))
-    assert d["floor_info"]["mode"] == "multiple"
-    assert d["floor_info"]["floors"] == 14 and d["floor_info"]["floor_name"] == "TYP (1ST TO 14TH) FLOORS"
-    assert d["totals"]["fire_alarm"] == 2 * 14
+    assert d["floor_info"]["mode"] == "single"
+    assert d["floor_info"]["floors"] == 1 and d["floor_info"]["floor_name"] == "Floor not identified"
+    assert d["totals"]["fire_alarm"] == 2
+
+
+def title_block_dxf(filename: str, titles: dict[str, list[tuple[str, float]]]) -> Path:
+    """A sheet per floor the way EP-30784's title block lays them out: the
+    block holds its own words -- the building, "DRAWING TITLE:", "DWG NO:" --
+    and each sheet writes its title under the label, a line at a time, the
+    drawing's name ("FIRE ALARM LAYOUT") larger than the floor's."""
+    doc = ezdxf.new("R2018")
+    smoke(doc.blocks.new("SD"))
+    msp = doc.modelspace()
+    block = doc.blocks.new("TITLE-BLOCK-A1")
+    block.add_mtext("4B + G + 3P + 61 FLOORS + ROOF", dxfattribs={"char_height": 2.5}).set_location((780, 107))
+    block.add_mtext("SCALE:", dxfattribs={"char_height": 2}).set_location((728, 71))
+    block.add_mtext("DRAWING TITLE:", dxfattribs={"char_height": 2}).set_location((728, 54))
+    block.add_mtext("DWG NO:", dxfattribs={"char_height": 2}).set_location((763, 36))
+    for n, (name, lines) in enumerate(titles.items()):
+        x0 = n * 100_000
+        for i in range(3):
+            msp.add_blockref("SD", (x0 + 5000 + i * 3000, 5000), dxfattribs={"layer": "E-FIRE"})
+        lay = doc.layouts.new(name)
+        lay.add_viewport(center=(400, 300), size=(700, 500), view_center_point=(x0 + 10_000, 5000), view_height=30_000)
+        lay.add_blockref("TITLE-BLOCK-A1", (0, 0))
+        y = 46
+        for text, height in lines:
+            lay.add_text(text, height=height, dxfattribs={"layer": "60-TITLE-SHEET"}).set_placement((748, y))
+            y -= 5
+    path = _TMP / filename
+    doc.saveas(path)
+    return path
+
+
+def test_the_floor_is_read_from_the_drawing_title_in_the_title_block(client):
+    """EP-30784: "PODIUM-3 FLOOR PLAN" over a larger "FIRE ALARM LAYOUT"
+    is Podium-3 -- not the larger line, not the building's description in
+    the title block, not the sheet's number. A title that names no floor is
+    flagged, not guessed; a typical floor's title multiplies its plan."""
+    d = upload(client, title_block_dxf("ep-30784-fire-alarm.dxf", {
+        "FA 107": [("PODIUM-3 FLOOR PLAN", 3.0), ("FIRE ALARM LAYOUT", 3.5)],
+        "FA 101": [("BASEMENT- 4 FLOOR PLAN", 3.0), ("FIRE ALARM LAYOUT", 3.5)],
+        "FA 115": [("L23 TO L40 - RES 20 TO 37 (TYP 1A) FLOOR PLAN", 3.0), ("FIRE ALARM LAYOUT", 3.5)],
+        "FA 130": [("FIRE ALARM LAYOUT", 3.5)],
+    }))
+    sheets = {s["name"]: s for s in d["sheets"]}
+    assert sheets["FA 107"]["title"] == "PODIUM-3 FLOOR PLAN FIRE ALARM LAYOUT"
+    assert sheets["FA 107"]["title_source"] == "drawing title"
+    assert (sheets["FA 107"]["floor_name"], sheets["FA 107"]["floor_identified"]) == ("PODIUM-3", True)
+    assert sheets["FA 101"]["floor_name"] == "BASEMENT-4"
+    assert sheets["FA 115"]["floor_name"] == "L23 TO L40"
+    assert sheets["FA 115"]["floors"] == list(range(23, 41)) and sheets["FA 115"]["multiplier"] == 18
+    assert (sheets["FA 130"]["floor_name"], sheets["FA 130"]["floor_identified"]) == ("Floor not identified", False)
+    assert "names no floor" in sheets["FA 130"]["note"]
+
+    floors = {f["sheet"]: f for f in d["floor_boq"]["fire_alarm"]["floors"]}
+    assert floors["FA 107"]["floor_name"] == "PODIUM-3" and floors["FA 107"]["qty"] == 3
+    assert floors["FA 115"]["qty"] == 3 * 18
+    # Counted, under the flag: nothing is dropped for want of a floor name.
+    assert floors["FA 130"]["floor_name"] == "Floor not identified" and floors["FA 130"]["qty"] == 3
+    assert d["totals"]["fire_alarm"] == 3 + 3 + 3 * 18 + 3
+
+
+def test_floor_names_as_the_title_block_gives_them():
+    from app.ifc.dxf.sheets import identify_floor, parse_floors
+
+    assert identify_floor("PODIUM-3 FLOOR PLAN FIRE ALARM LAYOUT") == "PODIUM-3"
+    assert identify_floor("LEVEL-01 FLOOR PLAN") == "LEVEL-01"
+    assert identify_floor("GROUND FLOOR PLAN") == "GROUND FLOOR"
+    assert identify_floor("BASEMENT-2 FLOOR PLAN") == "BASEMENT-2"
+    assert identify_floor("ROOF FLOOR PLAN") == "ROOF"
+    assert identify_floor("3RD BASEMENT FLOOR PLAN") == "3RD BASEMENT"
+    assert identify_floor("TYPICAL 3RD TO 16TH FLOOR PLAN") == "TYPICAL 3RD TO 16TH FLOOR"
+    assert identify_floor("11TH FLOOR PLAN EMERGENCY LAYOUT") == "11TH FLOOR"
+    # Named levels keep their words and their ordinal: two mechanical floors are two floors.
+    assert identify_floor("1ST MECHANICAL FLOOR PLAN FIRE ALARM LAYOUT") == "1ST MECHANICAL FLOOR"
+    assert identify_floor("1ST STRUCTURAL (NON ACCESSIBLE) FLOOR PLAN") == "1ST STRUCTURAL (NON ACCESSIBLE) FLOOR"
+    # Levels numbered with an L before any other number: the RES numbers are flats.
+    assert identify_floor("L54 - RES 50TH FLOOR PLAN (TYPE-2B) FIRE ALARM LAYOUT") == "L54"
+    assert identify_floor("L52 & 53- RES 48 & 49 FLOOR PLAN (TYPE-2A)") == "L52 & 53"
+    # Not a floor: the drawing's name, a sheet number, another drawing's number.
+    assert identify_floor("FIRE ALARM LAYOUT") is None
+    assert identify_floor("FA 119 STRUCTURAL SLAB") == "STRUCTURAL SLAB"
+    assert identify_floor("LAC-653-PLN-L11-ELV-FA-117 FIRE ALARM LAYOUT") is None
+    # The floors a title stands for: levels by their L numbers, not the flats'.
+    assert parse_floors("L23 TO L40 - RES 20 TO 37 (TYP 1A) FLOOR PLAN") == list(range(23, 41))
+    assert parse_floors("LEVEL-14TH & 21ST FLOOR PLAN") == [14, 21]
+    assert parse_floors("L52 & 53- RES 48 & 49 FLOOR PLAN") == [52, 53]
+    assert parse_floors("L43 TO L50 RES 39 TO 46 FLOOR PLAN") == list(range(43, 51))
+    # The 3rd structural floor is not level 3: taking it for one took levels
+    # 3 and 4 off EP-30784's "L03 TO L21" typical plan.
+    assert parse_floors("3RD STRUCTURAL (NON ACCESSIBLE) FLOOR FIRE ALARM LAYOUT") == []
+    assert parse_floors("11TH FLOOR PLAN") == [11]
 
 
 def architecture_block(doc, name="ARCH-RVT-1-FA-104"):

@@ -8,6 +8,14 @@ device drawn in that area is on that floor. The sheet's title block names
 the floor, and a typical-floor title says how many floors the plan stands
 for ("TYP 2-10,12-16 FLOOR PLAN" is 14 floors).
 
+The floor is read from the DRAWING TITLE in the title block, never from the
+file name, the layout (sheet) name, the drawing number or the devices. A
+title block labels its title ("DRAWING TITLE:") and the title is the lines
+written under that label, down to the next field ("DWG NO:"): on EP-30784
+that is "PODIUM-3 FLOOR PLAN" over "FIRE ALARM LAYOUT" -- the floor is the
+first, though the second is written larger. Where no title names a floor,
+the sheet says "Floor not identified" rather than being given a guess.
+
 Riser, schematic and detail sheets repeat the devices as diagram symbols,
 and devices outside every sheet are scratch copies: neither is counted.
 A single Revit sheet (one Layout1 viewport) is simply one floor, named by
@@ -26,6 +34,15 @@ TITLE_WORDS = re.compile(r"FLOOR|LEVEL|BASEMENT|ROOF|PODIUM|MEZZ|GROUND|TYP|PLAN
 _NOTE = re.compile(r"^\s*\d+\s*[.)]")  # "1. FIRE ALARM CABLE SHALL BE ..."
 _ORD = r"(?:ST|ND|RD|TH)?"
 _RANGE = re.compile(rf"(?<![\w-])(\d{{1,3}})\s*{_ORD}\s*(?:-|–|TO)\s*(\d{{1,3}})\s*{_ORD}(?![\d])", re.I)
+# Levels numbered with an L: "L23 TO L40 - RES 20 TO 37 (TYP 1A) FLOOR PLAN"
+# is levels 23 to 40; the RES numbers after it are the flats', not floors.
+_L_RANGE = re.compile(r"(?<![\w-])L\s?(\d{1,3})\s*(?:-|–|TO)\s*L\s?(\d{1,3})(?!\d)", re.I)
+# An ordinal followed by a name of its own counts floors of that kind, not the
+# building's: "3RD STRUCTURAL FLOOR", "2ND MECHANICAL FLOOR" are not floors 3 and
+# 2 -- and taking them for those took floors 3 and 4 off "L03 TO L21".
+_OWN_NAME = re.compile(r"\s+(?!(?:FLOORS?|LEVELS?|FLR|LVL|AND|TO)\b)[A-Z]{2,}", re.I)
+_L_LIST = re.compile(r"(?<![\w-])L\s?\d{1,3}(?:\s*(?:&|,|AND)\s*L?\s?\d{1,3}(?!\d))+", re.I)
+_L_SINGLE = re.compile(r"(?<![\w-])L\s?(\d{1,3})(?![\w])", re.I)
 _SINGLE = re.compile(r"(?<![\w-])(\d{1,3})\s*(?:ST|ND|RD|TH)\b", re.I)
 # A level with a name of its own: "3RD BASEMENT", "2ND PODIUM" count basements
 # and podiums, not the building's numbered floors -- the typical "3RD TO 16TH
@@ -59,10 +76,14 @@ class Sheet:
     multiplier: int = 1
     note: str = ""
     windows: list[Window] = field(default_factory=list)
+    # Where the title was read: "drawing title" (the lines under the title
+    # block's DRAWING TITLE label), "title text" (the sheet's title-like
+    # text, where the title block has no such label), "" (nothing titled).
+    title_source: str = ""
 
     def to_dict(self) -> dict:
         return {"name": self.name, "title": self.title, "kind": self.kind, "floors": self.floors,
-                "multiplier": self.multiplier, "note": self.note}
+                "multiplier": self.multiplier, "note": self.note, "title_source": self.title_source}
 
 
 OUTSIDE = "(outside sheets)"
@@ -73,8 +94,29 @@ def parse_floors(title: str) -> list[int]:
     '1ST TO 14TH' -> 1..14, '11TH FLOOR' -> [11]. Named levels
     ('BASEMENT-02', '3RD BASEMENT', '2ND PODIUM', 'GROUND', 'ROOF') give [],
     i.e. one floor."""
-    t = title.upper()
+    # "LEVEL-14TH & 21ST": the dash joins the word to its floors; it is not part of a number.
+    t = re.sub(r"\b(LEVELS?|FLOORS?|LVL)\s*[-–]\s*", r"\1 ", title.upper())
     floors: set[int] = set()
+    # Levels numbered with an L are the floors, and any other number in the
+    # title is not: "L43 TO L50 RES 39 TO 46", "L52 & 53- RES 48 & 49", "L41 - 3RD
+    # MECHANICAL FLOOR" (the 3rd mechanical floor is level 41).
+    taken = []
+    for m in _L_RANGE.finditer(t):
+        a, b = int(m.group(1)), int(m.group(2))
+        if 0 < a <= b <= 200:
+            floors.update(range(a, b + 1))
+            taken.append(m.span())
+    for m in _L_LIST.finditer(t):
+        if any(s <= m.start() < e for s, e in taken):
+            continue
+        numbers = [int(n) for n in re.findall(r"\d{1,3}", m.group(0))]
+        floors.update(n for n in numbers if 0 < n <= 200)
+        taken.append(m.span())
+    for m in _L_SINGLE.finditer(t):
+        if not any(s <= m.start() < e for s, e in taken) and 0 < int(m.group(1)) <= 200:
+            floors.add(int(m.group(1)))
+    if floors:
+        return sorted(floors)
     spans = []
     for m in _RANGE.finditer(t):
         if _NAMED_LEVEL.match(t, m.end()):
@@ -87,7 +129,7 @@ def parse_floors(title: str) -> list[int]:
     for m in _SINGLE.finditer(t):
         if any(s <= m.start() < e for s, e in spans):
             continue
-        if _NAMED_LEVEL.match(t, m.end()):
+        if _NAMED_LEVEL.match(t, m.end()) or _OWN_NAME.match(t, m.end()):
             continue
         n = int(m.group(1))
         if 0 < n <= 200:
@@ -116,47 +158,197 @@ def floor_count(title: str, floors: list[int]) -> int:
     return 1
 
 
-def floor_name(title: str) -> str:
-    """The floor a title names, without the drawing words:
-    'HC FLOOR FIRE ALARM LAYOUT' -> 'HC FLOOR',
-    '11TH FLOOR PLAN LAYOUT' -> '11TH FLOOR',
-    'TYP(1ST TO 14TH) FLOORS FIRE ALARM LAYOUT' -> 'TYP (1ST TO 14TH) FLOORS'."""
-    t = re.sub(r"\.(dxf|dwg)$", "", title, flags=re.I)
-    # a file name such as '257-Sheet - FA-105 - TYP(...) FLOORS ...': keep the part after the sheet number
-    parts = [p.strip() for p in re.split(r"\s+-\s+", t) if p.strip()]
-    if len(parts) > 1:
-        t = parts[-1]
-    t = t.replace("_", " ")
-    t = re.sub(r"\(", " (", t)
-    t = _NOT_FLOOR.sub(" ", t)
-    t = " ".join(t.split()).strip(" -,")
-    return t.upper() or title.upper()
+# A drawing or sheet number: "FA 119", "FA-101" at the head of a title, or a
+# document number with its dashes ("LAC-653-PLN-L11-ELV-FA-117"). Never a floor.
+# (Two letters at least, and not a level word: "L23" and "LVL 11" are floors.)
+_SHEET_NUMBER = re.compile(r"^\s*(?!(?:LVL|LEV|FLR|LEVEL)\b)[A-Z]{2,4}[\s-]?\d{2,4}[A-Z]?\b\s*[-:]?\s*", re.I)
+_DOC_NUMBER = re.compile(r"\b[A-Z0-9]+(?:-[A-Z0-9]+){3,}\b", re.I)
+_LEVEL_WORD = r"(?:SUB[\s-]*BASEMENT|BASEMENT|PODIUM|LEVEL|LVL|MEZZANINE|MEZZ|PARKING|DECK)"
+# What names a floor, most specific first. The name is the words matched,
+# tidied: "PODIUM- 3" is "PODIUM-3".
+_FLOOR_PHRASES = [
+    # a typical run: "TYPICAL 3RD TO 16TH FLOOR", "TYP (1ST TO 14TH) FLOORS", "TYP 2-4 FLOOR"
+    re.compile(rf"\bTYP(?:ICAL)?\.?\s*\(?\s*\d{{1,3}}\s*{_ORD}\s*(?:TO|-|–)\s*\d{{1,3}}\s*{_ORD}\s*\)?\s*FLOORS?\b", re.I),
+    # Levels numbered with an L come before any other number in the title:
+    # "L43 TO L50 RES 39 TO 46 FLOOR PLAN" is levels 43 to 50, "L54 - RES 50TH
+    # FLOOR PLAN" level 54 -- the RES numbers are the flats'.
+    re.compile(r"(?<![\w-])L\s?\d{1,3}\s*(?:TO|-|–)\s*L\s?\d{1,3}(?!\d)", re.I),        # L23 TO L40
+    re.compile(r"(?<![\w-])L\s?\d{1,3}(?:\s*(?:&|,|AND)\s*L?\s?\d{1,3}(?!\d))+", re.I),  # L52 & 53
+    re.compile(r"(?<![\w-])L\s?\d{1,3}(?![\w])", re.I),                                   # L41
+    # an ordinal run without TYP: "3RD TO 16TH FLOOR"
+    re.compile(r"\b\d{1,3}(?:ST|ND|RD|TH)\s*(?:TO|-|–)\s*\d{1,3}(?:ST|ND|RD|TH)\s*FLOORS?\b", re.I),
+    # ordinal floors, one or a list: "11TH FLOOR", "14TH & 21ST FLOOR"
+    re.compile(r"\b\d{1,3}(?:ST|ND|RD|TH)(?:\s*(?:&|,|AND)\s*\d{1,3}(?:ST|ND|RD|TH))*\s+FLOORS?\b", re.I),
+    # a named level with its number: "PODIUM-3", "BASEMENT- 4", "LEVEL-01", "LEVEL 11"
+    re.compile(rf"\b{_LEVEL_WORD}\s*[-–]?\s*\d{{1,3}}[A-Z]?(?![A-Z0-9])", re.I),
+    # an ordinal named level: "3RD BASEMENT", "2ND PODIUM"
+    re.compile(rf"\b\d{{1,3}}(?:ST|ND|RD|TH)\s+{_LEVEL_WORD}\b", re.I),
+    re.compile(r"\b(?:LOWER\s+|UPPER\s+)?GROUND\s+FLOOR\b", re.I),
+    re.compile(r"\b(?:LOWER\s+|UPPER\s+)?GROUND\b", re.I),
+    re.compile(r"\b(?:TOP\s+|UPPER\s+|MAIN\s+|LOWER\s+)?ROOF\b", re.I),
+    re.compile(r"\bFLOOR\s*[-–]?\s*\d{1,3}\b", re.I),
+    re.compile(r"\b(?:MEZZANINE|MEZZ)\b", re.I),
+]
+# A level with a name of its own, in the words before FLOOR, LEVEL or SLAB,
+# kept as written with its ordinal: "1ST MECHANICAL FLOOR", "1ST STRUCTURAL
+# (NON ACCESSIBLE) FLOOR", "WALK IN LIFT PIT LEVEL", "TOP OF LIFT MACHINE
+# FLOOR", "STRUCTURAL SLAB", "HC FLOOR".
+_NAMED_FLOOR = re.compile(r"\b((?:\d{1,3}(?:ST|ND|RD|TH)\s+)?[A-Z][A-Z .&/()-]{0,40}?)\s*\b(FLOOR|LEVEL|SLAB)\b", re.I)
+
+
+def _clean_title(title: str) -> str:
+    t = re.sub(r"\.(dxf|dwg)$", "", title or "", flags=re.I).replace("_", " ")
+    t = _DOC_NUMBER.sub(" ", t)
+    t = _SHEET_NUMBER.sub("", t)
+    return " ".join(t.split())
+
+
+def _tidy(name: str) -> str:
+    name = re.sub(r"\s*([-–])\s*", "-", " ".join(name.upper().split()))
+    name = re.sub(r"\(\s*", "(", name)
+    return re.sub(r"\s*\)", ")", name).strip(" -,")
+
+
+def identify_floor(title: str) -> str | None:
+    """The floor a drawing title names, or None when it names none:
+    'PODIUM-3 FLOOR PLAN FIRE ALARM LAYOUT' -> 'PODIUM-3',
+    'LEVEL-01 FLOOR PLAN' -> 'LEVEL-01', 'GROUND FLOOR PLAN' -> 'GROUND FLOOR',
+    'BASEMENT-2 FLOOR PLAN' -> 'BASEMENT-2', 'ROOF FLOOR PLAN' -> 'ROOF',
+    'TYPICAL 3RD TO 16TH FLOOR PLAN' -> 'TYPICAL 3RD TO 16TH FLOOR',
+    '1ST MECHANICAL FLOOR PLAN' -> '1ST MECHANICAL FLOOR',
+    'FIRE ALARM LAYOUT' -> None. A drawing or sheet number in the title is
+    not read: 'FA 119 STRUCTURAL SLAB' is 'STRUCTURAL SLAB', never '119'."""
+    t = _clean_title(title)
+    if not t:
+        return None
+    for phrase in _FLOOR_PHRASES:
+        m = phrase.search(t)
+        if m:
+            return _tidy(m.group(0))
+    for m in _NAMED_FLOOR.finditer(t):
+        words = " ".join(_NOT_FLOOR.sub(" ", m.group(1)).split())
+        if words.strip(" -&/.,()"):
+            return _tidy(f"{words} {m.group(2)}")
+    return None
+
+
+def floor_name(title: str) -> str | None:
+    """The floor a sheet is of, as the BOQ lists it (`identify_floor`)."""
+    return identify_floor(title)
+
+
+NOT_IDENTIFIED = "Floor not identified"
 
 
 def _is_single_span(title: str) -> bool:
     return len(_RANGE.findall(title.upper())) == 1
 
 
-def _title_of(layout) -> str:
+# The title block's label for the title, and the labels of the fields below it.
+_TITLE_LABEL = re.compile(r"^\s*(?:DRAWING|DWG|SHEET)\s*(?:TITLE|NAME)\s*:?\s*$|^\s*TITLE\s*:?\s*$", re.I)
+_FIELD_LABEL = re.compile(r":\s*$|^\s*(?:DWG|DRAWING|SHEET|PROJECT|JOB|REV(?:ISION)?|SCALE|DATE|DRAWN|CHECKED|"
+                          r"APPROVED|CLIENT|CONSULTANT|CONTRACTOR)\b.{0,12}(?:NO\.?|NUMBER)?\s*:?\s*$", re.I)
+
+
+@dataclass
+class _Text:
+    text: str
+    x: float
+    y: float
+    h: float
+    in_block: bool       # fixed text inside an inserted block (the title block's own words)
+
+
+def _position(e) -> tuple[float, float]:
+    """Where a text sits: its alignment point when it is aligned, else its insertion point."""
+    if e.dxftype() == "TEXT" and (e.dxf.get("halign", 0) or e.dxf.get("valign", 0)) and e.dxf.hasattr("align_point"):
+        p = e.dxf.align_point
+    else:
+        p = e.dxf.insert
+    return float(p.x), float(p.y)
+
+
+def _texts(layout, doc) -> list[_Text]:
+    out: list[_Text] = []
+    for e in layout.query("TEXT MTEXT"):
+        try:
+            x, y = _position(e)
+            h = float(e.dxf.get("height", 0) if e.dxftype() == "TEXT" else e.dxf.get("char_height", 0) or 0)
+            out.append(_Text(G.plain_text(e), x, y, h, False))
+        except Exception:
+            continue
+    for ins in layout.query("INSERT"):
+        for a in getattr(ins, "attribs", []):
+            try:
+                out.append(_Text(" ".join(str(a.dxf.get("text", "")).split()), float(a.dxf.insert.x),
+                                 float(a.dxf.insert.y), float(a.dxf.get("height", 0) or 0), False))
+            except Exception:
+                continue
+        # The title block's own words, where they sit on the sheet. Only an
+        # unrotated block: that is how title blocks are inserted.
+        if doc is None or abs(float(ins.dxf.get("rotation", 0) or 0)) > 0.01:
+            continue
+        try:
+            block = doc.blocks.get(ins.dxf.name)
+            sx, sy = float(ins.dxf.get("xscale", 1) or 1), float(ins.dxf.get("yscale", 1) or 1)
+            bx, by = ins.dxf.insert.x, ins.dxf.insert.y
+            base = block.block.dxf.base_point if block is not None and block.block is not None else None
+            ox, oy = (float(base.x), float(base.y)) if base is not None else (0.0, 0.0)
+            for e in block.query("TEXT MTEXT") if block is not None else []:
+                x, y = _position(e)
+                h = float(e.dxf.get("height", 0) if e.dxftype() == "TEXT" else e.dxf.get("char_height", 0) or 0)
+                out.append(_Text(G.plain_text(e), bx + (x - ox) * sx, by + (y - oy) * sy, h * abs(sy), True))
+        except Exception:
+            continue
+    return [t for t in out if t.text]
+
+
+def _labelled_title(texts: list[_Text]) -> list[str] | None:
+    """The lines written under the title block's DRAWING TITLE label, top
+    first, down to the next field's label -- or None when the sheet has no
+    such label, or nothing under it."""
+    for label in (t for t in texts if _TITLE_LABEL.match(t.text)):
+        size = label.h or max((t.h for t in texts), default=1.0) or 1.0
+        left, right = label.x - 5 * size, label.x + 80 * size
+        below = [t.y for t in texts
+                 if t is not label and t.y < label.y - 0.1 * size and left <= t.x <= right and _FIELD_LABEL.search(t.text)]
+        floor_y = max(below) if below else label.y - 25 * size
+        lines = [t for t in texts
+                 if not t.in_block and t is not label and floor_y < t.y < label.y + 0.1 * size and left <= t.x <= right
+                 and not _FIELD_LABEL.search(t.text) and len(t.text) <= 120]
+        if lines:
+            lines.sort(key=lambda t: (-t.y, t.x))
+            return [t.text for t in lines]
+    return None
+
+
+def _title_of(layout, doc=None) -> tuple[str, str]:
+    """(title, where it was read). The lines under the title block's DRAWING
+    TITLE label first; where there is no such label, a title-block attribute
+    that reads like a title, then the largest title-like text on the sheet
+    that is not another drawing's number."""
+    texts = _texts(layout, doc)
+    labelled = _labelled_title(texts)
+    if labelled:
+        return " ".join(labelled), "drawing title"
     # 1. a title-block attribute that reads like a title
     for e in layout.query("INSERT"):
         for a in getattr(e, "attribs", []):
             s = " ".join(str(a.dxf.get("text", "")).split())
             if s and TITLE_WORDS.search(s) and not s.upper().startswith("SCALE"):
-                return s
+                return s, "title text"
     # 2. the largest title-like text on the sheet
     best = None
-    for e in layout.query("TEXT MTEXT"):
-        s = G.plain_text(e)
-        if not s or len(s) > 120 or _NOTE.match(s) or not TITLE_WORDS.search(s):
+    for t in texts:
+        s = t.text
+        if t.in_block or not s or len(s) > 120 or _NOTE.match(s) or not TITLE_WORDS.search(s):
             continue
-        h = float(e.dxf.get("height", 0) if e.dxftype() == "TEXT" else e.dxf.get("char_height", 0) or 0)
-        key = (h, len(s))
+        key = (t.h, len(s))
         if best is None or key > best[0]:
             best = (key, s)
     if best:
-        return best[1]
-    return " ".join(G.plain_text(e) for e in list(layout.query("TEXT MTEXT"))[:2]).strip() or layout.name
+        return best[1], "title text"
+    return "", ""
 
 
 def read_sheets(doc) -> list[Sheet]:
@@ -183,10 +375,11 @@ def read_sheets(doc) -> list[Sheet]:
                 continue
         if not wins:
             continue
-        title = _title_of(layout)
+        title, source = _title_of(layout, doc)
         kind = "diagram" if DIAGRAM.search(title) else "plan"
         floors = parse_floors(title) if kind == "plan" else []
-        sheets.append(Sheet(name=name, title=title, kind=kind, floors=floors, multiplier=floor_count(title, floors), windows=wins))
+        sheets.append(Sheet(name=name, title=title, kind=kind, floors=floors, multiplier=floor_count(title, floors),
+                            windows=wins, title_source=source))
     _resolve_overlaps(sheets)
     return sheets
 
@@ -199,7 +392,7 @@ def refresh_floors(stored: list[dict]) -> list[dict]:
     for s in stored:
         floors = parse_floors(s["title"]) if s.get("kind") == "plan" else []
         sheets.append(Sheet(name=s["name"], title=s["title"], kind=s.get("kind", "plan"), floors=floors,
-                            multiplier=floor_count(s["title"], floors)))
+                            multiplier=floor_count(s["title"], floors), title_source=s.get("title_source", "")))
     _resolve_overlaps(sheets)
     return [{**old, **new.to_dict()} for old, new in zip(stored, sheets)]
 
@@ -251,10 +444,3 @@ def sheet_for(sheets: list[Sheet], x: float, y: float) -> str:
             if w.contains(x, y):
                 return s.name
     return OUTSIDE
-
-
-def single_sheet_from_name(filename: str) -> Sheet:
-    """No sheet shows any device: the drawing is one floor, named by file."""
-    title = re.sub(r"\.(dxf|dwg)$", "", filename, flags=re.I)
-    floors = parse_floors(title)
-    return Sheet(name="Model", title=title, kind="plan", floors=floors, multiplier=floor_count(title, floors))
