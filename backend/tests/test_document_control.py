@@ -394,3 +394,94 @@ def test_a_decision_marked_by_filling_a_box_is_read():
             page.draw_rect(pymupdf.Rect(50, y, 62, y + 12), color=(0, 0, 0), fill=(0.11, 0.16, 0.75))
         both = pymupdf.open(stream=document.tobytes(), filetype="pdf")
     assert boxed_decision(both[0]) is None
+
+
+def _approval_sheet(path, *, chosen: str | None, image: bool = True):
+    """A shop drawing's page: its title block, the approval block's three
+    options with `chosen` filled, and (by default) a logo image."""
+    import pymupdf
+
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text((300, 60), "Drawing title\nBBY006-GME-SDW-EL-FA-0001\nREV. 01\nGround Floor Layout")
+        for y, label in ((100, "Approved (A)"), (130, "Approved as Noted (B)"), (160, "Re- Submit (C)")):
+            page.insert_text((70, y + 9), label)
+            fill = (0.11, 0.16, 0.75) if label == chosen else (1, 1, 1)
+            page.draw_rect(pymupdf.Rect(50, y, 62, y + 12), color=(0, 0, 0), fill=fill)
+        # A coloured square beside something that is not an option: a symbol on the plan.
+        page.insert_text((420, 309), "PLOT LIMIT")
+        page.draw_rect(pymupdf.Rect(400, 300, 412, 312), color=(0, 0, 0), fill=(0.9, 0.1, 0.1))
+        if image:
+            logo = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 8, 8), False)
+            logo.clear_with(128)
+            page.insert_image(pymupdf.Rect(500, 700, 540, 740), pixmap=logo)
+        document.save(path)
+    return path
+
+
+def test_the_box_screens_never_change_the_answer(tmp_path):
+    """The page and label screens only skip boxes whose label could name no
+    option: with them or without, the same answer."""
+    import pymupdf
+
+    from app.services.document_control import _may_hold_an_option, boxed_decision
+
+    for chosen, expected in (("Approved as Noted (B)", "ANN"), ("Re- Submit (C)", "rejected"), (None, None)):
+        with pymupdf.open(_approval_sheet(tmp_path / f"{expected}.pdf", chosen=chosen)) as document:
+            page = document[0]
+            screened, unscreened = boxed_decision(page, page.get_text()), boxed_decision(page)
+            assert screened == unscreened
+            assert (screened[0] if screened else None) == expected
+    assert _may_hold_an_option("Re-\nSubmit (C)") and _may_hold_an_option("APPROVED AS NOTED")
+    assert not _may_hold_an_option("PLOT LIMIT\nF.L 0.15\nFIRE ALARM LAYOUT")
+
+
+def test_a_consultants_stamp_overrides_the_ticked_box(tmp_path, monkeypatch):
+    """EP-30784's emergency lighting sample (BBY006-GME-SAR-EL-LI-0001) has
+    "Approved as Noted (B)" ticked on the form and the consultant's
+    "(C) Revise & Resubmit" stamp pasted beside it: the stamp is the verdict
+    that stands. So a page whose box already gave a decision is still OCRed
+    for its stamp, and the stamp wins."""
+    import os
+
+    from app.services import document_control as dc
+
+    ocred = []
+    monkeypatch.setattr(dc, "_ocr_page", lambda page: ocred.append(page.number) or
+                        "(C) Revise & Resubmit\nReviewed By : Eng. Muhana")
+    path = _approval_sheet(tmp_path / "stamped.pdf", chosen="Approved as Noted (B)")
+    stat = os.stat(path)
+    dc._read_pdf.cache_clear()
+    records, _notes = dc._read_pdf(str(path), stat.st_mtime_ns, stat.st_size, True, None)
+    assert ocred == [0]
+    assert records[0].status == "rejected" and "Revise & Resubmit" in records[0].reply_text
+
+
+def test_the_same_content_is_not_ocred_or_box_read_twice(tmp_path, monkeypatch):
+    """A re-read after a change to the rules finds the OCR text and the box
+    reading of unchanged content in the page cache."""
+    import os
+
+    from app.services import document_control as dc
+    from app.services.document_sync import sha256_of
+
+    ocred, boxed = [], []
+    real_boxed = dc.boxed_decision
+    monkeypatch.setattr(dc, "_ocr_page", lambda page: ocred.append(page.number) or "Consultant stamp: none")
+    monkeypatch.setattr(dc, "boxed_decision", lambda page, text=None: boxed.append(page.number) or real_boxed(page, text))
+    path = _approval_sheet(tmp_path / "sheet.pdf", chosen=None)
+    stat = os.stat(path)
+    sha = sha256_of(path)
+
+    def read(content_hash):
+        dc._read_pdf.cache_clear()
+        return dc._read_pdf(str(path), stat.st_mtime_ns, stat.st_size, True, content_hash)
+
+    first = read(sha)
+    assert (len(ocred), len(boxed)) == (1, 1)
+    assert read(sha) == first
+    assert (len(ocred), len(boxed)) == (1, 1), "the second reading came from the cache"
+    read("0" * 64)          # other content: read afresh
+    assert (len(ocred), len(boxed)) == (2, 2)
+    read(None)              # no hash to key on: never cached
+    assert (len(ocred), len(boxed)) == (3, 3)

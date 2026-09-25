@@ -199,7 +199,32 @@ def _is_mark(shape) -> bool:
     return max(red, green, blue) > 0.15   # near-black is the printing, not a mark
 
 
-def boxed_decision(page) -> tuple[str, str] | None:
+# How boxes are read: `_OPTIONS`, `_is_mark` and `boxed_decision`. What a
+# page's boxes said is cached under this (app.services.page_cache) -- change
+# any of the three, bump it, or the old readings are reused.
+BOX_VERSION = "box-1"
+
+# Each option's words, for the screens below: an option is matched in a
+# label as a phrase, so each of its words is a run of letters in that label.
+_OPTION_PIECES = tuple(tuple(words.split()) for words, _status in _OPTIONS)
+
+
+def _compact(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", text.lower())
+
+
+def _may_hold_an_option(text: str) -> bool:
+    """Whether `text` could contain an option. A box's label is a run of
+    the characters of one line of the page, so every word of the option it
+    names is a run of letters in the text around it: where no option has
+    all its words in `text` (punctuation and spacing ignored), no label
+    drawn from it can name one. Never rules out a page or a box the full
+    reading would have answered -- it only saves asking."""
+    compact = _compact(text)
+    return any(all(piece in compact for piece in pieces) for pieces in _OPTION_PIECES)
+
+
+def boxed_decision(page, text: str | None = None) -> tuple[str, str] | None:
     """The consultant's decision where it is a filled box beside the
     option rather than a word or a tick, as (status, evidence).
 
@@ -211,13 +236,36 @@ def boxed_decision(page) -> tuple[str, str] | None:
 
     None when no box is filled, or when more than one is against a
     different answer -- two marks say no more than none.
+
+    Asking the page for the text in a rectangle re-reads the whole page each
+    time -- about 0.1 s on a CAD sheet -- and a CAD sheet has dozens of small
+    coloured squares: 58 on one EP-30784 floor plan, 5.5 s of its 6.5. So
+    it is asked only where it could matter. `text`, the page's text when the
+    caller has it, rules out a page that names no option at all; and a box
+    whose surrounding words (every word touching its label's rectangle,
+    taken whole) cannot spell an option is skipped. Both screens can only
+    pass over a box whose label would have matched nothing
+    (`_may_hold_an_option`); every box that gets past them is read exactly
+    as before.
     """
+    if text is not None and not _may_hold_an_option(text):
+        return None
     found: dict[str, str] = {}
+    page_words = None
     for shape in page.get_drawings():
         if not _is_mark(shape):
             continue
         rect = shape["rect"]
-        beside = page.get_text("text", clip=pymupdf.Rect(rect.x1, rect.y0 - 3, rect.x1 + 150, rect.y1 + 3))
+        clip = pymupdf.Rect(rect.x1, rect.y0 - 3, rect.x1 + 150, rect.y1 + 3)
+        if page_words is None:
+            page_words = page.get_text("words")
+        # Every word touching the rectangle, whole, with a margin: a superset
+        # of the characters the clipped reading below can return.
+        near = " ".join(w[4] for w in page_words
+                        if w[0] <= clip.x1 + 2 and w[2] >= clip.x0 - 2 and w[1] <= clip.y1 + 2 and w[3] >= clip.y0 - 2)
+        if not _may_hold_an_option(near):
+            continue
+        beside = page.get_text("text", clip=clip)
         # Only as far as this option's own letter: the next option's box
         # sits a little further along the same line.
         label = " ".join(beside.split())
@@ -408,8 +456,40 @@ def normalize_floor(value: str) -> str:
     return re.sub(r"\b([BPL])0+(\d)", r"\1\2", value)
 
 
+def _boxed(page, text: str, sha256: str | None, index: int) -> tuple[str, str] | None:
+    """`boxed_decision`, from the page cache when this file's content has
+    been looked at under the same box rules (`BOX_VERSION`)."""
+    if not _may_hold_an_option(text):
+        return None          # nothing to look for, and nothing worth keeping
+    from app.services import page_cache
+
+    cached = page_cache.get_box(sha256, index, BOX_VERSION)
+    if cached is not page_cache.MISSING:
+        return cached
+    found = boxed_decision(page, text)
+    page_cache.put_box(sha256, index, BOX_VERSION, list(found) if found else None)
+    return found
+
+
+def _ocr_text(page, sha256: str | None, index: int) -> str:
+    """The page's OCR text, from the page cache when this file's content
+    has been OCRed before (app.services.page_cache)."""
+    from app.services import page_cache
+
+    cached = page_cache.get_ocr(sha256, index)
+    if cached is not None:
+        return cached
+    text = _ocr_page(page)
+    page_cache.put_ocr(sha256, index, text)
+    return text
+
+
 @lru_cache(maxsize=1024)
-def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool) -> tuple[tuple[ControlledDocument, ...], tuple[str, ...]]:
+def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool,
+              sha256: str | None = None) -> tuple[tuple[ControlledDocument, ...], tuple[str, ...]]:
+    """The document-control records a PDF holds. `sha256`, the file's
+    content hash when the caller knows it, lets OCR text be reused from an
+    earlier reading of the same content."""
     records, warnings = [], []
     path = Path(filename)
     modified = datetime.fromtimestamp(stamp / 1e9, timezone.utc)
@@ -433,17 +513,24 @@ def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool) -> tuple[tupl
                 # answer -- so where nothing was decided the drawing is
                 # asked, before any OCR is attempted.
                 if found and all(row.status == "UR" for row in found):
-                    boxed = boxed_decision(page)
+                    boxed = _boxed(page, text, sha256, index)
                     if boxed is not None:
                         decision, evidence = boxed
                         found = [replace(row, status=decision, reply_text=evidence) for row in found]
                 # OCR title blocks of scanned pages and image stamps on forms.
+                # Also a page whose own text or ticked box already gave a
+                # decision: the consultant's stamp, pasted on as an image, is
+                # the verdict that stands, and it can say otherwise -- EP-30784's
+                # emergency lighting sample (BBY006-GME-SAR-EL-LI-0001) has
+                # "Approved as Noted (B)" ticked and a "(C) Revise & Resubmit"
+                # stamp beside it. What OCR finds is cached by content
+                # (`_ocr_text`), so a page is OCRed once, not on every re-read.
                 candidate = bool(found) or pending is not None or (len(text.strip()) < 80 and bool(re.search(r"approval|submittal|drawing|[/\\]MS[/\\]", filename, re.I)))
                 if use_ocr and candidate and (page.get_images() or len(text.strip()) < 80):
                     if ocr_count < 12:
                         try:
                             ocr_count += 1
-                            ocr_text = _ocr_page(page)
+                            ocr_text = _ocr_text(page, sha256, index)
                             ocr_found = parse_page(ocr_text, filename, modified, index + 1)
                             if not found: found = ocr_found
                             decision, evidence = read_decision(ocr_text)
