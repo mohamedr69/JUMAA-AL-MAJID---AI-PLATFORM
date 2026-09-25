@@ -21,6 +21,12 @@ os.environ["ARCHIVE_DATASHEET_LIBRARIES"] = "{}"
 os.environ["ARCHIVE_SUBMITTAL_LIBRARY"] = ""
 os.environ["LIBRARY_ROOT"] = tempfile.mkdtemp(prefix="ep-test-library-")
 os.environ["CACHE_ROOT"] = tempfile.mkdtemp(prefix="ep-test-cache-")
+# Uploads too. Left at its default ("uploads", under backend/ when the suite
+# runs from there) the tests wrote into the running platform's own uploads,
+# and deleting a test project deleted the real project's IFC working copies:
+# test_submittal deletes an EP-30784, and on 25 September that removed the
+# DXF of EP-30784's fire alarm drawing while it was being read.
+os.environ["UPLOADS_ROOT"] = tempfile.mkdtemp(prefix="ep-test-uploads-")
 # A library built during a test is read back in the same test: no throttle.
 os.environ["LIBRARY_RESCAN_SECONDS"] = "0"
 # The repository's own `data base` folder is the developer's knowledge base,
