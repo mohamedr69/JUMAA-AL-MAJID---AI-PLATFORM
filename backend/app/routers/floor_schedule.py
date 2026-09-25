@@ -43,7 +43,7 @@ from app.services.schedule_materials import device_materials, rank_for_line, set
 
 router = APIRouter(prefix="/projects", tags=["floor schedule"])
 
-MAX_BYTES = 50 * 1024 * 1024
+MAX_BYTES = 100 * 1024 * 1024
 WORKBOOK_SUFFIXES = (".xlsx", ".xlsm")
 
 

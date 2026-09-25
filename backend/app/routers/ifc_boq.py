@@ -58,7 +58,7 @@ from app.services import activity, project_folders
 
 router = APIRouter(tags=["BOQ as per IFC"])
 
-MAX_BYTES = 250 * 1024 * 1024
+MAX_BYTES = 500 * 1024 * 1024
 _SAFE = re.compile(r"[^A-Za-z0-9._ -]+")
 CATEGORIES = ("fire_alarm", "emergency_light", "other")
 
