@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api, apiUrl } from "../lib/api";
-import { PROJECT_EDITOR_ROLES, type MaterialItem, type MaterialSubmittal, type StorageFolder, type Submittal, type SubmittalRegister, type SubmittalCellStatus, type SubmittalMap, type SubmittalStatus, type SubmittalSuggestion, type SubmittalDeleted } from "../lib/types";
+import { PROJECT_EDITOR_ROLES, type MaterialItem, type MaterialSubmittal, type StorageFolder, type Submittal, type SubmittalRegister, type SubmittalCellStatus, type SubmittalMap, type SubmittalStatus, type SubmittalSuggestion, type SubmittalDeleted, type SubmittalRevision } from "../lib/types";
 import { SubmittalPackageBuilder } from "../components/SubmittalPackageBuilder";
 import { JobProgress } from "../components/JobProgress";
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
@@ -168,7 +168,16 @@ export function ProjectMaterialSubmittalPage() {
         (item.manufacturer ?? "").toLowerCase().includes(needle) ||
         (item.system_code ?? "").toLowerCase().includes(needle))
   );
-  const counts = data?.counts ?? {};
+  // The cards count the submittals on the tab -- one per system -- by where
+  // their latest revision stands; the search box narrows the table only.
+  const onTab = (data?.items ?? []).filter((item) => tab === ALL || (item.system_code ?? "") === tab);
+  const counts: Record<string, number> = { total: onTab.length };
+  for (const item of onTab) counts[item.status] = (counts[item.status] ?? 0) + 1;
+  // Revision columns: R0, R1, R2 at least, and as many as any submittal has.
+  const revisionColumns = Array.from(
+    { length: Math.max(3, ...items.flatMap((item) => (item.revisions ?? []).map((r) => revisionNumber(r.revision) + 1))) },
+    (_, n) => n,
+  );
 
   return (
     <div>
@@ -285,8 +294,10 @@ export function ProjectMaterialSubmittalPage() {
                     <th className="px-3 py-2.5 font-medium">Submittal Title</th>
                     <th className="px-3 py-2.5 font-medium">System</th>
                     <th className="px-3 py-2.5 font-medium">Manufacturer</th>
-                    <th className="px-3 py-2.5 font-medium">Revision</th>
-                    <th className="px-3 py-2.5 font-medium">Status</th>
+                    {revisionColumns.map((n) => (
+                      <th key={n} className="px-3 py-2.5 text-center font-medium">R{n}</th>
+                    ))}
+                    <th className="px-3 py-2.5 font-medium">Latest</th>
                     <th className="px-3 py-2.5 font-medium">Last Updated</th>
                     <th className="px-3 py-2.5 font-medium">Actions</th>
                   </tr>
@@ -323,8 +334,25 @@ export function ProjectMaterialSubmittalPage() {
                           )}
                         </td>
                         <td className="px-3 py-2.5 text-gray-700">{item.manufacturer ?? "—"}</td>
-                        <td className="px-3 py-2.5 tabular-nums text-gray-700">{item.revision}</td>
+                        {revisionColumns.map((n) => {
+                          const rev = (item.revisions ?? []).find((r) => revisionNumber(r.revision) === n);
+                          return (
+                            <td key={n} className="px-3 py-2.5 text-center">
+                              {rev ? (
+                                <span
+                                  className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${STATUS[rev.status].chip}`}
+                                  title={[rev.reference, ...(rev.also_filed_as.length ? [`also filed as ${rev.also_filed_as.join(", ")}`] : []), rev.note ?? ""].filter(Boolean).join(" · ")}
+                                >
+                                  {revisionLabel(rev)}
+                                </span>
+                              ) : (
+                                <span className="text-gray-300">&mdash;</span>
+                              )}
+                            </td>
+                          );
+                        })}
                         <td className="px-3 py-2.5">
+                          <div className="mb-1 text-[11px] font-semibold text-gray-500">R{revisionNumber(item.revision)}</div>
                           {canEdit && !item.from_folder ? (
                             <select
                               value={item.status}
@@ -386,7 +414,7 @@ export function ProjectMaterialSubmittalPage() {
                   )}
                   {items.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-3 py-8 text-center text-sm text-gray-400">
+                      <td colSpan={7 + revisionColumns.length} className="px-3 py-8 text-center text-sm text-gray-400">
                         {data.items.length === 0
                           ? "No submittal yet. Create one from the BOQ under Quick Actions."
                           : "No submittal matches."}
@@ -585,6 +613,9 @@ function SubmittalMapSection({ map, tab }: { map: SubmittalMap | null; tab: stri
                     <div className="text-gray-500">
                       {row.title}
                       {row.manufacturer ? ` · ${row.manufacturer}` : row.supplier ? ` · ${row.supplier}` : ""}
+                      {row.references && row.references.length > 1 && (
+                        <span className="block text-[11px] text-gray-400">also filed as {row.references.slice(1).join(", ")}</span>
+                      )}
                     </div>
                   </td>
                   {map.revisions.map((rev) => {
@@ -926,3 +957,15 @@ const IconBuilding = () => <Svg><path d="M4 21V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1
 const IconUsers = () => <Svg><circle cx="9" cy="8" r="3" /><path d="M3 20a6 6 0 0 1 12 0M16 6a3 3 0 0 1 0 6M18 20a5 5 0 0 0-3-4.6" /></Svg>;
 const IconBriefcase = () => <Svg><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M9 7V5h6v2M3 12h18" /></Svg>;
 const IconGear = () => <Svg><circle cx="12" cy="12" r="3" /><path d="M12 3v2M12 19v2M5 5l1.5 1.5M17.5 17.5 19 19M3 12h2M19 12h2M5 19l1.5-1.5M17.5 6.5 19 5" /></Svg>;
+
+/** 'R00' -> 0, 'R1' -> 1. */
+function revisionNumber(revision: string): number {
+  const digits = revision.replace(/\D/g, "");
+  return digits ? parseInt(digits, 10) : 0;
+}
+
+/** A revision's one current status, with the consultant's code where there is one. */
+function revisionLabel(rev: SubmittalRevision): string {
+  const code = rev.reply_code === "B" ? " (B)" : rev.reply_code === "A" ? " (A)" : rev.reply_code === "C" ? " (C)" : "";
+  return STATUS[rev.status].label + code;
+}

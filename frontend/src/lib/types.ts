@@ -931,6 +931,22 @@ export interface Submittal {
    * form on the drive is the record, so the page must not offer to
    * revise something it does not hold. */
   from_folder: boolean;
+  /** Its revisions, R0 first, each with its one current status; `revision`
+   * and `status` above are the latest's. A system has one submittal. */
+  revisions?: SubmittalRevision[];
+}
+
+/** One revision of a material submittal and where it stands now. */
+export interface SubmittalRevision {
+  revision: string;
+  status: SubmittalStatus;
+  reply_code: string | null;
+  /** The form this revision is on file as, and the others filed as it. */
+  reference: string | null;
+  also_filed_as: string[];
+  manufacturer: string | null;
+  document_path: string | null;
+  note: string | null;
 }
 
 /** One of the consultant's comments and our answer to it. */
@@ -1012,6 +1028,8 @@ export interface SubmittalMapCell {
 
 export interface SubmittalMapRow {
   reference: string;
+  /** Every reference this submittal has been filed under, its own first. */
+  references?: string[];
   title: string;
   supplier: string;
   manufacturer: string;
