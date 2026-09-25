@@ -221,11 +221,22 @@ def set_below_normal_priority() -> bool:
         return False
     try:
         import ctypes
+        from ctypes import wintypes
 
         below_normal = 0x00004000
-        kernel32 = ctypes.windll.kernel32
-        return bool(kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), below_normal))
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        # Declared, not left to ctypes' int default: the process handle is
+        # 64 bits, and passed as a C int it arrives truncated and the call
+        # fails without a word.
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        kernel32.SetPriorityClass.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+        kernel32.SetPriorityClass.restype = wintypes.BOOL
+        if kernel32.SetPriorityClass(kernel32.GetCurrentProcess(), below_normal):
+            return True
+        log.warning("Could not lower the worker's priority (Windows error %s)", ctypes.get_last_error())
+        return False
     except Exception:  # noqa: BLE001 -- a normal-priority worker still works
+        log.warning("Could not lower the worker's priority", exc_info=True)
         return False
 
 
@@ -253,6 +264,8 @@ def wait_for_schema(stop: threading.Event) -> bool:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    # The schema check asks Alembic, which is chatty at INFO.
+    logging.getLogger("alembic").setLevel(logging.WARNING)
     stop = threading.Event()
 
     def ask_to_stop(signum, _frame):
