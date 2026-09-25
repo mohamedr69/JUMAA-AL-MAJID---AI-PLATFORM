@@ -5,7 +5,6 @@ import { useAuth } from "../context/AuthContext";
 import { PROJECT_EDITOR_ROLES } from "../lib/types";
 import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { RequiredDrawingsTab } from "../components/drawings/RequiredDrawingsTab";
-import { UnplacedDrawingsTable, type UnplacedDrawing } from "../components/UnplacedDrawingsTable";
 import { useProject } from "./ProjectWorkspace";
 import { useOnProjectChange } from "../lib/projectChanges";
 
@@ -14,6 +13,7 @@ type Status =
   | "approved_as_noted"
   | "under_review"
   | "not_approved"
+  | "reply_not_found"
   | "not_submitted";
 
 interface LogCell {
@@ -24,16 +24,18 @@ interface LogCell {
   page?: number;
   floor_named?: string | null;
   remarks?: string | null;
-  modified?: string;
+  modified?: string | null;
+  /** Why a revision reads "answered - reply not found". */
+  note?: string;
 }
 
+/** A shop drawing, with its own reference and each revision as filed; or
+ * an IFC floor no shop drawing covers yet (`reference` null). */
 interface LogRow {
   key: string;
-  sheet: string;
-  drawing: string;
-  ifc_revision: string;
+  source: "shop_drawing" | "ifc_floor";
+  reference: string | null;
   floor: string;
-  title: string;
   floors: number;
   cells: Record<string, LogCell>;
   latest_revision: string | null;
@@ -47,7 +49,6 @@ interface DrawingsLog {
   revisions: string[];
   rows: LogRow[];
   counts: Partial<Record<Status, number>>;
-  unplaced: UnplacedDrawing[];
   submissions: number;
   system: string;
   systems: string[];
@@ -85,6 +86,12 @@ const STATUS: Record<
     help: "Returned with comments",
     chip: "bg-rose-50 text-rose-700 ring-rose-200",
     dot: "bg-rose-600",
+  },
+  reply_not_found: {
+    label: "Answered - Reply Not Found",
+    help: "A later revision was submitted, so this one was answered; its reply is not in the project folder",
+    chip: "bg-orange-50 text-orange-800 ring-orange-200",
+    dot: "bg-orange-500",
   },
   not_submitted: {
     label: "Not Submitted",
@@ -159,6 +166,14 @@ function StatusIcon({
         />
       </svg>
     );
+  if (status === "reply_not_found")
+    return (
+      <svg {...common}>
+        <circle cx="10" cy="10" r="8" fill="none" className="stroke-orange-500" strokeWidth="2" />
+        <path d="M10 6v5" fill="none" className="stroke-orange-500" strokeWidth="2" strokeLinecap="round" />
+        <circle cx="10" cy="14" r="1.2" className="fill-orange-500" />
+      </svg>
+    );
   return (
     <svg {...common}>
       <circle cx="10" cy="10" r="6" className="fill-slate-400" />
@@ -176,6 +191,7 @@ function Chip({ cell }: { cell: LogCell }) {
           cell.reference,
           cell.floor_named && `Floor on the drawing: ${cell.floor_named}`,
           cell.remarks,
+          cell.note,
         ]
           .filter(Boolean)
           .join("\n") || s.help
@@ -310,7 +326,7 @@ function DrawingsWorkspace() {
         (!status || r.latest_status === status) &&
         (!q ||
           r.floor.toLowerCase().includes(q) ||
-          r.sheet.toLowerCase().includes(q) ||
+          (r.reference ?? "").toLowerCase().includes(q) ||
           r.remarks.toLowerCase().includes(q)),
     );
   }, [log, floor, status, query]);
@@ -413,14 +429,15 @@ function DrawingsWorkspace() {
               <div>
                 <h2 className="text-xl font-bold">Drawings Log</h2>
                 <p className="mt-1 text-sm text-gray-500">
-                  Revision status per floor (lowest floor first). Floors from{" "}
+                  Each shop drawing with its own reference and every revision
+                  as the consultant answered it, from the shop drawings in{" "}
+                  {log?.folder ?? "the project folder"} (lowest floor first).
                   {log?.ifc.length ? (
-                    log.ifc.map((d) => `${d.filename} ${d.revision}`).join(", ")
-                  ) : (
-                    <>the BOQ as per IFC drawings</>
-                  )}
-                  ; statuses from the shop drawings in{" "}
-                  {log?.folder ?? "the project folder"}.
+                    <>
+                      {" "}Floors with no shop drawing yet from{" "}
+                      {log.ifc.map((d) => `${d.filename} ${d.revision}`).join(", ")}.
+                    </>
+                  ) : null}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -454,9 +471,9 @@ function DrawingsWorkspace() {
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search floor…"
-                  className="w-48 rounded-lg border border-gray-300 px-3 py-2 text-sm"
-                  aria-label="Search floor"
+                  placeholder="Search floor or drawing no…"
+                  className="w-56 rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  aria-label="Search floor or drawing number"
                 />
                 <button
                   type="button"
@@ -475,15 +492,16 @@ function DrawingsWorkspace() {
               </div>
             ) : log.rows.length === 0 ? (
               <div className="p-6 text-sm text-gray-600">
-                The floors come from the IFC drawings: import the fire alarm IFC
-                drawing on{" "}
+                No shop drawing of this system is in the project folder yet.
+                Sync the documents once one is filed; the floors still to draw
+                show here once the IFC drawing is imported on{" "}
                 <Link
                   to={`/projects/${project.id}/boq`}
                   className="font-medium text-brand-700 hover:underline"
                 >
                   BOQ &gt; As per IFC Drawings
-                </Link>{" "}
-                first.
+                </Link>
+                .
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -492,6 +510,7 @@ function DrawingsWorkspace() {
                     <tr>
                       <th className="px-4 py-3">#</th>
                       <th className="px-4 py-3">Floor</th>
+                      <th className="px-4 py-3">Drawing Reference</th>
                       {log.revisions.map((r) => (
                         <th key={r} className="px-4 py-3 text-center">
                           {r}
@@ -512,10 +531,14 @@ function DrawingsWorkspace() {
                           <div className="font-medium text-navy-900">
                             {r.floor}
                           </div>
-                          <div className="text-xs text-gray-500">
-                            {r.sheet}
-                            {r.floors > 1 && ` · ${r.floors} floors`}
-                          </div>
+                          {r.floors > 1 && (
+                            <div className="text-xs text-gray-500">{r.floors} floors</div>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 font-mono text-xs text-gray-700">
+                          {r.reference ?? (
+                            <span className="font-sans text-gray-400">No shop drawing yet</span>
+                          )}
                         </td>
                         {log.revisions.map((rev) => (
                           <td key={rev} className="px-3 py-2.5 text-center">
@@ -572,7 +595,7 @@ function DrawingsWorkspace() {
                     {rows.length === 0 && (
                       <tr>
                         <td
-                          colSpan={log.revisions.length + 5}
+                          colSpan={log.revisions.length + 6}
                           className="px-4 py-6 text-center text-gray-500"
                         >
                           No floor matches the filter.
@@ -582,7 +605,7 @@ function DrawingsWorkspace() {
                   </tbody>
                 </table>
                 <div className="border-t border-gray-100 px-5 py-3 text-sm text-gray-500">
-                  Showing {rows.length} of {log.rows.length} floor plans
+                  Showing {rows.length} of {log.rows.length} rows
                   {log.submissions === 0 &&
                     " · no fire alarm shop drawing has been submitted yet"}
                 </div>
@@ -610,16 +633,6 @@ function DrawingsWorkspace() {
               </div>
             )}
 
-            {log && log.unplaced.length > 0 && (
-              <UnplacedDrawingsTable
-                rows={log.unplaced}
-                fileHref={(path, page) =>
-                  apiUrl(
-                    `/projects/${project.id}/logs/file?path=${encodeURIComponent(path)}#page=${page}`,
-                  )
-                }
-              />
-            )}
 
             <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-gray-200 bg-gray-50/60 px-5 py-4 text-sm">
               {(Object.keys(STATUS) as Status[]).map((s) => (

@@ -130,15 +130,18 @@ def export_drawings_log(project_id: int, system: str | None = None,
     ws = wb.active
     ws.title = "Drawings Log"
     ws.append([f"EP-{project.ep_number} {project.project_name or ''} - Drawings Log ({log['system']})"])
-    ws.append([f"Floors from {', '.join(f'{d['filename']} {d['revision']}' for d in log['ifc']) or 'no IFC drawing'}; "
-               f"statuses from the shop drawings in the project folder, as of {datetime.now():%Y-%m-%d %H:%M}"])
+    ws.append([f"Shop drawing references and statuses from the shop drawings in the project folder; floors not yet "
+               f"drawn from {', '.join(f'{d['filename']} {d['revision']}' for d in log['ifc']) or 'no IFC drawing'}; "
+               f"as of {datetime.now():%Y-%m-%d %H:%M}"])
     ws.append([])
-    header = ["#", "Floor", "IFC sheet", "No. of floors", *log["revisions"], "Latest revision", "Remarks / Notes"]
+    header = ["#", "Floor", "Shop drawing reference", "No. of floors", *log["revisions"], "Latest revision",
+              "Remarks / Notes"]
     ws.append(header)
     fills = {"approved": "C6EFCE", "approved_as_noted": "DDEBF7", "under_review": "FFEB9C", "not_approved": "FFC7CE",
-             "not_submitted": "EDEDED"}
+             "not_submitted": "EDEDED", "reply_not_found": "F4B183"}
     for i, row in enumerate(log["rows"], 1):
-        ws.append([i, row["floor"], row["sheet"], row["floors"], *(row["cells"][r]["label"] for r in log["revisions"]),
+        ws.append([i, row["floor"], row["reference"] or "Not submitted yet", row["floors"],
+                   *(row["cells"][r]["label"] for r in log["revisions"]),
                    row["latest_revision"] or "-", row["remarks"] or "-"])
         for j, rev in enumerate(log["revisions"]):
             c = ws.cell(row=ws.max_row, column=5 + j)
@@ -146,7 +149,7 @@ def export_drawings_log(project_id: int, system: str | None = None,
     for c in ws[4]:
         c.font = Font(bold=True)
     ws["A1"].font = Font(bold=True, size=13)
-    for col, width in zip("ABCD", (5, 34, 12, 12)):
+    for col, width in zip("ABCD", (5, 34, 40, 12)):
         ws.column_dimensions[col].width = width
     for j in range(len(log["revisions"])):
         ws.column_dimensions[chr(ord("E") + j)].width = 18

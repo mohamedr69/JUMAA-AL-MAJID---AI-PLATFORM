@@ -291,10 +291,12 @@ def test_a_floor_is_one_drawing_at_the_revision_that_stands():
     # The R0 the consultant answered is kept: it is what the R1 answers.
     assert [(r.revision, r.status) for r in drawings[0].superseded] == [("R0", "RR")]
     assert drawings[1].superseded == ()
-    # The R0 nobody answered is not a submission of its own. Listing it said
-    # the floor had been submitted twice when it was submitted once and
-    # re-issued.
-    assert drawings[2].superseded == ()
+    # An R1 exists, so R0 was submitted and answered (the platform owner's
+    # rule, 2026-09-25): the R0 whose answer was not read stays in the
+    # history, once, as answered with its reply not found -- never dropped
+    # for the log to call "not submitted".
+    assert [(r.revision, r.status, r.path) for r in drawings[2].superseded] == [
+        ("R0", "SUPERSEDED", "R0/BBY006-GME-SDW-FP-FA-POD-P02-010004.pdf")]
 
 
 def test_a_drawings_revision_is_the_one_printed_on_it_not_the_folder():

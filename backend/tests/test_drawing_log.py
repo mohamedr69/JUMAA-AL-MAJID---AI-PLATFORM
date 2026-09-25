@@ -1,4 +1,4 @@
-"""The Drawings Log: IFC floor plans x shop-drawing revisions (app/services/drawing_log.py)."""
+"""The Drawings Log: each shop drawing at every revision; IFC floors only where none is drawn yet (app/services/drawing_log.py)."""
 from datetime import datetime
 from pathlib import Path
 
@@ -42,38 +42,64 @@ def test_floors_named_by_a_shop_drawing():
     assert floor_label("119 STRUCTURAL SLAB") == "Structural Slab" and floor_label("3RD BASEMENT FLOOR") == "3rd Basement Floor"
 
 
-def test_each_ifc_floor_plan_is_a_row_with_its_shop_drawing_at_every_revision():
+def test_each_shop_drawing_is_a_row_with_its_own_reference_and_every_revision():
+    """The log is the shop drawings': each row a shop drawing with its own
+    reference and each revision's own status. The IFC drawings add only
+    the floors no shop drawing covers yet -- by floor, never by IFC sheet
+    ("FA 101") -- and change no shop drawing's reference or status."""
     records = [
-        _doc("3rd Basement", "R0", "rejected", reply="Revise as per comments"),
-        _doc("3rd Basement", "R1", "UR", day=2),
-        _doc("3rd Basement", "R1", "approved", day=3),          # the reply: decided beats under review
-        _doc("Ground Floor", "R0", "ANN"),
-        _doc("1st Podium Floor", "R0", "UR"),                  # a podium, not floor 1
-        _doc("TYPICAL 3RD TO 16TH FLOOR", "R0", "approved"),
-        _doc("Level 7", "R1", "rejected", day=5),              # one floor of the typical range
-        _doc(None, "R0", "UR", ref="EP-SDW-FA-099"),            # no floor on it: listed apart
-        _doc("Level 40", "R0", "UR", ref="EP-SDW-FA-098"),      # a floor no IFC plan has
-        _doc("Ground Floor", "R0", "approved", system="ELS"),   # another system's drawing
+        _doc("3rd Basement", "R0", "rejected", reply="Revise as per comments", ref="EP-SDW-FA-B03"),
+        _doc("3rd Basement", "R1", "UR", day=2, ref="EP-SDW-FA-B03"),
+        _doc("3rd Basement", "R1", "approved", day=3, ref="EP-SDW-FA-B03"),   # the reply: decided beats under review
+        _doc("Ground Floor", "R0", "ANN", ref="EP-SDW-FA-GF"),
+        _doc("1st Podium Floor", "R0", "UR", ref="EP-SDW-FA-P01"),            # a podium, not floor 1
+        _doc("TYPICAL 3RD TO 16TH FLOOR", "R0", "approved", ref="EP-SDW-FA-TYP"),
+        _doc(None, "R0", "UR", ref="EP-SDW-FA-099"),                          # no floor on it: listed last
+        _doc("Level 40", "R0", "UR", ref="EP-SDW-FA-098"),                    # a floor no IFC plan has
+        _doc("Ground Floor", "R0", "approved", system="ELS", ref="EP-SDW-EL-GF"),   # another system's drawing
     ]
-    out = build(IFC, records)
-    assert out["revisions"] == ["R0", "R1", "R2"] and out["submissions"] == 9
-    rows = {r["sheet"]: r for r in out["rows"]}
-    assert list(rows) == ["FA 101", "FA 104", "FA 105", "FA 109", "FA 111", "FA 113"]   # plans only, sheet order
+    with_ifc, without_ifc = build(IFC, records), build([], records)
+    assert with_ifc["revisions"] == ["R0", "R1", "R2"] and with_ifc["submissions"] == 8
 
-    b3 = rows["FA 101"]
+    drawings = [r for r in with_ifc["rows"] if r["source"] == "shop_drawing"]
+    # The shop drawings are the same with the IFC drawings imported as without.
+    strip = lambda rows: [(r["reference"], r["floor"], {k: v["status"] for k, v in r["cells"].items()})
+                          for r in rows if r["source"] == "shop_drawing"]
+    assert strip(with_ifc["rows"]) == strip(without_ifc["rows"])
+    assert [r["reference"] for r in drawings] == [
+        "EP-SDW-FA-B03", "EP-SDW-FA-GF", "EP-SDW-FA-P01", "EP-SDW-FA-TYP", "EP-SDW-FA-098", "EP-SDW-FA-099"]
+
+    b3 = drawings[0]
     assert [b3["cells"][r]["status"] for r in ("R0", "R1", "R2")] == ["not_approved", "approved", "not_submitted"]
     assert b3["latest_revision"] == "R1" and b3["latest_status"] == "approved"
-    assert rows["FA 104"]["cells"]["R0"]["status"] == "approved_as_noted"
-    assert rows["FA 105"]["cells"]["R0"]["status"] == "under_review"
-    assert rows["FA 109"]["latest_status"] == "not_submitted" and rows["FA 109"]["latest_revision"] is None
-
-    typical = rows["FA 111"]
+    assert b3["cells"]["R0"]["remarks"] == "Revise as per comments"
+    typical = drawings[3]
     assert typical["floors"] == 14 and typical["floor"] == "Typical 3rd to 16th Floor"
-    assert typical["cells"]["R0"]["status"] == "approved" and typical["cells"]["R1"]["status"] == "not_approved"
-    assert rows["FA 113"]["floor"] == "Structural Slab"
 
-    assert sorted(u["reference"] for u in out["unplaced"]) == ["EP-SDW-FA-098", "EP-SDW-FA-099"]
-    assert out["counts"] == {"approved": 1, "approved_as_noted": 1, "under_review": 1, "not_approved": 1, "not_submitted": 2}
+    # The IFC floors no shop drawing covers: the floor alone, not submitted.
+    floors = [r for r in with_ifc["rows"] if r["source"] == "ifc_floor"]
+    assert [(r["floor"], r["reference"], r["latest_status"]) for r in floors] == [
+        ("1st Floor", None, "not_submitted"), ("Structural Slab", None, "not_submitted")]
+    # Nothing of the IFC drawing's is shown as a shop drawing's.
+    assert not any("FA 1" in str(value) for row in with_ifc["rows"] for value in row.values())
+    assert with_ifc["counts"] == {"approved": 2, "approved_as_noted": 1, "under_review": 3, "not_submitted": 2}
+
+
+def test_an_earlier_revision_is_never_not_submitted_once_a_later_one_exists():
+    """R1 on file proves R0 was submitted and answered; R2 proves R0 and R1
+    were. An earlier revision whose reply is not in the folder says so --
+    it is never "not submitted" or "under review", and never borrows the
+    latest revision's status."""
+    out = build([], [
+        _doc("Basement 1", "R0", "UR", ref="EP-SDW-FA-B01"),                 # filed, reply not read
+        _doc("Basement 1", "R1", "UR", day=2, ref="EP-SDW-FA-B01"),
+        _doc("Basement 2", "R2", "approved", day=3, ref="EP-SDW-FA-B02"),   # only R2 in the folder
+    ])
+    b1, b2 = (next(r for r in out["rows"] if r["reference"] == ref) for ref in ("EP-SDW-FA-B01", "EP-SDW-FA-B02"))
+    assert [b1["cells"][r]["status"] for r in ("R0", "R1", "R2")] == ["reply_not_found", "under_review", "not_submitted"]
+    assert b1["cells"]["R0"]["path"] == "03- Drawings/SD/FA/R0/EP-SDW-FA-B01.pdf"   # its own file, still linked
+    assert [b2["cells"][r]["status"] for r in ("R0", "R1", "R2")] == ["reply_not_found", "reply_not_found", "approved"]
+    assert b2["cells"]["R0"]["path"] is None and "R2 was submitted" in b2["cells"]["R0"]["note"]
 
 
 def test_revisions_grow_with_what_was_submitted():
@@ -95,12 +121,69 @@ def test_the_drawings_log_endpoint(client, tmp_path):
     doc.saveas(path)
     client.post(f"/projects/{project_id}/ifc-drawings", files={"file": (path.name, path.read_bytes(), "application/dxf")})
     log = client.get(f"/projects/{project_id}/drawings/log").json()
-    assert len(log["rows"]) == 1 and log["rows"][0]["latest_status"] == "not_submitted"
+    # The IFC floor with no shop drawing yet: the floor, no reference.
+    (row,) = log["rows"]
+    assert (row["source"], row["reference"], row["latest_status"]) == ("ifc_floor", None, "not_submitted")
     assert log["ifc"][0]["revision"] == "R0"
     export = client.get(f"/projects/{project_id}/drawings/log/export.xlsx")
     assert export.status_code == 200 and "Drawings Log FAS.xlsx" in export.headers["content-disposition"]
     # Folders open only on the PC the platform runs on; the test client is not it.
     assert client.post(f"/projects/{project_id}/drawings/open-folder", json={}).status_code == 403
+
+
+def test_importing_the_ifc_drawing_again_leaves_every_shop_drawing_as_it_was(client, db_session, tmp_path):
+    """The bug: after BOQ > As per IFC, the log showed the IFC sheets' names
+    as the shop drawings' references and an R0 the consultant had rejected
+    as "Not Submitted". The shop drawings are their own records -- the
+    document index of the project folder -- and importing the IFC drawing,
+    or importing it again, neither rewrites nor removes one of them, nor
+    changes how the log shows it."""
+    from dataclasses import asdict
+
+    from app.core.timeutils import utc_now
+    from app.models import Project, ProjectDocument
+
+    assert login(client, settings.default_admin_email, settings.default_admin_password).status_code == 200
+    folder = tmp_path / "EP-91043 Tower"
+    folder.mkdir()
+    pid = client.post("/projects", json={"ep_number": "91043", "project_name": "Tower", "design_sheets": [],
+                                         "source_folder_path": str(folder)}).json()["id"]
+    reference = "EP-91043-SDW-FA-GF-010002"
+    for revision, status, reply in (("R0", "rejected", "Revise as per comments"), ("R1", "UR", None)):
+        relative = f"04- Drawings/SD/FA/{revision}/{reference}.pdf"
+        record = ControlledDocument("FAS", f"{reference}.pdf", relative, datetime(2026, 9, 1 + int(revision[1])),
+                                    reference, revision, status, floor="GROUND FLOOR", reply_text=reply,
+                                    category="drawings")
+        data = {**asdict(record), "modified": record.modified.isoformat()}
+        db_session.add(ProjectDocument(project_id=pid, role="document", path=str(folder / relative),
+                                       relative_path=relative, filename=f"{reference}.pdf", state="fresh",
+                                       findings=[], acknowledged=[], extracted={"records": [data], "notes": []}))
+    db_session.get(Project, pid).documents_synced_at = utc_now()
+    db_session.commit()
+
+    def shop_drawings():
+        rows = client.get(f"/projects/{pid}/drawings/log").json()["rows"]
+        return [(r["reference"], r["floor"], {k: v["status"] for k, v in r["cells"].items()})
+                for r in rows if r["source"] == "shop_drawing"], rows
+
+    before, _ = shop_drawings()
+    assert before == [(reference, "Ground Floor", {"R0": "not_approved", "R1": "under_review", "R2": "not_submitted"})]
+    stored = sorted((d.id, d.relative_path, str(d.extracted)) for d in
+                    db_session.query(ProjectDocument).filter(ProjectDocument.project_id == pid))
+
+    doc = ezdxf.new("R2018")
+    doc.modelspace().add_circle((0, 0), 200)
+    path = tmp_path / "GROUND FLOOR FIRE ALARM LAYOUT.dxf"
+    doc.saveas(path)
+    for _ in range(2):                                   # imported, then imported again
+        assert client.post(f"/projects/{pid}/ifc-drawings",
+                           files={"file": (path.name, path.read_bytes(), "application/dxf")}).status_code in (200, 201)
+    after, rows = shop_drawings()
+    assert after == before
+    assert not any(path.stem in str(value) for row in rows for value in row.values())
+    db_session.expire_all()
+    assert sorted((d.id, d.relative_path, str(d.extracted)) for d in
+                  db_session.query(ProjectDocument).filter(ProjectDocument.project_id == pid)) == stored
 
 
 # --- Actions Required: the contractor's drawings, by folder ------------------------------------------
@@ -193,7 +276,7 @@ def test_the_schedule_of_drawings_is_not_a_set_of_drawings():
 
     # Only the drawing that was actually submitted.
     assert built["submissions"] == 1
-    assert [row["reference"] for row in built["unplaced"]] == [
+    assert [row["reference"] for row in built["rows"]] == [
         "BBY006-GME-SDW-FP-FA-BSM-B04-010025"]
 
 
@@ -276,7 +359,7 @@ def test_the_log_covers_every_system_the_project_has(client, db_session, tmp_pat
     # And each system shows its own drawings, not another's.
     for code, reference in [("FAS", "FP-FA"), ("ELS", "EL-LI")]:
         built = build([], records, in_system=lambda c, code=code: c == code)
-        assert [r["reference"] for r in built["unplaced"]] == [
+        assert [r["reference"] for r in built["rows"]] == [
             next(d.reference for d in records if reference in d.reference)]
 
 
@@ -379,7 +462,7 @@ def test_a_floor_covered_by_several_submissions_is_still_one_row():
         sheet("BBY006-GME-SDW-EL-FA-BSM-ZZZ-010001", "R0", "UR", "Basement 4, 3, 2", 3),
         sheet("BBY006-GME-SDW-EL-FA-BSM-ZZZ-010006", "R0", "rejected", "Basement 4 & 3", 4),
     ])
-    floors = [row["floor_named"] for row in built["unplaced"]]
+    floors = [row["floor_named"] for row in built["rows"]]
     assert len(floors) == len(set(floors)), f"a floor is listed twice: {floors}"
 
     # B4 has a sheet of its own, so that is what stands for it. Each
@@ -387,7 +470,7 @@ def test_a_floor_covered_by_several_submissions_is_still_one_row():
     # for that rather than for everything it once covered.
     assert set(floors) == {"BASEMENT-4", "Basement 3", "Basement 2"}
 
-    b4 = next(r for r in built["unplaced"] if r["floor_named"] == "BASEMENT-4")
+    b4 = next(r for r in built["rows"] if r["floor_named"] == "BASEMENT-4")
     assert b4["revision"] == "R1"
     # R0 was answered on two of them; the one that decides it is kept.
     assert b4["revisions"]["R0"]["label"] == "Not Approved"
@@ -395,7 +478,7 @@ def test_a_floor_covered_by_several_submissions_is_still_one_row():
 
     # The wrapper that still stands for B2 says so, rather than claiming
     # the basements a later sheet has taken.
-    wrapper = next(r for r in built["unplaced"] if r["floor_named"] == "Basement 2")
+    wrapper = next(r for r in built["rows"] if r["floor_named"] == "Basement 2")
     assert wrapper["revisions"]["R0"]["label"] == "Under Review"
 
 
@@ -422,7 +505,7 @@ def test_a_drawing_issued_for_a_run_of_floors_is_one_row():
         sheet("BBY006-GME-SDW-FP-FA-ZZZ-ZZZ-010008", "R1", "UR", "L03 TO L21", 2, name=run),
         sheet("BBY006-GME-SDW-FP-FA-ZZZ-L22-010009", "R0", "rejected", "L22"),
     ])
-    rows = built["unplaced"]
+    rows = built["rows"]
     assert [r["floor_named"] for r in rows] == ["L03 TO L21", "L22"]
     assert rows[0]["revision"] == "R1"
     # It still stands for every floor of the run.
@@ -476,7 +559,7 @@ def test_a_typical_sheet_is_one_row_and_floors_drawn_apart_are_not():
         sheet("BBY006-GME-SDW-EL-FA-BSM-ZZZ-010001",
               "Shop Drawing for Basement 4, 3, 2 Floor Plan", "Basement 4, 3, 2"),
     ])
-    rows = {row["floor_named"]: row for row in built["unplaced"]}
+    rows = {row["floor_named"]: row for row in built["rows"]}
 
     # The typical run: one row, standing for all eighteen floors.
     assert "L23 TO L40" in rows and rows["L23 TO L40"]["floors"] == 18
@@ -486,5 +569,5 @@ def test_a_typical_sheet_is_one_row_and_floors_drawn_apart_are_not():
     assert all(rows[f"Basement {n}"]["floors"] == 1 for n in (4, 3, 2))
 
     # Every floor once, whichever kind it came from.
-    covered = [f for row in built["unplaced"] for f in floors_named(row["floor_named"])]
+    covered = [f for row in built["rows"] for f in floors_named(row["floor_named"])]
     assert len(covered) == len(set(covered)), "a floor is covered twice"

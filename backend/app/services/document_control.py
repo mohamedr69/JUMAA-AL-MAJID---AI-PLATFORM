@@ -751,8 +751,22 @@ def combine(records: list[ControlledDocument]) -> list[ControlledDocument]:
             # filed again, not a submission of its own, and listing it said
             # the floor had been submitted twice when it had been submitted
             # once and re-issued.
-            earlier = sorted((r for r in history[key]
-                              if r is not row and r.status not in ("UR", "SUPERSEDED")),
+            earlier = [r for r in history[key] if r is not row and r.status not in ("UR", "SUPERSEDED")]
+            # An earlier revision with no answer read off any of its files is
+            # still that revision, submitted and answered -- the later one
+            # proves it. It stays in the history, once, as SUPERSEDED (its
+            # answer not found) with its own file, rather than dropping out
+            # and leaving the log to call it "not submitted".
+            answered = {_revision_number(r.revision) for r in earlier}
+            unanswered: dict[int, ControlledDocument] = {}
+            for r in history[key]:
+                number = _revision_number(r.revision)
+                if (r is row or r.status not in ("UR", "SUPERSEDED") or number in answered
+                        or number >= _revision_number(row.revision)):
+                    continue
+                if number not in unanswered or r.modified > unanswered[number].modified:
+                    unanswered[number] = replace(r, status="SUPERSEDED")
+            earlier = sorted([*earlier, *unanswered.values()],
                              key=lambda r: _revision_number(r.revision), reverse=True)
             collapsed.append(replace(row, superseded=tuple(earlier)))
         rows = collapsed

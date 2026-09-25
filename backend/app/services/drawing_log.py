@@ -1,19 +1,25 @@
-"""The Drawings Log: each floor of the IFC drawings, and where its shop
-drawing stands at every revision.
+"""The Drawings Log: each shop drawing, and where it stands at every revision.
 
-The floors are the floor-plan sheets of the IFC drawings in force (the BOQ
-page's As per IFC Drawings tab, each drawing at its latest revision), in
-the drawing's own sheet order. A typical plan is one row -- "TYPICAL 3RD
-TO 16TH FLOOR", fourteen floors -- because one shop drawing is issued for
-it, as the IFC sheet was.
+The log is the shop drawings' own. Each row is a shop drawing as the
+document control reads it from the project folder (`document_sync.log_records`,
+category "drawings"): its own drawing reference (BBY006-GME-SDW-FP-FA-BSM-
+B01-010001), the floor its title names, and every revision it went through
+-- each revision's status the consultant's reply to that revision, as
+filed. A typical plan is one row -- "TYPICAL 3RD TO 16TH FLOOR", fourteen
+floors -- because one shop drawing is issued for it.
 
-The statuses are never typed in. They are the shop-drawing submissions and
-consultant replies the document control reads from the project folder
-(`document_sync.log_records`, category "drawings"): the revision a
-submission was filed under, the consultant's marked decision, the floor
-its title names. A submission belongs to a row when the floors it names
-meet the row's floors; one naming no floor, or a floor no IFC sheet has,
-is listed apart rather than dropped.
+The IFC drawings (the BOQ's As per IFC Drawings) share only the floors with
+it. A floor an IFC plan has and no shop drawing covers yet is a row of its
+own, "not submitted", named by the floor alone. Nothing of the IFC
+drawing's -- its sheet names ("FA 101"), its drawing numbers, its
+revisions -- is a shop drawing's reference or status, and importing or
+re-importing the IFC drawings changes nothing in this log but which floors
+are still to be drawn.
+
+A revision is never worked out from the latest one. Where R1 was
+submitted, R0 was submitted and answered: if the answer to R0 is not in the
+folder, R0 says exactly that ("Answered - reply not found"), never "Not
+Submitted" or "Under Review".
 """
 from __future__ import annotations
 
@@ -28,11 +34,12 @@ STATUS = {
     "UR": ("under_review", "Under Review"),
     "ANN": ("approved_as_noted", "Approved as Noted"),
     "approved": ("approved", "Approved"),
-    # A revision a later one replaced. It reaches the log as the history
-    # of the drawing that stands, and without a label of its own the raw
-    # word was what the page printed.
-    "SUPERSEDED": ("superseded", "Superseded"),
+    # A revision a later one replaced, whose consultant reply was not read:
+    # it was answered -- the next revision exists -- and the answer is not
+    # in the folder. Said as such, never "under review".
+    "SUPERSEDED": ("reply_not_found", "Answered - Reply Not Found"),
 }
+NOT_SUBMITTED = {"status": "not_submitted", "label": "Not Submitted"}
 _NAMED_LEVEL = re.compile(r"BASEMENT|PODIUM|MEZZ|PARKING", re.I)
 _LIST = re.compile(r"(?<![\w.])(?:[BPL]\s*)?(\d{1,3})(?=\s*(?:,|&|AND|$))", re.I)
 _SPAN = re.compile(r"\b[BPL]?(\d{1,3})\s*(?:ST|ND|RD|TH)?\s*(?:TO|-|–|&)\s*[BPL]?(\d{1,3})\s*(?:ST|ND|RD|TH)?", re.I)
@@ -115,8 +122,8 @@ def _pick(entries: list) -> object:
 
 
 def _unplaced_row(record, *, floor: str | None = None, cells: dict | None = None,
-                  floors: int = 1) -> dict:
-    """One shop drawing whose floor no IFC plan has, as the log shows it.
+                  floors: int = 1, keys: set[str] | None = None) -> dict:
+    """One shop drawing, as the log shows it.
 
     The drawing is one row at the revision that stands, and every revision
     it went through is a cell of its own -- R0 beside R1 beside R2 -- so
@@ -125,9 +132,9 @@ def _unplaced_row(record, *, floor: str | None = None, cells: dict | None = None
     """
     def cell(rec) -> dict:
         state, label = STATUS.get(rec.status, STATUS["UR"])
-        return {"revision": rec.revision, "status": state, "label": label,
-                "path": rec.path, "page": rec.page, "name": rec.name,
-                "remarks": rec.reply_text}
+        return {"revision": rec.revision, "status": state, "label": label, "reference": rec.reference,
+                "path": rec.path, "page": rec.page, "name": rec.name, "floor_named": rec.floor,
+                "remarks": rec.reply_text, "modified": rec.modified.isoformat() if rec.modified else None}
 
     if cells is not None:
         revisions = {rev: cell(rec) for rev, rec in sorted(cells.items(), key=lambda kv: _rev_number(kv[0]))}
@@ -142,6 +149,7 @@ def _unplaced_row(record, *, floor: str | None = None, cells: dict | None = None
             # How many floors this one drawing stands for: a typical-floor
             # sheet is one row and nineteen floors.
             "floors": floors,
+            "floor_keys": sorted(keys or (), key=_floor_order),
             "revisions": revisions}
 
 
@@ -260,19 +268,46 @@ def _by_floor(unmatched: list) -> list[dict]:
         label = (latest.floor if held_all
                  else ", ".join(called.get(k) or _spelled(k)
                                 for k in sorted(keys, key=_floor_order)))
-        rows.append(_unplaced_row(latest, floor=label, cells=revisions, floors=len(keys)))
+        rows.append(_unplaced_row(latest, floor=label, cells=revisions, floors=len(keys), keys=set(keys)))
     rows.sort(key=lambda row: _floor_order(sorted(floors_named(row["floor_named"]) or {""},
                                                   key=_floor_order)[0] or ""))
     rows += [_unplaced_row(record) for record in nameless]
     return rows
 
 
+def answered_revisions(revisions: dict[str, dict]) -> dict[str, dict]:
+    """A shop drawing's revisions as filed, keyed R0, R1, ... -- each the
+    consultant's reply to that revision, never one worked out from another.
+
+    What a later revision proves is kept to: where R1 was submitted, R0 was
+    submitted and answered, so an R0 whose answer is not in the folder (no
+    file for it, or a file with no reply read off it) is "answered - reply
+    not found", never "not submitted" or "under review". Where R2 was
+    submitted, the same holds for R0 and R1."""
+    by_number = {_rev_number(rev): cell for rev, cell in revisions.items() if _rev_number(rev) >= 0}
+    top = max(by_number, default=-1)
+    out: dict[str, dict] = {}
+    for n in range(top + 1):
+        cell = by_number.get(n)
+        if n < top and (cell is None or cell.get("status") in ("under_review", "not_submitted", "reply_not_found")):
+            cell = {**(cell or {"revision": f"R{n}", "reference": None, "path": None, "page": 1, "name": None,
+                                "floor_named": None, "remarks": None, "modified": None}),
+                    "status": "reply_not_found", "label": STATUS["SUPERSEDED"][1],
+                    "note": (f"R{top} was submitted, so R{n} was submitted and answered; "
+                             + ("the consultant's reply to it was not found in the project folder."
+                                if cell is None or not cell.get("path")
+                                else "no consultant reply was read off its file."))}
+        if cell is not None:
+            out[f"R{n}"] = {**cell, "revision": f"R{n}"}
+    return out
+
+
 def build(drawings: list[dict], records: list, in_system=lambda code: (code or "").upper() in ("FAS", "FA")) -> dict:
-    """`drawings`: the IFC drawings in force, resolved. `records`: document
-    control records (`document_sync.log_records`); `in_system(code)` says
-    which system codes are the fire alarm's (voice evacuation too, on an
-    Edwards-integrated job -- `system_rules.effective_code`)."""
-    rows = _rows(drawings)
+    """`drawings`: the IFC drawings in force, resolved -- read for their
+    floors only. `records`: document control records
+    (`document_sync.log_records`); `in_system(code)` says which system codes
+    are the fire alarm's (voice evacuation too, on an Edwards-integrated job
+    -- `system_rules.effective_code`)."""
     # A drawing is one we submitted, not a line in the schedule that says we
     # will. The project's "Shop drawings log.pdf" lists every drawing it
     # plans -- FA 101 UNDER GROUND PLAN, FA 102 BASEMENT-4 -- with the dates
@@ -285,47 +320,60 @@ def build(drawings: list[dict], records: list, in_system=lambda code: (code or "
             if getattr(r, "category", None) == "drawings"
             and getattr(r, "source", None) != "drawing schedule"
             and in_system(r.system_code)]
-    by_row: dict[str, dict[str, list]] = {row.key: {} for row in rows}
-    unplaced = []
-    for rec in shop:
-        named = floors_named(rec.floor)
-        hits = [row for row in rows if named & row.keys]
-        if not hits:
-            unplaced.append(rec)
-            continue
-        for row in hits:
-            by_row[row.key].setdefault(rec.revision or "R0", []).append(rec)
 
-    latest_seen = max((_rev_number(r.revision) for r in shop), default=-1)
+    latest_seen = max((_rev_number(r.revision) for entry in shop for r in (entry, *getattr(entry, "superseded", ()))),
+                      default=-1)
     revisions = [f"R{n}" for n in range(max(MIN_REVISIONS, latest_seen + 1))]
 
-    def cell(rec) -> dict:
-        state, label = STATUS.get(rec.status, STATUS["UR"])
-        return {"status": state, "label": label, "reference": rec.reference, "path": rec.path, "page": rec.page,
-                "floor_named": rec.floor, "remarks": rec.reply_text, "modified": rec.modified.isoformat()}
-
-    out_rows = []
-    for row in rows:
-        cells = {rev: cell(_pick(recs)) for rev, recs in by_row[row.key].items()}
-        latest = max(cells, key=_rev_number) if cells else None
-        out_rows.append({
-            "key": row.key, "sheet": row.sheet, "drawing": row.drawing, "ifc_revision": row.ifc_revision,
-            "floor": floor_label(row.floor_name), "title": row.title, "floors": row.floors,
-            "cells": {rev: cells.get(rev) or {"status": "not_submitted", "label": "Not Submitted"} for rev in revisions},
+    # Every shop drawing, from the shop drawings alone.
+    rows: list[dict] = []
+    covered: set[str] = set()
+    for index, drawing in enumerate(_by_floor(shop)):
+        covered |= set(drawing["floor_keys"])
+        history = answered_revisions(drawing["revisions"])
+        latest = f"R{_rev_number(drawing['revision'])}" if _rev_number(drawing["revision"]) >= 0 else drawing["revision"]
+        rows.append({
+            **drawing,
+            "key": f"sd:{index}:{drawing['reference']}",
+            "source": "shop_drawing",
+            "floor": floor_label(drawing["floor_named"]) if drawing["floor_named"] else "Floor not named on the drawing",
+            "revisions": history,
+            "cells": {rev: history.get(rev) or dict(NOT_SUBMITTED) for rev in revisions},
             "latest_revision": latest,
-            "latest_status": cells[latest]["status"] if latest else "not_submitted",
-            "remarks": (cells[latest].get("remarks") or "") if latest else "",
-            "latest_path": cells[latest]["path"] if latest else None,
-            "latest_page": cells[latest]["page"] if latest else 1,
+            "latest_status": drawing["status"],
+            "remarks": drawing["remarks"] or "",
+            "latest_path": drawing["path"],
+            "latest_page": drawing["page"],
         })
 
+    # The floors the IFC drawings have that no shop drawing covers yet:
+    # the floor alone -- no IFC sheet name, number or revision.
+    seen: set[frozenset] = set()
+    for plan in _rows(drawings):
+        keys = frozenset(plan.keys)
+        if not keys or keys & covered or keys in seen:
+            continue
+        seen.add(keys)
+        ordered = sorted(keys, key=_floor_order)
+        rows.append({
+            "key": f"floor:{','.join(ordered)}", "source": "ifc_floor", "reference": None,
+            "floor": floor_label(plan.floor_name), "floor_named": None, "floor_keys": ordered, "floors": plan.floors,
+            "revision": None, "status": "not_submitted", "label": "Not Submitted", "path": None, "page": 1,
+            "name": None, "revisions": {},
+            "cells": {rev: dict(NOT_SUBMITTED) for rev in revisions},
+            "latest_revision": None, "latest_status": "not_submitted", "remarks": "", "latest_path": None,
+            "latest_page": 1,
+        })
+
+    # Building order, lowest floor first; a drawing naming no floor last.
+    rows.sort(key=lambda row: (not row["floor_keys"],
+                               _floor_order(row["floor_keys"][0]) if row["floor_keys"] else ()))
     counts: dict[str, int] = {}
-    for r in out_rows:
-        counts[r["latest_status"]] = counts.get(r["latest_status"], 0) + 1
+    for row in rows:
+        counts[row["latest_status"]] = counts.get(row["latest_status"], 0) + 1
     return {
         "revisions": revisions,
-        "rows": out_rows,
+        "rows": rows,
         "counts": counts,
-        "unplaced": _by_floor(unplaced),
         "submissions": len(shop),
     }
