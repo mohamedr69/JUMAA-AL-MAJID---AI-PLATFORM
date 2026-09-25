@@ -146,3 +146,20 @@ def test_a_system_without_a_submittal_is_an_action_until_one_is_entered(client, 
     client.post(f"/projects/{pid}/submittals", json={"title": code, "system_code": code})
     texts = [a["text"] for a in client.get(f"/projects/{pid}/actions").json()]
     assert f"Material submittal required: no material submittal is filed for {code}" not in texts
+
+
+def test_two_brands_filed_under_one_reference_are_two_log_rows(client, db_session):
+    """Filed through the platform, a system's reference is the system's
+    (EP-n-MAS-FRC), so Frontier and Tianjie cable can share it. They are
+    two submittals, and the log lists both."""
+    from app.models import SubmittalStatus
+
+    pid = _project(client)
+    for brand in ("FRONTIER", "TIANJIE"):
+        db_session.add(ProjectSubmittal(project_id=pid, title="Fire Rated Cable", reference="EP-30990-MAS-FRC",
+                                        system_code="FRC", brand_key=brand, manufacturer=brand, revision="R00",
+                                        status=SubmittalStatus.under_review))
+    db_session.commit()
+    rows = client.get(f"/projects/{pid}/logs").json()["material_submittals"]
+    assert sorted(r["name"] for r in rows) == ["Fire Rated Cable — FRONTIER", "Fire Rated Cable — TIANJIE"]
+    assert {r["reference"] for r in rows} == {"EP-30990-MAS-FRC"}

@@ -10,6 +10,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -58,8 +59,13 @@ def _actions(db: Session, project, *, resolved: bool = False, submittals: list |
     every writer; one that was missed -- a project last touched before
     actions were kept -- is brought up to date here, and committed only when
     something changed."""
-    if project_state.reconcile_actions(db, project, submittals):
-        db.commit()
+    try:
+        if project_state.reconcile_actions(db, project, submittals):
+            db.commit()
+    except IntegrityError:
+        # Another request opened the same action a moment before: its row
+        # stands, and this one reads it.
+        db.rollback()
     if not resolved:
         return project_state.open_actions(db, project.id)
     return (db.query(ProjectAction).filter(ProjectAction.project_id == project.id)

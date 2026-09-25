@@ -28,6 +28,22 @@ export function directoryRevision(file: ProjectLogDrawing): LogRevision {
     status: file.status ?? "UR", path: file.path, system: file.system_code, updated: file.modified,
     floor: file.floor ?? "Not recorded", page: file.page, evidence: file.reply_text, source: file.source, groupReference: file.group_reference };
 }
+/** The Material Submittal Log as the backend sends it: one row per
+ * submittal -- one per system and brand, from the register -- with its
+ * earlier revisions under it. Taken as it comes, never grouped again by
+ * reference: two brands of one system can be filed under the one
+ * reference, and grouping on it would show them as one submittal. */
+export function submittalDocuments(rows: ProjectLogDrawing[]): LogDocument[] {
+  return rows.map((row, index) => {
+    const groupReference = row.group_reference ?? row.reference ?? row.name;
+    return {
+      key: `${index}|${groupReference}|${row.name}|${row.system_code ?? ""}`,
+      title: row.name,
+      reference: row.reference ?? row.name,
+      revisions: [row, ...(row.superseded ?? [])].map((r) => ({ ...directoryRevision(r), groupReference })),
+    };
+  });
+}
 export function groupRevisions(rows: LogRevision[], voiceEvacuationIntegrated = false): LogDocument[] {
   const groups = new Map<string, LogDocument>();
   for (const row of rows) {

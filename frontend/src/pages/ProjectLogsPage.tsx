@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { ApiError, api, apiUrl } from "../lib/api";
-import type { ProjectLogDrawing, ProjectLogs, SampleBoardCheck } from "../lib/types";
-import { directoryRevision, groupRevisions, systemGroup, type LogDocument, type LogRevision } from "../lib/projectLog";
+import type { ProjectLogs, SampleBoardCheck } from "../lib/types";
+import { directoryRevision, groupRevisions, submittalDocuments, systemGroup, type LogDocument, type LogRevision } from "../lib/projectLog";
 import { useOnProjectChange } from "../lib/projectChanges";
 import { useAuth } from "../context/AuthContext";
 import { PROJECT_EDITOR_ROLES } from "../lib/types";
@@ -103,14 +103,7 @@ export function ProjectLogsPage() {
   const samples = (logs?.samples ?? []).filter((file) => matches(file.system_code));
   const boardChecks = (logs?.sample_boards ?? []).filter((check) => matches(check.system_code));
   const materials = (logs?.material_submittals ?? []).filter((item) => matches(item.system_code));
-  // A submittal comes as its latest revision with the earlier ones under
-  // it, all pinned to the submittal's own reference (a revision can be on
-  // file under another number: our copy, the main contractor's).
-  const withHistory = (file: ProjectLogDrawing) => {
-    const groupReference = file.group_reference ?? file.reference ?? file.name;
-    return [{ ...directoryRevision(file), groupReference }, ...(file.superseded ?? []).map((earlier) => ({ ...directoryRevision(earlier), groupReference }))];
-  };
-  const rows = activeChild === "submittals" ? materials.flatMap(withHistory)
+  const rows: LogRevision[] = activeChild === "submittals" ? []
     : activeChild === "samples"
       // A transmittal's sample is filed as "Sample Board" per system: the
       // system goes in the title so the ALL view tells them apart.
@@ -124,7 +117,9 @@ export function ProjectLogsPage() {
         const groupReference = file.group_reference ?? file.reference ?? file.name;
         return [directoryRevision(file), ...(file.superseded ?? []).map((earlier) => ({ ...directoryRevision(earlier), groupReference }))];
       });
-  const documents = groupRevisions(rows, integrated);
+  // A submittal is the register's row as it comes, its revisions under it
+  // (one per system and brand); drawings and samples are grouped here.
+  const documents = activeChild === "submittals" ? submittalDocuments(materials) : groupRevisions(rows, integrated);
   // The material submittals the log lists, by reference: these can be
   // deleted for good from here (the files included), after the warning.
   const materialReferences = new Set((logs?.material_submittals ?? []).map((item) => (item.reference ?? "").toUpperCase()));
@@ -149,7 +144,7 @@ export function ProjectLogsPage() {
   const visible = documents.filter((doc) => `${doc.title} ${doc.reference}`.toLowerCase().includes(search.toLowerCase()) && (!statusFilter || doc.revisions[0].status === statusFilter));
   const revisionColumns = [...new Set(["R0", ...documents.flatMap((doc) => doc.revisions.map((r) => r.revision))])].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   const view = (row: LogRevision) => row.path ? <a className="font-medium text-brand-600 hover:underline" href={apiUrl(`/projects/${project.id}/logs/file?path=${encodeURIComponent(row.path)}#page=${row.page ?? 1}`)} target="_blank" rel="noreferrer">{row.source === "drawing schedule" ? "View schedule" : "View file"}</a> : <span className="text-gray-400">No file</span>;
-  const badge = (value: string) => <span className={`inline-block rounded-md px-3 py-1 text-xs font-semibold ${value === "ANN" ? "bg-cyan-100 text-cyan-800" : value === "rejected" ? "bg-rose-100 text-rose-700" : value === "approved" ? "bg-green-100 text-green-700" : value === "UR" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-600"}`}>{value}</span>;
+  const badge = (value: string) => <span className={`inline-block rounded-md px-3 py-1 text-xs font-semibold ${value === "ANN" ? "bg-cyan-100 text-cyan-800" : value === "rejected" || value === "RR" || value === "REJ" ? "bg-rose-100 text-rose-700" : value === "approved" || value === "A" ? "bg-green-100 text-green-700" : value === "UR" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-600"}`}>{value}</span>;
   function exportLog() {
     const data = [["Document", "Reference number", "System", "Revision", "Status", "File", "Updated"], ...visible.flatMap((doc) => doc.revisions.map((r) => [doc.title, doc.reference, group(r.system), r.revision, r.status, r.path ?? "", r.updated]))];
     const csv = data.map((row) => row.map((value) => `"${(/^[=+@-]/.test(value) ? "'" : "") + value.replaceAll('"', '""')}"`).join(",")).join("\r\n");

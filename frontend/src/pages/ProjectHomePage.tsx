@@ -6,7 +6,7 @@ import { SyncDocumentsCard } from "../components/SyncDocumentsCard";
 import { useAuth } from "../context/AuthContext";
 import { ApiError, api, apiUrl } from "../lib/api";
 import { formatApiDate } from "../lib/format";
-import { directoryRevision, groupRevisions, type LogDocument } from "../lib/projectLog";
+import { directoryRevision, groupRevisions, submittalDocuments, type LogDocument } from "../lib/projectLog";
 import { useJob } from "../lib/useJob";
 import {
   PROJECT_EDITOR_ROLES,
@@ -83,7 +83,9 @@ export function ProjectHomePage() {
   // The same grouping the Logs tab uses, so the two never disagree about
   // how many documents are on file.
   const integrated = project.voice_evacuation_integrated;
-  const submittals = useMemo(() => summarise(logs?.material_submittals, integrated), [logs, integrated]);
+  // The submittals one per register row (one per system and brand), as the
+  // backend derives the log; drawings and samples grouped as Logs groups them.
+  const submittals = useMemo(() => summarise(logs?.material_submittals, integrated, true), [logs, integrated]);
   const drawings = useMemo(() => summarise(logs?.drawings, integrated), [logs, integrated]);
   const samples = useMemo(() => summarise(logs?.samples, integrated), [logs, integrated]);
   // Drawings we do not owe are not progress we are missing: a project
@@ -403,8 +405,12 @@ function bucket(status: string): keyof Omit<Counts, "total"> {
 
 /** One row per document (its revisions collapsed), counted by where its
  * latest revision stands -- the same grouping the Logs tab shows. */
-function summarise(rows: ProjectLogDrawing[] | undefined, voiceEvacuationIntegrated = false): Summary {
-  const documents = groupRevisions((rows ?? []).map(directoryRevision), voiceEvacuationIntegrated);
+function summarise(rows: ProjectLogDrawing[] | undefined, voiceEvacuationIntegrated = false, oneRowEach = false): Summary {
+  // A register row not yet submitted is not a document on file.
+  const documents = (oneRowEach
+    ? submittalDocuments(rows ?? [])
+    : groupRevisions((rows ?? []).map(directoryRevision), voiceEvacuationIntegrated))
+    .filter((doc) => doc.revisions[0]?.status !== "NS");
   const summary: Summary = { documents, total: 0, approved: 0, review: 0, rejected: 0, bySystem: new Map() };
   for (const doc of documents) {
     const latest = doc.revisions[0];
