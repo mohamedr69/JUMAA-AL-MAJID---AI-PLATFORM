@@ -968,20 +968,22 @@ class SubmittalStatus(str, enum.Enum):
     rejected = "rejected"
 
 
-_ONE_PER_SYSTEM = "system_code IS NOT NULL"
+_ONE_PER_BRAND = "system_code IS NOT NULL"
 
 
 class ProjectSubmittal(Base):
-    """A material submittal: the one package of materials of one system,
-    submitted to the consultant and revised (R0, R1, ...) until approved.
+    """A material submittal: the package of materials of one system from one
+    brand, submitted to the consultant and revised (R0, R1, ...) until
+    approved (app.services.submittal_identity).
 
-    A system has one material submittal, however many revisions, replies,
-    files or references it goes through: the forms filed as our own copy
-    and as the main contractor's, the suppliers a fire rated cable was
-    offered from, are all revisions of it (`revisions`), and the database
-    refuses a second one for the system. `revision`, `status` and
-    `reply_code` here are its latest revision's, kept beside it so the
-    register reads the way it always did.
+    A system has one material submittal per brand, however many revisions,
+    replies, files or references it goes through: the forms filed as our
+    own copy and as the main contractor's are revisions of it
+    (`revisions`), and the database refuses a second one for the same
+    system and brand. A system submitted from several brands -- fire rated
+    cable offered from Fireguard, Frontier and Tianjie -- has one for each.
+    `revision`, `status` and `reply_code` here are its latest revision's,
+    kept beside it so the register reads the way it always did.
 
     History is kept, not overwritten: each revision's status changes are in
     its `history`, and the register's events say what happened when.
@@ -989,8 +991,8 @@ class ProjectSubmittal(Base):
 
     __tablename__ = "project_submittals"
     __table_args__ = (
-        Index("uq_project_submittals_one_per_system", "project_id", "system_code", unique=True,
-              sqlite_where=text(_ONE_PER_SYSTEM), postgresql_where=text(_ONE_PER_SYSTEM)),
+        Index("uq_project_submittals_one_per_brand", "project_id", "system_code", "brand_key", unique=True,
+              sqlite_where=text(_ONE_PER_BRAND), postgresql_where=text(_ONE_PER_BRAND)),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -1006,6 +1008,9 @@ class ProjectSubmittal(Base):
     # The BOQ's system code (FAS, EML, ...); None for a package that spans them.
     system_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
     manufacturer: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # The brand this submittal is for, in one spelling ("" when unknown):
+    # with the system, what makes it the one submittal it is.
+    brand_key: Mapped[str] = mapped_column(String(64), nullable=False, default="", server_default="")
     # "R00", "R01", ... as the submittal itself is numbered.
     revision: Mapped[str] = mapped_column(String(16), nullable=False, default="R00")
     status: Mapped[SubmittalStatus] = mapped_column(

@@ -250,14 +250,19 @@ def file_package(db: Session, project: Project, user: User | None, *, pdf: bytes
     document_sync.depend(db, row, "submittal", reference, f"filed by the platform as {relative}")
     document_sync.depend(db, row, "log", reference, f"register row from {relative}")
 
-    # The register row: the system's one material submittal, this package a
-    # revision of it -- never a second submittal for the system.
+    # The register row: the material submittal of this system and brand, this
+    # package a revision of it -- never a second submittal for them
+    # (app.services.submittal_identity).
+    from app.services.submittal_identity import brand_key
+
+    brand = brand_key(manufacturer) if code else ""
     query = db.query(ProjectSubmittal).filter(ProjectSubmittal.project_id == project.id)
-    submittal = (query.filter(ProjectSubmittal.system_code == code).first() if code else None) \
-        or query.filter(ProjectSubmittal.reference == reference).first()
+    submittal = (query.filter(ProjectSubmittal.system_code == code, ProjectSubmittal.brand_key == brand).first()
+                 if code else None) or query.filter(ProjectSubmittal.reference == reference).first()
     if submittal is None:
         submittal = ProjectSubmittal(project_id=project.id, title=title, reference=reference, system_code=code,
-                                     manufacturer=manufacturer, revision=f"R{number}", status=SubmittalStatus.under_review,
+                                     brand_key=brand, manufacturer=manufacturer, revision=f"R{number}",
+                                     status=SubmittalStatus.under_review,
                                      document_path=str(path), created_by_id=user.id if user else None)
         db.add(submittal)
     elif _revision_number(submittal.revision) <= number:

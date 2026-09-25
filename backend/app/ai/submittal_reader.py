@@ -472,19 +472,30 @@ def build_map(readings: list[dict], *, systems_on_project: list[str] | None = No
         if replies:
             submittal_replies.apply_to(reading, replies)
         forms.append(reading)
-    # One material submittal per system: every form of a system is a copy of
-    # one of its revisions -- our own copy and the one the consultant
-    # answered, filed under two references; the supplier a fire rated cable
-    # was resubmitted from -- and each revision stands as its best copy
-    # (`_better`). A form that names no system is its reference's own.
+    # One material submittal per system and brand
+    # (app.services.submittal_identity): every form of it is a copy of one
+    # of its revisions -- our own copy and the one the consultant answered,
+    # filed under two references -- and each revision stands as its best
+    # copy (`_better`). A system submitted from several brands, fire rated
+    # cable offered from Fireguard, Frontier and Tianjie, has a submittal for
+    # each. A form that names no system is its reference's own.
+    from app.services.submittal_identity import brand_key, settle_unknown_brands
+
+    keyed = []
+    for reading in forms:
+        system = _system_code(reading, reading["relative"])
+        keyed.append((reading, system, brand_key(reading.get("manufacturer")) if system else ""))
+    settled = settle_unknown_brands([(system, brand) for _, system, brand in keyed if system])
     chosen: dict[tuple[str, int], dict] = {}
     duplicates: dict[tuple[str, int], int] = {}
     filed_as: dict[tuple[str, int], dict[str, str]] = {}
     systems_of: dict[str, str | None] = {}
-    for reading in forms:
-        system = _system_code(reading, reading["relative"])
-        logical = system or f"REF:{reading['reference'].upper()}"
+    brands_of: dict[str, str] = {}
+    for reading, system, brand in keyed:
+        brand = settled.get((system, brand), brand) if system else ""
+        logical = f"{system}|{brand}" if system else f"REF:{reading['reference'].upper()}"
         systems_of[logical] = system
+        brands_of[logical] = brand
         key = (logical, reading["revision"] if reading["revision"] is not None else 0)
         duplicates[key] = duplicates.get(key, 0) + 1
         refs = filed_as.setdefault(key, {})
@@ -503,7 +514,7 @@ def build_map(readings: list[dict], *, systems_on_project: list[str] | None = No
 
     systems: dict[str | None, list[dict]] = {}
     actions: list[str] = []
-    for logical in sorted(by_submittal, key=lambda k: (systems_of[k] or "", k)):
+    for logical in sorted(by_submittal, key=lambda k: (systems_of[k] or "", brands_of[k], k)):
         system = systems_of[logical]
         revs = by_submittal[logical]
         latest_n = max(revs)
@@ -537,7 +548,7 @@ def build_map(readings: list[dict], *, systems_on_project: list[str] | None = No
             # it has been filed under is in `references`.
             "reference": reference, "references": [reference] + [r for r in references if r != reference],
             "title": latest.get("title") or "", "supplier": latest.get("supplier") or "",
-            "manufacturer": latest.get("manufacturer") or "", "system_code": system,
+            "manufacturer": latest.get("manufacturer") or "", "system_code": system, "brand": brands_of[logical],
             "cells": cells, "latest": f"R{latest_n}", "latest_status": latest_status, "action": action,
         })
     if not by_submittal:
@@ -650,16 +661,9 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
     return submittal_map
 
 
-def submittal_key(system_code: str | None, reference: str | None) -> tuple[str, str]:
-    """What makes a register row the one submittal it is: its system -- a
-    system has one material submittal -- or, for a package that names no
-    system, its reference."""
-    return ("system", system_code) if system_code else ("reference", (reference or "").upper())
-
-
 def sync_register(db: Session, project: Project, submittal_map: dict, user: User | None) -> dict:
-    """The register as the map says: one submittal per system, and each
-    revision on the map a revision of it with one current status. A
+    """The register as the map says: one submittal per system and brand,
+    and each revision on the map a revision of it with one current status. A
     revision the consultant has since answered is updated in place -- its
     old status goes to the revision's history, never into a second
     revision or a second submittal -- and the submittal's own revision and
@@ -667,6 +671,7 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
     from app.models import ProjectSubmittalRevision, ProjectSubmittalStatusChange
     from app.routers.submittal import _maker
     from app.services import brands
+    from app.services.submittal_identity import submittal_key
 
     def maker_of(value: str | None) -> str | None:
         """The brand a form names, in the one spelling a brand is recorded
@@ -676,22 +681,30 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
     by_key = {}
     for s in project.submittals:
         if s.system_code or s.reference:
-            by_key.setdefault(submittal_key(s.system_code, s.reference), s)
+            by_key.setdefault(submittal_key(s.system_code, s.brand_key, s.reference), s)
     by_id = user.id if user else None
     created = updated = unchanged = 0
     for system in submittal_map["systems"]:
         for row in system["rows"]:
-            key = submittal_key(row["system_code"], row["reference"])
+            brand = row.get("brand") or ""
+            key = submittal_key(row["system_code"], brand, row["reference"])
             status, letter = REGISTER[row["latest_status"]]
             cell = row["cells"][row["latest"]]
             revision = f"R{int(row['latest'][1:]):02d}"
             latest_maker = maker_of(cell.get("manufacturer") or row.get("manufacturer") or row.get("supplier"))
             submittal = by_key.get(key)
+            if submittal is None and row["system_code"] and brand:
+                # A submittal entered by hand before its brand was known is
+                # this brand's, when it is the system's only one without a brand.
+                unbranded = by_key.get(submittal_key(row["system_code"], "", None))
+                if unbranded is not None:
+                    by_key.pop(submittal_key(row["system_code"], "", None))
+                    by_key[key] = submittal = unbranded
             new = submittal is None
             if new:
                 submittal = ProjectSubmittal(
                     project_id=project.id, title=row["title"] or row["reference"], reference=row["reference"],
-                    system_code=row["system_code"], manufacturer=latest_maker,
+                    system_code=row["system_code"], manufacturer=latest_maker, brand_key=brand,
                     revision=revision, status=status, reply_code=letter, document_path=cell["file"],
                     note=cell.get("evidence") or None,
                 )
@@ -746,6 +759,7 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
             if moved_on or not submittal.manufacturer:
                 submittal.manufacturer = latest_maker or submittal.manufacturer
             submittal.system_code = submittal.system_code or row["system_code"]
+            submittal.brand_key = brand
             detail = (f"{row['latest']} {row['latest_status']}"
                       + (f" — {cell['evidence']}" if cell.get("evidence") else " — no consultant reply on the form"))
             if new:
@@ -772,7 +786,7 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
     from app.models import ProjectDocument
     from app.services import document_sync
 
-    on_map = {submittal_key(row["system_code"], row["reference"])
+    on_map = {submittal_key(row["system_code"], row.get("brand") or "", row["reference"])
               for system in submittal_map["systems"] for row in system["rows"]}
     still_filed = {(reference or "").upper() for (reference,) in db.query(ProjectDocument.reference).filter(
         ProjectDocument.project_id == project.id,

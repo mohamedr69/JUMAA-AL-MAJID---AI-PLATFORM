@@ -36,6 +36,7 @@ from app.models import (
     User,
 )
 from app.routers.projects import CREATOR_ROLES, DELETER_ROLES, XLSX_MEDIA_TYPE, _get_project_or_404
+from app.services.submittal_identity import brand_key
 from app.schemas_design import (
     SubmittalRevisionOut,
     ChecklistReadOut,
@@ -226,19 +227,27 @@ def _out(submittal: ProjectSubmittal, materials: dict[str | None, tuple[int, int
     )
 
 
-def _one_per_system(found: list[SubmittalOut], held_systems: set[str]) -> list[SubmittalOut]:
+def _one_per_brand(found: list[SubmittalOut], held: set[tuple[str, str]]) -> list[SubmittalOut]:
     """The forms on file that the register does not hold, as submittals: one
-    per system (per reference for a form that names none), at its latest
-    revision, with each revision it has been filed at. A system the
-    register already has is its register row's."""
+    per system and brand (per reference for a form that names no system),
+    at its latest revision, with each revision it has been filed at. A
+    system and brand the register already has is its register row's."""
     from app.services.submittal_filing import _revision_number
+    from app.services.submittal_identity import brand_key, settle_unknown_brands
 
     answered = {"approved": 2, "rejected": 2, "under_review": 1, "not_submitted": 0}
+    brand = {id(item): brand_key(item.manufacturer) if item.system_code else "" for item in found}
+    settled = settle_unknown_brands([(item.system_code, brand[id(item)]) for item in found if item.system_code]
+                                    + list(held))
     groups: dict[str, list[SubmittalOut]] = {}
     for item in found:
-        if item.system_code and item.system_code in held_systems:
-            continue
-        groups.setdefault(item.system_code or f"REF:{(item.reference or '').upper()}", []).append(item)
+        if item.system_code:
+            mine = settled.get((item.system_code, brand[id(item)]), brand[id(item)])
+            if (item.system_code, mine) in held:
+                continue
+            groups.setdefault(f"{item.system_code}|{mine}", []).append(item)
+        else:
+            groups.setdefault(f"REF:{(item.reference or '').upper()}", []).append(item)
     out = []
     for items in groups.values():
         best: dict[int, SubmittalOut] = {}
@@ -445,15 +454,15 @@ def list_submittals(
     # own copy beside the one the consultant answered -- is not a second
     # submittal, and listing it as one shows the system twice, once under
     # review and once answered.
-    # One submittal per system: a form of a system the register holds is a
-    # revision of that submittal, not another one.
+    # One submittal per system and brand: a form of a submittal the
+    # register holds is a revision of it, not another one.
     held = {s.reference for s in project.submittals if s.reference}
     held |= {r.reference for s in project.submittals for r in s.revisions if r.reference}
     held |= {ref for s in project.submittals for r in s.revisions for ref in (r.also_filed_as or [])}
-    items += _one_per_system(
+    items += _one_per_brand(
         _filed_in_the_folder(db, project, held,
                              covered={same_submittal(s.system_code, s.revision, s.manufacturer) for s in project.submittals}),
-        {s.system_code for s in project.submittals if s.system_code})
+        {(s.system_code, s.brand_key or "") for s in project.submittals if s.system_code})
 
     # A reply comes back as a scan of the consultant's comments with no
     # reference on it, so the form reader never sees it and the register
@@ -538,6 +547,23 @@ def list_submittals(
     )
 
 
+def _refuse_a_second(project: Project, system: str | None, brand: str, *, but: ProjectSubmittal | None = None) -> None:
+    """A system has one material submittal per brand: a new revision or a
+    reply is a change to it, not another one. Where either brand is not
+    known, which one it is cannot be told, and the second is refused too."""
+    if not system:
+        return
+    existing = next((s for s in project.submittals if s is not but and s.system_code == system
+                     and (s.brand_key == brand or not brand or not s.brand_key)), None)
+    if existing is not None:
+        named = f"{system} ({existing.brand_key})" if existing.brand_key else system
+        raise HTTPException(http_status.HTTP_409_CONFLICT, detail={
+            "code": "submittal_exists", "submittal_id": existing.id,
+            "message": f"{named} already has its material submittal ({existing.reference or existing.title}, "
+                       f"{existing.revision}): change its revision or status, or give the other brand, "
+                       f"instead of adding another."})
+
+
 def _log(submittal: ProjectSubmittal, kind: str, detail: str, user: User) -> None:
     submittal.events.append(ProjectSubmittalEvent(kind=kind, detail=detail, by_id=user.id, at=utc_now()))
 
@@ -577,18 +603,13 @@ def create_submittal(
 ) -> SubmittalOut:
     project = _get_project_or_404(db, project_id)
     system = system_rules.effective_code(payload.system_code, project)
-    existing = next((s for s in project.submittals if system and s.system_code == system), None)
-    if existing is not None:
-        # A system has one material submittal; a new revision or a reply is
-        # a change to it, not another one.
-        raise HTTPException(http_status.HTTP_409_CONFLICT, detail={
-            "code": "submittal_exists", "submittal_id": existing.id,
-            "message": f"{system} already has its material submittal ({existing.reference or existing.title}, "
-                       f"{existing.revision}): change its revision or status instead of adding another."})
+    brand = brand_key(payload.manufacturer) if system else ""
+    _refuse_a_second(project, system, brand)
     submittal = ProjectSubmittal(
         project_id=project.id,
         title=payload.title.strip(),
         system_code=system,
+        brand_key=brand,
         manufacturer=payload.manufacturer,
         revision=payload.revision.strip(),
         status=SubmittalStatus(payload.status),
@@ -640,11 +661,12 @@ def update_submittal(
         submittal.status = SubmittalStatus(changes.pop("status"))
         _log(submittal, "status", f"{submittal.status.value.replace('_', ' ').title()} (was {was})", current_user)
     changes.pop("status", None)
-    if "system_code" in changes and changes["system_code"] and changes["system_code"] != submittal.system_code \
-            and any(s.system_code == changes["system_code"] for s in project.submittals if s is not submittal):
-        raise HTTPException(http_status.HTTP_409_CONFLICT, detail={
-            "code": "submittal_exists",
-            "message": f"{changes['system_code']} already has its material submittal: a system has one."})
+    if "system_code" in changes or "manufacturer" in changes:
+        system = changes.get("system_code", submittal.system_code)
+        brand = brand_key(changes.get("manufacturer", submittal.manufacturer)) if system else ""
+        if (system, brand) != (submittal.system_code, submittal.brand_key):
+            _refuse_a_second(project, system, brand, but=submittal)
+        submittal.brand_key = brand
     for field, value in changes.items():
         setattr(submittal, field, value.strip() if isinstance(value, str) and field in ("title", "revision") else value)
     # The revision it is at now, with the status it stands at: updated in

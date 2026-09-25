@@ -1,9 +1,11 @@
-"""One material submittal per system.
+"""One material submittal per system and brand.
 
 A system's material submittal is revised R0, R1, ... until approved. Its
 revisions, the consultant's replies, the copies filed under our reference
-and the main contractor's, the suppliers a fire rated cable was offered
-from: none of them is another submittal. Each revision has one current
+and the main contractor's, the same brand spelled two ways: none of them is
+another submittal. A system submitted from several brands -- fire rated
+cable offered from Fireguard, Frontier and Tianjie -- has one for each,
+and none of them is left out. Each revision has one current
 status, updated in place; what it was before is history. The page counts
 submittals, by where their latest revision stands.
 """
@@ -55,24 +57,44 @@ def test_our_copy_and_the_answered_copy_of_a_revision_are_one_submittal():
     assert result["actions"] == []
 
 
-def test_a_cable_resubmitted_from_another_supplier_is_a_revision_of_the_one_submittal():
-    """EP-30784's fire rated cable: Frontier and Tianjie returned at R0,
-    Fireguard approved as noted at R1 -- one submittal, standing at R1, with
-    nothing more to file."""
+def test_a_system_submitted_from_several_brands_keeps_a_row_per_brand():
+    """EP-30784's fire rated cable was offered from three brands: Frontier and
+    Tianjie returned at R0, Fireguard approved as noted at R1. Three
+    submittals, each standing where its own revisions leave it -- and the
+    two returned ones still owe their R1."""
     result = submittal_reader.build_map([
-        _reading("BBY006-GME-MAS-EL-FA-0003", 0, "resubmit", system="FRC", maker="FRONTIER / RAMCRO", relative="frc/f.pdf"),
-        _reading("BBY006-GME-MAS-EL-FA-0004", 0, "resubmit", system="FRC", maker="TIANJIE / RAMCRO", relative="frc/t.pdf",
-                 modified="2026-09-02T10:00:00"),
-        _reading("BBY006-GME-MAS-EL-FA-0002", 1, "approved_as_noted", system="FRC", maker="FIREGUARD / RAMCRO",
+        _reading("BBY006-GME-MAS-EL-FA-0003", 0, "resubmit", system="FRC", maker="M/S. FRONTIER / RAMCRO", relative="frc/f.pdf"),
+        _reading("BBY006-GME-MAS-EL-FA-0004", 0, "resubmit", system="FRC", maker="M/S. TIANJIE / RAMCRO", relative="frc/t.pdf"),
+        _reading("BBY006-GME-MAS-EL-FA-0002", 1, "approved_as_noted", system="FRC", maker="Fireguard / Ramcro",
                  relative="frc/g-R1.pdf"),
     ])
+    rows = {row["brand"]: row for row in result["systems"][0]["rows"]}
+    assert set(rows) == {"FIREGUARD", "FRONTIER", "TIANJIE"} and result["submittals"] == 3
+    assert (rows["FIREGUARD"]["latest"], rows["FIREGUARD"]["latest_status"]) == ("R1", "ANN")
+    assert (rows["FRONTIER"]["latest"], rows["FRONTIER"]["latest_status"]) == ("R0", "RR")
+    assert sorted(result["actions"]) == [
+        "Material submittal required: BBY006-GME-MAS-EL-FA-0003 R0 was returned revise and resubmit; R1 is not filed",
+        "Material submittal required: BBY006-GME-MAS-EL-FA-0004 R0 was returned revise and resubmit; R1 is not filed"]
+
+
+def test_one_brand_spelled_two_ways_and_a_form_with_no_brand_are_one_submittal():
+    """"TIANJIE / RAMCRO" at R0 and "TIANJIE" at R1 are one brand's submittal;
+    a form whose brand was not read belongs to the system's only brand."""
+    result = submittal_reader.build_map([
+        _reading("CBL-MAS-0004", 0, "resubmit", system="FRC", maker="M/S. TIANJIE / RAMCRO", relative="t/R0.pdf"),
+        _reading("CBL-MAS-0004", 1, system="FRC", maker="TIANJIE", relative="t/R1.pdf"),
+        _reading("OUR-FRC-201", 1, system="FRC", maker="", relative="ours/R1.pdf"),
+    ])
     (row,) = result["systems"][0]["rows"]
-    assert (row["reference"], row["latest"], row["latest_status"]) == ("BBY006-GME-MAS-EL-FA-0002", "R1", "ANN")
-    assert row["manufacturer"] == "FIREGUARD / RAMCRO"
-    assert row["cells"]["R0"]["status"] == "RR" and len(row["cells"]["R0"]["also_filed_as"]) == 1
-    assert set(row["references"]) == {"BBY006-GME-MAS-EL-FA-0002", "BBY006-GME-MAS-EL-FA-0003", "BBY006-GME-MAS-EL-FA-0004"}
-    # R0 was returned, but R1 answers it: no "R1 is not filed" for either supplier.
-    assert result["actions"] == [] and result["submittals"] == 1
+    assert row["brand"] == "TIANJIE" and (row["latest"], row["latest_status"]) == ("R1", "UR")
+    assert row["cells"]["R1"]["copies"] == 2 and result["actions"] == []
+    # Two brands on file, and a form that names neither: it is not guessed into one.
+    result = submittal_reader.build_map([
+        _reading("A-1", 0, system="FRC", maker="FIREGUARD", relative="a.pdf"),
+        _reading("B-1", 0, system="FRC", maker="TIANJIE", relative="b.pdf"),
+        _reading("C-1", 0, system="FRC", maker="", relative="c.pdf"),
+    ])
+    assert sorted(row["brand"] for row in result["systems"][0]["rows"]) == ["", "FIREGUARD", "TIANJIE"]
 
 
 # --- the register: one row per system, a revision updated in place -------------------------------
@@ -140,29 +162,38 @@ def test_the_page_counts_submittals_by_their_latest_revision(client, db_session)
     assert els["revisions"][0]["also_filed_as"] == ["EP-30841/SK/EM/201"]
 
 
-def test_a_second_submittal_for_a_system_is_refused(client, db_session):
+def test_a_second_submittal_for_a_system_and_brand_is_refused(client, db_session):
     pid = _project(client)
     first = client.post(f"/projects/{pid}/submittals", json={"title": "Fire Alarm System", "system_code": "FAS"})
     assert first.status_code == 201, first.text
     assert [(r["revision"], r["status"]) for r in first.json()["revisions"]] == [("R00", "not_submitted")]
     second = client.post(f"/projects/{pid}/submittals", json={"title": "Fire Alarm again", "system_code": "FAS"})
     assert second.status_code == 409 and second.json()["detail"]["code"] == "submittal_exists"
+    # Cable from two brands: one submittal each; the same brand again, refused.
+    cable = {"title": "Fire Rated Cable", "system_code": "FRC"}
+    assert client.post(f"/projects/{pid}/submittals", json={**cable, "manufacturer": "FIREGUARD"}).status_code == 201
+    assert client.post(f"/projects/{pid}/submittals", json={**cable, "manufacturer": "TIANJIE"}).status_code == 201
+    again = client.post(f"/projects/{pid}/submittals", json={**cable, "manufacturer": "M/s. Tianjie / Ramcro"})
+    assert again.status_code == 409 and "TIANJIE" in again.json()["detail"]["message"]
     # A new revision is a change to the one submittal, kept with its own status.
     changed = client.patch(f"/projects/{pid}/submittals/{first.json()['id']}",
                            json={"revision": "R01", "status": "under_review"}).json()
     assert [(r["revision"], r["status"]) for r in changed["revisions"]] == [("R00", "not_submitted"), ("R01", "under_review")]
-    assert client.get(f"/projects/{pid}/submittals").json()["counts"]["total"] == 1
+    register = client.get(f"/projects/{pid}/submittals").json()
+    assert register["counts"]["total"] == 3 and register["counts_by_system"]["FRC"]["total"] == 2
 
 
 # --- the migration merges what was already there ---------------------------------------------------
 
 
-def test_the_migration_merges_a_systems_register_rows_into_one(tmp_path):
+def test_the_migration_merges_a_brands_register_rows_and_keeps_each_brand(tmp_path):
     engine = create_engine(f"sqlite:///{(tmp_path / 'merge.db').as_posix()}")
     config = Config(str(ALEMBIC_INI))
     with engine.begin() as connection:
         config.attributes["connection"] = connection
         command.upgrade(config, "b4e8f1a2c3d5")
+        # ELS: the consultant's copy (EATON) and ours (MENVIER, Eaton's name
+        # for it) are one submittal. FRC: three brands, three submittals.
         insert = text("INSERT INTO project_submittals (id, project_id, title, reference, system_code, manufacturer, "
                       "revision, status, reply_code, created_at, updated_at) VALUES (:id, 1, 'MS', :ref, :sys, :maker, "
                       ":rev, :status, :code, '2026-09-24', '2026-09-24')")
@@ -175,13 +206,18 @@ def test_the_migration_merges_a_systems_register_rows_into_one(tmp_path):
         connection.execute(text("INSERT INTO project_submittal_events (submittal_id, kind, detail, at) "
                                 "VALUES (11, 'ai_check', 'R0 UR', '2026-09-24')"))
         command.upgrade(config, "head")
-        parents = connection.execute(text("SELECT id, system_code, revision, status FROM project_submittals ORDER BY system_code")).all()
-        assert [tuple(p) for p in parents] == [(4, "ELS", "R00", "approved"), (2, "FRC", "R01", "approved")]
+        parents = connection.execute(text("SELECT id, system_code, brand_key, revision, status FROM project_submittals "
+                                          "ORDER BY system_code, brand_key")).all()
+        assert [tuple(p) for p in parents] == [(4, "ELS", "EATON", "R00", "approved"),
+                                               (2, "FRC", "FIREGUARD", "R01", "approved"),
+                                               (13, "FRC", "FRONTIER", "R00", "rejected"),
+                                               (3, "FRC", "TIANJIE", "R00", "rejected")]
         revisions = connection.execute(text("SELECT submittal_id, revision, status, reference, also_filed_as "
                                             "FROM project_submittal_revisions ORDER BY submittal_id, revision")).all()
         assert [tuple(r)[:4] for r in revisions] == [
-            (2, "R00", "rejected", "BBY006-GME-MAS-EL-FA-0004"), (2, "R01", "approved", "BBY006-GME-MAS-EL-FA-0002"),
-            (4, "R00", "approved", "BBY006-GME-MAS-EL-LI-0001")]
+            (2, "R01", "approved", "BBY006-GME-MAS-EL-FA-0002"), (3, "R00", "rejected", "BBY006-GME-MAS-EL-FA-0004"),
+            (4, "R00", "approved", "BBY006-GME-MAS-EL-LI-0001"), (13, "R00", "rejected", "BBY006-GME-MAS-EL-FA-0003")]
+        assert tuple(revisions[2])[4] in ('["EP-29941/SK/EM/201"]', ["EP-29941/SK/EM/201"])
         # The under-review copy's history went with it onto the one submittal.
         events = connection.execute(text("SELECT submittal_id, kind FROM project_submittal_events ORDER BY id")).all()
         assert (4, "ai_check") in [tuple(e) for e in events] and (4, "merged") in [tuple(e) for e in events]
