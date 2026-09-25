@@ -365,12 +365,43 @@ def _by_floor(unmatched: list, aliases: dict[str, str] | None = None) -> list[di
         # not claim floors it no longer covers.
         covers = floor_identity(latest.floor, latest.name, aliases) if latest.floor else set()
         held_all = covers and covers == set(keys)
-        label = latest.floor if held_all else _floors_in_words(keys, called)
-        rows.append(_unplaced_row(latest, floor=label, cells=revisions, floors=len(keys), keys=set(keys)))
+        # A typical-floor drawing is the drawing it is -- "L03 TO L21", 19
+        # floors -- even where one of its floors has a drawing of its own too.
+        typical = _is_typical(latest) and bool(covers)
+        label = latest.floor if held_all or typical else _floors_in_words(keys, called)
+        floors = len(covers) if typical else len(keys)
+        rows.append(_unplaced_row(latest, floor=label, cells=revisions, floors=floors,
+                                  keys=set(covers) | set(keys) if typical else set(keys)))
     rows.sort(key=lambda row: _floor_order(sorted(floors_named(row["floor_named"]) or {""},
                                                   key=_floor_order)[0] or ""))
     rows += [_unplaced_row(record) for record in nameless]
     return rows
+
+
+APPROVED = ("approved", "approved_as_noted")
+
+
+def after_approval(revisions: dict[str, dict]) -> tuple[dict[str, dict], dict[str, dict]]:
+    """(the revisions that stand, the ones found after an approval).
+
+    A drawing the consultant approved at R0 is approved. An R1 found in the
+    folder after that, with no reply of its own, was not submitted for
+    approval: it stays "not submitted", with a note, and the drawing stands
+    at the approved revision. A later revision the consultant did answer
+    was submitted, and counts."""
+    by_number = {_rev_number(rev): cell for rev, cell in revisions.items() if _rev_number(rev) >= 0}
+    approved = [n for n, cell in by_number.items() if cell.get("status") in APPROVED]
+    if not approved:
+        return revisions, {}
+    at = max(approved)
+    later = {n: cell for n, cell in by_number.items() if n > at}
+    if not later or any(cell.get("status") not in ("under_review", "reply_not_found") for cell in later.values()):
+        return revisions, {}
+    standing = {f"R{n}": cell for n, cell in by_number.items() if n <= at}
+    found = {f"R{n}": {**cell, "revision": f"R{n}", "status": "not_submitted", "label": "Not Submitted",
+                       "note": f"R{n} found in the folder after R{at} was approved; not taken as submitted."}
+             for n, cell in later.items()}
+    return standing, found
 
 
 def answered_revisions(revisions: dict[str, dict]) -> dict[str, dict]:
@@ -520,21 +551,32 @@ def build(drawings: list[dict], records: list, in_system=lambda code: (code or "
         extra = [_named_label(named_as[k]) for k in drawing["floor_keys"] if k in named_as]
         if len(drawing["floor_keys"]) == 1 and extra and extra[0].upper() not in floor.upper():
             floor = f"{floor} - {extra[0]}"
-        history = answered_revisions(drawing["revisions"])
+        standing, found = after_approval(drawing["revisions"])
+        history = answered_revisions(standing)
         latest = f"R{_rev_number(drawing['revision'])}" if _rev_number(drawing["revision"]) >= 0 else drawing["revision"]
-        rows.append({
+        row = {
             **drawing,
             "key": f"sd:{index}:{drawing['reference']}",
             "source": "shop_drawing",
             "floor": floor,
-            "revisions": history,
-            "cells": {rev: history.get(rev) or dict(NOT_SUBMITTED) for rev in revisions},
+            "revisions": {**history, **found},
+            "cells": {rev: history.get(rev) or found.get(rev) or dict(NOT_SUBMITTED) for rev in revisions},
             "latest_revision": latest,
             "latest_status": drawing["status"],
+            "latest_note": None,
             "remarks": drawing["remarks"] or "",
             "latest_path": drawing["path"],
             "latest_page": drawing["page"],
-        })
+        }
+        if found:
+            # The drawing stands at the revision the consultant approved.
+            approved_at = max(history, key=_rev_number)
+            cell = history[approved_at]
+            row.update({"latest_revision": approved_at, "latest_status": cell["status"],
+                        "remarks": cell.get("remarks") or "", "latest_path": cell.get("path"),
+                        "latest_page": cell.get("page") or 1,
+                        "latest_note": f"{', '.join(sorted(found, key=_rev_number))} found after approval"})
+        rows.append(row)
 
     # The floors the IFC drawings have that no shop drawing covers yet:
     # the floor alone -- no IFC sheet name, number or revision.
@@ -551,7 +593,8 @@ def build(drawings: list[dict], records: list, in_system=lambda code: (code or "
             "revision": None, "status": "not_submitted", "label": "Not Submitted", "path": None, "page": 1,
             "name": None, "revisions": {},
             "cells": {rev: dict(NOT_SUBMITTED) for rev in revisions},
-            "latest_revision": None, "latest_status": "not_submitted", "remarks": "", "latest_path": None,
+            "latest_revision": None, "latest_status": "not_submitted", "latest_note": None, "remarks": "",
+            "latest_path": None,
             "latest_page": 1,
         })
 

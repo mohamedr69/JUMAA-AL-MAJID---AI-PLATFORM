@@ -57,12 +57,13 @@ def _systems_with_drawings(project, records) -> list[str]:
     drawings that exist.
     """
     integrated = system_rules.project_integrated(project)
-    codes = list(system_rules.project_codes(project))
+    # Only systems that are drawn: a cable has no shop drawings.
+    codes = [c for c in system_rules.project_codes(project) if system_rules.has_shop_drawings(c)]
     for record in records:
         if getattr(record, "category", None) != "drawings" or getattr(record, "source", None) == "drawing schedule":
             continue
         code = system_rules.effective_code(record.system_code, integrated=integrated)
-        if code and code not in codes:
+        if code and code not in codes and system_rules.has_shop_drawings(code):
             codes.append(code)
     return codes
 

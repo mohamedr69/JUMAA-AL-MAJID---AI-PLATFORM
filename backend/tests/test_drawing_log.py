@@ -194,10 +194,27 @@ def test_every_system_and_project_runs_bottom_to_top():
     assert [r["floor"] for r in out["rows"]] == ["B05", "B4", "GF", "L01", "L32"]
     assert [r.reference for r in sorted(records, key=building_order(records, []))] == [
         "E-B05", "E-B4", "E-GF", "E-L01", "E-L32"]
-    # A typical drawing whose first floor another drawing took: the rest, as a run.
+    # A typical drawing whose first floor has a drawing of its own too.
     run = build([], [_doc("TYPICAL 3RD TO 21ST FLOOR", "R0", "UR", ref="SD-TYP"),
                      _doc("Level 3", "R1", "UR", ref="SD-L03")])
-    assert [r["floor"] for r in run["rows"]] == ["Level 3", "Level 4 to 21"]
+    # A typical drawing is named as it is drawn -- 3rd to 21st, 19 floors --
+    # even where L3 has a drawing of its own as well.
+    assert [(r["floor"], r["floors"]) for r in run["rows"]] == [("Level 3", 1), ("Typical 3rd to 21st Floor", 19)]
+
+
+def test_a_revision_found_after_an_approval_is_not_submitted():
+    """R0 approved; an R1 then found in the folder with no reply of its
+    own was not submitted for approval: R1 stays "Not Submitted" with a
+    note, and the drawing stands at R0, approved. An R1 the consultant did
+    answer was submitted, and counts."""
+    out = build([], [_doc("Level 5", "R0", "approved", ref="SD-L05"), _doc("Level 5", "R1", "UR", day=2, ref="SD-L05"),
+                     _doc("Level 6", "R0", "approved", ref="SD-L06"),
+                     _doc("Level 6", "R1", "rejected", day=2, ref="SD-L06")])
+    l5, l6 = out["rows"]
+    assert (l5["cells"]["R0"]["status"], l5["cells"]["R1"]["status"]) == ("approved", "not_submitted")
+    assert "after R0 was approved" in l5["cells"]["R1"]["note"]
+    assert (l5["latest_revision"], l5["latest_status"], l5["latest_note"]) == ("R0", "approved", "R1 found after approval")
+    assert (l6["latest_revision"], l6["latest_status"], l6["latest_note"]) == ("R1", "not_approved", None)
 
 
 def test_revisions_grow_with_what_was_submitted():
@@ -427,7 +444,8 @@ def test_the_log_covers_every_system_the_project_has(client, db_session, tmp_pat
     shown nowhere at all.
 
     A system a drawing names that the project does not list is still
-    offered: the drawing is on the drive."""
+    offered: the drawing is on the drive. Never the fire-rated cables: a
+    cable has no shop drawings (the platform owner, 2026-09-25)."""
     from app.models import Project
     from app.routers.drawings import _systems_with_drawings
     from app.services.document_control import ControlledDocument
@@ -448,11 +466,13 @@ def test_the_log_covers_every_system_the_project_has(client, db_session, tmp_pat
     records = [
         drawing("FAS", "BBY006-GME-SDW-FP-FA-BSM-B01-010001"),
         drawing("ELS", "BBY006-GME-SDW-EL-LI-BSM-B01-010027"),
+        drawing("PAVA", "BBY006-GME-SDW-PA-BSM-B01-010098"),
         drawing("FRC", "BBY006-GME-SDW-FRC-BSM-B01-010099"),
     ]
     offered = _systems_with_drawings(project, records)
     assert "FAS" in offered and "ELS" in offered, "both of the project's systems"
-    assert "FRC" in offered, "a drawing on the drive under a system the project does not list"
+    assert "PAVA" in offered, "a drawing on the drive under a system the project does not list"
+    assert "FRC" not in offered, "a cable has no shop drawings"
 
     # And each system shows its own drawings, not another's.
     for code, reference in [("FAS", "FP-FA"), ("ELS", "EL-LI")]:

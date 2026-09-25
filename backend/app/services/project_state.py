@@ -35,6 +35,9 @@ KEEP_CHANGES = timedelta(days=30)
 # A revision's status as the logs write it: the consultant's code.
 APPROVED_CODES = ("A", "ANN")
 RETURNED_CODES = ("RR", "REJ")
+# A drawing record says it in words as well: "approved", "rejected".
+DRAWING_APPROVED = (*APPROVED_CODES, "APPROVED")
+DRAWING_RETURNED = (*RETURNED_CODES, "REJECTED")
 
 LABELS = {
     "approved": "Approved", "under_review": "Under Review", "returned": "Returned",
@@ -174,10 +177,16 @@ def _documents_by_system(project: Project, records: list) -> dict[str, dict]:
             continue
         entry = out.setdefault(code, {"total": 0, "approved": 0, "under_review": 0, "returned": 0})
         status = (row.status or "UR").upper()
+        # A revision found after an approval, with no reply of its own, was
+        # not submitted: the drawing stands approved (drawing_log.after_approval).
+        if status in ("UR", "SUPERSEDED"):
+            earlier = [(r.status or "").upper() for r in getattr(row, "superseded", ())]
+            if any(s in DRAWING_APPROVED for s in earlier):
+                status = "A"
         entry["total"] += 1
-        if status in APPROVED_CODES:
+        if status in DRAWING_APPROVED:
             entry["approved"] += 1
-        elif status in RETURNED_CODES:
+        elif status in DRAWING_RETURNED:
             entry["returned"] += 1
         else:
             entry["under_review"] += 1
@@ -217,7 +226,7 @@ def summary(db: Session, project: Project, submittals: list | None = None) -> di
             "material": material,
             # A system we do not draw -- or cable, which has no drawings --
             # has no shop drawing status at all, not "not submitted".
-            "shop_drawings": (drawings.get(code) or empty) if drawn and code != "FRC" else None,
+            "shop_drawings": (drawings.get(code) or empty) if drawn and system_rules.has_shop_drawings(code) else None,
             "samples": samples.get(code) or empty,
         })
     return {"systems": systems, "synced_at": project.documents_synced_at}

@@ -84,6 +84,16 @@ ALIASES = {
 }
 
 
+# A cable is supplied, not drawn: the fire-rated cables have a material
+# submittal and a sample, and no shop drawings.
+NO_SHOP_DRAWINGS = frozenset({"FRC"})
+
+
+def has_shop_drawings(code: str | None) -> bool:
+    """Whether a system has shop drawings at all."""
+    return canonical(code) not in NO_SHOP_DRAWINGS
+
+
 def canonical(code: str | None) -> str | None:
     """A code in the platform's spelling, before any project rule."""
     if not code:

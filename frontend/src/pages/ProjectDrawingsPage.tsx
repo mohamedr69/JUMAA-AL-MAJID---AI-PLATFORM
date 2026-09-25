@@ -40,6 +40,8 @@ interface LogRow {
   cells: Record<string, LogCell>;
   latest_revision: string | null;
   latest_status: Status;
+  /** "R1 found after approval": a later revision on file that was not submitted. */
+  latest_note?: string | null;
   remarks: string;
   latest_path: string | null;
   latest_page: number;
@@ -486,6 +488,41 @@ function DrawingsWorkspace() {
               </div>
             </div>
 
+            {/* Where the drawings stand, at the top: each status and its share
+                of the rows, counted at the revision each drawing stands at. */}
+            {log && log.rows.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-b border-gray-100 bg-gray-50/60 px-5 py-4 text-sm">
+                {(Object.keys(STATUS) as Status[]).map((s) => {
+                  const count = log.counts[s] ?? 0;
+                  const percent = Math.round((count / log.rows.length) * 100);
+                  return (
+                    <div key={s} className="flex items-center gap-2" title={STATUS[s].help}>
+                      <StatusIcon status={s} className="h-6 w-6" />
+                      <div>
+                        <div className="font-medium text-navy-900">
+                          {STATUS[s].label}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          <span className="font-semibold text-navy-900">{percent}%</span>
+                          {" "}· {count} of {log.rows.length}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="ml-auto flex items-center gap-5 text-brand-600">
+                  <span className="flex items-center gap-1.5">
+                    <EyeIcon />{" "}
+                    <span className="text-gray-600">View Drawing</span>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <FolderIcon />{" "}
+                    <span className="text-gray-600">Open Folder</span>
+                  </span>
+                </div>
+              </div>
+            )}
+
             {log === null ? (
               <div className="p-6 text-sm text-gray-500">
                 {error ? "" : "Loading the drawings log…"}
@@ -547,6 +584,11 @@ function DrawingsWorkspace() {
                         ))}
                         <td className="px-4 py-2.5 text-center font-medium">
                           {r.latest_revision ?? "–"}
+                          {r.latest_note && (
+                            <div className="mt-0.5 text-[11px] font-normal text-orange-700">
+                              {r.latest_note}
+                            </div>
+                          )}
                         </td>
                         <td className="max-w-xs px-4 py-2.5 text-gray-700">
                           <div className="line-clamp-2" title={r.remarks}>
@@ -634,31 +676,6 @@ function DrawingsWorkspace() {
             )}
 
 
-            <div className="flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-gray-200 bg-gray-50/60 px-5 py-4 text-sm">
-              {(Object.keys(STATUS) as Status[]).map((s) => (
-                <div key={s} className="flex items-center gap-2">
-                  <StatusIcon status={s} className="h-6 w-6" />
-                  <div>
-                    <div className="font-medium text-navy-900">
-                      {STATUS[s].label}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {STATUS[s].help}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              <div className="ml-auto flex items-center gap-5 text-brand-600">
-                <span className="flex items-center gap-1.5">
-                  <EyeIcon />{" "}
-                  <span className="text-gray-600">View Drawing</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <FolderIcon />{" "}
-                  <span className="text-gray-600">Open Folder</span>
-                </span>
-              </div>
-            </div>
           </div>
         </>
       )}
