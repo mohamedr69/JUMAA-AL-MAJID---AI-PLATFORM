@@ -27,19 +27,26 @@ from app.models import (
     ComplianceStatement,
     DocumentDependency,
     DocumentReading,
+    DrawingIssue,
+    DrawingRequirementState,
     ExtractionIssue,
     ExtractionRun,
     Project,
     ProjectAction,
     ProjectAmplifierDesign,
     ProjectBoqItem,
+    ProjectBuildingFloor,
     ProjectChange,
     ProjectDocument,
     ProjectFloorSchedule,
     ProjectFrcCables,
     ProjectIfcDrawing,
     ProjectProposedMaterial,
+    ProjectShopDrawing,
     ResultCache,
+    ShopDrawingCandidate,
+    ShopDrawingEvent,
+    ShopDrawingRevision,
     SubmittalReply,
 )
 
@@ -69,7 +76,11 @@ def delete_project(db: Session, project: Project) -> None:
     # `test_a_project_carrying_every_kind_of_row_can_still_be_deleted`
     # is here to catch when the next per-project table is added.
     # Documents go after the rows that point at them.
+    drawings = select(ProjectShopDrawing.id).where(ProjectShopDrawing.project_id == project_id)
+    db.execute(delete(ShopDrawingRevision).where(ShopDrawingRevision.shop_drawing_id.in_(drawings)))
+    db.execute(delete(ShopDrawingCandidate).where(ShopDrawingCandidate.project_id == project_id))
     for model in (AiVerification, DocumentDependency, DocumentReading, BatteryPanelResult, SubmittalReply,
+                  ProjectShopDrawing, ProjectBuildingFloor, DrawingIssue, DrawingRequirementState, ShopDrawingEvent,
                   ProjectFrcCables, ProjectProposedMaterial, ProjectFloorSchedule, ProjectAmplifierDesign, ProjectIfcDrawing,
                   BoqCandidate, BoqSnapshot, ProjectDocument, BackgroundJob, ResultCache, ProjectAction, ProjectChange):
         db.execute(delete(model).where(model.project_id == project_id))

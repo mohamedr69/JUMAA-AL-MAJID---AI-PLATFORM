@@ -339,7 +339,7 @@ def test_the_percentage_only_rises_and_the_time_left_comes_down():
     seen = []
     timer = ReadTimer.for_upload(lambda p, m, s, e: seen.append((p, s, e)), is_dwg=True, size_mb=4.4,
                                  converter="AutoCAD 2027 Core Console")
-    assert seen == [] and timer.order == ["save", "convert", "read", "walk", "finish", "file"]
+    assert seen == [] and timer.order == ["save", "convert", "read", "walk", "finish", "classify", "file"]
     for stage in timer.order:
         timer.begin(stage)
         if stage == "walk":

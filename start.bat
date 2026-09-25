@@ -1,7 +1,8 @@
 @echo off
 rem Start the Engineering Project Platform: the API on http://localhost:8000,
-rem the background worker, and the web app on http://localhost:5173, each in
-rem its own window. Run setup.bat once first on a new PC.
+rem the background worker, the IFC worker, and the web app on
+rem http://localhost:5173, each in its own window. Run setup.bat once first
+rem on a new PC.
 setlocal
 cd /d "%~dp0"
 
@@ -18,6 +19,10 @@ rem the pages. Below normal priority: the engineer's programs and the API come
 rem first. It has no hot reload: after changing backend code, close its window
 rem and start it again with the same command.
 start "EP Platform - Worker" /belownormal cmd /k "cd /d "%~dp0backend" && venv\Scripts\python -m app.workers.sync_worker"
+rem The IFC worker reads the uploaded IFC drawings (DWG conversion, CAD
+rem extraction, the AI symbol review), IFC_WORKER_CONCURRENCY at a time, so
+rem a building's drawings never slow the pages. Same rule: no hot reload.
+start "EP Platform - IFC Worker" /belownormal cmd /k "cd /d "%~dp0backend" && venv\Scripts\python -m app.workers.ifc_worker"
 start "EP Platform - Web" cmd /k "cd /d "%~dp0frontend" && npm run dev"
 
 timeout /t 8 >nul

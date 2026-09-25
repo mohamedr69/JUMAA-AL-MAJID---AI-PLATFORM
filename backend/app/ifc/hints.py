@@ -130,6 +130,22 @@ def hint(group: dict, codes: dict[str, dict]) -> dict | None:
     return None
 
 
+def readings(group: dict) -> tuple[tuple[str, str] | None, set[tuple[str, str]]]:
+    """What the letters say (family, code), and what each block name says,
+    read separately -- for the deterministic rule, which wants two
+    independent sources to agree. Nothing at all for a name or letters
+    that read as architecture."""
+    label = " ".join(str(group.get("label") or "").split()).upper()
+    names = [w for w in (_block_words(n) for n in group.get("block_names") or {}) if w]
+    if _ARCHITECTURE.search(label) or any(_ARCHITECTURE.search(n) for n in names):
+        return None, set()
+    letters = None
+    if label and len(label) <= MAX_LETTERS:
+        code = LETTERS.get(label)
+        letters = (_family_of_code(code), code) if code else read(label)
+    return letters, {found for found in (read(n.upper()) for n in names) if found}
+
+
 def conflict(group: dict) -> str | None:
     """Why an answered symbol's device type disagrees with its own words, or None."""
     h = group.get("name_hint")

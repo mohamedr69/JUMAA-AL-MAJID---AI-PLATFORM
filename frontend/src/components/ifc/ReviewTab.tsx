@@ -308,6 +308,41 @@ export default function ReviewTab({
   )
 }
 
+/** Why a symbol is in the engineer's queue, and what the AI said of it:
+ *  its classification, confidence and reason code -- never its reasoning. */
+function QueueReason({ g, types, pick, onPick }: { g: SymbolGroup; types: DeviceType[]; pick: number | ''; onPick: (id: number | '') => void }) {
+  const ai = g.queue!.ai
+  const said = ai?.decision === 'device' && ai.device_type_id ? types.find((t) => t.id === ai.device_type_id) : undefined
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+      <span className="rounded bg-amber-50 px-1.5 py-0.5 font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">{g.queue!.label}</span>
+      {ai && ai.decision === 'uncertain' && <span>AI: not sure{ai.reason_code ? ` (${ai.reason_code.toLowerCase().replace(/_/g, ' ')})` : ''}</span>}
+      {ai && ai.decision === 'not_device' && (
+        <span>
+          AI: not a device{ai.confidence != null && ` · ${Math.round(ai.confidence * 100)}%`}
+          {ai.validation_reason && ` · ${ai.validation_reason}`}
+        </span>
+      )}
+      {said && (
+        <span>
+          AI: {said.code} · {said.name}
+          {ai!.confidence != null && ` · ${Math.round(ai!.confidence * 100)}%`}
+          {ai!.validation_reason && ` · ${ai!.validation_reason}`}
+          {pick !== said.id && (
+            <button
+              type="button"
+              onClick={() => onPick(said.id)}
+              className="ml-2 rounded border border-indigo-300 bg-indigo-50 px-1.5 py-0.5 font-medium text-indigo-900 hover:bg-indigo-100"
+            >
+              Use the AI's answer
+            </button>
+          )}
+        </span>
+      )}
+    </div>
+  )
+}
+
 /** The picked type is of another family than the symbol's own words name. */
 function disagrees(g: SymbolGroup, t: DeviceType | undefined): boolean {
   return !!(g.name_hint && t?.family && t.family !== g.name_hint.family)
@@ -380,6 +415,7 @@ function ReviewRow({
               )}
             </div>
           )}
+          {g.queue && g.queue.reason !== 'resemblance_match' && <QueueReason g={g} types={types} pick={pick} onPick={onPick} />}
           {disagrees(g, types.find((t) => t.id === pick)) && (
             <div className="mt-1 rounded bg-rose-50 px-2 py-1 text-xs font-medium text-rose-800">
               Check: {types.find((t) => t.id === pick)?.code} is a {types.find((t) => t.id === pick)?.family}, but this symbol's {g.name_hint!.reason} reads as a{' '}

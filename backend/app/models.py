@@ -186,6 +186,10 @@ class Project(Base):
     # folder's listing then (app.services.document_sync).
     documents_synced_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
     documents_listing_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # When the shop drawing records were last brought up to the index
+    # (app.services.shop_drawings.reconcile): older than the last sync, the
+    # Drawings page catches up once, then reads the records.
+    drawings_reconciled_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
     # When the Design Sheets were read into the BOQ. Set once, on the first
     # attempt, and never cleared: extraction is a starting point the engineer
@@ -853,6 +857,7 @@ class AiVerification(Base):
 
 
 _ACTIVE_SYNC = "kind = 'sync_documents' AND status IN ('queued', 'running')"
+_ACTIVE_DEDUP = "dedup_key IS NOT NULL AND status IN ('queued', 'running')"
 
 
 class BackgroundJob(Base):
@@ -871,6 +876,10 @@ class BackgroundJob(Base):
     __table_args__ = (
         Index("uq_background_jobs_one_active_sync", "project_id", "kind", unique=True,
               sqlite_where=text(_ACTIVE_SYNC), postgresql_where=text(_ACTIVE_SYNC)),
+        # One queued-or-running job per `dedup_key`: the same file sent twice
+        # for the same drawing and revision is one read (app.services.jobs.enqueue).
+        Index("uq_background_jobs_active_dedup", "dedup_key", unique=True,
+              sqlite_where=text(_ACTIVE_DEDUP), postgresql_where=text(_ACTIVE_DEDUP)),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -896,6 +905,12 @@ class BackgroundJob(Base):
     # recover_stale); a job that keeps taking its worker down is failed
     # rather than restarted for ever.
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    # What a worker job needs to run, written by the API when it queues it:
+    # the worker has nothing else (an IFC read: the staged file, the drawing
+    # and revision it is issued as).
+    params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # What makes two jobs the same job ("ifc_read:<project>:<sha256>:<drawing>:<revision>").
+    dedup_key: Mapped[str | None] = mapped_column(String(200), nullable=True)
 
 
 class BackgroundWorker(Base):
@@ -912,6 +927,8 @@ class BackgroundWorker(Base):
     heartbeat_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
     stopped_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
     current_job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # The kinds of job it runs: "sync" (document syncs) or "ifc" (IFC reads).
+    lane: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
 
 class ProjectBoqRevision(Base):
@@ -1803,6 +1820,20 @@ class IfcSymbol(Base):
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+    # Who decided it, in order of authority: "engineer" (an engineer's
+    # answer; never overwritten by anything else), "deterministic" (the
+    # symbol's letters and block name named the device, app.ifc.services.
+    # symbol_matching), "ai" (the AI's answer that passed every check,
+    # app.ifc.services.ai_symbol_review). Only an engineer changes an
+    # engineer's answer.
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="engineer", server_default="engineer")
+    # The AI's confidence, for source "ai".
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # The engineer who last answered or approved it. A plain number, not a
+    # foreign key: adding one would rebuild this table, and a rebuild with
+    # foreign keys enforced cascades into every block alias.
+    reviewed_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
     device_type: Mapped["IfcDeviceType | None"] = relationship(back_populates="symbols")
     aliases: Mapped[list["IfcBlockAlias"]] = relationship(back_populates="symbol", cascade="all, delete-orphan")
@@ -1810,15 +1841,73 @@ class IfcSymbol(Base):
 
 class IfcBlockAlias(Base):
     """A block name seen on a verified symbol. Used only to *suggest*: a
-    known name with different geometry is exactly the wrongly-named case."""
+    known name with different geometry is exactly the wrongly-named case.
+
+    A name is not the same thing on every consultant's drawings. When a
+    second symbol with the same block name is answered as something else,
+    the name is marked `is_ambiguous` -- the first meaning is not
+    overwritten, and an ambiguous name suggests nothing."""
 
     __tablename__ = "ifc_block_aliases"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     block_name: Mapped[str] = mapped_column(String(300), unique=True, index=True, nullable=False)
     symbol_id: Mapped[int] = mapped_column(ForeignKey("ifc_symbols.id", ondelete="CASCADE"), nullable=False)
+    is_ambiguous: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
 
     symbol: Mapped["IfcSymbol"] = relationship(back_populates="aliases")
+
+
+class IfcSymbolReview(Base):
+    """One AI classification of one symbol signature: what it was asked
+    (the candidates), what it answered, and what the backend made of the
+    answer. It is the audit of every AI decision and the AI's cache: a row
+    with the same `cache_key` (signature, candidates, stage, prompt, model)
+    is reused instead of asking again. Errors are recorded, never reused.
+
+    What the engineer then did with the symbol is written back here
+    (`outcome`), so the AI's answers can be measured against theirs.
+    Project, drawing and job are kept as plain numbers: the review outlives
+    them, as the library does."""
+
+    __tablename__ = "ifc_symbol_reviews"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    signature: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
+    cache_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    # "metadata" (the symbol's words and counts) | "visual" (its small picture)
+    stage: Mapped[str] = mapped_column(String(16), nullable=False)
+    candidate_ids: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # "device" | "not_device" | "uncertain"; None when the call failed
+    decision: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    device_type_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    reason_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    requires_engineer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # The backend's gate: "accepted" (taken into the library) | "rejected"
+    # (with `validation_reason`) | "uncertain" | "error"
+    validation: Mapped[str] = mapped_column(String(16), nullable=False)
+    validation_reason: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    model: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    prompt_version: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    project_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    drawing_name: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    job_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    # Unverifying the symbol invalidates what the AI said about it: it is not reused.
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    # "approved" (the engineer kept the AI's answer) | "corrected" (another
+    # device type) | "not_device" | "device" (the AI was uncertain; the engineer answered)
+    outcome: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    outcome_device_type_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outcome_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    outcome_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+
+
+_LIVE_REVISION = "supersedes_id IS NOT NULL AND deleted_at IS NULL"
 
 
 class ProjectIfcDrawing(Base):
@@ -1828,9 +1917,23 @@ class ProjectIfcDrawing(Base):
     under the platform's uploads, at `stored_path` relative to it; the file
     as uploaded is filed in the project's own folder at `archive_path`.
     What an engineer decided per drawing -- skipped symbols, a sheet's
-    number of floors -- is in `meta`."""
+    number of floors -- is in `meta`.
+
+    A drawing is known by its `drawing_reference` ("FA-101"), not by its
+    file name: FA-101-R00.dwg and FA-101-R01.dwg are two revisions of one
+    drawing. The database refuses a fork of the revision chain -- two live
+    revisions of the same drawing -- whatever two workers do at once
+    (app.ifc.services.revisions). A reference read off a file name is
+    evidence, not a key: two towers' "FA LAYOUT.dwg" are two drawings, so
+    a matching reference asks the engineer rather than being refused. A
+    revision with history is archived (`deleted_at`), never removed, so
+    R0 -> R1 -> R2 stays readable."""
 
     __tablename__ = "project_ifc_drawings"
+    __table_args__ = (
+        Index("uq_project_ifc_drawings_one_revision", "supersedes_id", unique=True,
+              sqlite_where=text(_LIVE_REVISION), postgresql_where=text(_LIVE_REVISION)),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
@@ -1849,6 +1952,232 @@ class ProjectIfcDrawing(Base):
     # one nothing supersedes is the drawing in force.
     revision: Mapped[str] = mapped_column(String(10), nullable=False, default="R0")
     supersedes_id: Mapped[int | None] = mapped_column(ForeignKey("project_ifc_drawings.id"), nullable=True)
+    # The drawing's identity, whatever its file is called ("FA-101").
+    drawing_reference: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    # The SHA-256 of the file as uploaded: the same file is not imported twice.
+    source_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # Archived: kept for the revision history, out of every list and BOQ.
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    # Who archived it (a user id; plain, so the migration adds columns without rebuilding the table).
+    deleted_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+# --- The Drawings page: building floors, shop drawings, revisions -----------------------
+#
+# IFC defines the building; the shop drawings define the submission history.
+# The IFC drawings give the Drawings Log one thing, the building's floors
+# (project_building_floors); every system then keeps its own shop drawing
+# per floor (project_shop_drawings), each with the revisions the consultant
+# answered (shop_drawing_revisions) and the files found that nobody has yet
+# shown were submitted (shop_drawing_candidates). The sync discovers the
+# documents and writes these records (app.services.shop_drawings); the page
+# reads the records. What an engineer confirms is never overwritten by a
+# sync or by the AI.
+
+
+class ProjectBuildingFloor(Base):
+    """One floor of the building, as the IFC drawings in force name it:
+    the registry every system's Drawings Log is a row of. A typical sheet
+    for floors 3 to 14 is twelve floors here, each with its own shop
+    drawing state. A floor the latest IFC no longer has keeps its history
+    and is flagged; only one with none is made inactive."""
+
+    __tablename__ = "project_building_floors"
+    __table_args__ = (UniqueConstraint("project_id", "floor_key", name="uq_project_building_floor"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    # The floor's canonical identity ("B3", "GF", "P1", "L12", "RF", "MECHANICAL#1"): app.services.drawing_log.floor_identity
+    floor_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    # As the engineers write it ("Ground Floor", "1st Mechanical Floor").
+    display_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Its height in the building's order (basements negative), for sorting rows the same way everywhere.
+    elevation: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # "ifc" | "shop_drawing" (a floor a shop drawing names that no IFC plan has) | "engineer"
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="ifc")
+    # The IFC sheet it came from, for the details panel ("FA 111 · TYPICAL 3RD TO 16TH FLOOR").
+    ifc_sheet: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    first_detected_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    last_detected_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
+class ProjectShopDrawing(Base):
+    """One shop drawing of one system: the drawing reference the floor is
+    submitted under. A floor has one per system, and the fire alarm's and
+    the emergency lighting's share nothing but the floor."""
+
+    __tablename__ = "project_shop_drawings"
+    __table_args__ = (UniqueConstraint("project_id", "system_code", "drawing_reference", name="uq_project_shop_drawing"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    system_code: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    drawing_reference: Mapped[str] = mapped_column(String(160), nullable=False)
+    # The floors it is the drawing for (a typical sheet stands for a run), and how the sheet names them.
+    floor_keys: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    floor_label: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # Whether it is one drawing issued for a run of floors ("TYPICAL 3RD TO 16TH").
+    typical: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # An engineer set the reference or the floors by hand: the sync does not change them.
+    confirmed_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    remarks: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+    revisions: Mapped[list["ShopDrawingRevision"]] = relationship(back_populates="drawing", cascade="all, delete-orphan",
+                                                                   order_by="ShopDrawingRevision.number")
+    candidates: Mapped[list["ShopDrawingCandidate"]] = relationship(back_populates="drawing", cascade="all, delete-orphan")
+
+
+class ShopDrawingRevision(Base):
+    """One official revision of a shop drawing: submitted (the evidence says
+    so), and the consultant's answer to it. Its status is what the reply
+    said, never worked out from a later revision; a revision a later one
+    proves was submitted, whose reply is not on file, says exactly that."""
+
+    __tablename__ = "shop_drawing_revisions"
+    __table_args__ = (UniqueConstraint("shop_drawing_id", "revision", name="uq_shop_drawing_revision"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    shop_drawing_id: Mapped[int] = mapped_column(ForeignKey("project_shop_drawings.id", ondelete="CASCADE"),
+                                                 nullable=False, index=True)
+    revision: Mapped[str] = mapped_column(String(10), nullable=False)
+    number: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # "under_review" | "approved" | "approved_as_noted" | "not_approved" | "reply_not_found"
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="under_review")
+    submitted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    submission_reference: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    reply_reference: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    reply_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    reply_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The drawing's file in the project folder, and the page its title block is on.
+    drawing_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    drawing_page: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    drawing_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The file is no longer in the folder (or OneDrive has not brought it down): the status stands.
+    source_missing: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # "sync" (read off the documents) | "submission" (a transmittal proved it) | "engineer" | "ai"
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="sync")
+    # Why it reads as it does ("R2 was submitted, so R1 was submitted and answered; ...").
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # An engineer set the status by hand: the sync and the AI leave it.
+    confirmed_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+    drawing: Mapped["ProjectShopDrawing"] = relationship(back_populates="revisions")
+
+
+class ShopDrawingCandidate(Base):
+    """A drawing file found in the folder at a revision nothing proves was
+    submitted: R1 on the drive while R0 stands approved. A file found is
+    not a revision submitted. It waits here -- shown as "R1 available",
+    never as R1's status -- until a submission or a reply proves it, an
+    engineer confirms it, or an engineer ignores it (remembered against
+    the file's hash, so the next sync does not ask again)."""
+
+    __tablename__ = "shop_drawing_candidates"
+    __table_args__ = (UniqueConstraint("shop_drawing_id", "revision", "file_sha256", name="uq_shop_drawing_candidate"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    shop_drawing_id: Mapped[int] = mapped_column(ForeignKey("project_shop_drawings.id", ondelete="CASCADE"),
+                                                 nullable=False, index=True)
+    revision: Mapped[str] = mapped_column(String(10), nullable=False)
+    path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    page: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    file_sha256: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    detected_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    # "available" | "confirmed" | "ignored" | "superseded" | "conflict"
+    candidate_status: Mapped[str] = mapped_column(String(16), nullable=False, default="available")
+    # What the AI or the rules found for it ({"suggested": "confirm_submission", "submission": "SD-249", ...}).
+    evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    decided_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+
+    drawing: Mapped["ProjectShopDrawing"] = relationship(back_populates="candidates")
+
+
+class DrawingIssue(Base):
+    """One thing on a system's drawings that needs an engineer's eye: a
+    revision gap, a candidate revision, a reference used twice, a floor
+    the latest IFC no longer has. Found by the rules ("system") or by the
+    AI ("ai"), held once by key, resolved when it no longer holds or when
+    an engineer settles it. Review & Issues lists the open ones."""
+
+    __tablename__ = "drawing_issues"
+    __table_args__ = (UniqueConstraint("project_id", "key", name="uq_drawing_issue_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    system_code: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    shop_drawing_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    floor_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    key: Mapped[str] = mapped_column(String(240), nullable=False)
+    # "revision_candidate" | "revision_gap" | "history_inconsistent" | "reply_missing" | "reference_conflict" |
+    # "revision_conflict" | "system_mismatch" | "floor_unknown" | "floor_not_in_ifc" | "source_missing" |
+    # "reply_unmatched" | "status_conflict" | "ai_review_required"
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    # "info" | "warning" | "error"
+    severity: Mapped[str] = mapped_column(String(16), nullable=False, default="warning")
+    # "system" (deterministic) | "ai"
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="system")
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # The AI's structured answer, where the finding is its ({"confidence", "reason_code", "suggested_action"}).
+    ai: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    resolved_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class DrawingRequirementState(Base):
+    """Where one of a system's required documents stands (Drawings > Actions
+    Required): when it was asked of the contractor, and by whom. What is
+    received comes from the folder; this is the part the folder cannot say."""
+
+    __tablename__ = "drawing_requirement_states"
+    __table_args__ = (UniqueConstraint("project_id", "system_code", "requirement_key", name="uq_drawing_requirement"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    system_code: Mapped[str] = mapped_column(String(16), nullable=False)
+    requirement_key: Mapped[str] = mapped_column(String(40), nullable=False)
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    requested_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    request_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    remarks: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class ShopDrawingEvent(Base):
+    """What happened to a system's shop drawings, in order: R1 detected, R1
+    confirmed, R1 ignored, a reply received, a status changed by an
+    engineer, a requirement requested. The Activity / History tab. A user
+    where one acted; none when the sync found it."""
+
+    __tablename__ = "shop_drawing_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    system_code: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    shop_drawing_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    floor_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # "revision.detected" | "revision.confirmed" | "revision.ignored" | "revision.submitted" | "reply.received" |
+    # "status.changed" | "reference.corrected" | "requirement.requested" | "issue.resolved" | "ai.finding" ...
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False, index=True)
 
 
 class EpArchiveRoot(Base):

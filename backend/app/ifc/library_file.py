@@ -79,6 +79,9 @@ def export_library(db: Session, path: Path | None = None) -> Path:
                 "verified_at": _iso(s.updated_at),
                 "raster_hex": s.raster_hex,
                 "svg": s.svg,
+                # who decided it: engineer, deterministic or ai (app.ifc.services.library)
+                "source": s.source or "engineer",
+                "confidence": s.confidence,
             }
             for s in symbols
         ],
@@ -139,6 +142,8 @@ def import_library(db: Session, path: Path | None = None) -> dict[str, int]:
             is_ignored=bool(s.get("is_ignored")),
             notes=s.get("notes", ""),
             source_drawing=s.get("source_drawing", ""),
+            source=s.get("source") if s.get("source") in ("engineer", "deterministic", "ai") else "engineer",
+            confidence=s.get("confidence"),
         )
         db.add(sym)
         db.flush()

@@ -216,6 +216,17 @@ export default function DrawingView({
 
       <FloorSummary drawing={drawing} />
 
+      <AnalysisCard drawing={drawing} />
+
+      <AutoIdentified
+        groups={groups.filter((g) => g.source === 'ai' || g.source === 'deterministic')}
+        types={types}
+        canEdit={canEdit}
+        busy={busy}
+        onVerify={verify}
+        onTypeAdded={typeAdded}
+      />
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Stat label="Fire alarm devices" value={ready ? t.fire_alarm : '—'} tone="blue" />
         <Stat label="Symbols to answer" value={review.required} tone={review.required ? 'amber' : 'green'} />
@@ -621,6 +632,7 @@ function GroupLine({
               <span className="text-xs italic text-slate-400">no letters</span>
             )}
             <StatusBadge status={g.status} />
+            <SourceBadge g={g} />
             {g.match?.kind === 'library' && (
               <span
                 className="inline-flex items-center rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700 ring-1 ring-inset ring-sky-600/20"
@@ -710,6 +722,158 @@ function IgnoredTab({ groups, onUnverify }: { groups: SymbolGroup[]; onUnverify:
       ))}
     </div>
   )
+}
+
+/** The IFC BOQ analysis: device occurrences and unique symbols kept apart
+ *  (the AI and the engineer are asked about symbols, never occurrences),
+ *  who identified each symbol, and whether the BOQ is verified. */
+function AnalysisCard({ drawing }: { drawing: Drawing }) {
+  const a = drawing.analysis
+  if (!a) return null
+  const rows: { label: string; value: number; tone?: string; hint?: string }[] = [
+    { label: 'Known symbols', value: a.known, hint: 'In the symbol library before this drawing was read' },
+    { label: 'Deterministic verified', value: a.deterministic, hint: "Its letters and block name both named the device" },
+    { label: 'AI verified', value: a.ai_verified, hint: "The AI's answer passed every check: approve or change it below" },
+    { label: 'Engineer verified', value: a.engineer_verified, hint: 'Answered by an engineer on this drawing' },
+    { label: 'Counted by resemblance', value: a.resemblance, hint: 'Like a library symbol with the same letters' },
+    { label: 'Engineer review required', value: a.review_required, tone: a.review_required ? 'text-amber-700' : undefined },
+    { label: 'Not on the floor plans / not asked', value: a.not_asked, tone: 'text-slate-500' },
+  ]
+  const reasons = Object.entries(a.queue_reasons)
+  const byReason = new Map(drawing.groups.filter((g) => g.queue).map((g) => [g.queue!.reason, g.queue!.label]))
+  return (
+    <Card className="px-4 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="text-sm font-semibold text-slate-800">IFC BOQ Analysis</div>
+          <div className="mt-2 flex flex-wrap gap-6">
+            <div>
+              <div className="text-2xl font-semibold tabular-nums">{a.total_occurrences.toLocaleString()}</div>
+              <div className="text-xs text-slate-500">Total device occurrences</div>
+            </div>
+            <div>
+              <div className="text-2xl font-semibold tabular-nums">{a.unique_symbols.toLocaleString()}</div>
+              <div className="text-xs text-slate-500">Unique symbol types</div>
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-xs uppercase tracking-wide text-slate-500">BOQ status</div>
+          {a.boq_status === 'verified' ? (
+            <div className="text-lg font-semibold text-emerald-700">Verified</div>
+          ) : (
+            <div className="text-lg font-semibold text-amber-700">Review required</div>
+          )}
+          {a.boq_status !== 'verified' && <div className="text-xs text-slate-500">No quantities until every symbol is answered</div>}
+        </div>
+      </div>
+      <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        {rows
+          .filter((r) => r.value > 0 || r.label === 'Engineer review required')
+          .map((r) => (
+            <div key={r.label} className="flex justify-between gap-3 border-b border-slate-100 py-1" title={r.hint}>
+              <dt className="text-slate-600">{r.label}</dt>
+              <dd className={`font-semibold tabular-nums ${r.tone ?? 'text-slate-800'}`}>{r.value}</dd>
+            </div>
+          ))}
+      </dl>
+      {reasons.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+          <span className="text-slate-500">Waiting because:</span>
+          {reasons.map(([reason, n]) => (
+            <span key={reason} className="rounded-full bg-amber-50 px-2 py-0.5 font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20">
+              {byReason.get(reason) ?? reason} · {n}
+            </span>
+          ))}
+        </div>
+      )}
+      {a.ai_note && <div className="mt-2 text-xs text-amber-800">{a.ai_note}: the symbols it could not look at wait for an engineer.</div>}
+    </Card>
+  )
+}
+
+/** Symbols the AI or the rules identified: counted, and the engineer can
+ *  approve them (the answer becomes the engineer's), change them, or say
+ *  they are not devices. The engineer's answer is final. */
+function AutoIdentified({
+  groups,
+  types,
+  canEdit,
+  busy,
+  onVerify,
+  onTypeAdded,
+}: {
+  groups: SymbolGroup[]
+  types: DeviceType[]
+  canEdit: boolean
+  busy: boolean
+  onVerify: (sigs: string[], typeId: number | null, ignore?: boolean) => void
+  onTypeAdded: (t: DeviceType) => void
+}) {
+  const [open, setOpen] = useState(false)
+  if (!groups.length) return null
+  return (
+    <Card className="px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm">
+          <span className="font-semibold">{groups.length} symbol{groups.length === 1 ? '' : 's'} identified automatically</span>
+          <span className="text-slate-500"> · counted in the BOQ · approve, or change what is wrong</span>
+        </div>
+        <button type="button" className="text-sm text-brand-700 hover:underline" onClick={() => setOpen(!open)}>
+          {open ? 'Hide' : 'Review'}
+        </button>
+      </div>
+      {open && (
+        <div className="mt-3 space-y-2">
+          {groups.map((g) => (
+            <GroupLine key={g.signature} g={g}>
+              {canEdit && (
+                <>
+                  {g.device_type && (
+                    <Button variant="success" disabled={busy} onClick={() => onVerify([g.signature], g.device_type!.id)} title="Keep this answer as the engineer's">
+                      Approve
+                    </Button>
+                  )}
+                  <ReassignControl
+                    types={types}
+                    current={g.device_type?.id}
+                    onAssign={(tid) => onVerify([g.signature], tid)}
+                    onTypeAdded={onTypeAdded}
+                    hint={{ code: g.label, category: g.device_type?.category, svg: g.svg }}
+                  />
+                  {g.status !== 'ignored' && (
+                    <Button variant="secondary" disabled={busy} onClick={() => onVerify([g.signature], null, true)}>
+                      Not a device
+                    </Button>
+                  )}
+                </>
+              )}
+            </GroupLine>
+          ))}
+        </div>
+      )}
+    </Card>
+  )
+}
+
+/** Who identified a symbol, as a badge. */
+function SourceBadge({ g }: { g: SymbolGroup }) {
+  if (g.source === 'ai') {
+    const c = g.match?.confidence
+    return (
+      <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 ring-1 ring-inset ring-indigo-600/20" title="Identified by the AI and checked by the platform">
+        AI verified{c != null && ` ${Math.round(c * 100)}%`}
+      </span>
+    )
+  }
+  if (g.source === 'deterministic') {
+    return (
+      <span className="inline-flex items-center rounded-full bg-teal-50 px-2 py-0.5 text-xs font-medium text-teal-700 ring-1 ring-inset ring-teal-600/20" title="Its letters and block name both named the device">
+        Deterministic
+      </span>
+    )
+  }
+  return null
 }
 
 /** What the drawing covers: one floor (named from its title block) or

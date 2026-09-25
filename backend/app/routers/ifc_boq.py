@@ -1,19 +1,22 @@
 """The BOQ page's "As per IFC Drawings" tab: fire alarm devices counted off
 an issued-for-construction drawing (app/ifc).
 
-  GET    /ifc/capabilities                            DXF always; DWG when a converter is on this PC
+  GET    /ifc/capabilities                            DXF always; DWG when a converter is on this PC; the upload limit
   GET    /ifc/device-types                            what a symbol can be verified as
   POST   /ifc/device-types                            add one, for good
   PATCH  /ifc/device-types/{id}                       rename, re-enable
   DELETE /ifc/device-types/{id}                       only when no verified symbol uses it
   POST   /ifc/symbols/unverify                        forget verified symbols: they are asked again
-  POST   /ifc/reprocess                               re-read every stored drawing (admin)
+  POST   /ifc/reprocess                               re-read every stored drawing, in the request (admin; no AI)
+  POST   /ifc/reprocess/jobs                          ... as a job the IFC worker runs (admin)
+  GET    /ifc/ai-metrics                              what the AI symbol review costs and how often it is right (admin)
 
   GET    /projects/{id}/ifc-drawings                  the project's drawings
-  POST   /projects/{id}/ifc-drawings                  upload a DWG or DXF, read within the request
-  POST   /projects/{id}/ifc-drawings/jobs             ... read as a job: a percentage and the time left
+  POST   /projects/{id}/ifc-drawings                  upload a DWG or DXF, read within the request (tests, scripts)
+  POST   /projects/{id}/ifc-drawings/jobs             ... queued for the IFC worker: HTTP 202 and the job to follow
+  POST   /projects/{id}/ifc-drawings/zip/jobs         a zip of the building, a floor at a time, as one job
   GET    /projects/{id}/ifc-drawings/{did}            the drawing, resolved against the library
-  DELETE /projects/{id}/ifc-drawings/{did}
+  DELETE /projects/{id}/ifc-drawings/{did}            a mistaken import removed; a revision archived
   PUT    /projects/{id}/ifc-drawings/{did}/floors     how many floors a sheet stands for
   POST   /projects/{id}/ifc-drawings/{did}/verify     map symbols to a device, or not a device
   POST   /projects/{id}/ifc-drawings/{did}/review     save answers: devices / not a device / skip
@@ -23,42 +26,45 @@ Verify first, then quantities: no quantity is given, and nothing is
 exported, while a symbol on the floor plans is still to be answered. Every
 answer goes to the symbol library the moment it is given, so the next
 drawing -- on any project -- recognises it.
+
+The router checks and answers; the reading is in app/ifc/services and runs
+in the IFC worker (app.workers.ifc_worker), never in the request that
+uploaded the file.
 """
 
 from __future__ import annotations
 
-import io
 import re
-import uuid
-import zipfile
 from datetime import datetime
-from pathlib import Path, PurePosixPath
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.core.timeutils import utc_now
+from app.database import SessionLocal, get_db
 from app.deps import get_current_user, require_role
-from app.ifc import storage
-from app.ifc.dxf import convert
-from app.ifc.dxf.extract import extract
-from app.ifc.dxf.loose import LOOSE_NAME
-from app.ifc import hints
+from app.ifc import hints, storage
 from app.ifc.comparison import compare
+from app.ifc.dxf import convert
 from app.ifc.library_file import save_library
-from app.ifc.progress import ReadTimer
-from app.ifc.resolve import MODEL, resolved_drawing
-from app.models import IfcBlockAlias, IfcDeviceType, IfcSymbol, ProjectIfcDrawing, RoleEnum, User
+from app.ifc.resolve import resolved_drawing
+from app.ifc.services import library, processing, revisions, runners, upload, zip_import
+from app.ifc.services.processing import ReadError
+from app.ifc.services.revisions import revision_number  # noqa: F401 -- part of this module's interface
+from app.models import IfcDeviceType, IfcSymbol, IfcSymbolReview, ProjectIfcDrawing, RoleEnum, User
 from app.routers.projects import CREATOR_ROLES, _get_project_or_404
-from app.services import activity, project_folders
+from app.services import activity, jobs, shop_drawings
 
 router = APIRouter(tags=["BOQ as per IFC"])
 
-MAX_BYTES = 500 * 1024 * 1024
+# The one upload limit (IFC_MAX_UPLOAD_MB), and the zip's, as the rest of the platform imports them.
+MAX_BYTES = upload.MAX_BYTES
+MAX_MEMBERS = zip_import.MAX_MEMBERS
+MAX_UNPACKED_BYTES = zip_import.MAX_UNPACKED_BYTES
 _SAFE = re.compile(r"[^A-Za-z0-9._ -]+")
 CATEGORIES = ("fire_alarm", "emergency_light", "other")
 
@@ -79,6 +85,16 @@ class DeviceTypeOut(BaseModel):
     family: str | None = None
 
 
+def _required_text(value: str | None, what: str) -> str | None:
+    """Stripped; a value of nothing but spaces is no value."""
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        raise ValueError(f"{what} cannot be blank")
+    return value
+
+
 class DeviceTypeCreate(BaseModel):
     code: str = Field(min_length=1, max_length=20)
     name: str = Field(min_length=1, max_length=120)
@@ -86,14 +102,45 @@ class DeviceTypeCreate(BaseModel):
     unit: str = Field(default="Nos", max_length=10)
     sort_order: int = 500
 
+    @field_validator("code")
+    @classmethod
+    def _code(cls, v: str) -> str:
+        return _required_text(v, "A device type's code").upper()
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v: str) -> str:
+        return _required_text(v, "A device type's name")
+
+    @field_validator("unit")
+    @classmethod
+    def _unit(cls, v: str) -> str:
+        return v.strip() or "Nos"
+
 
 class DeviceTypeUpdate(BaseModel):
     code: str | None = Field(default=None, min_length=1, max_length=20)
     name: str | None = Field(default=None, min_length=1, max_length=120)
     category: str | None = None
-    unit: str | None = None
+    unit: str | None = Field(default=None, max_length=10)
     sort_order: int | None = None
     is_active: bool | None = None
+
+    @field_validator("code")
+    @classmethod
+    def _code(cls, v: str | None) -> str | None:
+        v = _required_text(v, "A device type's code")
+        return v.upper() if v is not None else None
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v: str | None) -> str | None:
+        return _required_text(v, "A device type's name")
+
+    @field_validator("unit")
+    @classmethod
+    def _unit(cls, v: str | None) -> str | None:
+        return _required_text(v, "A device type's unit")
 
 
 def _category(value: str | None) -> None:
@@ -108,10 +155,17 @@ def _type_out(dt: IfcDeviceType, count: int) -> DeviceTypeOut:
 
 
 @router.get("/ifc/capabilities")
-def capabilities(_current_user: User = Depends(get_current_user)):
-    """What the upload accepts on this PC: DWG needs a converter."""
+def capabilities(_current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """What the upload accepts on this PC: DWG needs a converter. The limit
+    is the server's own, so the page checks a file against the same number."""
+    from app.ifc.services import ai_symbol_review
+
     conv = convert.find_converter()
-    return {"dxf": True, "dwg": conv is not None, "dwg_converter": conv.name if conv else None}
+    ai_on, ai_why = ai_symbol_review.enabled()
+    return {"dxf": True, "dwg": conv is not None, "dwg_converter": conv.name if conv else None,
+            "max_upload_mb": upload.limit_mb(), "max_zip_members": zip_import.MAX_MEMBERS,
+            "worker_running": jobs.worker_running(db, lane="ifc"),
+            "ai_symbol_review": ai_on, "ai_symbol_review_note": ai_why}
 
 
 @router.get("/ifc/device-types", response_model=list[DeviceTypeOut])
@@ -130,13 +184,10 @@ def list_device_types(_current_user: User = Depends(get_current_user), db: Sessi
 def create_device_type(body: DeviceTypeCreate, current_user: User = Depends(require_role(*CREATOR_ROLES)),
                        db: Session = Depends(get_db)):
     _category(body.category)
-    code = body.code.strip().upper()
-    if not code or not body.name.strip():
-        raise HTTPException(422, "A device type needs a code and a name")
+    code = body.code
     if db.query(IfcDeviceType).filter(func.upper(IfcDeviceType.code) == code).first():
         raise HTTPException(409, f"A device type with code {code} already exists")
-    dt = IfcDeviceType(code=code, name=body.name.strip(), category=body.category, unit=body.unit.strip() or "Nos",
-                       sort_order=body.sort_order)
+    dt = IfcDeviceType(code=code, name=body.name, category=body.category, unit=body.unit, sort_order=body.sort_order)
     db.add(dt)
     db.commit()
     save_library(db)
@@ -153,13 +204,13 @@ def update_device_type(type_id: int, body: DeviceTypeUpdate,
         raise HTTPException(404, "Device type not found")
     _category(body.category)
     if body.code is not None:
-        code = body.code.strip().upper()
-        clash = db.query(IfcDeviceType).filter(func.upper(IfcDeviceType.code) == code, IfcDeviceType.id != type_id).first()
+        clash = (db.query(IfcDeviceType)
+                 .filter(func.upper(IfcDeviceType.code) == body.code, IfcDeviceType.id != type_id).first())
         if clash:
-            raise HTTPException(409, f"A device type with code {code} already exists")
-        dt.code = code
+            raise HTTPException(409, f"A device type with code {body.code} already exists")
+        dt.code = body.code
     if body.name is not None:
-        dt.name = body.name.strip()
+        dt.name = body.name
     if body.category is not None:
         dt.category = body.category
     if body.unit is not None:
@@ -196,13 +247,15 @@ class UnverifyRequest(BaseModel):
 @router.post("/ifc/symbols/unverify")
 def unverify(body: UnverifyRequest, current_user: User = Depends(require_role(*CREATOR_ROLES)),
              db: Session = Depends(get_db)):
-    """Forget verified symbols (by signature) so they come back for review."""
+    """Forget verified symbols (by signature) so they come back for review.
+    What the AI said about them is forgotten too: it is not reused."""
     n = 0
     for sig in body.signatures:
         s = db.query(IfcSymbol).filter(IfcSymbol.signature == sig).first()
         if s is not None:
             db.delete(s)
             n += 1
+    library.invalidate(db, body.signatures)
     db.commit()
     save_library(db)
     if n:
@@ -215,7 +268,9 @@ def unverify(body: UnverifyRequest, current_user: User = Depends(require_role(*C
 @router.post("/ifc/reprocess")
 def reprocess_drawings(_current_user: User = Depends(require_role(RoleEnum.admin)), db: Session = Depends(get_db)):
     """Re-read every stored drawing with the current extraction rules,
-    carrying the engineers' decisions over to symbols whose letters changed."""
+    carrying the engineers' decisions over to symbols whose letters changed.
+    Answered in the request, so without the AI: /ifc/reprocess/jobs runs it
+    in the IFC worker, with it."""
     from app.ifc.reprocess import reprocess_all
 
     rep = reprocess_all(db)
@@ -228,6 +283,46 @@ def reprocess_drawings(_current_user: User = Depends(require_role(RoleEnum.admin
         "errors": rep.errors,
         "totals": rep.totals,
     }
+
+
+@router.post("/ifc/reprocess/jobs", status_code=status.HTTP_202_ACCEPTED)
+def start_reprocess(current_user: User = Depends(require_role(RoleEnum.admin)), db: Session = Depends(get_db)):
+    """Re-read every stored drawing as a job of the IFC worker."""
+    job, created = jobs.enqueue(db, kind=runners.REPROCESS, project_id=None, user_id=current_user.id,
+                                dedup_key="ifc_reprocess:all", params={"user_id": current_user.id},
+                                progress={"stage": "waiting_for_worker"})
+    return _started(db, job, created)
+
+
+@router.get("/ifc/ai-metrics")
+def ai_metrics(days: int = 30, _current_user: User = Depends(require_role(RoleEnum.admin)),
+               db: Session = Depends(get_db)):
+    """What the AI symbol review has cost and how often engineers kept its
+    answers: for tuning, not for the engineers' pages."""
+    from datetime import timedelta
+
+    from app.ai import metrics
+    from app.ifc.services import ai_symbol_review
+
+    since = utc_now() - timedelta(days=days)
+    rows = db.query(IfcSymbolReview).filter(IfcSymbolReview.created_at >= since).all()
+    stages: dict[str, dict] = {}
+    for r in rows:
+        s = stages.setdefault(r.stage, {"reviews": 0, "accepted": 0, "uncertain": 0, "rejected": 0, "errors": 0,
+                                        "input_tokens": 0, "output_tokens": 0, "approved": 0, "corrected": 0})
+        s["reviews"] += 1
+        s[{"accepted": "accepted", "uncertain": "uncertain", "rejected": "rejected"}.get(r.validation, "errors")] += 1
+        s["input_tokens"] += r.input_tokens or 0
+        s["output_tokens"] += r.output_tokens or 0
+        if r.outcome in ("approved", "corrected"):
+            s[r.outcome] += 1
+    signatures = {r.signature for r in rows if r.error is None}
+    tokens = sum((r.input_tokens or 0) + (r.output_tokens or 0) for r in rows)
+    usage = [u for u in metrics.usage_metrics(db, since=since)
+             if u["task"] in (ai_symbol_review.TASK_METADATA, ai_symbol_review.TASK_VISUAL)]
+    return {"since": since, "stages": stages, "unique_signatures": len(signatures),
+            "tokens_per_new_signature": round(tokens / len(signatures), 1) if signatures else None,
+            "usage": usage, "prompt_version": ai_symbol_review.PROMPT_VERSION}
 
 
 # --- a project's drawings ------------------------------------------------------------------------
@@ -250,61 +345,22 @@ class DrawingSummary(BaseModel):
     # The fire alarm building quantities by device code, once verified: what
     # a revision changed is read against the revision before it.
     devices: dict[str, int] = {}
-
-
-_REVISION = re.compile(r"R(?:EV)?\.?\s*0*(\d{1,2})", re.I)
-
-
-def revision_number(revision: str | None) -> int:
-    m = _REVISION.fullmatch((revision or "").strip())
-    return int(m.group(1)) if m else -1
+    # The drawing's identity, whatever its file is called ("FA-101").
+    reference: str | None = None
+    # "verified" once every symbol on the plans is answered; else "review_required"
+    boq_status: str = "review_required"
+    total_occurrences: int = 0
+    floor_name: str | None = None
 
 
 def _superseded(db: Session, project_id: int) -> dict[int, ProjectIfcDrawing]:
-    """{drawing id: the drawing that supersedes it}."""
-    rows = (db.query(ProjectIfcDrawing)
-            .filter(ProjectIfcDrawing.project_id == project_id, ProjectIfcDrawing.supersedes_id.isnot(None)).all())
-    return {d.supersedes_id: d for d in rows}
-
-
-def _in_force_named(db: Session, project_id: int, filename: str) -> ProjectIfcDrawing | None:
-    """The drawing of this name that nothing has revised yet, if any. What
-    makes a file in an archive a revision rather than a new floor."""
-    superseded = _superseded(db, project_id)
-    rows = (db.query(ProjectIfcDrawing)
-            .filter(ProjectIfcDrawing.project_id == project_id,
-                    func.lower(ProjectIfcDrawing.filename) == filename.lower())
-            .order_by(ProjectIfcDrawing.id.desc()).all())
-    return next((d for d in rows if superseded.get(d.id) is None), None)
-
-
-def _revision_plan(db: Session, project, revision: str | None,
-                   supersedes_id: int | None) -> tuple[str, ProjectIfcDrawing | None]:
-    """The revision an upload is issued as, and the drawing it replaces.
-    A revised drawing replaces the one in force, at a later revision than it;
-    a first drawing is whatever revision it was issued at (R0 unless said)."""
-    previous = None
-    if supersedes_id is not None:
-        previous = _drawing(db, project, supersedes_id)
-        later = _superseded(db, project.id).get(previous.id)
-        if later is not None:
-            raise HTTPException(409, f"{previous.filename} {previous.revision} is already revised by "
-                                     f"{later.filename} {later.revision}: import the revision of that one.")
-    if revision is None or not revision.strip():
-        n = revision_number(previous.revision) + 1 if previous is not None else 0
-    else:
-        n = revision_number(revision)
-        if n < 0:
-            raise HTTPException(422, f"'{revision}' is not a revision: choose R0, R1, R2 ...")
-    if previous is not None and n <= revision_number(previous.revision):
-        raise HTTPException(422, f"{previous.filename} is at {previous.revision}: its revised drawing must be a "
-                                 f"later revision than that.")
-    return f"R{n}", previous
+    """{drawing id: the live drawing that supersedes it} (app.ifc.services.revisions)."""
+    return revisions.superseded(db, project_id)
 
 
 def _drawing(db: Session, project, drawing_id: int) -> ProjectIfcDrawing:
     d = db.get(ProjectIfcDrawing, drawing_id)
-    if d is None or d.project_id != project.id:
+    if d is None or d.project_id != project.id or d.deleted_at is not None:
         raise HTTPException(404, "Drawing not found")
     return d
 
@@ -315,6 +371,7 @@ def _resolved(db: Session, d: ProjectIfcDrawing, **kwargs) -> dict:
     out["filed_note"] = (d.meta or {}).get("filed_note")
     out["revision"] = d.revision or "R0"
     out["supersedes_id"] = d.supersedes_id
+    out["reference"] = d.drawing_reference
     later = _superseded(db, d.project_id).get(d.id)
     out["superseded_by"] = {"id": later.id, "revision": later.revision} if later is not None else None
     out["carried_over"] = (d.meta or {}).get("carried_over")
@@ -325,8 +382,7 @@ def _resolved(db: Session, d: ProjectIfcDrawing, **kwargs) -> dict:
 def list_drawings(project_id: int, _current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     project = _get_project_or_404(db, project_id)
     out = []
-    rows = (db.query(ProjectIfcDrawing).filter(ProjectIfcDrawing.project_id == project.id)
-            .order_by(ProjectIfcDrawing.uploaded_at.desc(), ProjectIfcDrawing.id.desc()).all())
+    rows = revisions.live(db, project.id).order_by(ProjectIfcDrawing.uploaded_at.desc(), ProjectIfcDrawing.id.desc()).all()
     later = _superseded(db, project.id)
     for d in rows:
         r = resolved_drawing(db, d, with_occurrences=False)
@@ -339,374 +395,219 @@ def list_drawings(project_id: int, _current_user: User = Depends(get_current_use
             revision=d.revision or "R0", supersedes_id=d.supersedes_id,
             superseded_by=later[d.id].id if d.id in later else None, current=d.id not in later,
             devices={b["device_type"]["code"]: b["qty"] for b in building},
+            reference=d.drawing_reference, boq_status=r["analysis"]["boq_status"],
+            total_occurrences=r["analysis"]["total_occurrences"], floor_name=r["floor_info"]["floor_name"],
         ))
     return out
 
 
-class ReadError(Exception):
-    """The drawing could not be read: its message is for the engineer."""
-
-
-async def _received(file: UploadFile) -> tuple[str, str, bytes]:
-    """The uploaded file's name, kind and bytes, refused when it is no drawing."""
-    name = Path(file.filename or "drawing.dxf").name
-    ext = name.lower().rsplit(".", 1)[-1] if "." in name else ""
-    if ext not in ("dxf", "dwg"):
-        raise HTTPException(415, "Upload a DWG or DXF drawing")
-    size = 0
-    chunks = []
-    while chunk := await file.read(1 << 20):
-        size += len(chunk)
-        if size > MAX_BYTES:
-            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"{name} is larger than 250 MB")
-        chunks.append(chunk)
-    data = b"".join(chunks)
-    if ext == "dwg" and not data.startswith(b"AC10"):
-        raise HTTPException(422, "This file is not a DWG drawing (it does not start with an AutoCAD DWG header)")
-    return name, ext, data
+def _identity_http(exc: revisions.IdentityError) -> HTTPException:
+    return HTTPException(exc.status, detail=exc.detail)
 
 
 def _read_drawing(db: Session, project, user: User, name: str, ext: str, data: bytes, *,
-                  timer: ReadTimer | None = None, check=None, revision: str = "R0",
+                  timer=None, check=None, revision: str = "R0",
                   supersedes: ProjectIfcDrawing | None = None) -> ProjectIfcDrawing:
-    """Read a DWG or DXF into the project: a DWG is converted to DXF first,
-    then both go through the same extraction; the drawing as uploaded is
-    filed in the project's folder, 03- Drawings/IFC/Electrical/FA, once it
-    has been read. `timer` hears each stage; `check` is called between
-    stages and raises to stop the read, which then leaves nothing behind.
-    A revised drawing (`supersedes`) keeps what was decided on the revision
-    before it -- a sheet's number of floors, the symbols skipped -- where
-    the sheet and the symbol are still on it."""
-    def stage(name_: str) -> None:
-        if check is not None:
-            check()
-        if timer is not None:
-            timer.begin(name_)
+    """A drawing's bytes read into the project (scripts and tests; the pages
+    upload through the worker). The bytes are staged as an upload is."""
+    import hashlib
+    import uuid
 
-    # The working copy goes under a short name of its own: an IFC sheet's
-    # name ("257-Sheet - FA-105 - TYP(1ST TO 14TH) FLOORS FIRE ALARM
-    # LAYOUT.dwg") under the uploads folder can pass Windows' 260-character
-    # limit, which neither AutoCAD nor ezdxf will open. The name as uploaded
-    # is the drawing's `filename`, which is what the floors are read from.
-    stage("save")
-    folder = storage.project_folder(project)
+    folder = upload.staging_dir()
     folder.mkdir(parents=True, exist_ok=True)
-    stem = uuid.uuid4().hex[:12]
-    source = folder / f"{stem}.{ext}"
-    source.write_bytes(data)
-    dxf_path = folder / f"{stem}.dxf" if ext == "dwg" else source
-
-    def discard() -> None:
-        source.unlink(missing_ok=True)
-        if dxf_path != source:
-            dxf_path.unlink(missing_ok=True)
-
+    path = folder / f"{uuid.uuid4().hex}.{ext}"
+    path.write_bytes(data)
     try:
-        conversion: dict | None = None
-        if ext == "dwg":
-            stage("convert")
-            try:
-                res = convert.convert_dwg_to_dxf(source, dxf_path)
-            except convert.ConversionError as exc:
-                raise ReadError(f"Could not convert the DWG to DXF: {exc}") from exc
-            conversion = {"source_format": "dwg", "converter": res.converter, "seconds": round(res.seconds, 1),
-                          "dwg_path": storage.relative(source)}
-            if timer is not None:
-                timer.dxf_size(dxf_path.stat().st_size / 1e6)
-
-        stage("read")
-
-        def progress(part: str, fraction: float) -> None:
-            if timer is None:
-                return
-            if part != timer.stage:
-                stage(part)
-            timer.at(fraction)
-
-        try:
-            result = extract(str(dxf_path), progress=progress, plan=timer.plan if timer is not None else None)
-        except ReadError:
-            raise
-        except Exception as exc:  # ezdxf raises many types for a broken file
-            if check is not None:
-                check()      # a stop asked for is a stop, not a broken drawing
-            raise ReadError(f"Could not read this drawing: {exc}") from exc
-        d = result.to_dict()
-        meta = {"containers": d["containers"], "skipped_empty_blocks": d["skipped_empty_blocks"],
-                "layouts": d["layouts"], "sheets": d["sheets"], "architecture": d["architecture"],
-                "loose_symbols": d["loose_symbols"], "conversion": conversion}
-        if supersedes is not None:
-            before = supersedes.meta or {}
-            sheets = {s["name"] for s in d["sheets"] or []} | {MODEL}  # a drawing with no sheets is one plan, "Model"
-            signatures = {g["signature"] for g in d["groups"]}
-            overrides = {k: v for k, v in (before.get("floor_overrides") or {}).items() if k in sheets}
-            skipped = sorted(sig for sig in before.get("review_skipped") or [] if sig in signatures)
-            if overrides:
-                meta["floor_overrides"] = overrides
-            if skipped:
-                meta["review_skipped"] = skipped
-            meta["carried_over"] = {"from": supersedes.revision, "floor_overrides": len(overrides),
-                                    "review_skipped": len(skipped)}
-
-        # Filed only once it has been read, so a file that is not a drawing is
-        # not left in the project's folder.
-        stage("file")
-    except BaseException:
-        discard()
-        raise
-    filed = note = None
-    try:
-        filed = project_folders.file_ifc_drawing(project, name, data, stamp=datetime.now().strftime("%Y-%m-%d %H%M"))
-        if filed is None:
-            note = "The drawing was read but not filed: this project's folder is not reachable on this PC."
-    except OSError as exc:
-        note = f"The drawing was read but could not be filed in {project_folders.IFC_FIRE_ALARM} ({exc})."
-    meta["filed_note"] = note
-
-    if supersedes is not None and _superseded(db, project.id).get(supersedes.id) is not None:
-        discard()
-        raise ReadError(f"{supersedes.filename} {supersedes.revision} was revised by someone else while this was read.")
-    drawing = ProjectIfcDrawing(
-        project_id=project.id, filename=name, stored_path=storage.relative(dxf_path), archive_path=filed,
-        units=d["units"], dxf_version=d["dxf_version"], seconds=d["seconds"], meta=meta, groups=d["groups"],
-        created_by_id=user.id, revision=revision, supersedes_id=supersedes.id if supersedes is not None else None,
-    )
-    db.add(drawing)
-    db.commit()
-    if timer is not None:
-        timer.learned(dwg_mb=len(data) / 1e6 if ext == "dwg" else None, dxf_mb=dxf_path.stat().st_size / 1e6)
-    activity.record(db, user, "ifc.drawing_uploaded",
-                    f"Read the IFC drawing {name} {revision}"
-                    + (f" (revises {supersedes.revision})" if supersedes is not None else "")
-                    + f": {len(d['groups'])} distinct symbols"
-                    + (f", {d['loose_symbols']} of them drawn without a block" if d["loose_symbols"] else ""),
-                    project=project, entity_type="ifc_drawing", entity_id=drawing.id,
-                    detail={"file": name, "filed": filed, "converted": bool(conversion), "revision": revision,
-                            "supersedes_id": supersedes.id if supersedes is not None else None})
-    return drawing
+        ref = supersedes.drawing_reference if supersedes is not None and supersedes.drawing_reference else \
+            revisions.reference(name)
+        plan = revisions.Plan(revision=revision, supersedes=supersedes, reference=ref)
+        return processing.read_drawing(db, project, user, source=path, name=name, ext=ext,
+                                       sha256=hashlib.sha256(data).hexdigest(), plan=plan, timer=timer, check=check,
+                                       use_ai=False)
+    finally:
+        upload.discard(path)
 
 
 @router.post("/projects/{project_id}/ifc-drawings", status_code=201)
 async def upload_drawing(project_id: int, file: UploadFile = File(...), revision: str | None = Form(None),
-                         supersedes_id: int | None = Form(None),
+                         supersedes_id: int | None = Form(None), confirm_new: bool = Form(True),
                          current_user: User = Depends(require_role(*CREATOR_ROLES)), db: Session = Depends(get_db)):
-    """Read a DWG or DXF within the request, and answer with the drawing.
-    The tab reads through /ifc-drawings/jobs instead, to show how far it has got."""
+    """Read a DWG or DXF within the request, and answer with the drawing:
+    for scripts and tests -- the original tool's contract, kept as it was
+    (a file not said to revise a drawing is a new drawing, `confirm_new`;
+    the same file may be read again). The tab reads through
+    /ifc-drawings/jobs, which the IFC worker runs, and which refuses both."""
     project = _get_project_or_404(db, project_id)
-    name, ext, data = await _received(file)
-    rev, previous = _revision_plan(db, project, revision, supersedes_id)
+    staged = await upload.stream_to_staging(file, allowed=("dxf", "dwg"), default_name="drawing.dxf")
     try:
-        drawing = await run_in_threadpool(lambda: _read_drawing(db, project, current_user, name, ext, data,
-                                                                revision=rev, supersedes=previous))
-    except ReadError as exc:
-        raise HTTPException(422, str(exc))
-    return _resolved(db, drawing)
+        try:
+            plan = revisions.plan(db, project.id, filename=staged.name, sha256=staged.sha256, revision=revision,
+                                  supersedes_id=supersedes_id, confirm_new=confirm_new, refuse_duplicate=False)
+        except revisions.IdentityError as exc:
+            raise _identity_http(exc)
+        project_id_, user_id, supersedes = project.id, current_user.id, plan.supersedes.id if plan.supersedes else None
+
+        def work() -> int:
+            # A session of the thread's own: the request's is never shared with another thread.
+            session = SessionLocal()
+            try:
+                p = revisions.Plan(revision=plan.revision, reference=plan.reference,
+                                   supersedes=session.get(ProjectIfcDrawing, supersedes) if supersedes else None)
+                drawing = processing.read_drawing(session, session.get(type(project), project_id_),
+                                                  session.get(User, user_id), source=staged.path, name=staged.name,
+                                                  ext=staged.ext, sha256=staged.sha256, plan=p, use_ai=False)
+                return drawing.id
+            finally:
+                session.close()
+
+        try:
+            drawing_id = await run_in_threadpool(work)
+        except ReadError as exc:
+            raise HTTPException(422, str(exc))
+        except revisions.RevisionConflict as exc:
+            raise HTTPException(409, str(exc))
+    finally:
+        upload.discard(staged.path)
+    db.expire_all()
+    return _resolved(db, db.get(ProjectIfcDrawing, drawing_id))
+
+
+def _started(db: Session, job, created: bool):
+    """The job as the page follows it; `already_active` when this request
+    found the same work already queued or running."""
+    from app.routers import jobs as jobs_router
+
+    out = jobs_router._out(job)
+    out.already_active = not created
+    return out
+
+
+def _queue_note(db: Session) -> dict:
+    """What a queued read tells the page while it waits."""
+    if jobs.worker_running(db, lane="ifc"):
+        return {"message": "Queued: waiting for the IFC worker", "stage": "waiting_for_worker"}
+    return {"message": "Queued: the IFC worker is not running on the server. Start it (start.bat) and the read "
+                       "begins.", "stage": "waiting_for_worker"}
+
+
+def _run_inline(job_id: int) -> None:
+    """Tests: the worker's own code runs the job before the response returns."""
+    from app.workers.ifc_worker import IfcWorker
+
+    IfcWorker(background_reading=False).run_claimed(job_id)
 
 
 @router.post("/projects/{project_id}/ifc-drawings/jobs", status_code=status.HTTP_202_ACCEPTED)
 async def start_reading_drawing(project_id: int, file: UploadFile = File(...),
                                 revision: str | None = Form(None), supersedes_id: int | None = Form(None),
+                                confirm_new: bool = Form(False),
                                 current_user: User = Depends(require_role(*CREATOR_ROLES)),
                                 db: Session = Depends(get_db)):
-    """Read a DWG or DXF as a job the tab follows (GET /jobs/{id}): its
-    progress is a percentage with the stage it is at and the seconds it
-    estimates are left ("stage", "eta_seconds"); its result names the
-    drawing. POST /jobs/{id}/cancel stops it between stages."""
-    from app.models import Project
+    """Queue a DWG or DXF for the IFC worker and answer at once (HTTP 202)
+    with the job the tab follows (GET /jobs/{id}): its progress is a
+    percentage with the stage it is at and the seconds it estimates are
+    left ("stage", "eta_seconds"); its result names the drawing.
+    POST /jobs/{id}/cancel stops it between stages.
+
+    Refused before a job is queued: a file that is not a drawing, one over
+    the limit, a DWG with no converter on this PC, the same file already
+    imported, and -- unless `confirm_new` -- a file that may be a revision
+    of a drawing in force that it was not said to revise (409
+    "revision_confirmation_required"). The same file sent twice for the
+    same drawing and revision while the first is still queued or running
+    returns that job (`already_active`)."""
     from app.routers import jobs as jobs_router
-    from app.services import jobs
 
     project = _get_project_or_404(db, project_id)
-    name, ext, data = await _received(file)
-    rev, previous = _revision_plan(db, project, revision, supersedes_id)
-    previous_id = previous.id if previous is not None else None
-    converter = convert.find_converter() if ext == "dwg" else None
-    if ext == "dwg" and converter is None:
-        raise HTTPException(422, "Could not convert the DWG to DXF: no DWG converter on this PC. Install AutoCAD, or "
-                                 "the free ODA File Converter, or upload a DXF instead.")
-    project_id_, user_id = project.id, current_user.id
-
-    def work(session: Session, ctx: jobs.JobContext) -> dict:
-        timer = ReadTimer.for_upload(
-            lambda percent, message, stage, eta: ctx.progress(percent, 100, message, stage=stage, eta_seconds=eta,
-                                                               file=name),
-            is_dwg=ext == "dwg", size_mb=len(data) / 1e6, converter=converter.name if converter else None,
-        )
-        timer.begin("save")
-        timer.start()
-        try:
-            drawing = _read_drawing(session, session.get(Project, project_id_), session.get(User, user_id), name, ext,
-                                    data, timer=timer, check=ctx.check, revision=rev,
-                                    supersedes=session.get(ProjectIfcDrawing, previous_id) if previous_id else None)
-        finally:
-            timer.stop()
-        ctx.progress(100, 100, "Read", stage="done", eta_seconds=0, file=name)
-        return {"drawing_id": drawing.id, "filename": name, "revision": rev}
-
-    job = jobs.start(db, kind="ifc_read", project_id=project_id_, user_id=user_id, work=work,
-                     run_inline=jobs_router.RUN_INLINE)
-    return jobs_router._out(job)
-
-
-# --- a zip of the whole building -------------------------------------------------
-#
-# A project's drawings arrive as one archive, a file per floor. Each file
-# becomes a drawing of its own, read one after another, so the tab can say
-# which floor it is on and a single broken file does not lose the rest.
-
-MAX_MEMBERS = 200
-# Checked against the *uncompressed* sizes the archive declares, before
-# anything is written: a zip bomb is small until it is opened.
-MAX_UNPACKED_BYTES = MAX_BYTES
-
-
-def _by_floor_then_name(pair: tuple[str, bytes]) -> list:
-    """Level 2 before Level 10: the digits in a name count as a number."""
-    return [int(part) if part.isdigit() else part
-            for part in re.split(r"(\d+)", pair[0].lower())]
-
-
-def _drawings_in_a_zip(data: bytes) -> tuple[list[tuple[str, bytes]], list[str]]:
-    """The DWG and DXF files an archive holds, and what was left out.
-
-    Nothing is written to disk: the members are read into memory one at a
-    time, the same way a single upload is. A member is refused rather
-    than trusted -- an archive is a list of paths someone else wrote, and
-    a path that climbs out of the folder it is unpacked into is the
-    oldest trick there is.
-    """
-    skipped: list[str] = []
-    found: list[tuple[str, bytes]] = []
+    staged = await upload.stream_to_staging(file, allowed=("dxf", "dwg"), default_name="drawing.dxf")
+    queued = False
     try:
-        archive = zipfile.ZipFile(io.BytesIO(data))
-    except zipfile.BadZipFile:
-        raise HTTPException(422, "This file is not a zip archive")
-    with archive:
-        members = [m for m in archive.infolist() if not m.is_dir()]
-        if len(members) > MAX_MEMBERS:
-            raise HTTPException(422, f"The archive holds {len(members)} files; {MAX_MEMBERS} is the most that can be "
-                                     f"read at once")
-        wanted = []
-        unpacked = 0
-        for member in members:
-            # One normalised spelling, checked once: a path rooted with a
-            # backslash is the same path as one rooted with a slash.
-            path = member.filename.replace("\\", "/")
-            name = PurePosixPath(path).name
-            parts = PurePosixPath(path).parts
-            ext = name.lower().rsplit(".", 1)[-1] if "." in name else ""
-            if (path.startswith("/") or ".." in parts or ":" in path
-                    or any(part.startswith("__MACOSX") for part in parts) or name.startswith(".")):
-                skipped.append(member.filename)
-                continue
-            if ext not in ("dwg", "dxf"):
-                skipped.append(member.filename)
-                continue
-            unpacked += member.file_size
-            if unpacked > MAX_UNPACKED_BYTES:
-                raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                                    detail=f"The drawings in this archive come to more than "
-                                           f"{MAX_UNPACKED_BYTES // (1024 * 1024)} MB unpacked")
-            wanted.append((member, name, ext))
-
-        for member, name, ext in wanted:
-            with archive.open(member) as handle:
-                content = handle.read(member.file_size + 1)
-            if ext == "dwg" and not content.startswith(b"AC10"):
-                # Named .dwg and is not one: the same check a single
-                # upload gets, so a renamed file is caught here too.
-                skipped.append(member.filename)
-                continue
-            found.append((name, content))
-    if not found:
-        raise HTTPException(422, "This archive holds no DWG or DXF drawings")
-    # Only the file name is kept, so two floors filed under different
-    # folders but the same name would land on one drawing -- the second
-    # superseding the first inside a single import, quietly. Say so
-    # instead: the archive is the one that needs fixing.
-    seen: set[str] = set()
-    for name, _ in found:
-        if name.lower() in seen:
-            raise HTTPException(422, f"Two files in the archive are both called {name}. Give each floor a name of "
-                                     f"its own -- the folders they sit in are not kept.")
-        seen.add(name.lower())
-    # Read in the order the floors are named, so the tab walks the
-    # building rather than the archive's own ordering, counting the
-    # numbers in a name so that Level 2 comes before Level 10.
-    found.sort(key=_by_floor_then_name)
-    return found, skipped
-
-
-async def _received_zip(file: UploadFile) -> tuple[str, bytes]:
-    name = Path(file.filename or "drawings.zip").name
-    if not name.lower().endswith(".zip"):
-        raise HTTPException(415, "Upload a zip archive of DWG or DXF drawings")
-    size = 0
-    chunks = []
-    while chunk := await file.read(1 << 20):
-        size += len(chunk)
-        if size > MAX_BYTES:
-            raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=f"{name} is larger than 250 MB")
-        chunks.append(chunk)
-    return name, b"".join(chunks)
+        if staged.ext == "dwg" and convert.find_converter() is None:
+            raise HTTPException(422, "The DWG converter is not available on this server. Install AutoCAD, or the "
+                                     "free ODA File Converter, or upload a DXF instead.")
+        key_revision = (revision or "").strip() or "auto"
+        key = runners.dedup_key(runners.READ, project.id, staged.sha256, str(supersedes_id or "new"), key_revision)
+        existing = jobs.active_by_key(db, key)
+        if existing is not None:
+            return _started(db, existing, False)
+        try:
+            plan = revisions.plan(db, project.id, filename=staged.name, sha256=staged.sha256, revision=revision,
+                                  supersedes_id=supersedes_id, confirm_new=confirm_new)
+        except revisions.IdentityError as exc:
+            raise _identity_http(exc)
+        params = {"staged_path": str(staged.path), "name": staged.name, "ext": staged.ext, "size": staged.size,
+                  "sha256": staged.sha256, "revision": plan.revision, "reference": plan.reference,
+                  "supersedes_id": plan.supersedes.id if plan.supersedes is not None else None,
+                  "user_id": current_user.id}
+        job, created = jobs.enqueue(db, kind=runners.READ, project_id=project.id, user_id=current_user.id,
+                                    dedup_key=key, params=params,
+                                    progress={**_queue_note(db), "file": staged.name}, message="")
+        queued = created
+        if not created:
+            return _started(db, job, False)
+    finally:
+        if not queued:
+            upload.discard(staged.path)
+    if jobs_router.RUN_INLINE:
+        _run_inline(job.id)
+        db.expire_all()
+        job = db.get(type(job), job.id)
+    return _started(db, job, True)
 
 
 @router.post("/projects/{project_id}/ifc-drawings/zip/jobs", status_code=status.HTTP_202_ACCEPTED)
 async def start_reading_zip(project_id: int, file: UploadFile = File(...),
                             current_user: User = Depends(require_role(*CREATOR_ROLES)),
                             db: Session = Depends(get_db)):
-    """Read a zip of the building's drawings, a floor at a time.
+    """Queue a zip of the building's drawings for the IFC worker, read a
+    floor at a time (app.ifc.services.zip_import).
 
-    Each file in the archive becomes a drawing of its own. A file whose
-    name matches a drawing already in force revises that one; every other
-    file is a new drawing at R0 -- an archive is the building, not a
-    revision of one drawing, so there is no single revision to issue it
-    at.
+    Each drawing in the archive becomes a drawing of its own, or the
+    revision of one in force when its name states a later revision of the
+    same drawing; one that matches a drawing in force without saying so is
+    listed for the engineer to confirm, never imported on a guess. The same
+    file as a drawing already imported is left unchanged. One unreadable
+    floor is reported and the rest are read.
 
     Floors still come from the sheets inside each drawing (and the floors
-    endpoint corrects them). Nothing here reads a floor off a file name.
-    """
-    from app.models import Project
+    endpoint corrects them). Nothing here reads a floor off a file name."""
     from app.routers import jobs as jobs_router
-    from app.services import jobs
 
     project = _get_project_or_404(db, project_id)
-    archive_name, data = await _received_zip(file)
-    drawings, skipped = _drawings_in_a_zip(data)
+    staged = await upload.stream_to_staging(file, allowed=("zip",), default_name="drawings.zip")
+    queued = False
+    try:
+        key = runners.dedup_key(runners.READ_ZIP, project.id, staged.sha256)
+        existing = jobs.active_by_key(db, key)
+        if existing is not None:
+            return _started(db, existing, False)
+        found, skipped = await run_in_threadpool(zip_import.members, staged.path)
+        # Once, before the job: twelve conversions that cannot work should
+        # fail now and not after reading nothing.
+        if any(upload.extension(name) == "dwg" for name, _ in found) and convert.find_converter() is None:
+            raise HTTPException(422, "The DWG converter is not available on this server. Install AutoCAD, or the free "
+                                     "ODA File Converter, or put DXF files in the archive instead.")
+        params = {"staged_path": str(staged.path), "name": staged.name, "size": staged.size, "sha256": staged.sha256,
+                  "skipped": skipped, "members": [name for name, _ in found], "user_id": current_user.id}
+        job, created = jobs.enqueue(db, kind=runners.READ_ZIP, project_id=project.id, user_id=current_user.id,
+                                    dedup_key=key, params=params, progress=_queue_note(db), message="")
+        queued = created
+        if not created:
+            return _started(db, job, False)
+    finally:
+        if not queued:
+            upload.discard(staged.path)
+    if jobs_router.RUN_INLINE:
+        _run_inline(job.id)
+        db.expire_all()
+        job = db.get(type(job), job.id)
+    return _started(db, job, True)
 
-    # Once, before the loop: twelve conversions that cannot work should
-    # fail now and not after reading nothing.
-    if any(name.lower().endswith(".dwg") for name, _ in drawings) and convert.find_converter() is None:
-        raise HTTPException(422, "Could not convert the DWGs to DXF: no DWG converter on this PC. Install AutoCAD, or "
-                                 "the free ODA File Converter, or put DXF files in the archive instead.")
-    project_id_, user_id = project.id, current_user.id
-    total = len(drawings)
 
-    def work(session: Session, ctx: jobs.JobContext) -> dict:
-        read: list[dict] = []
-        failed: list[dict] = []
-        for index, (name, content) in enumerate(drawings):
-            ctx.check()
-            ctx.progress(index, total, f"Reading {name}", stage="read", file=name)
-            ext = name.lower().rsplit(".", 1)[-1]
-            # Per file: one that revises a drawing already in force takes
-            # that drawing's next revision; the rest are new at R0.
-            previous = _in_force_named(session, project_id_, name)
-            revision = f"R{revision_number(previous.revision) + 1}" if previous is not None else "R0"
-            try:
-                drawing = _read_drawing(session, session.get(Project, project_id_), session.get(User, user_id),
-                                        name, ext, content, revision=revision, supersedes=previous)
-                read.append({"drawing_id": drawing.id, "filename": name, "revision": revision})
-            except ReadError as exc:
-                # One unreadable file does not lose the other eleven.
-                failed.append({"filename": name, "reason": str(exc)})
-        ctx.progress(total, total, "Read", stage="done", eta_seconds=0)
-        return {"archive": archive_name, "read": read, "failed": failed, "skipped": skipped,
-                "drawings": len(read)}
-
-    job = jobs.start(db, kind="ifc_read_zip", project_id=project_id_, user_id=user_id, work=work,
-                     run_inline=jobs_router.RUN_INLINE)
-    return jobs_router._out(job)
+def _drawings_in_a_zip(source) -> tuple[list[tuple[str, object]], list[str]]:
+    """The drawings an archive holds, in floor order, and what was left out
+    (app.ifc.services.zip_import.members)."""
+    return zip_import.members(source)
 
 
 @router.get("/projects/{project_id}/ifc-drawings/{drawing_id}")
@@ -719,26 +620,40 @@ def get_drawing(project_id: int, drawing_id: int, _current_user: User = Depends(
 @router.delete("/projects/{project_id}/ifc-drawings/{drawing_id}", status_code=204)
 def delete_drawing(project_id: int, drawing_id: int, current_user: User = Depends(require_role(*CREATOR_ROLES)),
                    db: Session = Depends(get_db)):
-    """The drawing and the platform's working copy of it. The copy filed in
-    the project's folder stays -- it is the project's document -- and so do
-    the symbols verified on it, in the library."""
+    """A drawing imported by mistake -- nothing revises it and it revises
+    nothing -- is removed with the platform's working copy of it. The
+    revision in force of a chain is archived instead: kept for the history,
+    out of every list and BOQ, and the revision before it is in force
+    again. A revision a later one depends on is not deleted. The copy
+    filed in the project's folder always stays (it is the project's
+    document), and so do the symbols verified on it, in the library."""
     project = _get_project_or_404(db, project_id)
     d = _drawing(db, project, drawing_id)
+    try:
+        rule = revisions.delete_rule(db, d)
+    except revisions.IdentityError as exc:
+        raise _identity_http(exc)
+    name, revision = d.filename, d.revision
+    if rule == "archive":
+        d.deleted_at, d.deleted_by_id = utc_now(), current_user.id
+        db.commit()
+        activity.record(db, current_user, "ifc.drawing_archived",
+                        f"Withdrew the IFC drawing {name} {revision}: the revision before it is in force again",
+                        project=project, entity_type="ifc_drawing", entity_id=drawing_id)
+        shop_drawings.floors_changed(db, project)
+        return
     conv = (d.meta or {}).get("conversion") or {}
-    for p in (d.stored_path, conv.get("dwg_path")):
-        if p:
-            try:
-                storage.absolute(p).unlink(missing_ok=True)
-            except OSError:
-                pass
-    name = d.filename
-    for later in db.query(ProjectIfcDrawing).filter(ProjectIfcDrawing.supersedes_id == d.id).all():
-        later.supersedes_id = d.supersedes_id
-    db.flush()
+    paths = [p for p in (d.stored_path, conv.get("dwg_path")) if p]
     db.delete(d)
     db.commit()
+    for p in paths:
+        try:
+            storage.absolute(p).unlink(missing_ok=True)
+        except OSError:
+            pass
     activity.record(db, current_user, "ifc.drawing_deleted", f"Removed the IFC drawing {name}",
                     project=project, entity_type="ifc_drawing", entity_id=drawing_id)
+    shop_drawings.floors_changed(db, project)
 
 
 class FloorOverride(BaseModel):
@@ -762,23 +677,32 @@ def set_floor_multiplier(project_id: int, drawing_id: int, body: FloorOverride,
     meta["floor_overrides"] = ov
     d.meta = meta
     db.commit()
+    shop_drawings.floors_changed(db, project)     # a plan's floors changed: the Drawings page's registry follows
     return _resolved(db, d)
 
 
 class VerifyRequest(BaseModel):
     """Map one or more symbol groups of the drawing to a device type, or mark
-    them as not a device. Block names are remembered as aliases."""
+    them as not a device -- one or the other, never both. Block names are
+    remembered as aliases."""
     signatures: list[str] = Field(min_length=1)
     device_type_id: int | None = None
     ignore: bool = False
     notes: str = ""
+
+    @model_validator(mode="after")
+    def _one_decision(self) -> "VerifyRequest":
+        if self.ignore and self.device_type_id is not None:
+            raise ValueError("Choose a device type or mark the symbol as not a device, not both")
+        return self
 
 
 @router.post("/projects/{project_id}/ifc-drawings/{drawing_id}/verify")
 def verify(project_id: int, drawing_id: int, body: VerifyRequest,
            current_user: User = Depends(require_role(*CREATOR_ROLES)), db: Session = Depends(get_db)):
     """Map the given symbol groups of a drawing to a device type, or mark
-    them as not a device. Returns the drawing re-resolved."""
+    them as not a device. The engineer's answer: it overrides the rules' and
+    the AI's, for good. Returns the drawing re-resolved."""
     project = _get_project_or_404(db, project_id)
     drawing = _drawing(db, project, drawing_id)
     if not body.ignore:
@@ -800,34 +724,11 @@ def verify(project_id: int, drawing_id: int, body: VerifyRequest,
 
 def _remember(db: Session, drawing: ProjectIfcDrawing, g: dict, device_type_id: int | None, notes: str = "",
               *, user: User | None = None) -> IfcSymbol:
-    """Put one symbol group's exact drawing in the library: as the device
-    type, or (device_type_id None) as not a device. Its block names become
-    aliases."""
-    sig = g["signature"]
-    s = db.query(IfcSymbol).filter(IfcSymbol.signature == sig).first()
-    if s is None:
-        s = IfcSymbol(signature=sig, source_drawing=drawing.filename, created_by_id=user.id if user else None)
-        db.add(s)
-    s.label = g.get("label", "")
-    s.inner_label = g.get("inner_label", "")
-    s.raster_hex = g.get("raster_hex", "")
-    s.svg = g.get("svg", "")
-    s.entity_counts = g.get("entity_counts", {})
-    s.block_names = sorted(set(list(s.block_names or []) + list(g.get("block_names", {}).keys())))
-    s.is_ignored = device_type_id is None
-    s.device_type_id = device_type_id
-    if notes:
-        s.notes = notes
-    db.flush()
-    for name in g.get("block_names", {}):
-        if name == LOOSE_NAME:
-            continue  # every symbol drawn without a block shares it: not a name to know one by
-        key = name.upper()
-        alias = db.query(IfcBlockAlias).filter(IfcBlockAlias.block_name == key).first()
-        if alias is None:
-            db.add(IfcBlockAlias(block_name=key, symbol_id=s.id))
-        else:
-            alias.symbol_id = s.id
+    """An engineer's answer for one symbol group, into the library
+    (app.ifc.services.library) and onto the AI's review of it, if it had one."""
+    s = library.remember(db, g, device_type_id, source=library.ENGINEER, drawing_name=drawing.filename,
+                         user=user, notes=notes)
+    library.record_outcome(db, g["signature"], device_type_id, user=user)
     return s
 
 
@@ -839,6 +740,12 @@ class ReviewAnswer(BaseModel):
     device_type_id: int | None = None
     ignore: bool = False
     skip: bool = False
+
+    @model_validator(mode="after")
+    def _one_decision(self) -> "ReviewAnswer":
+        if (self.device_type_id is not None) + self.ignore + self.skip > 1:
+            raise ValueError("Each answer is one of: a device type, not a device, or skip")
+        return self
 
 
 class ReviewSave(BaseModel):
@@ -858,9 +765,6 @@ def save_review(project_id: int, drawing_id: int, body: ReviewSave,
     missing = [a.signature for a in body.answers if a.signature not in groups]
     if missing:
         raise HTTPException(404, f"Symbol(s) not in this drawing: {', '.join(missing[:5])}")
-    for a in body.answers:
-        if (a.device_type_id is not None) + a.ignore + a.skip > 1:
-            raise HTTPException(422, "Each answer is one of: a device type, not a device, or skip")
     type_ids = {a.device_type_id for a in body.answers if a.device_type_id is not None}
     known = {t.id for t in db.query(IfcDeviceType).filter(IfcDeviceType.id.in_(type_ids)).all()} if type_ids else set()
     if type_ids - known:
@@ -924,12 +828,8 @@ def comparison(project_id: int, _current_user: User = Depends(get_current_user),
     project = _get_project_or_404(db, project_id)
     schedule_row, note = sync_from_folder(db, project)
     schedule = schedule_row.result if schedule_row is not None and schedule_row.result else None
-    later = _superseded(db, project.id)
     in_force, pending = [], []
-    for d in (db.query(ProjectIfcDrawing).filter(ProjectIfcDrawing.project_id == project.id)
-              .order_by(ProjectIfcDrawing.uploaded_at, ProjectIfcDrawing.id).all()):
-        if d.id in later:
-            continue
+    for d in revisions.in_force(db, project.id):
         r = resolved_drawing(db, d, with_occurrences=False)
         summary = {"id": d.id, "filename": d.filename, "revision": d.revision or "R0",
                    "uploaded_at": d.uploaded_at.isoformat(), "review_required": r["review"]["required"]}

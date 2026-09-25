@@ -14,23 +14,31 @@ Two ways a job runs:
     running when the API stopped cannot be resumed; on start it is marked
     failed with that reason (`fail_interrupted`), so no page waits for ever.
 
-  * In the worker process (`WORKER_KINDS`, app.workers.sync_worker): the
-    document sync, which reads a whole project folder and must never compete
-    with page requests for the API's one Python interpreter. The API only
-    puts the job in the queue (`enqueue`) and answers at once; the worker
-    claims it (`claim_next`), runs it, and writes progress and a heartbeat
-    here. This table is the queue and the one place the two processes agree
-    on what is running.
+  * In a worker process (`WORKER_KINDS`): the document sync
+    (app.workers.sync_worker) and the IFC drawing reads (app.workers.
+    ifc_worker), which read whole folders and whole buildings and must
+    never compete with page requests for the API's one Python interpreter.
+    The API only puts the job in the queue (`enqueue`), with what it needs
+    in `params`, and answers at once; a worker claims it (`claim_next`),
+    runs it with sessions of its own, and writes progress and a heartbeat
+    here. This table is the queue and the one place the processes agree on
+    what is running. Each kind belongs to a lane (`LANES`) with a limit on
+    how many of its jobs run at once, across every worker: one sync, and
+    IFC_WORKER_CONCURRENCY IFC reads.
 
 Duplicates are refused by the database, not by a check in Python. A check
 ("is one running?") followed by an insert lets two requests that arrive
 together both see "no" and both insert -- three clicks on Sync started three
 syncs of one project, which then failed each other with "database is
 locked". A partial unique index allows one queued-or-running sync per
-project; `enqueue` inserts, and when the index refuses, returns the job that
-won. Claiming is a compare-and-set: the row goes from queued to running only
-if it is still queued and no other worker job is running, in one statement,
-so two workers cannot take the same job and only one sync runs at a time.
+project, and another one queued-or-running job per `dedup_key` (the same
+file sent twice for the same drawing and revision); `enqueue` inserts, and
+when an index refuses, returns the job that won. Claiming is a
+compare-and-set: the row goes from queued to running only if it is still
+queued and fewer than its lane's limit are running, in one statement, so
+two workers cannot take the same job and a lane never runs more than its
+limit. (SQLite runs one write at a time, which makes that statement
+atomic; on a server database it would want a lock on the lane.)
 """
 
 from __future__ import annotations
@@ -43,7 +51,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import timedelta
 
-from sqlalchemy import exists, select, update
+from sqlalchemy import exists, func, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
@@ -55,9 +63,39 @@ log = logging.getLogger(__name__)
 
 ACTIVE = ("queued", "running")
 FINISHED = ("succeeded", "failed", "cancelled")
-# The kinds the worker process runs; the API never runs these itself.
-WORKER_KINDS = ("sync_documents",)
+# The kinds the worker processes run, by lane; the API never runs these itself.
+LANES: dict[str, tuple[str, ...]] = {
+    "sync": ("sync_documents",),
+    "ifc": ("ifc_read", "ifc_read_zip", "ifc_reprocess"),
+}
+WORKER_KINDS = tuple(kind for kinds in LANES.values() for kind in kinds)
 QUEUED_MESSAGE = "Queued: waiting for the background worker"
+# What to tidy up when a worker job ends without running -- cancelled while
+# it waited, or failed by `recover_stale` -- by kind: `hook(job)`.
+CLEANUP: dict[str, Callable] = {}
+
+
+def lane_of(kind: str) -> str | None:
+    return next((lane for lane, kinds in LANES.items() if kind in kinds), None)
+
+
+def lane_limit(lane: str) -> int:
+    """How many jobs of a lane may run at once, across every worker."""
+    if lane == "ifc":
+        from app.core.config import get_settings
+
+        return max(1, get_settings().ifc_worker_concurrency)
+    return 1
+
+
+def _cleanup(job: BackgroundJob) -> None:
+    hook = CLEANUP.get(job.kind)
+    if hook is None:
+        return
+    try:
+        hook(job)
+    except Exception:  # noqa: BLE001 -- tidying up never fails the caller
+        log.warning("Could not tidy up after job %s", job.id, exc_info=True)
 # A worker says it is alive every HEARTBEAT seconds; a running job whose
 # heartbeat is older than STALE_AFTER was left by a worker that died.
 HEARTBEAT_SECONDS = 10
@@ -207,22 +245,30 @@ def execute(session: Session, job_id: int, work: Callable[[Session, JobContext],
 # --- jobs the worker runs --------------------------------------------------------------
 
 
-def enqueue(db: Session, *, kind: str, project_id: int, user_id: int | None,
-            message: str = QUEUED_MESSAGE) -> tuple[BackgroundJob, bool]:
-    """The project's active job of this kind, created if there is none:
-    (job, created). Safe against any number of simultaneous callers, in
-    any number of processes: the insert is refused by the partial unique
-    index when another caller's job got in first, and that job is
-    returned instead. Only for WORKER_KINDS, which the index covers."""
+def active_by_key(db: Session, dedup_key: str) -> BackgroundJob | None:
+    return (db.query(BackgroundJob).filter(BackgroundJob.dedup_key == dedup_key, BackgroundJob.status.in_(ACTIVE))
+            .order_by(BackgroundJob.id.desc()).first())
+
+
+def enqueue(db: Session, *, kind: str, project_id: int | None, user_id: int | None,
+            message: str = QUEUED_MESSAGE, dedup_key: str | None = None, params: dict | None = None,
+            progress: dict | None = None) -> tuple[BackgroundJob, bool]:
+    """The active job this request is, created if there is none: (job,
+    created). With a `dedup_key` the same key is the same job; without, the
+    project's active job of this kind (the document sync). Safe against any
+    number of simultaneous callers, in any number of processes: the insert
+    is refused by a partial unique index when another caller's job got in
+    first, and that job is returned instead. Only for WORKER_KINDS."""
     if kind not in WORKER_KINDS:
         raise ValueError(f"{kind} is not a worker job kind")
     for attempt in range(20):
-        existing = active_job(db, project_id, kind)
+        existing = active_by_key(db, dedup_key) if dedup_key else active_job(db, project_id, kind)
         if existing is not None:
-            log.info("%s already active for project %s: returning job %s", kind, project_id, existing.id)
+            log.info("%s already active (%s): returning job %s", kind, dedup_key or f"project {project_id}", existing.id)
             return existing, False
         job = BackgroundJob(kind=kind, project_id=project_id, created_by_id=user_id, status="queued",
-                            progress={"done": 0, "total": 0, "message": message})
+                            progress={"done": 0, "total": 0, "message": message, **(progress or {})},
+                            dedup_key=dedup_key, params=params)
         db.add(job)
         try:
             db.commit()
@@ -246,18 +292,22 @@ def enqueue(db: Session, *, kind: str, project_id: int, user_id: int | None,
     raise RuntimeError(f"could not queue {kind} for project {project_id}: the database stayed busy")
 
 
-def claim(db: Session, job_id: int, worker_id: str, kinds: tuple[str, ...] = WORKER_KINDS) -> BackgroundJob | None:
+def claim(db: Session, job_id: int, worker_id: str, kinds: tuple[str, ...] = WORKER_KINDS,
+          limit: int = 1) -> BackgroundJob | None:
     """Mark this queued job running for this worker, or None if it cannot be
     had. One statement decides it: the row changes only if it is still
-    queued *and* no job of these kinds is running -- so two workers never
-    take the same job, and never run two syncs at once."""
+    queued *and* fewer than `limit` jobs of these kinds are running -- so
+    two workers never take the same job, and never run more than the lane
+    allows (one sync at a time)."""
     table = BackgroundJob.__table__
     other = table.alias("other")
     now = utc_now()
+    running = select(func.count(other.c.id)).where(other.c.kind.in_(kinds), other.c.status == "running")
+    room = (~exists(select(other.c.id).where(other.c.kind.in_(kinds), other.c.status == "running"))
+            if limit <= 1 else running.scalar_subquery() < limit)
     claimed = db.execute(
         update(table)
-        .where(table.c.id == job_id, table.c.status == "queued", table.c.kind.in_(kinds),
-               ~exists(select(other.c.id).where(other.c.kind.in_(kinds), other.c.status == "running")))
+        .where(table.c.id == job_id, table.c.status == "queued", table.c.kind.in_(kinds), room)
         .values(status="running", started_at=now, heartbeat_at=now, worker_id=worker_id)
     ).rowcount
     db.commit()
@@ -269,22 +319,23 @@ def claim(db: Session, job_id: int, worker_id: str, kinds: tuple[str, ...] = WOR
     return job
 
 
-def claim_next(db: Session, worker_id: str, kinds: tuple[str, ...] = WORKER_KINDS) -> BackgroundJob | None:
+def claim_next(db: Session, worker_id: str, kinds: tuple[str, ...] = WORKER_KINDS,
+               limit: int = 1) -> BackgroundJob | None:
     """Take the oldest queued job of these kinds (`claim`), or None: nothing
-    is queued, or a job of these kinds is running and finishes first."""
+    is queued, or the lane is full and a running job finishes first."""
     table = BackgroundJob.__table__
     candidates = db.execute(
         select(table.c.id).where(table.c.kind.in_(kinds), table.c.status == "queued").order_by(table.c.id).limit(10)
     ).scalars().all()
     for job_id in candidates:
-        job = claim(db, job_id, worker_id, kinds)
+        job = claim(db, job_id, worker_id, kinds, limit)
         if job is not None:
             return job
-        still_running = db.execute(
-            select(table.c.id).where(table.c.kind.in_(kinds), table.c.status == "running").limit(1)
-        ).first()
-        if still_running is not None:
-            return None     # one at a time: the running one finishes first
+        running = db.execute(
+            select(func.count(table.c.id)).where(table.c.kind.in_(kinds), table.c.status == "running")
+        ).scalar_one()
+        if running >= limit:
+            return None     # the lane is full: a running one finishes first
         # Otherwise another worker took this one a moment ago: try the next.
     return None
 
@@ -341,6 +392,8 @@ def recover_stale(db: Session, *, stale_after: timedelta = STALE_AFTER, max_atte
         if changed:
             log.warning("Job %s was left running by a worker that stopped: %s", job.id, action)
             done.append((job.id, action))
+            if action != "requeued":
+                _cleanup(job)
     return done
 
 
@@ -358,6 +411,7 @@ def request_cancel(db: Session, job: BackgroundJob) -> BackgroundJob:
         if cancelled:
             log.info("Cancelled queued job %s", job.id)
             db.refresh(job)
+            _cleanup(job)
             return job
     job.cancel_requested = True
     db.commit()
@@ -383,12 +437,13 @@ def fail_interrupted(db: Session) -> int:
 # --- the workers themselves ------------------------------------------------------------
 
 
-def worker_beat(db: Session, worker_id: str, *, pid: int, hostname: str, current_job_id: int | None) -> None:
+def worker_beat(db: Session, worker_id: str, *, pid: int, hostname: str, current_job_id: int | None,
+                lane: str | None = None) -> None:
     """The worker's heartbeat, and its current job's."""
     now = utc_now()
     worker = db.get(BackgroundWorker, worker_id)
     if worker is None:
-        worker = BackgroundWorker(id=worker_id, pid=pid, hostname=hostname, started_at=now)
+        worker = BackgroundWorker(id=worker_id, pid=pid, hostname=hostname, started_at=now, lane=lane)
         db.add(worker)
     worker.heartbeat_at, worker.current_job_id, worker.stopped_at = now, current_job_id, None
     if current_job_id is not None:
@@ -405,7 +460,13 @@ def worker_stopped(db: Session, worker_id: str) -> None:
         db.commit()
 
 
-def worker_running(db: Session, *, within: timedelta = timedelta(seconds=HEARTBEAT_SECONDS * 3)) -> bool:
-    """Whether a worker has said it is alive recently."""
-    return db.query(BackgroundWorker).filter(BackgroundWorker.stopped_at.is_(None),
-                                             BackgroundWorker.heartbeat_at >= utc_now() - within).first() is not None
+def worker_running(db: Session, *, within: timedelta = timedelta(seconds=HEARTBEAT_SECONDS * 3),
+                   lane: str | None = None) -> bool:
+    """Whether a worker (of this lane, when one is named) has said it is alive recently."""
+    query = db.query(BackgroundWorker).filter(BackgroundWorker.stopped_at.is_(None),
+                                              BackgroundWorker.heartbeat_at >= utc_now() - within)
+    if lane == "sync":
+        query = query.filter((BackgroundWorker.lane == "sync") | BackgroundWorker.lane.is_(None))
+    elif lane is not None:
+        query = query.filter(BackgroundWorker.lane == lane)
+    return query.first() is not None

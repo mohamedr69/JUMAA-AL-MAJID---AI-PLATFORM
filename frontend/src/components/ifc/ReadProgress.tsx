@@ -6,12 +6,25 @@ import { Button, Card } from './ui'
  *  (app/ifc/progress.py STAGES), after the upload itself. */
 const STEPS: { key: string; label: string; dwgOnly?: boolean }[] = [
   { key: 'upload', label: 'Upload' },
+  { key: 'queued', label: 'Waiting for the IFC worker' },
   { key: 'convert', label: 'Convert DWG to DXF', dwgOnly: true },
   { key: 'read', label: 'Open the drawing' },
   { key: 'walk', label: 'Read the symbols' },
   { key: 'finish', label: 'Sheets and floors' },
-  { key: 'file', label: 'File in the project folder' },
+  { key: 'classify', label: 'Identify the symbols' },
+  { key: 'file', label: 'Save and file' },
 ]
+
+/** The server's stage (app/ifc/progress.py STAGES and SUBSTAGES) as the step it belongs to. */
+const STEP_OF: Record<string, string> = {
+  waiting_for_worker: 'queued',
+  validating: 'queued',
+  save: 'read',
+  matching_symbols: 'classify',
+  deterministic_review: 'classify',
+  ai_review_metadata: 'classify',
+  ai_review_visual: 'classify',
+}
 
 /** "About 25 s left", "About 2 min left". */
 function timeLeft(seconds: number): string {
@@ -53,7 +66,9 @@ export default function ReadProgress({
   const dwg = filename.toLowerCase().endsWith('.dwg')
   const steps = STEPS.filter((s) => dwg || !s.dwgOnly)
   const uploading = job === null
-  const stage = uploading ? 'upload' : job.progress.stage === 'save' ? 'read' : (job.progress.stage ?? 'read')
+  const queued = job?.status === 'queued'
+  const raw = job?.progress.stage ?? 'read'
+  const stage = uploading ? 'upload' : queued ? 'queued' : (STEP_OF[raw] ?? raw)
   const current = steps.findIndex((s) => s.key === stage)
 
   let percent: number
@@ -78,12 +93,14 @@ export default function ReadProgress({
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-slate-800">
-              {uploading ? 'Uploading' : 'Reading'} {filename}
+              {uploading ? 'Uploading' : queued ? 'Queued' : 'Processing'} {filename}
             </div>
             <div className="text-xs text-slate-500">{detail}</div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs font-medium text-slate-600">{left === null ? 'Estimating the time…' : timeLeft(left)}</span>
+            <span className="text-xs font-medium text-slate-600">
+              {queued ? 'Starts when the worker is free' : left === null ? 'Estimating the time…' : timeLeft(left)}
+            </span>
             <span className="text-2xl font-semibold tabular-nums text-brand-700">{percent}%</span>
           </div>
         </div>
@@ -116,7 +133,7 @@ export default function ReadProgress({
             <span className="text-xs text-slate-500">
               {job?.cancel_requested
                 ? 'Stopping at the end of this step…'
-                : 'You can leave this tab: the read goes on, and is picked up here when you come back.'}
+                : 'You can leave this tab: the IFC worker carries on, and the read is picked up here when you come back.'}
             </span>
             {!job?.cancel_requested && (
               <Button variant="secondary" onClick={onStop}>

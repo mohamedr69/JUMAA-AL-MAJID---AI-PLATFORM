@@ -47,7 +47,15 @@ STAGES = {
     "read": "Opening the drawing",
     "walk": "Reading the symbols: blocks, and symbols drawn without one",
     "finish": "Finding the sheets, floors and architecture",
-    "file": "Filing the drawing in the project folder",
+    "classify": "Identifying the symbols",
+    "file": "Saving the drawing and filing it in the project folder",
+}
+# What the "classify" stage is doing at a given moment (app.ifc.services.classification).
+SUBSTAGES = {
+    "matching_symbols": "Matching the symbols against the library",
+    "deterministic_review": "Checking the symbols' letters and block names",
+    "ai_review_metadata": "AI reviewing the symbols nothing else identified",
+    "ai_review_visual": "AI looking at the symbols it was not sure of",
 }
 
 
@@ -76,6 +84,7 @@ class ReadTimer:
     pieces: dict[str, int] = field(default_factory=dict)       # what the extractor counted
     _shown: int = 0                                            # the last percentage reported
     _anchor: tuple[int, float] | None = None                   # (percent, seconds left) when an estimate grew
+    substage: str | None = None                                # what the classify stage is doing
 
     @classmethod
     def for_upload(cls, report, *, is_dwg: bool, size_mb: float, converter: str | None) -> "ReadTimer":
@@ -84,9 +93,9 @@ class ReadTimer:
         dxf_mb = size_mb * r["dxf_mb_per_dwg_mb"] if is_dwg else size_mb
         read = max(dxf_mb / r["read_mb_per_s"], 0.5)
         timer = cls(report=report, converter=converter or "the DWG converter")
-        timer.order = ["save"] + (["convert"] if is_dwg else []) + ["read", "walk", "finish", "file"]
+        timer.order = ["save"] + (["convert"] if is_dwg else []) + ["read", "walk", "finish", "classify", "file"]
         timer.estimates = {"save": 0.3, "read": read, "walk": max(read * r["walk_share"], 0.5),
-                           "finish": max(read * r["finish_share"], 0.8), "file": 0.4}
+                           "finish": max(read * r["finish_share"], 0.8), "classify": 1.0, "file": 0.4}
         if is_dwg:
             timer.estimates["convert"] = r["convert_base_s"] + size_mb * r["convert_s_per_mb"]
         return timer
@@ -97,7 +106,14 @@ class ReadTimer:
         now = time.monotonic()
         if self.stage is not None and self.stage not in self.done:
             self.done[self.stage] = now - self.stage_started
-        self.stage, self.stage_started, self.fraction = stage, now, None
+        self.stage, self.stage_started, self.fraction, self.substage = stage, now, None, None
+        self.tick()
+
+    def sub(self, substage: str, fraction: float | None = None) -> None:
+        """What the current stage is doing now (the classify stage's steps)."""
+        self.substage = substage
+        if fraction is not None:
+            self.at(fraction)
         self.tick()
 
     def at(self, fraction: float) -> None:
@@ -159,7 +175,9 @@ class ReadTimer:
         self._shown = percent
         stage = self.stage or "save"
         message = STAGES.get(stage, stage).format(converter=self.converter)
-        self.report(percent, message, stage, round(left))
+        if self.substage:
+            message = SUBSTAGES.get(self.substage, message)
+        self.report(percent, message, self.substage or stage, round(left))
 
     def start(self, every: float = 0.5) -> "ReadTimer":
         def loop():

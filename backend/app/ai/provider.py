@@ -57,6 +57,9 @@ class AiRequest:
     # Reasoning depth for this request (the API provider only): None means
     # the server's AI_EFFORT. Whole-page readings ask for more than a cell.
     effort: str | None = None
+    # A model for this request only, overriding the tier's (a task that is
+    # configured on its own, e.g. IFC_AI_MODEL). None: the tier's model.
+    model: str | None = None
 
 
 @dataclass
@@ -230,7 +233,7 @@ class ClaudeProvider:
 
     def complete(self, request: AiRequest) -> AiResponse:
         anthropic = self._anthropic
-        model = self._models.get(request.tier, self._models["small"])
+        model = request.model or self._models.get(request.tier, self._models["small"])
         if not self._credential:
             return AiResponse(data=None, error="auth", error_detail=self.status, model=model)
         started = time.perf_counter()
@@ -393,7 +396,7 @@ class OpenAiProvider:
 
     def complete(self, request: AiRequest) -> AiResponse:
         openai = self._openai
-        model = self._models.get(request.tier, self._models["small"])
+        model = request.model or self._models.get(request.tier, self._models["small"])
         if not self._credential:
             return AiResponse(data=None, error="auth", error_detail=self.status, model=model)
         started = time.perf_counter()
@@ -522,7 +525,7 @@ class ClaudeCodeProvider:
         import subprocess
         import tempfile
 
-        model = self._models.get(request.tier, self._models["small"])
+        model = request.model or self._models.get(request.tier, self._models["small"])
         if not self._cli:
             return AiResponse(data=None, error="auth", error_detail=self.status, model=model)
         started = time.perf_counter()

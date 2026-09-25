@@ -379,16 +379,20 @@ def _by_floor(unmatched: list, aliases: dict[str, str] | None = None) -> list[di
 
 
 APPROVED = ("approved", "approved_as_noted")
+# A cell for a revision that is not an official one: nothing to say.
+BLANK = "—"
 
 
 def after_approval(revisions: dict[str, dict]) -> tuple[dict[str, dict], dict[str, dict]]:
-    """(the revisions that stand, the ones found after an approval).
+    """(the revisions that stand, the candidates found after an approval).
 
     A drawing the consultant approved at R0 is approved. An R1 found in the
-    folder after that, with no reply of its own, was not submitted for
-    approval: it stays "not submitted", with a note, and the drawing stands
-    at the approved revision. A later revision the consultant did answer
-    was submitted, and counts."""
+    folder after that, with no reply of its own, is a file found, not a
+    revision submitted: it is a *candidate* -- the cell stays blank, the
+    row says "R1 available", and the drawing stands at the approved
+    revision -- until a submission or a reply proves it, or an engineer
+    confirms it. A later revision the consultant did answer was submitted,
+    and counts."""
     by_number = {_rev_number(rev): cell for rev, cell in revisions.items() if _rev_number(rev) >= 0}
     approved = [n for n, cell in by_number.items() if cell.get("status") in APPROVED]
     if not approved:
@@ -398,8 +402,13 @@ def after_approval(revisions: dict[str, dict]) -> tuple[dict[str, dict], dict[st
     if not later or any(cell.get("status") not in ("under_review", "reply_not_found") for cell in later.values()):
         return revisions, {}
     standing = {f"R{n}": cell for n, cell in by_number.items() if n <= at}
-    found = {f"R{n}": {**cell, "revision": f"R{n}", "status": "not_submitted", "label": "Not Submitted",
-                       "note": f"R{n} found in the folder after R{at} was approved; not taken as submitted."}
+    found = {f"R{n}": {**NOT_SUBMITTED, "revision": f"R{n}", "label": BLANK, "path": cell.get("path"),
+                       "page": cell.get("page") or 1, "name": cell.get("name"), "reference": cell.get("reference"),
+                       "floor_named": cell.get("floor_named"), "remarks": None, "modified": cell.get("modified"),
+                       "candidate": {"status": "available", "revision": f"R{n}", "path": cell.get("path"),
+                                     "page": cell.get("page") or 1, "modified": cell.get("modified"),
+                                     "note": f"R{n} found in the folder after R{at} was approved. No submission "
+                                             f"or consultant reply proves it was submitted."}}
              for n, cell in later.items()}
     return standing, found
 
@@ -510,9 +519,23 @@ def building_order(records: list, drawings: list[dict]):
     return key
 
 
-def build(drawings: list[dict], records: list, in_system=lambda code: (code or "").upper() in ("FAS", "FA")) -> dict:
-    """`drawings`: the IFC drawings in force, resolved -- read for their
-    floors only. `records`: document control records
+def revision_gaps(history: dict[str, dict]) -> list[str]:
+    """The revisions a drawing skipped: R0 and R2 on file and nothing of
+    R1. `answered_revisions` keeps R1's place (a later revision proves it
+    was submitted) without inventing a file or an answer for it; here it
+    is named as the gap it is."""
+    return [rev for rev, cell in history.items()
+            if cell.get("status") == "reply_not_found" and not cell.get("path")]
+
+
+def build(drawings: list[dict], records: list, in_system=lambda code: (code or "").upper() in ("FAS", "FA"),
+          floors: list[dict] | None = None) -> dict:
+    """`drawings`: the IFC drawings in force -- read for their floors only
+    (id, filename, revision and sheets; `building_floors.in_force_as_log_input`).
+    `floors`: the building floor registry instead (`building_floors.
+    as_log_floors`): then the floors still to draw are its floors, one row
+    each, and `drawings` are only read for how a floor named in words is
+    tied to its level. `records`: document control records
     (`document_sync.log_records`); `in_system(code)` says which system codes
     are the fire alarm's (voice evacuation too, on an Edwards-integrated job
     -- `system_rules.effective_code`)."""
@@ -554,6 +577,7 @@ def build(drawings: list[dict], records: list, in_system=lambda code: (code or "
         standing, found = after_approval(drawing["revisions"])
         history = answered_revisions(standing)
         latest = f"R{_rev_number(drawing['revision'])}" if _rev_number(drawing["revision"]) >= 0 else drawing["revision"]
+        hints: list[dict] = []
         row = {
             **drawing,
             "key": f"sd:{index}:{drawing['reference']}",
@@ -567,6 +591,7 @@ def build(drawings: list[dict], records: list, in_system=lambda code: (code or "
             "remarks": drawing["remarks"] or "",
             "latest_path": drawing["path"],
             "latest_page": drawing["page"],
+            "hints": hints,
         }
         if found:
             # The drawing stands at the revision the consultant approved.
@@ -575,32 +600,65 @@ def build(drawings: list[dict], records: list, in_system=lambda code: (code or "
             row.update({"latest_revision": approved_at, "latest_status": cell["status"],
                         "remarks": cell.get("remarks") or "", "latest_path": cell.get("path"),
                         "latest_page": cell.get("page") or 1,
-                        "latest_note": f"{', '.join(sorted(found, key=_rev_number))} found after approval"})
+                        "latest_note": f"{', '.join(sorted(found, key=_rev_number))} available"})
+            for rev in sorted(found, key=_rev_number):
+                hints.append({"kind": "revision_candidate", "revision": rev, "label": f"{rev} available",
+                              "severity": "info", **found[rev]["candidate"]})
+        gaps = revision_gaps(history)
+        for rev, cell in history.items():
+            if cell.get("status") == "reply_not_found" and rev not in gaps:
+                hints.append({"kind": "reply_missing", "revision": rev, "label": f"{rev} reply not found",
+                              "severity": "warning", "note": cell.get("note")})
+        for rev in gaps:
+            hints.append({"kind": "revision_gap", "revision": rev, "label": f"{rev} missing", "severity": "warning",
+                          "note": f"{rev} is not on file, although a later revision is. Nothing is made up for it."})
+        if not drawing["floor_keys"]:
+            hints.append({"kind": "floor_unknown", "label": "Floor not named", "severity": "warning",
+                          "note": "The drawing names no floor the log knows."})
         rows.append(row)
 
-    # The floors the IFC drawings have that no shop drawing covers yet:
-    # the floor alone -- no IFC sheet name, number or revision.
+    # The floors the building has that no shop drawing covers yet: the
+    # floor alone -- no IFC sheet name, number or revision. From the
+    # registry, one row per floor; from the IFC drawings, one per plan.
     seen: set[frozenset] = set()
-    for plan in _rows(drawings, aliases):
-        keys = frozenset(plan.keys)
-        if not keys or keys & covered or keys in seen:
-            continue
-        seen.add(keys)
-        ordered = sorted(keys, key=_floor_order)
-        rows.append({
-            "key": f"floor:{','.join(ordered)}", "source": "ifc_floor", "reference": None,
-            "floor": floor_label(plan.floor_name), "floor_named": None, "floor_keys": ordered, "floors": plan.floors,
-            "revision": None, "status": "not_submitted", "label": "Not Submitted", "path": None, "page": 1,
-            "name": None, "revisions": {},
-            "cells": {rev: dict(NOT_SUBMITTED) for rev in revisions},
-            "latest_revision": None, "latest_status": "not_submitted", "latest_note": None, "remarks": "",
-            "latest_path": None,
-            "latest_page": 1,
-        })
+    if floors is not None:
+        for entry in floors:
+            key = entry["key"]
+            if key in covered:
+                continue
+            rows.append({
+                "key": f"floor:{key}", "source": "ifc_floor", "reference": None,
+                "floor": entry.get("display") or _spelled(key), "floor_named": None, "floor_keys": [key], "floors": 1,
+                "revision": None, "status": "not_submitted", "label": "Not Submitted", "path": None, "page": 1,
+                "name": None, "revisions": {},
+                "cells": {rev: dict(NOT_SUBMITTED) for rev in revisions},
+                "latest_revision": None, "latest_status": "not_submitted", "latest_note": None, "remarks": "",
+                "latest_path": None, "latest_page": 1, "hints": [],
+            })
+    else:
+        for plan in _rows(drawings, aliases):
+            keys = frozenset(plan.keys)
+            if not keys or keys & covered or keys in seen:
+                continue
+            seen.add(keys)
+            ordered = sorted(keys, key=_floor_order)
+            rows.append({
+                "key": f"floor:{','.join(ordered)}", "source": "ifc_floor", "reference": None,
+                "floor": floor_label(plan.floor_name), "floor_named": None, "floor_keys": ordered, "floors": plan.floors,
+                "revision": None, "status": "not_submitted", "label": "Not Submitted", "path": None, "page": 1,
+                "name": None, "revisions": {},
+                "cells": {rev: dict(NOT_SUBMITTED) for rev in revisions},
+                "latest_revision": None, "latest_status": "not_submitted", "latest_note": None, "remarks": "",
+                "latest_path": None,
+                "latest_page": 1, "hints": [],
+            })
 
     # Building order, from the lowest floor to the top; a drawing naming no
     # floor last.
-    heights = floor_heights(_rows(drawings, aliases))
+    if floors is not None:
+        heights = {entry["key"]: float(entry.get("elevation") or 0.0) for entry in floors}
+    else:
+        heights = floor_heights(_rows(drawings, aliases))
     rows.sort(key=lambda row: _height(row["floor_keys"], heights))
     counts: dict[str, int] = {}
     for row in rows:

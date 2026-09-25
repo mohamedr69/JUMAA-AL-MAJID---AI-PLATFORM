@@ -58,14 +58,20 @@ RUNNERS = {"sync_documents": _run_sync}
 
 
 class Worker:
+    """Claims and runs the jobs of one lane (app.services.jobs.LANES): the
+    document syncs here, the IFC reads in app.workers.ifc_worker. `limit`
+    is how many of the lane's jobs may run at once across every worker."""
+
     def __init__(self, *, session_factory=SessionLocal, worker_id: str | None = None,
                  poll_seconds: float | None = None, progress_interval: float = 1.0,
                  stop: threading.Event | None = None, runners: dict | None = None,
-                 background_reading: bool = True):
+                 background_reading: bool = True, lane: str = "sync", limit: int = 1):
         self.session_factory = session_factory
         self.hostname = socket.gethostname()
         self.pid = os.getpid()
-        self.id = worker_id or f"{self.hostname}:{self.pid}:{int(time.time())}"[:64]
+        self.lane = lane
+        self.limit = limit
+        self.id = worker_id or f"{lane}:{self.hostname}:{self.pid}:{int(time.time())}"[:64]
         self.poll_seconds = poll_seconds if poll_seconds is not None else get_settings().worker_poll_seconds
         self.progress_interval = progress_interval
         self.stop = stop or threading.Event()
@@ -103,7 +109,7 @@ class Worker:
         there was nothing to claim."""
         db = self.session_factory()
         try:
-            job = jobs.claim_next(db, self.id, tuple(self.runners))
+            job = jobs.claim_next(db, self.id, tuple(self.runners), self.limit)
             if job is None:
                 return None
             self.run_job(db, job)
@@ -116,7 +122,7 @@ class Worker:
         None when it could not be claimed."""
         db = self.session_factory()
         try:
-            job = jobs.claim(db, job_id, self.id, tuple(self.runners))
+            job = jobs.claim(db, job_id, self.id, tuple(self.runners), self.limit)
             return self.run_job(db, job) if job is not None else None
         finally:
             db.close()
@@ -126,7 +132,8 @@ class Worker:
     def beat(self) -> None:
         db = self.session_factory()
         try:
-            jobs.worker_beat(db, self.id, pid=self.pid, hostname=self.hostname, current_job_id=self.current_job_id)
+            jobs.worker_beat(db, self.id, pid=self.pid, hostname=self.hostname, current_job_id=self.current_job_id,
+                             lane=self.lane)
         except Exception:  # noqa: BLE001 -- a missed beat is retried on the next
             log.warning("Could not record the worker's heartbeat", exc_info=True)
         finally:
@@ -139,7 +146,7 @@ class Worker:
     def recover(self) -> None:
         db = self.session_factory()
         try:
-            jobs.recover_stale(db)
+            jobs.recover_stale(db, kinds=tuple(self.runners))
         except Exception:  # noqa: BLE001
             log.warning("Could not check for jobs left by a stopped worker", exc_info=True)
         finally:
@@ -147,11 +154,16 @@ class Worker:
 
     # --- the loop ----------------------------------------------------------
 
+    def housekeeping(self) -> None:
+        """What a lane's worker tidies now and then, besides recovery (the IFC
+        worker removes staged uploads no job will read)."""
+
     def run_forever(self) -> None:
         log.info("Worker %s started (poll every %.1f s)", self.id, self.poll_seconds)
         self.beat()
         threading.Thread(target=self._beat_forever, name="worker-heartbeat", daemon=True).start()
         self.recover()
+        self.housekeeping()
         if self.background_reading:
             _start_background_reading(self)
         last_recovery = time.monotonic()
@@ -159,6 +171,7 @@ class Worker:
             while not self.stop.is_set():
                 if time.monotonic() - last_recovery > 30:
                     self.recover()
+                    self.housekeeping()
                     last_recovery = time.monotonic()
                 try:
                     ran = self.run_once()

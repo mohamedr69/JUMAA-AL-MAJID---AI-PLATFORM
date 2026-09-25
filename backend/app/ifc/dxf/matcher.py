@@ -96,7 +96,12 @@ def resolve(groups: list[dict], symbols: list, aliases: dict[str, int]) -> list[
         exact = by_sig.get(g["signature"])
         if exact is not None:
             r["symbol_id"] = exact.id
-            r["match"] = {"kind": "exact", "symbol_id": exact.id, "score": 1.0}
+            # who decided it: engineer, deterministic or ai (app.ifc.services.library)
+            reviewed = getattr(exact, "reviewed_at", None) or getattr(exact, "updated_at", None)
+            r["match"] = {"kind": "exact", "symbol_id": exact.id, "score": 1.0,
+                          "source": getattr(exact, "source", None) or "engineer",
+                          "confidence": getattr(exact, "confidence", None),
+                          "reviewed_at": reviewed.isoformat() if reviewed is not None else None}
             if exact.is_ignored:
                 r["status"] = "ignored"
             else:

@@ -202,19 +202,34 @@ def test_every_system_and_project_runs_bottom_to_top():
     assert [(r["floor"], r["floors"]) for r in run["rows"]] == [("Level 3", 1), ("Typical 3rd to 21st Floor", 19)]
 
 
-def test_a_revision_found_after_an_approval_is_not_submitted():
+def test_a_revision_found_after_an_approval_is_a_candidate_not_a_revision():
     """R0 approved; an R1 then found in the folder with no reply of its
-    own was not submitted for approval: R1 stays "Not Submitted" with a
-    note, and the drawing stands at R0, approved. An R1 the consultant did
-    answer was submitted, and counts."""
+    own is a file found, not a revision submitted: R1's cell stays blank
+    -- never "Not Submitted", never "Under Review" -- the row says "R1
+    available", and the drawing stands at R0, approved. An R1 the
+    consultant did answer was submitted, and counts."""
     out = build([], [_doc("Level 5", "R0", "approved", ref="SD-L05"), _doc("Level 5", "R1", "UR", day=2, ref="SD-L05"),
                      _doc("Level 6", "R0", "approved", ref="SD-L06"),
                      _doc("Level 6", "R1", "rejected", day=2, ref="SD-L06")])
     l5, l6 = out["rows"]
-    assert (l5["cells"]["R0"]["status"], l5["cells"]["R1"]["status"]) == ("approved", "not_submitted")
-    assert "after R0 was approved" in l5["cells"]["R1"]["note"]
-    assert (l5["latest_revision"], l5["latest_status"], l5["latest_note"]) == ("R0", "approved", "R1 found after approval")
+    assert (l5["cells"]["R0"]["status"], l5["cells"]["R1"]["label"]) == ("approved", "—")
+    candidate = l5["cells"]["R1"]["candidate"]
+    assert candidate["status"] == "available" and candidate["path"] == "03- Drawings/SD/FA/R1/SD-L05.pdf"
+    assert "after R0 was approved" in candidate["note"]
+    assert (l5["latest_revision"], l5["latest_status"], l5["latest_note"]) == ("R0", "approved", "R1 available")
+    assert [(h["kind"], h["label"]) for h in l5["hints"]] == [("revision_candidate", "R1 available")]
     assert (l6["latest_revision"], l6["latest_status"], l6["latest_note"]) == ("R1", "not_approved", None)
+    assert l6["hints"] == []
+
+
+def test_a_skipped_revision_is_a_gap_not_an_invented_revision():
+    """R0 and R2 on file, nothing of R1: R1 keeps its place (R2 proves it
+    was submitted) with no file and no answer made up for it, and the row
+    names the gap."""
+    out = build([], [_doc("Level 7", "R0", "rejected", ref="SD-L07"), _doc("Level 7", "R2", "UR", day=3, ref="SD-L07")])
+    (row,) = out["rows"]
+    assert row["cells"]["R1"]["status"] == "reply_not_found" and row["cells"]["R1"]["path"] is None
+    assert [(h["kind"], h["revision"]) for h in row["hints"]] == [("revision_gap", "R1")]
 
 
 def test_revisions_grow_with_what_was_submitted():
@@ -331,12 +346,26 @@ def test_an_item_is_received_when_its_folder_holds_a_file(client, tmp_path):
     assert items["fa_ifc"]["received"] and items["fa_ifc"]["file_count"] == 1 and items["fa_ifc"]["received_date"]
     assert items["title_block"]["received"] and not items["sm_ifc"]["received"] and not items["acs_ifc"]["received"]
 
-    sent = client.post(f"/projects/{project_id}/drawings/required/request", json={"keys": ["sm_ifc", "acs_ifc", "nope"]}).json()
+    # The approval speaks in approval words, a document in received words; and the list says how ready it is.
+    assert (items["material_approval"]["status_label"], items["fa_ifc"]["status_label"], items["sm_ifc"]["status_label"]) == (
+        "Not Approved", "Received", "Not Received")
+    assert out["readiness"] == "2 / 7 Ready"
+
+    # An item that is no item, or another system's, is refused, not dropped.
+    assert client.post(f"/projects/{project_id}/drawings/required/request",
+                       json={"system": "FAS", "keys": ["sm_ifc", "acs_ifc", "nope"]}).status_code == 422
+    assert client.post(f"/projects/{project_id}/drawings/required/request",
+                       json={"system": "FAS", "keys": ["els_lighting_ifc"]}).status_code == 422
+    # Generating the email records nothing: the request is noted once it was sent.
+    sent = client.post(f"/projects/{project_id}/drawings/required/request", json={"system": "FAS", "keys": ["sm_ifc", "acs_ifc"]}).json()
     assert sent["items"] == ["Smoke Management IFC Drawings", "Access Control System"]
     assert "Dear ACME Contracting" in sent["body"] and "EP-91041" in sent["subject"]
     items = {i["key"]: i for g in client.get(f"/projects/{project_id}/drawings/required").json()["groups"] for i in g["items"]}
+    assert items["sm_ifc"]["requested_at"] is None
+    noted = client.post(f"/projects/{project_id}/drawings/required/request/sent", json={"system": "FAS", "keys": ["sm_ifc", "acs_ifc"]}).json()
+    items = {i["key"]: i for g in noted["groups"] for i in g["items"]}
     assert items["sm_ifc"]["requested_at"] and items["sm_ifc"]["remarks"].startswith("Requested from the contractor")
-    assert items["ff_ifc"]["requested_at"] is None
+    assert items["sm_ifc"]["request_count"] == 1 and items["ff_ifc"]["requested_at"] is None
     assert client.post(f"/projects/{project_id}/drawings/required/request", json={"keys": []}).status_code == 422
 
 
@@ -359,10 +388,14 @@ def test_each_system_has_its_own_list(client, tmp_path):
 
     fas = client.get(f"/projects/{project_id}/drawings/required").json()
     assert fas["system"] == "FAS" and fas["total"] == 7                     # the fire alarm list is its own
-    sent = client.post(f"/projects/{project_id}/drawings/required/request", json={"keys": ["els_lighting_ifc"]}).json()
+    sent = client.post(f"/projects/{project_id}/drawings/required/request", json={"system": "ELS", "keys": ["els_lighting_ifc"]}).json()
     assert "emergency lighting shop drawings" in sent["body"] and "(IFC / DWG)" in sent["body"]
+    client.post(f"/projects/{project_id}/drawings/required/request/sent", json={"system": "ELS", "keys": ["els_lighting_ifc"]})
     items = {i["key"]: i for g in client.get(f"/projects/{project_id}/drawings/required?system=ELS").json()["groups"] for i in g["items"]}
     assert items["els_lighting_ifc"]["requested_at"]
+    # The fire alarm list did not hear of it.
+    fas_items = {i["key"]: i for g in client.get(f"/projects/{project_id}/drawings/required?system=FAS").json()["groups"] for i in g["items"]}
+    assert all(i["requested_at"] is None for i in fas_items.values())
     xlsx = client.get(f"/projects/{project_id}/drawings/required/export.xlsx?system=ELS")
     assert xlsx.status_code == 200 and "Actions Required ELS.xlsx" in xlsx.headers["content-disposition"]
     assert client.get(f"/projects/{project_id}/drawings/required?system=XYZ").status_code == 404

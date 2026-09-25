@@ -68,17 +68,20 @@ def test_a_renamed_file_is_not_a_dwg():
 
 def test_an_archive_that_unpacks_to_more_than_the_limit_is_refused():
     """A zip bomb is small until it is opened, so the declared sizes are
-    added up before anything is read."""
+    added up before anything is read -- against the configured limit, the
+    same number the message gives (it was once 250 MB in the message and
+    500 MB in the check)."""
     big = DXF + b"0" * (60 * 1024 * 1024)
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-        for n in range(6):
+        for n in range(MAX_UNPACKED_BYTES // len(big) + 1):
             archive.writestr(f"Level {n:02d}.dxf", big)
     payload = buffer.getvalue()
     assert len(payload) < MAX_UNPACKED_BYTES      # small on the wire
     with pytest.raises(HTTPException) as refused:
         _drawings_in_a_zip(payload)
     assert refused.value.status_code == 413
+    assert f"{MAX_UNPACKED_BYTES // (1024 * 1024)} MB" in refused.value.detail
 
 
 def test_too_many_files_and_no_files_at_all():
@@ -116,10 +119,12 @@ def test_the_floors_are_counted_not_spelled():
 # --- the whole way through: an archive posted, a drawing per floor ---------------
 
 
-def test_a_zip_of_floors_becomes_a_drawing_each_and_then_revises_them(client, monkeypatch, tmp_path):
+def test_a_zip_of_floors_becomes_a_drawing_each_and_revises_only_on_evidence(client, monkeypatch, tmp_path):
     """The building arrives as one archive: every floor is a drawing of its
-    own at R0, read in counted order. Post the same names again and each
-    one revises the floor it matches rather than being filed beside it."""
+    own at R0, read in counted order. The same archive again changes
+    nothing -- the same files are the same drawings. A floor whose name
+    states a later revision revises its drawing; one that only has the same
+    name is not taken as a revision on a guess: the engineer confirms it."""
     import app.routers.jobs as jobs_router
 
     monkeypatch.setattr(jobs_router, "RUN_INLINE", True)
@@ -141,11 +146,25 @@ def test_a_zip_of_floors_becomes_a_drawing_each_and_then_revises_them(client, mo
     assert result["failed"] == [] and result["skipped"] == ["notes.txt"]
     assert result["drawings"] == 3 and result["archive"] == "floors.zip"
 
-    # The same archive again: each file revises the floor of its name.
+    # The same archive again: nothing is read twice, nothing is revised.
     again = client.post(f"/projects/{project_id}/ifc-drawings/zip/jobs",
                         files={"file": ("floors.zip", archive, "application/zip")})
-    revised = client.get(f"/jobs/{again.json()['id']}").json()["result"]
-    assert {r["revision"] for r in revised["read"]} == {"R1"}
+    same = client.get(f"/jobs/{again.json()['id']}").json()["result"]
+    assert same["read"] == [] and sorted(r["filename"] for r in same["unchanged"]) == sorted(floors)
+    assert len(client.get(f"/projects/{project_id}/ifc-drawings").json()) == 3
+
+    # New content: "Level 1-R1" states its revision and revises Level 1;
+    # "Level 2" under its old name is not guessed to be a revision.
+    changed = zipped([("Level 1-R1.dxf", _dxf(tmp_path / "L1R1.dxf", count=5).read_bytes()),
+                      ("Level 2.dxf", _dxf(tmp_path / "L2b.dxf", count=6).read_bytes())])
+    third = client.post(f"/projects/{project_id}/ifc-drawings/zip/jobs",
+                        files={"file": ("changed.zip", changed, "application/zip")})
+    result = client.get(f"/jobs/{third.json()['id']}").json()["result"]
+    assert [(r["filename"], r["revision"]) for r in result["read"]] == [("Level 1-R1.dxf", "R1")]
+    assert [r["filename"] for r in result["needs_confirmation"]] == ["Level 2.dxf"]
+    listed = {d["filename"]: d for d in client.get(f"/projects/{project_id}/ifc-drawings").json()}
+    assert listed["Level 1-R1.dxf"]["current"] and not listed["Level 1.dxf"]["current"]
+    assert listed["Level 2.dxf"]["current"] and listed["Level 2.dxf"]["revision"] == "R0"
 
 
 def test_an_archive_naming_one_floor_twice_is_refused_at_the_door(client, tmp_path):

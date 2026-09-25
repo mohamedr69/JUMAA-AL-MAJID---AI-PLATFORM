@@ -161,6 +161,67 @@ class Settings(BaseSettings):
     # is installed somewhere else.
     accoreconsole_path: str | None = None
 
+    # --- BOQ as per IFC drawings (app/ifc) ---------------------------------
+    # The one limit on an uploaded DWG, DXF or zip, in MB: every check and
+    # every message is worked out from it (app.ifc.services.upload).
+    ifc_max_upload_mb: int = 500
+    # A zip of the building: how many files it may hold, and how much its
+    # drawings may come to unpacked (declared sizes, checked before anything
+    # is unpacked, and actual bytes, checked while each is unpacked).
+    ifc_max_zip_members: int = 200
+    ifc_max_zip_unpacked_mb: int = 500
+    # How many IFC reads run at the same time across every IFC worker. A
+    # large drawing's read takes up to a GB of memory: raise it only on a
+    # PC with the memory to spare.
+    ifc_worker_concurrency: int = 2
+    # Uploads waiting for the worker live in a staging folder; one no job
+    # refers to any more is removed after this many hours.
+    ifc_staging_max_age_hours: float = 24.0
+    # A symbol whose letters and block name both name the same device, on a
+    # fire alarm layer, is taken as that device without asking (source
+    # "deterministic"). Off by default: a symbol's words are a hint, never an
+    # answer -- a block name means different things to different consultants
+    # -- so they only choose the candidates the AI and the engineer pick from.
+    ifc_deterministic_auto_verify: bool = False
+    # The AI review of symbols nothing else could identify (app.ifc.services.
+    # ai_symbol_review). Runs only when AI_ENABLED is on as well. The model
+    # sees one symbol's letters, block names and shape counts, and chooses
+    # from a short list of device types Python picked -- never the drawing.
+    ifc_ai_symbol_review_enabled: bool = True
+    # The second look, at the symbol's small picture, for what the words
+    # alone left uncertain.
+    ifc_ai_visual_review_enabled: bool = True
+    ifc_ai_batch_size: int = 15
+    ifc_ai_visual_batch_size: int = 4
+    # Unset: the provider's small tier (AI_MODEL_SMALL). A cheaper model is
+    # enough for choosing one of five names.
+    ifc_ai_model: str | None = None
+    ifc_ai_visual_model: str | None = None
+    # Below this the AI's answer is shown to the engineer, not taken.
+    ifc_ai_auto_verify_threshold: float = 0.97
+    ifc_ai_max_candidates: int = 5
+    ifc_ai_max_calls_per_job: int = 20
+    # Retries of a call that failed on the way (timeout, rate limit), not of
+    # an answer the model gave.
+    ifc_ai_retries: int = 1
+    ifc_ai_timeout_s: float = 120.0
+
+    # --- The Drawings page (app/services/shop_drawings, drawing_ai_review) --
+    # The AI review of a system's shop drawings: only what the rules could
+    # not settle (a reply that names no drawing the log knows, a candidate
+    # revision a transmittal may have carried), one compact question each,
+    # cached by the file's content. Runs only when AI_ENABLED is on as well.
+    drawings_ai_review_enabled: bool = True
+    drawings_ai_model: str | None = None
+    drawings_ai_auto_accept_threshold: float = 0.97
+    drawings_ai_max_calls_per_sync: int = 10
+    drawings_ai_timeout_s: float = 90.0
+    # Opening a project folder in Explorer on the PC the platform runs on
+    # (Drawings > Open folder). Only for a browser on that same PC: the
+    # request must come from a loopback address with no proxy header on it,
+    # from a page served on a loopback origin. Off, the button is refused.
+    desktop_actions_enabled: bool = True
+
     @model_validator(mode="after")
     def _apply_data_root(self) -> "Settings":
         root = expand_path(self.data_root)

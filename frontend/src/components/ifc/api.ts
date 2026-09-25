@@ -12,14 +12,67 @@ import type { Capabilities, Comparison, DeviceType, Drawing, DrawingSummary, Rev
  *  is where it is, `progress.eta_seconds` its estimate of the time left. */
 export type ReadJob = Job & {
   progress: Job['progress'] & { stage?: string; eta_seconds?: number; file?: string }
-  result: { drawing_id?: number; filename?: string; revision?: string;
+  result: { drawing_id?: number; filename?: string; revision?: string; reference?: string
+            engineer_review?: number; ai_note?: string | null
             archive?: string; drawings?: number
             read?: { drawing_id: number; filename: string; revision: string }[]
             failed?: { filename: string; reason: string }[]
-            skipped?: string[] } | null
+            skipped?: string[]
+            /** the same files as drawings already imported: nothing read again */
+            unchanged?: { filename: string; drawing_id: number; revision: string }[]
+            /** files that may revise a drawing in force without saying so: import them on their own */
+            needs_confirmation?: { filename: string; drawing_id: number; existing: string; revision: string; reason: string }[] } | null
+  /** On a start request: the same work was already queued or running (another click, another tab). */
+  already_active?: boolean
+}
+
+/** A file that may be a revision of a drawing already imported: the engineer says which (HTTP 409). */
+export interface RevisionQuestion {
+  code: 'revision_confirmation_required'
+  message: string
+  uploaded: string
+  candidates: { id: number; filename: string; revision: string; reference: string | null }[]
+  suggested_revision: string
 }
 
 const drawings = (projectId: number) => `/projects/${projectId}/ifc-drawings`
+
+/** POST a form with its upload progress (only XMLHttpRequest reports it). A
+ *  refusal keeps the server's structured detail (`ApiError.code`, `.detail`),
+ *  so the page can ask the question a 409 carries. */
+function send(url: string, body: FormData, onSent: (loaded: number, total: number) => void, what: string): Promise<ReadJob> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${API_BASE_URL}${url}`)
+    xhr.withCredentials = true
+    xhr.upload.onprogress = (e) => e.lengthComputable && onSent(e.loaded, e.total)
+    xhr.onload = () => {
+      let parsed: { detail?: unknown } & Partial<ReadJob> = {}
+      try {
+        parsed = JSON.parse(xhr.responseText)
+      } catch {
+        /* no JSON body */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(parsed as ReadJob)
+        return
+      }
+      const detail = parsed.detail
+      if (detail && typeof detail === 'object' && !Array.isArray(detail)) {
+        const d = detail as Record<string, unknown>
+        reject(new ApiError(xhr.status, String(d.message ?? xhr.statusText), typeof d.code === 'string' ? d.code : null, d))
+      } else if (Array.isArray(detail)) {
+        // a validation refusal: its first reason
+        const first = detail[0] as { msg?: string } | undefined
+        reject(new ApiError(xhr.status, first?.msg?.replace(/^Value error, /, '') ?? `${what} was refused`))
+      } else {
+        reject(new ApiError(xhr.status, typeof detail === 'string' ? detail : xhr.statusText || `${what} could not be sent`))
+      }
+    }
+    xhr.onerror = () => reject(new ApiError(0, `${what} could not be sent: the platform did not answer`))
+    xhr.send(body)
+  })
+}
 
 export const api = {
   capabilities: () => platform.get<Capabilities>('/ifc/capabilities'),
@@ -42,59 +95,28 @@ export const api = {
     }
     return (await res.json()) as Drawing
   },
-  /** Send the drawing and start reading it as a job; `onSent(loaded, total)` hears the upload's bytes. */
+  /** Send the drawing and queue it for the IFC worker (HTTP 202); `onSent(loaded, total)` hears the upload's bytes.
+   *  `confirm_new`: the engineer said a file that looks like a revision is a new drawing. */
   startRead: (
     projectId: number,
     file: File,
-    issue: { revision: string; supersedes_id: number | null },
+    issue: { revision: string; supersedes_id: number | null; confirm_new?: boolean },
     onSent: (loaded: number, total: number) => void,
-  ): Promise<ReadJob> =>
-    new Promise((resolve, reject) => {
-      // XMLHttpRequest rather than fetch: only it reports how much of the upload has gone.
-      const xhr = new XMLHttpRequest()
-      xhr.open('POST', `${API_BASE_URL}${drawings(projectId)}/jobs`)
-      xhr.withCredentials = true
-      xhr.upload.onprogress = (e) => e.lengthComputable && onSent(e.loaded, e.total)
-      xhr.onload = () => {
-        let body: { detail?: unknown } & Partial<ReadJob> = {}
-        try {
-          body = JSON.parse(xhr.responseText)
-        } catch {
-          /* no JSON body */
-        }
-        if (xhr.status >= 200 && xhr.status < 300) resolve(body as ReadJob)
-        else reject(new ApiError(xhr.status, typeof body.detail === 'string' ? body.detail : xhr.statusText || 'The drawing could not be sent'))
-      }
-      xhr.onerror = () => reject(new ApiError(0, 'The drawing could not be sent: the platform did not answer'))
-      const body = new FormData()
-      body.append('file', file)
-      body.append('revision', issue.revision)
-      if (issue.supersedes_id !== null) body.append('supersedes_id', String(issue.supersedes_id))
-      xhr.send(body)
-    }),
+  ): Promise<ReadJob> => {
+    const body = new FormData()
+    body.append('file', file)
+    if (issue.revision) body.append('revision', issue.revision)
+    if (issue.supersedes_id !== null) body.append('supersedes_id', String(issue.supersedes_id))
+    if (issue.confirm_new) body.append('confirm_new', 'true')
+    return send(`${drawings(projectId)}/jobs`, body, onSent, 'The drawing')
+  },
   /** A zip of the building: every drawing in it is read, a floor at a
    *  time, as one job the tab follows like a single read. */
-  startZipRead: (projectId: number, file: File, onSent: (loaded: number, total: number) => void): Promise<ReadJob> =>
-    new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest()
-      xhr.open('POST', `${API_BASE_URL}${drawings(projectId)}/zip/jobs`)
-      xhr.withCredentials = true
-      xhr.upload.onprogress = (e) => e.lengthComputable && onSent(e.loaded, e.total)
-      xhr.onload = () => {
-        let body: { detail?: unknown } & Partial<ReadJob> = {}
-        try {
-          body = JSON.parse(xhr.responseText)
-        } catch {
-          /* no JSON body */
-        }
-        if (xhr.status >= 200 && xhr.status < 300) resolve(body as ReadJob)
-        else reject(new ApiError(xhr.status, typeof body.detail === 'string' ? body.detail : xhr.statusText || 'The archive could not be sent'))
-      }
-      xhr.onerror = () => reject(new ApiError(0, 'The archive could not be sent: the platform did not answer'))
-      const body = new FormData()
-      body.append('file', file)
-      xhr.send(body)
-    }),
+  startZipRead: (projectId: number, file: File, onSent: (loaded: number, total: number) => void): Promise<ReadJob> => {
+    const body = new FormData()
+    body.append('file', file)
+    return send(`${drawings(projectId)}/zip/jobs`, body, onSent, 'The archive')
+  },
   comparison: (projectId: number) => platform.get<Comparison>(`/projects/${projectId}/ifc-comparison`),
   getJob: (id: number) => platform.get<ReadJob>(`/jobs/${id}`),
   cancelJob: (id: number) => platform.post<ReadJob>(`/jobs/${id}/cancel`),

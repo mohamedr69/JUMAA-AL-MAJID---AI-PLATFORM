@@ -255,6 +255,40 @@ def file_ifc_drawing(project, name: str, content: bytes, *, stamp: str) -> str |
     return path.relative_to(root).as_posix()
 
 
+def file_ifc_drawing_from(project, name: str, source: Path, *, stamp: str) -> tuple[str | None, bool]:
+    """`file_ifc_drawing` for a file on disk, copied without reading it into
+    memory. Returns (where it went relative to the project, or None when the
+    project's folder is not reachable; whether this call created the file --
+    so a read that fails afterwards removes only what it filed)."""
+    import filecmp
+    import shutil
+
+    if not project.source_folder_path:
+        return None, False
+    root = Path(project.source_folder_path)
+    if not _is_dir(root):
+        return None, False
+    folder = root / IFC_FIRE_ALARM
+    os.makedirs(document_control._os_path(folder), exist_ok=True)
+    path = folder / Path(name).name
+    if os.path.isfile(document_control._os_path(path)):
+        if filecmp.cmp(document_control._os_path(path), str(source), shallow=False):
+            return path.relative_to(root).as_posix(), False
+        path = folder / f"{path.stem} (uploaded {stamp}){path.suffix}"
+    shutil.copyfile(str(source), document_control._os_path(path))
+    return path.relative_to(root).as_posix(), True
+
+
+def unfile_ifc_drawing(project, relative: str) -> None:
+    """Remove a drawing this read filed, when the read did not complete."""
+    if not project.source_folder_path or not relative:
+        return
+    try:
+        os.remove(document_control._os_path(Path(project.source_folder_path) / relative))
+    except OSError:
+        pass
+
+
 def system_folder(system_code: str | None) -> str | None:
     """The archive's folder name for a system code, in any spelling the
     platform knows (FAS, FA, ELS, EML, CBS ...); None for something that is

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ApiError } from '../../lib/api'
 import DrawingView from './DrawingView'
 import ReadProgress from './ReadProgress'
 import { Button, Card, ErrorBox, Spinner } from './ui'
-import { api, type ReadJob } from './api'
+import { api, type ReadJob, type RevisionQuestion } from './api'
 import type { Capabilities, DrawingSummary } from './types'
 
 /** "R3" -> 3; anything else -> -1. */
@@ -48,8 +49,23 @@ function stem(name: string) {
 const readFromZip = (r: NonNullable<ReadJob['result']>) => {
   const floors = r.read?.length ?? 0
   const parts = [`Read ${floors} ${floors === 1 ? 'drawing' : 'drawings'} from ${r.archive ?? 'the archive'}.`]
-  if (r.failed?.length) parts.push(`Could not read ${r.failed.map((f) => f.filename).join(', ')}.`)
+  if (r.unchanged?.length) parts.push(`${r.unchanged.length} already imported and unchanged: ${r.unchanged.map((f) => f.filename).join(', ')}.`)
+  if (r.needs_confirmation?.length)
+    parts.push(
+      `Not imported, as they may revise a drawing already here without saying so -- import each on its own and say what it is: ${r.needs_confirmation
+        .map((f) => `${f.filename} (${f.existing} ${f.revision})`)
+        .join(', ')}.`,
+    )
+  if (r.failed?.length) parts.push(`Could not read ${r.failed.map((f) => `${f.filename} (${f.reason})`).join('; ')}.`)
   if (r.skipped?.length) parts.push(`Left behind ${r.skipped.length} file${r.skipped.length === 1 ? '' : 's'} that ${r.skipped.length === 1 ? 'is' : 'are'} not a drawing: ${r.skipped.join(', ')}.`)
+  return parts.join(' ')
+}
+
+/** "3 symbols wait for an engineer", or nothing, after a single read. */
+const afterRead = (r: NonNullable<ReadJob['result']>) => {
+  const parts: string[] = []
+  if (r.ai_note) parts.push(`${r.ai_note}: extraction completed and the symbols it could not identify were moved to Engineer Review.`)
+  if (r.engineer_review) parts.push(`${r.engineer_review} symbol${r.engineer_review === 1 ? '' : 's'} need${r.engineer_review === 1 ? 's' : ''} an engineer's answer.`)
   return parts.join(' ')
 }
 
@@ -72,6 +88,10 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
   } | null>(null)
   // A file chosen, waiting for its revision to be said.
   const [pending, setPending] = useState<{ file: File; supersedes: number; revision: string } | null>(null)
+  // The server found a drawing the file may revise: the engineer says which it is.
+  const [question, setQuestion] = useState<{ file: File; revision: string; detail: RevisionQuestion } | null>(null)
+  // A send in progress: a second click sends nothing (the server would return the same job anyway).
+  const sending = useRef(false)
   const [notice, setNotice] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [caps, setCaps] = useState<Capabilities | null>(null)
@@ -141,11 +161,14 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
         if (job.status === 'succeeded' && job.result?.read) {
           setNotice(readFromZip(job.result))
           // Start floor wise: the first floor opens on Verify Symbols,
-          // the way a single import does.
+          // the way a single import does. With nothing read, the list says why.
           const first = job.result.read[0]
-          if (first) setOpen(first.drawing_id)
+          if (first && !job.result.needs_confirmation?.length && !job.result.failed?.length) setOpen(first.drawing_id)
         }
-        else if (job.status === 'succeeded' && job.result?.drawing_id) setOpen(job.result.drawing_id)
+        else if (job.status === 'succeeded' && job.result?.drawing_id) {
+          setNotice(afterRead(job.result))
+          setOpen(job.result.drawing_id)
+        }
         else if (job.status === 'cancelled') setNotice(
           job.kind === 'ifc_read_zip'
             ? `Stopped at ${job.progress.file ?? 'a floor'}: the floors read before it were kept.`
@@ -174,6 +197,8 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
   /** A zip is the building, not a revision of one drawing: every file in
    *  it is read as its own drawing, so there is nothing to choose first. */
   const uploadZip = async (file: File) => {
+    if (sending.current) return
+    sending.current = true
     setError('')
     setNotice('')
     setOpen(null)
@@ -182,16 +207,25 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
       const job = await api.startZipRead(projectId, file, (loaded, total) =>
         setReading((r) => (r && r.sent ? { ...r, sent: { ...r.sent, loaded, total } } : r)),
       )
+      if (job.already_active) setNotice(`${file.name} is already being read (job ${job.id}): following it here.`)
       setReading((r) => (r ? { ...r, sent: null, job, polledAt: Date.now() } : r))
     } catch (e) {
       setReading(null)
       setError((e as Error).message)
+    } finally {
+      sending.current = false
     }
   }
 
   const choose = (file: File) => {
     setError('')
+    setQuestion(null)
     const lower = file.name.toLowerCase()
+    // The server's own limit, checked before a byte is sent; the server checks it again.
+    if (caps && file.size > caps.max_upload_mb * 1024 * 1024) {
+      setError(`${file.name} is larger than ${caps.max_upload_mb} MB`)
+      return
+    }
     if (lower.endsWith('.zip')) {
       void uploadZip(file)
       return
@@ -216,21 +250,37 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
     })
   }
 
+  /** Send a file to be read. The server may ask first whether it revises a
+   *  drawing already here (409): the question is shown, never guessed. */
+  const send = async (file: File, issue: { revision: string; supersedes_id: number | null; confirm_new?: boolean }) => {
+    if (sending.current) return
+    sending.current = true
+    setQuestion(null)
+    setOpen(null)
+    setReading({ filename: file.name, revision: issue.revision, sent: { loaded: 0, total: file.size, started: Date.now() }, job: null, polledAt: 0 })
+    try {
+      const job = await api.startRead(projectId, file, issue, (loaded, total) =>
+        setReading((r) => (r && r.sent ? { ...r, sent: { ...r.sent, loaded, total } } : r)),
+      )
+      if (job.already_active) setNotice(`${file.name} is already being read (job ${job.id}): following it here.`)
+      setReading((r) => (r ? { ...r, sent: null, job, polledAt: Date.now() } : r))
+    } catch (e) {
+      setReading(null)
+      if (e instanceof ApiError && e.code === 'revision_confirmation_required' && e.detail) {
+        setQuestion({ file, revision: issue.revision, detail: e.detail as unknown as RevisionQuestion })
+      } else {
+        setError((e as Error).message)
+      }
+    } finally {
+      sending.current = false
+    }
+  }
+
   const upload = async () => {
     if (!pending || !pending.revision) return
     const { file, supersedes, revision } = pending
     setPending(null)
-    setOpen(null)
-    setReading({ filename: file.name, revision, sent: { loaded: 0, total: file.size, started: Date.now() }, job: null, polledAt: 0 })
-    try {
-      const job = await api.startRead(projectId, file, { revision, supersedes_id: supersedes === NEW_DRAWING ? null : supersedes }, (loaded, total) =>
-        setReading((r) => (r && r.sent ? { ...r, sent: { ...r.sent, loaded, total } } : r)),
-      )
-      setReading((r) => (r ? { ...r, sent: null, job, polledAt: Date.now() } : r))
-    } catch (e) {
-      setReading(null)
-      setError((e as Error).message)
-    }
+    await send(file, { revision, supersedes_id: supersedes === NEW_DRAWING ? null : supersedes })
   }
 
   const stop = async () => {
@@ -244,7 +294,10 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
   }
 
   const remove = async (d: DrawingSummary) => {
-    const note = d.current && d.supersedes_id !== null ? ' The revision before it becomes the drawing in force again.' : ''
+    const note =
+      d.current && d.supersedes_id !== null
+        ? ' It is kept in the revision history as withdrawn, and the revision before it becomes the drawing in force again.'
+        : ''
     if (!confirm(`Delete ${d.revision} of "${d.filename}"?${note} The verified symbols stay in the library, and the copy filed in the project folder stays there.`)) return
     await api.deleteDrawing(projectId, d.id).catch((e) => setError(e.message))
     load()
@@ -292,6 +345,41 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
           polledAt={reading.polledAt}
           onStop={canEdit ? stop : undefined}
         />
+      ) : question ? (
+        <Card className="space-y-4 border-amber-300 p-5">
+          <div>
+            <div className="text-sm font-semibold text-amber-900">Possible existing drawing found</div>
+            <p className="mt-1 text-sm text-slate-700">{question.detail.message}</p>
+          </div>
+          <div className="grid gap-2 text-sm sm:grid-cols-2">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Existing</div>
+              {question.detail.candidates.map((c) => (
+                <div key={c.id}>
+                  {c.reference ?? c.filename} <span className="font-semibold">{c.revision}</span>
+                  <span className="text-xs text-slate-500"> · {c.filename}</span>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Uploaded</div>
+              {question.detail.uploaded}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {question.detail.candidates.map((c) => (
+              <Button key={c.id} onClick={() => send(question.file, { revision: question.detail.suggested_revision, supersedes_id: c.id })}>
+                Yes: import as {question.detail.suggested_revision} of {c.reference ?? c.filename}
+              </Button>
+            ))}
+            <Button variant="secondary" onClick={() => send(question.file, { revision: question.revision || 'R0', supersedes_id: null, confirm_new: true })}>
+              No: it is a new drawing
+            </Button>
+            <Button variant="ghost" onClick={() => setQuestion(null)}>
+              Cancel
+            </Button>
+          </div>
+        </Card>
       ) : pending ? (
         <Card className="space-y-4 p-5">
           <div>
@@ -388,12 +476,17 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
                 Import a zip of all floors
               </Button>
             </div>
+            {caps && !caps.worker_running && (
+              <div className="w-full max-w-2xl rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-left text-xs text-amber-900">
+                The IFC worker is not running on the server: a drawing you add is queued, and read once it is started (start.bat opens it).
+              </div>
+            )}
             <div className="text-xs text-slate-500">
               {caps === null
                 ? ''
                 : caps.dwg
-                  ? `DWG files are converted to DXF by ${caps.dwg_converter}.`
-                  : 'DWG needs AutoCAD or the ODA File Converter on the server PC. DXF always works.'}
+                  ? `DWG files are converted to DXF by ${caps.dwg_converter}. Up to ${caps.max_upload_mb} MB a file.`
+                  : `DWG needs AutoCAD or the ODA File Converter on the server PC. DXF always works. Up to ${caps.max_upload_mb} MB a file.`}
               {' '}Symbols drawn without a block (exploded, or drawn in lines) are found by what they look
               like. A zip is read a file at a time, each one its own drawing; floors still come from the
               sheets inside them.
@@ -436,7 +529,21 @@ export default function IfcBoqTab({ projectId, canEdit }: { projectId: number; c
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Revision monitoring</div>
-                <div className="font-medium">{chain[0].filename}</div>
+                <div className="font-medium">
+                  {chain[0].reference && chain[0].reference !== chain[0].filename.toUpperCase() && (
+                    <span className="mr-2 font-mono text-sm text-slate-700">{chain[0].reference}</span>
+                  )}
+                  {chain[0].filename}
+                </div>
+                <div className="text-xs text-slate-500">
+                  {chain[0].floor_name && <>{chain[0].floor_name} · </>}
+                  {chain[0].total_occurrences.toLocaleString()} device occurrences ·{' '}
+                  {chain[0].boq_status === 'verified' ? (
+                    <span className="font-medium text-emerald-700">BOQ verified</span>
+                  ) : (
+                    <span className="font-medium text-amber-700">{chain[0].review_required} to review</span>
+                  )}
+                </div>
               </div>
               <Button onClick={() => setOpen(chain[0].id)}>Open {chain[0].revision}</Button>
             </div>

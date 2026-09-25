@@ -22,8 +22,11 @@ MODEL = "Model"
 
 
 def library(db: Session) -> tuple[list[Symbol], dict[str, int]]:
+    """The verified symbols, and the block names that suggest one. A name
+    used for two different answers is ambiguous and suggests nothing
+    (app.ifc.services.library)."""
     symbols = db.query(Symbol).options(selectinload(Symbol.device_type)).all()
-    aliases = {a.block_name.upper(): a.symbol_id for a in db.query(BlockAlias).all()}
+    aliases = {a.block_name.upper(): a.symbol_id for a in db.query(BlockAlias).all() if not a.is_ambiguous}
     return symbols, aliases
 
 
@@ -256,6 +259,7 @@ def resolved_drawing(db: Session, drawing: Drawing, with_occurrences: bool = Tru
     review_info = {k: review[k] for k in (*REQUIRED, "optional", "skipped")}
     review_info.update(required=required, ready=required == 0,
                        conflicts=sum(1 for g in groups if g["conflict"] and g["on_plans"]))
+    analysis = analyse(drawing, groups, required)
 
     conversion = {k: v for k, v in ((drawing.meta or {}).get("conversion") or {}).items() if k != "dwg_path"} or None
     return {
@@ -275,6 +279,80 @@ def resolved_drawing(db: Session, drawing: Drawing, with_occurrences: bool = Tru
         "floor_info": floor_info,
         "floor_boq": boq,
         "review": review_info,
+        "analysis": analysis,
         "groups": groups,
         "totals": matcher.totals(groups),
+    }
+
+
+# Why a symbol is in the engineer's queue, as the page says it (app.ifc.services.classification).
+QUEUE_LABELS = {
+    "ai_uncertain": "AI uncertain",
+    "ai_rejected": "AI answer failed the checks",
+    "ai_unavailable": "AI unavailable",
+    "ai_disabled": "Not reviewed by AI",
+    "ai_budget": "AI call limit reached",
+    "no_candidates": "No valid candidate",
+    "alias_ambiguous": "Block name is ambiguous",
+    "deterministic_conflict": "Words and library disagree",
+    "resemblance_match": "Counted by resemblance: confirm",
+    "not_reviewed": "Read before the AI review",
+}
+
+
+def analyse(drawing: Drawing, groups: list[dict], required: int) -> dict:
+    """The IFC BOQ analysis of a drawing: how many device occurrences, how
+    many unique symbols, and who identified each symbol -- the library
+    (known), the rules (deterministic), the AI, an engineer on this drawing
+    -- or why it waits in the engineer's queue. The categories add up to
+    the unique symbols. Each group gets `source` and, when it waits,
+    `queue` {reason, label, ai}."""
+    meta = drawing.meta or {}
+    queued = meta.get("symbol_review") or {}
+    classified = meta.get("classified") or {}     # what this drawing's own read answered: ai | deterministic
+    uploaded = drawing.uploaded_at.isoformat() if drawing.uploaded_at else ""
+    counts: Counter = Counter()
+    reasons: Counter = Counter()
+    for g in groups:
+        m = g.get("match") or {}
+        kind = m.get("kind")
+        g["source"] = m.get("source") if kind == "exact" else ("resemblance" if kind in ("library", "family") else None)
+        g["queue"] = None
+        if g.get("review") in REQUIRED:
+            reason = "resemblance_match" if g["review"] == "confirm" else (
+                (queued.get(g["signature"]) or {}).get("reason") or "not_reviewed")
+            g["queue"] = {"reason": reason, "label": QUEUE_LABELS.get(reason, reason),
+                          "ai": (queued.get(g["signature"]) or {}).get("ai")}
+            counts["review_required"] += 1
+            reasons[reason] += 1
+        elif g["status"] in ("verified", "ignored") and kind == "exact":
+            source = g["source"] or "engineer"
+            if source != "engineer" and classified.get(g["signature"]) == source:
+                counts["ai_verified" if source == "ai" else "deterministic"] += 1
+            elif source == "engineer" and uploaded and (m.get("reviewed_at") or "") >= uploaded:
+                counts["engineer_verified"] += 1     # answered by an engineer on this drawing
+            else:
+                counts["known"] += 1                 # the library knew it before this drawing was read
+        elif g["status"] == "verified":
+            counts["resemblance"] += 1
+        else:
+            counts["not_asked"] += 1
+    processing = meta.get("processing") or {}
+    return {
+        "total_occurrences": sum(g.get("count", 0) for g in groups),
+        "unique_symbols": len(groups),
+        "known": counts["known"],
+        "engineer_verified": counts["engineer_verified"],
+        "deterministic": counts["deterministic"],
+        "ai_verified": counts["ai_verified"],
+        "resemblance": counts["resemblance"],
+        "review_required": counts["review_required"],
+        "not_asked": counts["not_asked"],
+        "queue_reasons": dict(reasons),
+        # Verify first, quantities second: a symbol still to answer keeps the BOQ provisional.
+        "boq_status": "verified" if required == 0 else "review_required",
+        "ai_note": processing.get("ai_note"),
+        "processing": {k: processing.get(k) for k in (
+            "job_id", "processed_at", "total_s", "conversion_s", "extraction_s", "ai_reviewed", "ai_cache_hits",
+            "ai_metadata_calls", "ai_visual_calls", "ai_input_tokens", "ai_output_tokens")} if processing else None,
     }

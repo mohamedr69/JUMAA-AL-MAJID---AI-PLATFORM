@@ -10,7 +10,12 @@ user decided is lost:
   * if its letters now carry the weatherproof mark (WP, W/P) and the old
     device type has a weatherproof version ("MCP" -> "MCP-WP"), it becomes
     that version, which is the point of reading the mark;
-  * groups whose instances had mixed or no decisions stay for review.
+  * groups whose instances had mixed or no decisions stay for review --
+    after the same identification a new drawing gets
+    (app.ifc.services.classification): a signature the library knows costs
+    nothing, and only new, still unanswered ones reach the AI, through its
+    cache first. `use_ai` False (the admin endpoint answered in the
+    request) stops at the deterministic rule.
 """
 from __future__ import annotations
 
@@ -40,6 +45,8 @@ class ReprocessReport:
     left_for_review: int = 0
     totals: dict[int, dict] = field(default_factory=dict)
     errors: dict[int, str] = field(default_factory=dict)
+    deterministic: int = 0
+    ai_verified: int = 0
 
 
 def _occ_key(o: dict) -> tuple:
@@ -73,12 +80,19 @@ def _save_symbol(db: Session, g: dict, source: str, device_type_id: int | None, 
             db.add(BlockAlias(block_name=key, symbol_id=s.id))
 
 
-def reprocess_all(db: Session) -> ReprocessReport:
+def reprocess_all(db: Session, *, use_ai: bool = False, check=None, progress=None) -> ReprocessReport:
+    from app.ifc.services import classification
+
     rep = ReprocessReport()
     types = {t.id: t for t in db.query(DeviceType).all()}
     by_code = {t.code.upper(): t for t in types.values()}
 
-    for d in db.query(Drawing).order_by(Drawing.id).all():
+    drawings = db.query(Drawing).filter(Drawing.deleted_at.is_(None)).order_by(Drawing.id).all()
+    for index, d in enumerate(drawings):
+        if check is not None:
+            check()
+        if progress is not None:
+            progress(index, len(drawings), d.filename)
         symbols, aliases = library(db)
         old = matcher.resolve(d.groups or [], symbols, aliases)
         decision_of: dict[tuple, tuple] = {}
@@ -133,8 +147,20 @@ def reprocess_all(db: Session) -> ReprocessReport:
             _save_symbol(db, g, d.filename, dt.id, False, note)
             rep.carried_over += 1
         db.commit()
+        # What is still unanswered after the carry-over: the rules, the cache, then the AI.
+        queue, summary = classification.classify(db, groups=d.groups or [], meta=d.meta or {}, project_id=d.project_id,
+                                                 drawing_name=d.filename, use_ai=use_ai, check=check)
+        rep.deterministic += summary.deterministic
+        rep.ai_verified += summary.ai_verified
+        meta = dict(d.meta or {})
+        meta["symbol_review"] = queue
+        meta["classified"] = {**(meta.get("classified") or {}), **summary.classified}
+        d.meta = meta
+        db.commit()
 
     symbols, aliases = library(db)
-    for d in db.query(Drawing).order_by(Drawing.id).all():
+    if progress is not None:
+        progress(len(drawings), len(drawings), "")
+    for d in drawings:
         rep.totals[d.id] = matcher.totals(matcher.resolve(d.groups or [], symbols, aliases))
     return rep

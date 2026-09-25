@@ -82,8 +82,60 @@ export interface SymbolGroup {
   not_counted: number
   /** How a verified group was identified: its exact drawing is in the
    *  library, or it closely matches a library symbol with the same letters. */
-  match: { kind: 'exact' | 'library' | 'family'; symbol_id: number; score: number; coverage?: number; svg?: string } | null
+  match: {
+    kind: 'exact' | 'library' | 'family'
+    symbol_id: number
+    score: number
+    coverage?: number
+    svg?: string
+    /** exact matches: who decided the library entry */
+    source?: SymbolSource
+    confidence?: number | null
+  } | null
+  /** Who identified it: the library's engineer answer, the rules, the AI, or resemblance to a library symbol. */
+  source?: SymbolSource | 'resemblance' | null
+  /** Why it waits in the engineer's review queue, and the AI's answer if it gave one. */
+  queue?: { reason: string; label: string; ai: AiVerdict | null } | null
   occurrences: Occurrence[]
+}
+
+export type SymbolSource = 'engineer' | 'deterministic' | 'ai'
+
+/** The AI's answer about a symbol, and what the backend's checks made of it. No reasoning is kept or shown. */
+export interface AiVerdict {
+  stage: 'metadata' | 'visual'
+  decision: 'device' | 'not_device' | 'uncertain' | null
+  device_type_id: number | null
+  confidence: number | null
+  reason_code: string | null
+  model: string | null
+  validation: 'accepted' | 'uncertain' | 'rejected'
+  validation_reason: string | null
+}
+
+/** The IFC BOQ analysis: occurrences and unique symbols, and who identified each symbol. */
+export interface Analysis {
+  total_occurrences: number
+  unique_symbols: number
+  known: number
+  engineer_verified: number
+  deterministic: number
+  ai_verified: number
+  resemblance: number
+  review_required: number
+  not_asked: number
+  queue_reasons: Record<string, number>
+  boq_status: 'verified' | 'review_required'
+  ai_note: string | null
+  processing: {
+    job_id: number | null
+    processed_at: string | null
+    total_s: number | null
+    ai_reviewed: number | null
+    ai_cache_hits: number | null
+    ai_metadata_calls: number | null
+    ai_visual_calls: number | null
+  } | null
 }
 
 export interface Totals {
@@ -115,8 +167,11 @@ export interface Drawing {
   floor_info: FloorInfo
   floor_boq: Record<Category, CategoryBoq>
   review: ReviewInfo
+  analysis: Analysis
   groups: SymbolGroup[]
   totals: Totals
+  /** The drawing's identity, whatever its file is called ("FA-101"). */
+  reference: string | null
   /** Where the drawing as uploaded was filed in the project's folder (03- Drawings/IFC/Electrical/FA/...). */
   archive_path: string | null
   /** Why it was not filed, when it was not. */
@@ -147,6 +202,10 @@ export interface DrawingSummary {
   current: boolean
   /** Fire alarm building quantities by device code, once verified. */
   devices: Record<string, number>
+  reference: string | null
+  boq_status: 'verified' | 'review_required'
+  total_occurrences: number
+  floor_name: string | null
 }
 
 /** BOQ Floor Wise beside BOQ as per IFC Drawings (GET /projects/{id}/ifc-comparison). */
@@ -222,6 +281,13 @@ export interface Capabilities {
   dxf: boolean
   dwg: boolean
   dwg_converter: string | null
+  /** The server's one upload limit: a file is checked against it before it is sent. */
+  max_upload_mb: number
+  max_zip_members: number
+  /** An IFC worker is running: a queued read starts. */
+  worker_running: boolean
+  ai_symbol_review: boolean
+  ai_symbol_review_note: string | null
 }
 
 export interface SheetInfo {

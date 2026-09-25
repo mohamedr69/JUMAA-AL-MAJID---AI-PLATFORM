@@ -42,7 +42,7 @@ from app.core.config import get_settings
 from app.core.timeutils import utc_now
 from app.database import SessionLocal
 from app.models import DocumentDependency, Project, ProjectDocument, User
-from app.services import document_control, spec_finder, submittal_scanner, transmittals
+from app.services import document_control, shop_drawings, spec_finder, submittal_scanner, transmittals
 
 log = logging.getLogger(__name__)
 INDEX_VERSION = "index-2026-09-24.4"   # a consultant's decision is read from the box the form
@@ -578,6 +578,16 @@ def sync(db: Session, project: Project, *, user: User | None = None, ctx=None, p
     db.commit()
     counts["synced_at"] = now.isoformat()
     counts["forms_changed"] = forms_changed
+    # The shop drawing records brought up to what the folder now holds
+    # (app.services.shop_drawings): the Drawings page reads the records,
+    # not the index, so this is where the folder's changes reach it. A
+    # failure here is the drawings' to report, not the sync's.
+    try:
+        counts["drawings"] = shop_drawings.reconcile(db, project, user=user)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        log.exception("The shop drawing records could not be brought up to the index for project %s", project.id)
+        counts["drawings"] = None
     return counts
 
 
