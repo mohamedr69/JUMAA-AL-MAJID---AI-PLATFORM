@@ -968,17 +968,30 @@ class SubmittalStatus(str, enum.Enum):
     rejected = "rejected"
 
 
-class ProjectSubmittal(Base):
-    """A material submittal document: one package of materials of one system,
-    submitted to the consultant and revised until approved.
+_ONE_PER_SYSTEM = "system_code IS NOT NULL"
 
-    The register is what the project tracks -- title, system, manufacturer,
-    revision and where it stands -- and its history is kept as events rather
-    than by overwriting, so "approved on the 12th, rejected before that"
-    survives the next revision.
+
+class ProjectSubmittal(Base):
+    """A material submittal: the one package of materials of one system,
+    submitted to the consultant and revised (R0, R1, ...) until approved.
+
+    A system has one material submittal, however many revisions, replies,
+    files or references it goes through: the forms filed as our own copy
+    and as the main contractor's, the suppliers a fire rated cable was
+    offered from, are all revisions of it (`revisions`), and the database
+    refuses a second one for the system. `revision`, `status` and
+    `reply_code` here are its latest revision's, kept beside it so the
+    register reads the way it always did.
+
+    History is kept, not overwritten: each revision's status changes are in
+    its `history`, and the register's events say what happened when.
     """
 
     __tablename__ = "project_submittals"
+    __table_args__ = (
+        Index("uq_project_submittals_one_per_system", "project_id", "system_code", unique=True,
+              sqlite_where=text(_ONE_PER_SYSTEM), postgresql_where=text(_ONE_PER_SYSTEM)),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
@@ -1014,6 +1027,61 @@ class ProjectSubmittal(Base):
         cascade="all, delete-orphan",
         order_by="ProjectSubmittalEvent.at.desc()",
     )
+    revisions: Mapped[list["ProjectSubmittalRevision"]] = relationship(
+        back_populates="submittal",
+        cascade="all, delete-orphan",
+        order_by="ProjectSubmittalRevision.revision",
+    )
+
+
+class ProjectSubmittalRevision(Base):
+    """One revision of a material submittal (R0, R1, ...) and where it stands
+    now -- one current status, updated in place when the consultant answers.
+    What it was before is in `history`, never a second revision."""
+
+    __tablename__ = "project_submittal_revisions"
+    __table_args__ = (UniqueConstraint("submittal_id", "revision", name="uq_submittal_revision"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    submittal_id: Mapped[int] = mapped_column(ForeignKey("project_submittals.id"), nullable=False, index=True)
+    submittal: Mapped["ProjectSubmittal"] = relationship(back_populates="revisions")
+    # "R00", "R01", ... as the parent's revision is written.
+    revision: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[SubmittalStatus] = mapped_column(Enum(SubmittalStatus), nullable=False)
+    reply_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    # The form this revision is on file as, and the references of the other
+    # forms filed as the same revision (our own copy's, another supplier's).
+    reference: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    also_filed_as: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    manufacturer: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    document_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # The consultant's words on this revision, where a reply has been read.
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+    history: Mapped[list["ProjectSubmittalStatusChange"]] = relationship(
+        back_populates="revision_row",
+        cascade="all, delete-orphan",
+        order_by="ProjectSubmittalStatusChange.changed_at",
+    )
+
+
+class ProjectSubmittalStatusChange(Base):
+    """A revision's status as it changed: "R0 under review -> approved".
+    History only -- nothing is counted from it."""
+
+    __tablename__ = "project_submittal_status_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    revision_id: Mapped[int] = mapped_column(ForeignKey("project_submittal_revisions.id"), nullable=False, index=True)
+    revision_row: Mapped["ProjectSubmittalRevision"] = relationship(back_populates="history")
+    previous_status: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    new_status: Mapped[str] = mapped_column(String(16), nullable=False)
+    reply_code: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    # What changed it: "ai_check" (the folder read), "manual", "filed", "migrated".
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    changed_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 
 class SubmittalReply(Base):

@@ -652,6 +652,20 @@ class SubmittalEventOut(BaseModel):
     submittal_title: str
 
 
+class SubmittalRevisionOut(BaseModel):
+    """One revision of a material submittal and its one current status."""
+
+    revision: str
+    status: SubmittalStatusName
+    reply_code: str | None = None
+    # The form this revision is on file as, and the other forms filed as it.
+    reference: str | None = None
+    also_filed_as: list[str] = []
+    manufacturer: str | None = None
+    document_path: str | None = None
+    note: str | None = None
+
+
 class SubmittalOut(BaseModel):
     id: int
     title: str
@@ -676,6 +690,9 @@ class SubmittalOut(BaseModel):
     # form on the drive is the record, and the page must not offer to
     # revise something it does not hold.
     from_folder: bool = False
+    # Its revisions, R0 first, each with its one current status. `revision`
+    # and `status` above are the latest's.
+    revisions: list[SubmittalRevisionOut] = []
 
 
 class ReplyRow(BaseModel):
@@ -731,8 +748,12 @@ class StorageFolderOut(BaseModel):
 
 
 class SubmittalRegisterOut(BaseModel):
+    # One item per material submittal -- one per system -- never per
+    # revision, reply or file.
     items: list[SubmittalOut]
+    # Submittals by their latest revision's status, and the same per system.
     counts: dict[str, int]
+    counts_by_system: dict[str, dict[str, int]] = {}
     systems: list[str]
     activity: list[SubmittalEventOut]
     suggestions: list[SubmittalSuggestionOut]

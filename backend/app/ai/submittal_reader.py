@@ -472,66 +472,87 @@ def build_map(readings: list[dict], *, systems_on_project: list[str] | None = No
         if replies:
             submittal_replies.apply_to(reading, replies)
         forms.append(reading)
-    chosen: dict[tuple[str, str | None, int], dict] = {}
-    duplicates: dict[tuple[str, str | None, int], int] = {}
+    # One material submittal per system: every form of a system is a copy of
+    # one of its revisions -- our own copy and the one the consultant
+    # answered, filed under two references; the supplier a fire rated cable
+    # was resubmitted from -- and each revision stands as its best copy
+    # (`_better`). A form that names no system is its reference's own.
+    chosen: dict[tuple[str, int], dict] = {}
+    duplicates: dict[tuple[str, int], int] = {}
+    filed_as: dict[tuple[str, int], dict[str, str]] = {}
+    systems_of: dict[str, str | None] = {}
     for reading in forms:
-        # A project that numbers every system's form with the one reference --
-        # EP-30880 for the fire alarm, the emergency lighting and the cable
-        # alike -- has three submittals, not three copies of one: what tells
-        # them apart is the system each is for.
         system = _system_code(reading, reading["relative"])
-        key = (reading["reference"], system, reading["revision"] if reading["revision"] is not None else 0)
+        logical = system or f"REF:{reading['reference'].upper()}"
+        systems_of[logical] = system
+        key = (logical, reading["revision"] if reading["revision"] is not None else 0)
         duplicates[key] = duplicates.get(key, 0) + 1
+        refs = filed_as.setdefault(key, {})
+        # A reference filed as this revision, with the best that copy says.
+        if reading["reference"] not in refs or _code(reading) != "UR":
+            refs[reading["reference"]] = _code(reading)
         current = chosen.get(key)
         if current is None or _better(reading, current):
             chosen[key] = reading
 
-    by_reference: dict[tuple[str, str | None], dict[int, dict]] = {}
-    for (reference, system, revision), reading in chosen.items():
-        by_reference.setdefault((reference, system), {})[revision] = reading
-    highest = max((rev for revs in by_reference.values() for rev in revs), default=-1)
+    by_submittal: dict[str, dict[int, dict]] = {}
+    for (logical, revision), reading in chosen.items():
+        by_submittal.setdefault(logical, {})[revision] = reading
+    highest = max((rev for revs in by_submittal.values() for rev in revs), default=-1)
     revisions = [f"R{n}" for n in range(0, highest + 1)] if highest >= 0 else ["R0"]
 
     systems: dict[str | None, list[dict]] = {}
     actions: list[str] = []
-    for reference, system in sorted(by_reference, key=lambda pair: (pair[0], pair[1] or "")):
-        revs = by_reference[(reference, system)]
+    for logical in sorted(by_submittal, key=lambda k: (systems_of[k] or "", k)):
+        system = systems_of[logical]
+        revs = by_submittal[logical]
         latest_n = max(revs)
-        first = revs[min(revs)]
+        latest = revs[latest_n]
         cells = {}
+        references: list[str] = []
         for n, reading in sorted(revs.items()):
             reply = reading.get("reply") or {}
+            also = {ref: code for ref, code in filed_as[(logical, n)].items() if ref != reading["reference"]}
             cells[f"R{n}"] = {
                 "status": _code(reading), "file": reading["relative"], "date": reading.get("submitted") or "",
                 "reply_code": reply.get("code") or "", "consultant": reply.get("consultant") or "",
                 "reply_date": reply.get("date") or "", "evidence": reply.get("evidence") or "",
                 "unverified_reply": bool(reply.get("present") and not reply.get("from_consultant")),
-                "copies": duplicates.get((reference, system, n), 1),
+                "copies": duplicates.get((logical, n), 1),
+                "reference": reading["reference"], "manufacturer": reading.get("manufacturer") or "",
+                "also_filed_as": [{"reference": ref, "status": code} for ref, code in sorted(also.items())],
             }
+            for ref in [reading["reference"], *sorted(also)]:
+                if ref not in references:
+                    references.append(ref)
         latest_status = cells[f"R{latest_n}"]["status"]
+        reference = latest["reference"]
         action = None
         if latest_status in ("RR", "REJ"):
             action = (f"Material submittal required: {reference} R{latest_n} was returned "
                       f"{'revise and resubmit' if latest_status == 'RR' else 'rejected'}; R{latest_n + 1} is not filed")
             actions.append(action)
         systems.setdefault(system, []).append({
-            "reference": reference, "title": first.get("title") or "", "supplier": first.get("supplier") or "",
-            "manufacturer": first.get("manufacturer") or "", "system_code": system,
+            # The submittal as its latest revision is filed; every reference
+            # it has been filed under is in `references`.
+            "reference": reference, "references": [reference] + [r for r in references if r != reference],
+            "title": latest.get("title") or "", "supplier": latest.get("supplier") or "",
+            "manufacturer": latest.get("manufacturer") or "", "system_code": system,
             "cells": cells, "latest": f"R{latest_n}", "latest_status": latest_status, "action": action,
         })
-    if not by_reference:
+    if not by_submittal:
         actions.append("Material submittal required: no material submittal is filed for this project")
     for code in systems_on_project or []:
         if code and code not in systems:
             systems[code] = []
-            if by_reference:
+            if by_submittal:
                 actions.append(f"Material submittal required: no material submittal is filed for {code}")
     ordered = sorted(systems.items(), key=lambda kv: (kv[0] is None, kv[0] or ""))
     return {
         "revisions": revisions,
         "systems": [{"system_code": code, "rows": rows} for code, rows in ordered],
         "actions": actions,
-        "submittals": len(by_reference),
+        "submittals": len(by_submittal),
         "forms": len(forms),
     }
 
@@ -629,52 +650,111 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
     return submittal_map
 
 
+def submittal_key(system_code: str | None, reference: str | None) -> tuple[str, str]:
+    """What makes a register row the one submittal it is: its system -- a
+    system has one material submittal -- or, for a package that names no
+    system, its reference."""
+    return ("system", system_code) if system_code else ("reference", (reference or "").upper())
+
+
 def sync_register(db: Session, project: Project, submittal_map: dict, user: User | None) -> dict:
-    """The register as the map says: one row per reference at its latest
-    revision, where that revision stands."""
+    """The register as the map says: one submittal per system, and each
+    revision on the map a revision of it with one current status. A
+    revision the consultant has since answered is updated in place -- its
+    old status goes to the revision's history, never into a second
+    revision or a second submittal -- and the submittal's own revision and
+    status are its latest revision's."""
+    from app.models import ProjectSubmittalRevision, ProjectSubmittalStatusChange
     from app.routers.submittal import _maker
     from app.services import brands
 
-    def maker_of(row: dict) -> str | None:
-        """The brand the form names, in the one spelling a brand is
-        recorded in: a form writes it as the letter does ("M/s. EDWARDS")."""
-        return brands.normalise(_maker(row.get("manufacturer") or row.get("supplier")))
+    def maker_of(value: str | None) -> str | None:
+        """The brand a form names, in the one spelling a brand is recorded
+        in: a form writes it as the letter does ("M/s. EDWARDS")."""
+        return brands.normalise(_maker(value))
 
-    by_reference = {((s.reference or "").upper(), s.system_code): s for s in project.submittals if s.reference}
+    by_key = {}
+    for s in project.submittals:
+        if s.system_code or s.reference:
+            by_key.setdefault(submittal_key(s.system_code, s.reference), s)
+    by_id = user.id if user else None
     created = updated = unchanged = 0
     for system in submittal_map["systems"]:
         for row in system["rows"]:
+            key = submittal_key(row["system_code"], row["reference"])
             status, letter = REGISTER[row["latest_status"]]
             cell = row["cells"][row["latest"]]
             revision = f"R{int(row['latest'][1:]):02d}"
-            submittal = by_reference.get((row["reference"].upper(), row["system_code"]))
-            detail = (f"{row['latest']} {row['latest_status']}"
-                      + (f" — {cell['evidence']}" if cell.get("evidence") else " — no consultant reply on the form"))
-            if submittal is None:
+            latest_maker = maker_of(cell.get("manufacturer") or row.get("manufacturer") or row.get("supplier"))
+            submittal = by_key.get(key)
+            new = submittal is None
+            if new:
                 submittal = ProjectSubmittal(
                     project_id=project.id, title=row["title"] or row["reference"], reference=row["reference"],
-                    system_code=row["system_code"], manufacturer=maker_of(row),
-                    revision=revision, status=status, reply_code=letter, document_path=cell["file"], note=cell.get("evidence") or None,
+                    system_code=row["system_code"], manufacturer=latest_maker,
+                    revision=revision, status=status, reply_code=letter, document_path=cell["file"],
+                    note=cell.get("evidence") or None,
                 )
-                submittal.events.append(ProjectSubmittalEvent(kind="ai_check", detail=detail, by_id=user.id if user else None, at=utc_now()))
                 db.add(submittal)
-                by_reference[(row["reference"].upper(), row["system_code"])] = submittal
-                created += 1
-                continue
-            # The note carries the consultant's words for the revision on
-            # show, so it has to be able to empty as well as fill: the
-            # words on an R1 that turned out to answer R0 belong to R0.
+                by_key[key] = submittal
+            changes: list[str] = []
+            revisions = {r.revision: r for r in submittal.revisions}
+            on_map = set()
+            for label, rev_cell in sorted(row["cells"].items(), key=lambda kv: int(kv[0][1:])):
+                name = f"R{int(label[1:]):02d}"
+                on_map.add(name)
+                rev_status, rev_letter = REGISTER[rev_cell["status"]]
+                also = [a["reference"] for a in rev_cell.get("also_filed_as") or []]
+                maker = maker_of(rev_cell.get("manufacturer")) or latest_maker
+                rev = revisions.get(name)
+                if rev is None:
+                    rev = ProjectSubmittalRevision(revision=name, status=rev_status, reply_code=rev_letter,
+                                                   reference=rev_cell.get("reference"), also_filed_as=also,
+                                                   manufacturer=maker, document_path=rev_cell["file"],
+                                                   note=rev_cell.get("evidence") or None, updated_at=utc_now())
+                    rev.history.append(ProjectSubmittalStatusChange(
+                        previous_status=None, new_status=rev_status.value, reply_code=rev_letter, source="ai_check",
+                        by_id=by_id, changed_at=utc_now()))
+                    submittal.revisions.append(rev)
+                    revisions[name] = rev
+                    if not new:
+                        changes.append(f"{name} filed ({rev_status.value.replace('_', ' ')})")
+                    continue
+                if rev.status != rev_status or rev.reply_code != rev_letter:
+                    rev.history.append(ProjectSubmittalStatusChange(
+                        previous_status=rev.status.value, new_status=rev_status.value, reply_code=rev_letter,
+                        source="ai_check", by_id=by_id, changed_at=utc_now()))
+                    changes.append(f"{name} {rev.status.value.replace('_', ' ')} -> {rev_status.value.replace('_', ' ')}")
+                    rev.status, rev.reply_code, rev.updated_at = rev_status, rev_letter, utc_now()
+                rev.reference, rev.also_filed_as = rev_cell.get("reference"), also
+                rev.document_path, rev.manufacturer = rev_cell["file"], maker or rev.manufacturer
+                rev.note = rev_cell.get("evidence") or None
+            # A revision read off a form that is no longer on file is not a
+            # revision any more; one entered by hand (no form) stays.
+            for rev in list(submittal.revisions):
+                if rev.revision not in on_map and rev.reference:
+                    submittal.revisions.remove(rev)
+                    changes.append(f"{rev.revision} no longer on file")
+            # The submittal where its latest revision stands.
             note = cell.get("evidence") or None
-            changes = (submittal.status != status or submittal.reply_code != letter
-                       or submittal.revision != revision or submittal.note != note)
+            moved_on = submittal.revision != revision
+            if (submittal.status != status or submittal.reply_code != letter or moved_on or submittal.note != note
+                    or submittal.reference != row["reference"]) and not changes and not new:
+                changes.append(f"{row['latest']} {row['latest_status']}")
             submittal.status, submittal.reply_code, submittal.revision = status, letter, revision
-            submittal.document_path = cell["file"]
-            submittal.manufacturer = submittal.manufacturer or maker_of(row)
+            submittal.reference, submittal.document_path, submittal.note = row["reference"], cell["file"], note
+            if moved_on or not submittal.manufacturer:
+                submittal.manufacturer = latest_maker or submittal.manufacturer
             submittal.system_code = submittal.system_code or row["system_code"]
-            if changes:
-                submittal.note = note
+            detail = (f"{row['latest']} {row['latest_status']}"
+                      + (f" — {cell['evidence']}" if cell.get("evidence") else " — no consultant reply on the form"))
+            if new:
+                submittal.events.append(ProjectSubmittalEvent(kind="ai_check", detail=detail, by_id=by_id, at=utc_now()))
+                created += 1
+            elif changes:
                 submittal.updated_at = utc_now()
-                submittal.events.append(ProjectSubmittalEvent(kind="ai_check", detail=detail, by_id=user.id if user else None, at=utc_now()))
+                submittal.events.append(ProjectSubmittalEvent(
+                    kind="ai_check", detail=f"{'; '.join(changes)} — {detail}", by_id=by_id, at=utc_now()))
                 updated += 1
             else:
                 unchanged += 1
@@ -692,15 +772,19 @@ def sync_register(db: Session, project: Project, submittal_map: dict, user: User
     from app.models import ProjectDocument
     from app.services import document_sync
 
-    on_map = {(row["reference"].upper(), row["system_code"]) for system in submittal_map["systems"] for row in system["rows"]}
+    on_map = {submittal_key(row["system_code"], row["reference"])
+              for system in submittal_map["systems"] for row in system["rows"]}
     still_filed = {(reference or "").upper() for (reference,) in db.query(ProjectDocument.reference).filter(
         ProjectDocument.project_id == project.id,
         ProjectDocument.role == document_sync.ROLE_SUBMITTAL,
         ProjectDocument.state != document_sync.REMOVED,
         ProjectDocument.reference.isnot(None)).all()}
     removed = 0
-    for key, submittal in list(by_reference.items()):
-        if key not in on_map and key[0] not in still_filed:
+    for key, submittal in list(by_key.items()):
+        filed_as = {(submittal.reference or "").upper()} | {(r.reference or "").upper() for r in submittal.revisions}
+        filed_as |= {str(ref).upper() for r in submittal.revisions for ref in (r.also_filed_as or [])}
+        filed_as.discard("")
+        if key not in on_map and filed_as and not filed_as & still_filed:
             db.delete(submittal)
             removed += 1
     db.commit()

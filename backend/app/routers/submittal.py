@@ -37,6 +37,7 @@ from app.models import (
 )
 from app.routers.projects import CREATOR_ROLES, DELETER_ROLES, XLSX_MEDIA_TYPE, _get_project_or_404
 from app.schemas_design import (
+    SubmittalRevisionOut,
     ChecklistReadOut,
     MaterialItemOut,
     MaterialSubmittalOut,
@@ -186,6 +187,23 @@ def list_materials(
     )
 
 
+def _revisions_out(submittal: ProjectSubmittal) -> list[SubmittalRevisionOut]:
+    """R0 first. A register row entered before revisions were kept has one:
+    the revision it is at."""
+    from app.services.submittal_filing import _revision_number
+
+    rows = sorted(submittal.revisions, key=lambda r: _revision_number(r.revision))
+    if not rows:
+        return [SubmittalRevisionOut(revision=submittal.revision, status=submittal.status.value,
+                                     reply_code=submittal.reply_code, reference=submittal.reference,
+                                     manufacturer=submittal.manufacturer, document_path=submittal.document_path,
+                                     note=submittal.note)]
+    return [SubmittalRevisionOut(revision=r.revision, status=r.status.value, reply_code=r.reply_code,
+                                 reference=r.reference, also_filed_as=list(r.also_filed_as or []),
+                                 manufacturer=r.manufacturer, document_path=r.document_path, note=r.note)
+            for r in rows]
+
+
 def _out(submittal: ProjectSubmittal, materials: dict[str | None, tuple[int, int]]) -> SubmittalOut:
     count, with_datasheet = materials.get(submittal.system_code, (0, 0))
     return SubmittalOut(
@@ -204,7 +222,50 @@ def _out(submittal: ProjectSubmittal, materials: dict[str | None, tuple[int, int
         updated_at=submittal.updated_at,
         materials=count,
         materials_with_datasheet=with_datasheet,
+        revisions=_revisions_out(submittal),
     )
+
+
+def _one_per_system(found: list[SubmittalOut], held_systems: set[str]) -> list[SubmittalOut]:
+    """The forms on file that the register does not hold, as submittals: one
+    per system (per reference for a form that names none), at its latest
+    revision, with each revision it has been filed at. A system the
+    register already has is its register row's."""
+    from app.services.submittal_filing import _revision_number
+
+    answered = {"approved": 2, "rejected": 2, "under_review": 1, "not_submitted": 0}
+    groups: dict[str, list[SubmittalOut]] = {}
+    for item in found:
+        if item.system_code and item.system_code in held_systems:
+            continue
+        groups.setdefault(item.system_code or f"REF:{(item.reference or '').upper()}", []).append(item)
+    out = []
+    for items in groups.values():
+        best: dict[int, SubmittalOut] = {}
+        for item in items:
+            n = _revision_number(item.revision)
+            if n not in best or answered[item.status] > answered[best[n].status]:
+                best[n] = item
+        latest = best[max(best)]
+        revisions = [SubmittalRevisionOut(revision=f"R{n:02d}", status=best[n].status, reply_code=best[n].reply_code,
+                                          reference=best[n].reference, manufacturer=best[n].manufacturer,
+                                          document_path=best[n].document_path, note=best[n].note,
+                                          also_filed_as=sorted({i.reference for i in items
+                                                                if _revision_number(i.revision) == n and i.reference
+                                                                and i.reference != best[n].reference}))
+                     for n in sorted(best)]
+        out.append(latest.model_copy(update={"revisions": revisions}))
+    return out
+
+
+def _counts(items: list[SubmittalOut]) -> dict[str, int]:
+    """Submittals by where their latest revision stands -- one each, never
+    a revision, reply or file each."""
+    counts = {status.value: 0 for status in SubmittalStatus}
+    for item in items:
+        counts[item.status] = counts.get(item.status, 0) + 1
+    counts["total"] = len(items)
+    return counts
 
 
 def _by_system(items: list[MaterialItemOut]) -> dict[str | None, tuple[int, int]]:
@@ -384,10 +445,15 @@ def list_submittals(
     # own copy beside the one the consultant answered -- is not a second
     # submittal, and listing it as one shows the system twice, once under
     # review and once answered.
-    items += _filed_in_the_folder(
-        db, project, {s.reference for s in project.submittals if s.reference},
-        covered={same_submittal(s.system_code, s.revision, s.manufacturer) for s in project.submittals},
-    )
+    # One submittal per system: a form of a system the register holds is a
+    # revision of that submittal, not another one.
+    held = {s.reference for s in project.submittals if s.reference}
+    held |= {r.reference for s in project.submittals for r in s.revisions if r.reference}
+    held |= {ref for s in project.submittals for r in s.revisions for ref in (r.also_filed_as or [])}
+    items += _one_per_system(
+        _filed_in_the_folder(db, project, held,
+                             covered={same_submittal(s.system_code, s.revision, s.manufacturer) for s in project.submittals}),
+        {s.system_code for s in project.submittals if s.system_code})
 
     # A reply comes back as a scan of the consultant's comments with no
     # reference on it, so the form reader never sees it and the register
@@ -405,16 +471,19 @@ def list_submittals(
             submittal_replies.revision_folder(item.document_path) or "", replies)
         code = submittal_reader.REGISTER.get(submittal_reader.CODES.get(status or "", ""), (None, None))[1]
         if code:
+            answered = REPLY_STATUS.get(code, SubmittalStatus.under_review).value
+            revisions = [r.model_copy(update={"reply_code": code, "status": answered, "note": r.note or text})
+                         if r.revision == item.revision and not r.reply_code else r for r in item.revisions]
             items[index] = item.model_copy(update={
                 "reply_code": code,
-                "status": REPLY_STATUS.get(code, SubmittalStatus.under_review).value,
+                "status": answered,
                 "note": item.note or text,
+                "revisions": revisions,
             })
 
-    counts = {status.value: 0 for status in SubmittalStatus}
-    for item in items:
-        counts[item.status] = counts.get(item.status, 0) + 1
-    counts["total"] = len(items)
+    counts = _counts(items)
+    counts_by_system = {system or "": _counts([i for i in items if (i.system_code or "") == (system or "")])
+                        for system in {i.system_code for i in items}}
 
     # Sorted over the rows, not the output models, so the row id is available
     # as a tie-break: two events logged in one request (a revision and a
@@ -460,6 +529,7 @@ def list_submittals(
     return SubmittalRegisterOut(
         items=items,
         counts=counts,
+        counts_by_system=counts_by_system,
         systems=sorted({i.system_code or "" for i in materials} | {s.system_code or "" for s in project.submittals}
                        | set(system_rules.project_codes(project))),
         activity=activity,
@@ -472,6 +542,32 @@ def _log(submittal: ProjectSubmittal, kind: str, detail: str, user: User) -> Non
     submittal.events.append(ProjectSubmittalEvent(kind=kind, detail=detail, by_id=user.id, at=utc_now()))
 
 
+def _set_revision(submittal: ProjectSubmittal, revision: str, status: SubmittalStatus, user: User | None, *,
+                  source: str) -> None:
+    """The submittal's revision `revision` stands at `status`: one current
+    status per revision, the previous one kept in its history."""
+    from app.models import ProjectSubmittalRevision, ProjectSubmittalStatusChange
+    from app.services.submittal_filing import _revision_number
+
+    name = f"R{_revision_number(revision):02d}"
+    row = next((r for r in submittal.revisions if _revision_number(r.revision) == _revision_number(revision)), None)
+    if row is None:
+        row = ProjectSubmittalRevision(revision=name, status=status, reply_code=submittal.reply_code,
+                                       reference=submittal.reference, also_filed_as=[],
+                                       manufacturer=submittal.manufacturer, document_path=submittal.document_path,
+                                       note=submittal.note, updated_at=utc_now())
+        row.history.append(ProjectSubmittalStatusChange(previous_status=None, new_status=status.value,
+                                                        reply_code=submittal.reply_code, source=source,
+                                                        by_id=user.id if user else None, changed_at=utc_now()))
+        submittal.revisions.append(row)
+        return
+    if row.status != status:
+        row.history.append(ProjectSubmittalStatusChange(previous_status=row.status.value, new_status=status.value,
+                                                        reply_code=submittal.reply_code, source=source,
+                                                        by_id=user.id if user else None, changed_at=utc_now()))
+        row.status, row.updated_at = status, utc_now()
+
+
 @router.post("/{project_id}/submittals", response_model=SubmittalOut, status_code=http_status.HTTP_201_CREATED)
 def create_submittal(
     project_id: int,
@@ -480,10 +576,19 @@ def create_submittal(
     db: Session = Depends(get_db),
 ) -> SubmittalOut:
     project = _get_project_or_404(db, project_id)
+    system = system_rules.effective_code(payload.system_code, project)
+    existing = next((s for s in project.submittals if system and s.system_code == system), None)
+    if existing is not None:
+        # A system has one material submittal; a new revision or a reply is
+        # a change to it, not another one.
+        raise HTTPException(http_status.HTTP_409_CONFLICT, detail={
+            "code": "submittal_exists", "submittal_id": existing.id,
+            "message": f"{system} already has its material submittal ({existing.reference or existing.title}, "
+                       f"{existing.revision}): change its revision or status instead of adding another."})
     submittal = ProjectSubmittal(
         project_id=project.id,
         title=payload.title.strip(),
-        system_code=system_rules.effective_code(payload.system_code, project),
+        system_code=system,
         manufacturer=payload.manufacturer,
         revision=payload.revision.strip(),
         status=SubmittalStatus(payload.status),
@@ -492,6 +597,7 @@ def create_submittal(
         created_by_id=current_user.id,
     )
     _log(submittal, "created", f"Created {submittal.revision}", current_user)
+    _set_revision(submittal, submittal.revision, submittal.status, current_user, source="manual")
     db.add(submittal)
     db.commit()
     activity.record(db, current_user, "submittal.created", f"Created submittal \"{submittal.title}\" {submittal.revision}",
@@ -534,8 +640,16 @@ def update_submittal(
         submittal.status = SubmittalStatus(changes.pop("status"))
         _log(submittal, "status", f"{submittal.status.value.replace('_', ' ').title()} (was {was})", current_user)
     changes.pop("status", None)
+    if "system_code" in changes and changes["system_code"] and changes["system_code"] != submittal.system_code \
+            and any(s.system_code == changes["system_code"] for s in project.submittals if s is not submittal):
+        raise HTTPException(http_status.HTTP_409_CONFLICT, detail={
+            "code": "submittal_exists",
+            "message": f"{changes['system_code']} already has its material submittal: a system has one."})
     for field, value in changes.items():
         setattr(submittal, field, value.strip() if isinstance(value, str) and field in ("title", "revision") else value)
+    # The revision it is at now, with the status it stands at: updated in
+    # place, its old status kept in its history.
+    _set_revision(submittal, submittal.revision, submittal.status, current_user, source="manual")
     submittal.updated_at = utc_now()
     db.commit()
     if changed:
