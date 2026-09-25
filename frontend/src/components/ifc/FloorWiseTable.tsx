@@ -71,8 +71,13 @@ export default function FloorWiseTable({
                       <td className="px-4 py-2 tabular-nums text-slate-500">{serial.get(`${f.sheet} ${r.device_type.id}`)}</td>
                       {j === 0 && (
                         <td rowSpan={f.rows.length + 1} className="min-w-44 border-r border-slate-100 px-4 py-2 align-top">
-                          <div className="font-semibold text-slate-800">{f.floor_name}</div>
+                          <div className={`font-semibold ${f.floor_identified === false ? 'text-amber-700' : 'text-slate-800'}`}>{f.floor_name}</div>
                           <div className="text-xs text-slate-500">{f.sheet}</div>
+                          {f.floor_identified === false && (
+                            <div className="mt-1 text-xs text-amber-700" title={f.title}>
+                              The drawing title names no floor{f.title ? `: "${f.title}"` : ''}.
+                            </div>
+                          )}
                           {f.multiplier !== 1 && (
                             <div className="mt-1 inline-flex rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-inset ring-brand-600/20">
                               {f.multiplier} floors

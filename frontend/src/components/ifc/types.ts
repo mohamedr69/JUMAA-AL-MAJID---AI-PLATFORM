@@ -234,6 +234,12 @@ export interface SheetInfo {
   overridden?: boolean
   note: string
   floor_name: string
+  /** False when the drawing title names no floor: the sheet is "Floor not
+   *  identified" and its devices are counted under that, not a guess. */
+  floor_identified?: boolean
+  /** Where the title was read: "drawing title" (under the title block's
+   *  DRAWING TITLE label) or "title text" (the sheet's title-like text). */
+  title_source?: string
 }
 
 /** One floor, or several: read from the sheets' title blocks. */
@@ -259,6 +265,7 @@ export interface FloorBoqFloor {
   sheet: string
   title: string
   floor_name: string
+  floor_identified?: boolean
   floors: number[]
   multiplier: number
   rows: FloorBoqRow[]

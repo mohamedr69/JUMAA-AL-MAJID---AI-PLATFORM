@@ -32,6 +32,7 @@ export default function FloorsTab({
 
   const get = (sheet: string, code: string) => cell.get(`${sheet}\u0000${code}`) ?? 0
   const plans = drawing.sheets.filter((s) => s.kind === 'plan')
+  const unidentified = plans.filter((s) => s.floor_identified === false).length
   const others = drawing.sheets.filter((s) => s.kind !== 'plan' && codes.some((c) => get(s.name, c) > 0))
   const building = codes.map((c) => plans.reduce((sum, s) => sum + get(s.name, c) * s.multiplier, 0))
 
@@ -40,8 +41,15 @@ export default function FloorsTab({
       <Card className="flex flex-wrap items-center justify-between gap-3 p-3">
         <div className="text-sm text-slate-600">
           {drawing.floor_info.mode === 'single'
-            ? `Single floor: ${drawing.floor_info.floor_name}, read from the title block.`
-            : `${plans.length} floor plan${plans.length > 1 ? 's' : ''} read from the title blocks. Each floor's count is multiplied by the floors the plan stands for.`}
+            ? drawing.floor_info.floor_name === 'Floor not identified'
+              ? 'Floor not identified: no drawing title on this drawing names a floor.'
+              : `Single floor: ${drawing.floor_info.floor_name}, read from the drawing title.`
+            : `${plans.length} floor plan${plans.length > 1 ? 's' : ''}, each named from its drawing title. Each floor's count is multiplied by the floors the plan stands for.`}
+          {unidentified > 0 && (
+            <span className="ml-1 font-medium text-amber-700">
+              {unidentified} sheet{unidentified > 1 ? 's' : ''}: floor not identified.
+            </span>
+          )}
         </div>
         <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
           {/* fire alarm only for now: emergency lighting is the next step */ (['fire_alarm'] as Category[]).map((c) => (
@@ -84,8 +92,8 @@ export default function FloorsTab({
                   return (
                     <tr key={s.name} className="hover:bg-slate-50">
                       <td className="sticky left-0 bg-white px-3 py-2">
-                        <div className="font-medium">{s.floor_name}</div>
-                        <div className="text-xs text-slate-500">
+                        <div className={`font-medium ${s.floor_identified === false ? 'text-amber-700' : ''}`}>{s.floor_name}</div>
+                        <div className="text-xs text-slate-500" title={s.title_source === 'drawing title' ? 'Read under the DRAWING TITLE label of the title block' : undefined}>
                           {s.name} · {s.title}
                           {s.floors.length > 1 && ` · floors ${formatFloors(s.floors)}`}
                         </div>
