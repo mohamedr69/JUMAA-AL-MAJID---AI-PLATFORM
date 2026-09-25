@@ -33,6 +33,10 @@ os.environ["COMPLIANCE_KNOWLEDGE_IMPORT_ON_START"] = "false"
 # on the settings) and hands in a scripted provider. Without this, opening
 # a BOQ in a test read its sheets through the real Claude Code CLI.
 os.environ["AI_ENABLED"] = "false"
+# A sync reads its files one after another here: a pool of reader processes
+# per sync would start Python several times in every test that syncs. The
+# pool has tests of its own (test_document_sync), which turn it on.
+os.environ["SYNC_FILE_WORKERS"] = "0"
 
 import pytest
 from fastapi.testclient import TestClient

@@ -281,11 +281,13 @@ def record_for_the_log(extracted: dict, reading: dict, *, relative: str, modifie
 
 
 def process(db: Session, project: Project, row: ProjectDocument, path: Path, root: Path, *, run=None,
-            user_id: int | None, ocr: bool) -> None:
+            user_id: int | None, ocr: bool, read: tuple | None = None) -> None:
     """Read what this document holds and keep it on its row: the
     document-control records (reference, revision, decision, title block)
     for every document, and for a material submittal form the model's
-    reading as well. Raises on failure; the caller keeps the old result."""
+    reading as well. `read` is the PDF's (records, notes) when a reader
+    process already has them (`extract`). Raises on failure; the caller
+    keeps the old result."""
     stat = os.stat(document_control._os_path(path))
     if row.role == ROLE_TRANSMITTAL:
         from app.services.word_text import read_word_text
@@ -295,7 +297,8 @@ def process(db: Session, project: Project, row: ProjectDocument, path: Path, roo
                                                 datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc))
         notes = ()
     else:
-        records, notes = document_control._read_pdf(str(path), stat.st_mtime_ns, stat.st_size, ocr)
+        records, notes = read if read is not None else document_control._read_pdf(
+            str(path), stat.st_mtime_ns, stat.st_size, ocr, row.sha256)
     extracted: dict = {
         "records": [_record_dict(document_control.replace(r, path=path.relative_to(root).as_posix()), root) for r in records],
         "notes": list(notes),
@@ -331,6 +334,72 @@ def process(db: Session, project: Project, row: ProjectDocument, path: Path, roo
     row.extracted = extracted
     row.last_processed_at = utc_now()
     row.index_version = INDEX_VERSION
+
+
+# --- reading files in other processes ----------------------------------------------------
+#
+# Reading a PDF -- its text, the drawing's approval boxes, OCR -- is the slow
+# part of a sync and needs nothing but the file: each is read in a process
+# of its own (`SYNC_FILE_WORKERS` of them), while the worker writes the
+# results to the index one at a time, in the listing's order, and asks the
+# AI about material submittal forms one at a time. The processes get a path
+# and return plain records; they never touch the database.
+
+
+def extract(path: str, relative: str, sha256: str | None, ocr: bool) -> tuple[str, tuple | None, tuple | None]:
+    """(role, records, notes) for one file. A transmittal is a Word document
+    the worker reads itself: (role, None, None)."""
+    role = classify(Path(path), relative)
+    if role == ROLE_TRANSMITTAL:
+        return role, None, None
+    stat = os.stat(document_control._os_path(Path(path)))
+    records, notes = document_control._read_pdf(path, stat.st_mtime_ns, stat.st_size, ocr, sha256)
+    return role, records, notes
+
+
+def _raise(error: BaseException):
+    raise error
+
+
+def _read_ahead(plan: list, ocr: bool, workers: int):
+    """For each planned file, in order: a function returning its `extract`
+    result or raising what reading it raised. With a pool the files are
+    read ahead, `workers` at a time; without one (or if the pool breaks --
+    a reader process that crashed) each is read here when its turn comes."""
+    from concurrent.futures import ProcessPoolExecutor
+    from concurrent.futures.process import BrokenProcessPool
+
+    def here(item):
+        path, relative, _size, _mtime, sha, _row = item
+        return lambda: extract(str(path), relative, sha, ocr)
+
+    if workers < 2 or len(plan) < 2:
+        for item in plan:
+            yield here(item)
+        return
+    pool = ProcessPoolExecutor(max_workers=min(workers, len(plan)), max_tasks_per_child=50)
+    try:
+        futures = [pool.submit(extract, str(item[0]), item[1], item[4], ocr) for item in plan]
+        broken = False
+        for item, future in zip(plan, futures):
+            if broken:
+                yield here(item)
+                continue
+            try:
+                result = future.result()
+            except BrokenProcessPool:
+                log.warning("A document reader process stopped; reading the rest in the worker itself")
+                broken = True
+                yield here(item)
+                continue
+            except Exception as exc:  # noqa: BLE001 -- this file's failure, raised where it is written
+                yield (lambda error=exc: _raise(error))
+                continue
+            yield (lambda result=result: result)
+    finally:
+        # A stop or a failure leaves nothing queued: files not started are
+        # dropped; the ones being read finish and are discarded.
+        pool.shutdown(wait=False, cancel_futures=True)
 
 
 # --- the sync ---------------------------------------------------------------------------
@@ -374,6 +443,9 @@ def sync(db: Session, project: Project, *, user: User | None = None, ctx=None, p
         ai_run = submittal_reader._Run(db=db, project=project, provider=provider or submittal_reader.get_provider(),
                                        budget=submittal_reader._budget(db, project.id))
 
+    # First pass: what changed. A stat each, a hash only where the stat
+    # differs; nothing is opened.
+    plan = []
     for index, (path, relative, size, mtime) in enumerate(files):
         key = str(path)
         seen.add(key)
@@ -393,29 +465,52 @@ def sync(db: Session, project: Project, *, user: User | None = None, ctx=None, p
             row.last_seen_at = now
             continue
         sha = sha256_of(path)
-        if row is not None and sha and row.sha256 == sha and row.index_version == INDEX_VERSION:
+        # Not a row still marked processing: a sync stopped half-way through
+        # reading it, and the content hash is written before the reading is.
+        if (row is not None and sha and row.sha256 == sha and row.index_version == INDEX_VERSION
+                and row.state != PROCESSING):
             # Touched, not changed (a re-sync, a copy): the same content.
             row.size, row.mtime, row.last_seen_at = size, mtime, now
             counts["unchanged"] += 1
             continue
-        role = classify(path, relative)
+        plan.append((path, relative, size, mtime, sha, row))
+    db.commit()   # what the first pass saw, before the long reading pass
+
+    # Second pass: read what is new or changed -- in reader processes, ahead
+    # of the writing (`_read_ahead`) -- and write each to the index in turn.
+    workers = max(0, get_settings().sync_file_workers)
+    for number, ((path, relative, size, mtime, sha, row), reading) in enumerate(
+            zip(plan, _read_ahead(plan, ocr, workers)), 1):
+        key = str(path)
+        read_error = None
+        try:
+            role, records, notes = reading()
+        except Exception as exc:  # noqa: BLE001 -- recorded on the row below
+            role, records, notes, read_error = ROLE_DOCUMENT, None, None, exc
         if row is None:
             row = ProjectDocument(project_id=project.id, role=role, path=key, relative_path=relative, filename=path.name,
                                   first_seen_at=now, acknowledged=[], findings=[])
             db.add(row)
             counts["new"] += 1
+            is_new = True
         else:
             counts["changed"] += 1
+            is_new = False
             row.role = role
             row.relative_path = relative
         row.sha256, row.size, row.mtime, row.last_seen_at = sha, size, mtime, now
         row.state = PROCESSING
         db.commit()   # the row says "processing" on disk, and the write lock is released for the progress report
         if ctx is not None:
-            ctx.progress(index, len(files), f"Reading {path.name} ({'new' if counts['new'] else 'changed'})")
+            ctx.progress(number, len(plan), f"Reading {path.name} ({'new' if is_new else 'changed'}, "
+                                            f"{number} of {len(plan)})")
         try:
+            if read_error is not None:
+                raise read_error
             calls_before = ai_run.calls if ai_run else 0
-            process(db, project, row, path, root, run=ai_run if role == ROLE_SUBMITTAL else None, user_id=user.id if user else None, ocr=ocr)
+            process(db, project, row, path, root, run=ai_run if role == ROLE_SUBMITTAL else None,
+                    user_id=user.id if user else None, ocr=ocr,
+                    read=(records, notes) if records is not None else None)
             row.state, row.error = FRESH, None
             if ai_run and ai_run.calls > calls_before:
                 counts["read_by_ai"] += 1

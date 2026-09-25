@@ -121,11 +121,13 @@ class Settings(BaseSettings):
     # programs and the API are served first.
     worker_below_normal_priority: bool = True
     # How many documents one sync reads at the same time, each in a process
-    # of its own. Four, not one per core: a shop drawing's page takes a few
-    # hundred MB to read, and these PCs have 16 GB shared with everything
-    # else. 0 or 1 reads them one after another in the worker itself. The
-    # AI reads forms one at a time whatever this is.
-    sync_file_workers: int = 4
+    # of its own. Three, not one per core: reading a document the first time
+    # takes about 300 MB, and a CAD floor-plan set with 400,000 shapes a page
+    # about 900 MB, on PCs with 16 GB shared with everything else -- three at
+    # once stays under 3 GB. (A second reading comes from the page cache and
+    # takes about 100 MB.) 0 or 1 reads them one after another in the worker
+    # itself. The AI reads forms one at a time whatever this is.
+    sync_file_workers: int = 3
     archive_index_enabled: bool = True
     # Scan on server start when the index has never been built, or has
     # gone stale, so a new machine needs nothing done to it.
