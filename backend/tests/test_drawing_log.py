@@ -123,6 +123,35 @@ def test_no_earlier_revision_is_ever_open_or_unsubmitted_once_a_later_one_exists
                         assert row["cells"][f"R{i}"]["status"] != "reply_not_found", (history, i)
 
 
+def test_a_floor_is_matched_on_its_full_title_level_and_name_alike():
+    """EP-30784: the shop drawing is filed as "L02" under the title "L02- 1ST
+    MECHANICAL FLOOR PLAN"; the IFC sheet calls the same floor "1ST
+    MECHANICAL FLOOR". Read on the full title they are one floor -- and the
+    1st and 2nd mechanical floors are two, not one "mechanical floor".
+    "LIFT MACHINE ROOM FLOOR PLAN" is the IFC's "LIFT MACHINE FLOOR"."""
+    def doc(floor, name, ref):
+        return ControlledDocument("FAS", name, f"03- Drawings/SD/FA/R0/{ref}.pdf", datetime(2026, 9, 1), ref, "R0", "UR",
+                                  floor=floor, category="drawings")
+
+    ifc = [{"id": 1, "filename": "FIRE ALARM LAYOUT.dwg", "revision": "R0", "sheets": [
+        {"name": "FA 110", "title": "1ST MECHANICAL FLOOR PLAN FIRE ALARM LAYOUT", "kind": "plan",
+         "floor_name": "1ST MECHANICAL FLOOR", "floors": [], "multiplier": 1},
+        {"name": "FA 113", "title": "2ND MECHANICAL FLOOR PLAN FIRE ALARM LAYOUT", "kind": "plan",
+         "floor_name": "2ND MECHANICAL FLOOR", "floors": [], "multiplier": 1},
+        {"name": "FA 132", "title": "LIFT MACHINE FLOOR PLAN FIRE ALARM LAYOUT", "kind": "plan",
+         "floor_name": "LIFT MACHINE FLOOR", "floors": [], "multiplier": 1},
+        {"name": "FA 133", "title": "TOP OF LIFT MACHINE FLOOR PLAN FIRE ALARM LAYOUT", "kind": "plan",
+         "floor_name": "TOP OF LIFT MACHINE FLOOR", "floors": [], "multiplier": 1},
+    ]}]
+    out = build(ifc, [doc("L02", "L02- 1ST MECHANICAL FLOOR PLAN", "SD-L02"),
+                      doc("LIFT MACHINE ROOM FLOOR", "LIFT MACHINE ROOM FLOOR PLAN", "SD-LMR")])
+    drawn = {r["reference"]: r["floor"] for r in out["rows"] if r["source"] == "shop_drawing"}
+    assert drawn == {"SD-L02": "L02 - 1st Mechanical Floor", "SD-LMR": "Lift Machine Room Floor"}
+    # Still to draw: the 2nd mechanical floor (not the 1st's twin) and the top of the lift machine.
+    assert sorted(r["floor"] for r in out["rows"] if r["source"] == "ifc_floor") == [
+        "2nd Mechanical Floor", "Top of Lift Machine Floor"]
+
+
 def test_revisions_grow_with_what_was_submitted():
     out = build(IFC, [_doc("Ground Floor", "R4", "UR")])
     assert out["revisions"] == ["R0", "R1", "R2", "R3", "R4"]

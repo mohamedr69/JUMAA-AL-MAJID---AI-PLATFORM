@@ -70,6 +70,71 @@ def floors_named(label: str | None) -> set[str]:
     return {floor_key(text)[0]}
 
 
+# A floor a title names by what it is rather than its level number: "1ST
+# MECHANICAL", "2ND STRUCTURAL (NON ACCESSIBLE)". The ordinal belongs to it
+# -- the 1st and 2nd mechanical floors are two floors.
+_ORDINAL_NAMED = re.compile(r"\b(\d{1,2})\s*(?:ST|ND|RD|TH)\s+([A-Z]{3,})", re.I)
+_NOT_A_NAME = {"FLOOR", "FLOORS", "FLR", "TO", "AND", "BASEMENT", "PODIUM", "LEVEL", "PLAN", "RES"}
+# A level as the log keys it: basements, podiums, levels, ground and roofs.
+_LEVEL_KEY = re.compile(r"(?:[BPL]\d+|GF|RF|TRF)")
+# Words that say nothing about which floor it is.
+_FILLER = {"PLAN", "FLOOR", "FLR", "ROOM", "LAYOUT", "THE"}
+
+
+def _named_floors(text: str | None) -> set[str]:
+    """The ordinal named floors a title names: "L02- 1ST MECHANICAL FLOOR
+    PLAN" is the 1st mechanical floor ("MECHANICAL#1")."""
+    return {f"{word.upper()}#{int(n)}" for n, word in _ORDINAL_NAMED.findall(text or "")
+            if word.upper() not in _NOT_A_NAME}
+
+
+def _plain(key: str) -> str:
+    """A floor named in words, in words that tell it apart: "LIFT MACHINE
+    ROOM FLOOR PLAN" and "LIFT MACHINE FLOOR" are both the lift machine floor."""
+    if _LEVEL_KEY.fullmatch(key) or "#" in key or " " not in key:
+        return key
+    words = [w for w in re.findall(r"[A-Z0-9]+", key.upper()) if w not in _FILLER]
+    return " ".join(words) or key
+
+
+def _named_label(key: str) -> str:
+    """"MECHANICAL#1" as the log writes it: "1st Mechanical Floor"."""
+    word, _, n = key.partition("#")
+    number = int(n) if n.isdigit() else 0
+    suffix = "th" if 10 <= number % 100 <= 20 else {1: "st", 2: "nd", 3: "rd"}.get(number % 10, "th")
+    return f"{number}{suffix} {word.title()} Floor"
+
+
+def floor_aliases(pairs) -> dict[str, str]:
+    """{named floor: its level}, from every title that names both: "L22-2ND
+    MECHANICAL FLOOR PLAN" says the 2nd mechanical floor is L22. `pairs`:
+    (floor, full title) of every drawing, shop and IFC alike -- read off
+    the drawings, never assumed."""
+    aliases: dict[str, str] = {}
+    for floor, title in pairs:
+        levels = {k for k in floors_named(floor) if _LEVEL_KEY.fullmatch(k)}
+        named = _named_floors(floor) | _named_floors(title)
+        if len(levels) == 1 and named:
+            level = next(iter(levels))
+            for name in named:
+                aliases.setdefault(name, level)
+    return aliases
+
+
+def floor_identity(floor: str | None, title: str | None = None, aliases: dict[str, str] | None = None) -> set[str]:
+    """The floors a drawing is of, from its floor and its full title: the
+    levels it names, and the floors it names by what they are -- each
+    brought to its level where another title ties them."""
+    aliases = aliases or {}
+    named = _named_floors(floor) | _named_floors(title)
+    keys = floors_named(floor) if floor else set()
+    if named:
+        # "1ST MECHANICAL FLOOR" is not every mechanical floor: the generic
+        # key gives way to the one the ordinal names.
+        keys = {k for k in keys if _LEVEL_KEY.fullmatch(k)}
+    return {aliases.get(k, k) for k in {_plain(k) for k in keys} | named}
+
+
 def _rev_number(revision: str | None) -> int:
     m = re.fullmatch(r"R0*(\d+)", (revision or "").strip().upper())
     return int(m.group(1)) if m else -1
@@ -88,7 +153,7 @@ class Row:
     order: int
 
 
-def _rows(drawings: list[dict]) -> list[Row]:
+def _rows(drawings: list[dict], aliases: dict[str, str] | None = None) -> list[Row]:
     """The floor-plan sheets of the IFC drawings in force, as rows."""
     rows = []
     for d in drawings:
@@ -99,8 +164,10 @@ def _rows(drawings: list[dict]) -> list[Row]:
             numbers = [int(n) for n in sheet.get("floors") or []]
             if mult > 1 and len(numbers) == mult:
                 keys = {f"L{n}" for n in numbers}
+            elif mult > 1:
+                keys = floors_named(sheet["floor_name"])
             else:
-                keys = floors_named(sheet["floor_name"]) if mult > 1 else {floor_key(sheet["floor_name"])[0]}
+                keys = floor_identity(sheet["floor_name"], sheet.get("title"), aliases) or {floor_key(sheet["floor_name"])[0]}
             rows.append(Row(key=f"{d['id']}:{sheet['name']}", sheet=sheet["name"], drawing=d["filename"],
                             ifc_revision=d.get("revision") or "R0", floor_name=sheet["floor_name"], title=sheet["title"],
                             floors=mult, keys=keys, order=len(rows)))
@@ -195,7 +262,7 @@ def _floor_order(key: str) -> tuple:
     return (kind, -number if key[:1] == "B" else number, key)
 
 
-def _by_floor(unmatched: list) -> list[dict]:
+def _by_floor(unmatched: list, aliases: dict[str, str] | None = None) -> list[dict]:
     """The shop drawings that no IFC floor plan claimed, a row per floor.
 
     A floor has one shop drawing, and a submission can cover several
@@ -223,7 +290,9 @@ def _by_floor(unmatched: list) -> list[dict]:
         # The revisions it went through, not only the one that stands:
         # `combine` folds the answered earlier ones onto the record.
         entries = [record, *getattr(record, "superseded", ())]
-        named = floors_named(record.floor) if record.floor else set()
+        # The floor and the full title: "L22" filed with the title "L22-2ND
+        # MECHANICAL FLOOR PLAN" is the 2nd mechanical floor as well.
+        named = floor_identity(record.floor, record.name, aliases) if record.floor else set()
         if not named:
             nameless.append(record)
             continue
@@ -263,7 +332,7 @@ def _by_floor(unmatched: list) -> list[dict]:
         # levels. Where a later sheet has taken some of its floors, it is
         # named for the ones it is still the drawing for, so the row does
         # not claim floors it no longer covers.
-        covers = floors_named(latest.floor) if latest.floor else set()
+        covers = floor_identity(latest.floor, latest.name, aliases) if latest.floor else set()
         held_all = covers and covers == set(keys)
         label = (latest.floor if held_all
                  else ", ".join(called.get(k) or _spelled(k)
@@ -325,18 +394,31 @@ def build(drawings: list[dict], records: list, in_system=lambda code: (code or "
                       default=-1)
     revisions = [f"R{n}" for n in range(max(MIN_REVISIONS, latest_seen + 1))]
 
+    # Which level each named floor is, from every title that names both --
+    # the shop drawings' and the IFC sheets' ("L41 - 3RD MECHANICAL FLOOR").
+    aliases = floor_aliases(
+        [(r.floor, r.name) for entry in shop for r in (entry, *getattr(entry, "superseded", ()))]
+        + [(sheet.get("floor_name"), sheet.get("title")) for d in drawings for sheet in d.get("sheets") or []
+           if sheet.get("kind") == "plan"])
+    named_as = {level: name for name, level in aliases.items()}
+
     # Every shop drawing, from the shop drawings alone.
     rows: list[dict] = []
     covered: set[str] = set()
-    for index, drawing in enumerate(_by_floor(shop)):
+    for index, drawing in enumerate(_by_floor(shop, aliases)):
         covered |= set(drawing["floor_keys"])
+        floor = floor_label(drawing["floor_named"]) if drawing["floor_named"] else "Floor not named on the drawing"
+        # A level its title also names by what it is: "L02 - 1st Mechanical Floor".
+        extra = [_named_label(named_as[k]) for k in drawing["floor_keys"] if k in named_as]
+        if len(drawing["floor_keys"]) == 1 and extra and extra[0].upper() not in floor.upper():
+            floor = f"{floor} - {extra[0]}"
         history = answered_revisions(drawing["revisions"])
         latest = f"R{_rev_number(drawing['revision'])}" if _rev_number(drawing["revision"]) >= 0 else drawing["revision"]
         rows.append({
             **drawing,
             "key": f"sd:{index}:{drawing['reference']}",
             "source": "shop_drawing",
-            "floor": floor_label(drawing["floor_named"]) if drawing["floor_named"] else "Floor not named on the drawing",
+            "floor": floor,
             "revisions": history,
             "cells": {rev: history.get(rev) or dict(NOT_SUBMITTED) for rev in revisions},
             "latest_revision": latest,
@@ -349,7 +431,7 @@ def build(drawings: list[dict], records: list, in_system=lambda code: (code or "
     # The floors the IFC drawings have that no shop drawing covers yet:
     # the floor alone -- no IFC sheet name, number or revision.
     seen: set[frozenset] = set()
-    for plan in _rows(drawings):
+    for plan in _rows(drawings, aliases):
         keys = frozenset(plan.keys)
         if not keys or keys & covered or keys in seen:
             continue
