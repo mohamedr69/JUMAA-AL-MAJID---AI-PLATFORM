@@ -4,6 +4,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 *.db
+# SQLite's write-ahead log beside a database in WAL mode (app/database.py).
+*.db-wal
+*.db-shm
 
 # Env -- and any copy of it kept beside it before an edit: it holds the secret key
 # and the admin password.
