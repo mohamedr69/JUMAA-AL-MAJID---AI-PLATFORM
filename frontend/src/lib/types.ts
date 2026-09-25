@@ -2307,3 +2307,31 @@ export interface ArchiveStatus {
   last_successful_scan_at: string | null;
   last_error: string | null;
 }
+
+/** A file's status in File Sync (`GET /projects/{id}/documents/sync-files`). */
+export type FileSyncStatus = "processed" | "unchanged" | "partial" | "unavailable" | "failed";
+
+/** File Sync's header (`GET /projects/{id}/documents/sync-summary`): the
+ * folder, the last sync, and how many files are in each status. */
+export interface FileSyncSummary {
+  source: string;
+  folder: string | null;
+  folder_display: string | null;
+  synced_at: string | null;
+  started_by: string | null;
+  automatic: boolean;
+  duration_s: number | null;
+  removed: number;
+  total: number;
+  counts: Record<FileSyncStatus, number>;
+  job: import("./useJob").Job | null;
+  worker_running: boolean;
+}
+
+export interface FileSyncFile {
+  name: string;
+  path: string;
+  status: FileSyncStatus;
+  reason: string | null;
+  role: string;
+}

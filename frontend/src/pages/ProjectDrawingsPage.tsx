@@ -400,14 +400,8 @@ function DrawingsWorkspace() {
               {notice}
             </div>
           )}
-          {log?.warnings.map((w) => (
-            <div
-              key={w}
-              className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-900"
-            >
-              {w}
-            </div>
-          ))}
+          {/* The notes about files the sync could not read in full are File
+              Sync's (the sync card above links there), not a banner each here. */}
 
           <div className="rounded-xl border border-gray-200 bg-white">
             <div className="flex flex-wrap items-end justify-between gap-3 border-b border-gray-100 p-5">

@@ -18,6 +18,9 @@ export interface ProjectContext {
 const SECTIONS = [
   { to: ".", label: "Project Home", end: true },
   { to: "info", label: "Project Info", end: false },
+  // Every file of the project, read from the OneDrive folder: what the last
+  // sync did with each, in one place rather than as warnings on each page.
+  { to: "sync", label: "File Sync", end: false },
   { to: "documents", label: "Documents", end: false },
   { to: "boq", label: "BOQ", end: false },
   { to: "materials", label: "Proposed Materials", end: false },

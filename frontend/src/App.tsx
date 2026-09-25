@@ -27,6 +27,7 @@ import { ProjectBoqRereadPage } from "./pages/ProjectBoqRereadPage";
 import { ProjectDocumentsPage } from "./pages/ProjectDocumentsPage";
 import { ProjectHomePage } from "./pages/ProjectHomePage";
 import { ProjectInfoPage } from "./pages/ProjectInfoPage";
+import { ProjectFileSyncPage } from "./pages/ProjectFileSyncPage";
 import { ProjectMaterialSubmittalPage } from "./pages/ProjectMaterialSubmittalPage";
 import { ProjectLogsPage } from "./pages/ProjectLogsPage";
 import { ProjectDrawingsPage } from "./pages/ProjectDrawingsPage";
@@ -113,6 +114,7 @@ export default function App() {
           <Route path="/projects/:id" element={<ProjectWorkspace />}>
             <Route index element={<ProjectHomePage />} />
             <Route path="info" element={<ProjectInfoPage />} />
+            <Route path="sync" element={<ProjectFileSyncPage />} />
             <Route path="boq" element={<ProjectBoqPage />} />
             <Route path="materials" element={<ProjectProposedMaterialsPage />} />
             <Route path="boq/revisions" element={<ProjectBoqRevisionsPage />} />

@@ -527,8 +527,15 @@ function openActions(
   for (const stale of documents?.stale ?? []) {
     actions.push({ kind: "Source changed", text: `${stale.reason} (${stale.source})`, severity: "warning", link: null });
   }
-  for (const failed of documents?.failed ?? []) {
-    actions.push({ kind: "Could not be read", text: `${failed.path}: ${failed.error ?? "unknown error"}`, severity: "warning", link: null });
+  // One line for the lot, not a line a file: which files and why is File Sync's.
+  const failed = documents?.failed.length ?? 0;
+  if (failed > 0) {
+    actions.push({
+      kind: "Could not be read",
+      text: `${failed} file${failed === 1 ? "" : "s"} could not be processed in the last sync.`,
+      severity: "warning",
+      link: "sync",
+    });
   }
   return actions;
 }

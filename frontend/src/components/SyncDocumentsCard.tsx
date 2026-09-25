@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, api } from "../lib/api";
 import { formatApiDate } from "../lib/format";
 import type { DocumentStatus } from "../lib/types";
@@ -91,6 +92,7 @@ export function SyncDocumentsCard({
 
   if (!status) return error ? <div className="text-xs text-red-700">{error}</div> : null;
   const stale = status.stale;
+  const fileSync = `/projects/${projectId}/sync`;
   // The sync runs in the worker process: the pages keep working from the
   // index as it stands, and are refreshed when it finishes.
   const hint = queued && !status.worker_running
@@ -101,13 +103,13 @@ export function SyncDocumentsCard({
     return (
       <div className="text-right">
         <div className="flex flex-wrap items-center justify-end gap-3">
-          <span className="text-xs text-gray-500">
+          <Link to={fileSync} className="text-xs text-gray-500 hover:text-brand-700 hover:underline" title="Open File Sync">
             {status.synced_at
-              ? `Last sync ${formatApiDate(status.synced_at, "short")}`
+              ? `Last synced: ${formatApiDate(status.synced_at, "medium")}`
               : status.folder_reachable
                 ? "Not synced yet"
                 : "The project folder is not reachable on this PC"}
-          </span>
+          </Link>
           {canEdit && (
             <button
               onClick={() => void start()}
@@ -133,13 +135,13 @@ export function SyncDocumentsCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="text-sm font-semibold text-navy-900">Project documents</div>
-          <div className="text-xs text-gray-500">
+          <Link to={fileSync} className="block text-xs text-gray-500 hover:text-brand-700 hover:underline" title="Open File Sync">
             {status.synced_at
-              ? `${status.documents} document${status.documents === 1 ? "" : "s"} indexed · synced ${formatApiDate(status.synced_at, "short")}`
+              ? `Last synced: ${formatApiDate(status.synced_at, "medium")} · ${status.documents} document${status.documents === 1 ? "" : "s"}`
               : status.folder_reachable
                 ? "Not synced yet: the folder has not been read into the index"
                 : "The project folder is not reachable on this PC"}
-          </div>
+          </Link>
         </div>
         {canEdit && (
           <button
@@ -168,17 +170,11 @@ export function SyncDocumentsCard({
           </ul>
         </div>
       )}
+      {/* Which files and why is File Sync's; here, one line that leads there. */}
       {status.failed.length > 0 && (
-        <div className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
-          <div className="font-semibold">Could not be read (the previous reading, if any, is kept)</div>
-          <ul className="mt-1 list-disc space-y-0.5 pl-5">
-            {status.failed.map((f) => (
-              <li key={f.path}>
-                {f.path}: {f.error}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <Link to={fileSync} className="mt-2 block text-xs font-medium text-red-700 hover:underline">
+          {status.failed.length} file{status.failed.length === 1 ? "" : "s"} could not be processed · see File Sync
+        </Link>
       )}
     </section>
   );
