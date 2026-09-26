@@ -730,7 +730,10 @@ def combine(records: list[ControlledDocument]) -> list[ControlledDocument]:
     standing: dict[tuple, ControlledDocument] = {}
     history: dict[tuple, list[ControlledDocument]] = {}
     for row in rows:
-        if row.category != "drawings":
+        # A schedule entry plans a drawing; it is not a revision of it, and
+        # folding it into the drawing's history lost it. It stays its own
+        # record, evidence on the drawing (app.services.shop_drawings).
+        if row.category != "drawings" or row.source == "drawing schedule":
             continue
         key = drawing_key(row)
         history.setdefault(key, []).append(row)
@@ -740,7 +743,7 @@ def combine(records: list[ControlledDocument]) -> list[ControlledDocument]:
     if standing:
         collapsed = []
         for row in rows:
-            if row.category != "drawings":
+            if row.category != "drawings" or row.source == "drawing schedule":
                 collapsed.append(row)
                 continue
             key = drawing_key(row)

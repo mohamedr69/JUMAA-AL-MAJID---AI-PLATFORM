@@ -2396,3 +2396,67 @@ export interface FileSyncFile {
   reason: string | null;
   role: string;
 }
+
+/** Project > Logs: the project's systems and the registers each takes part
+ * in (GET /projects/{id}/logs/systems). A cable has material submittals and
+ * samples, never shop drawings. */
+export interface LogsSystem {
+  code: string;
+  name: string;
+  short_name: string;
+  material_submittals: boolean;
+  drawings: boolean;
+  samples: boolean;
+}
+
+export interface LogsSystems {
+  systems: LogsSystem[];
+  drawings_in_scope: boolean;
+}
+
+/** One row of the Drawings register (GET /projects/{id}/logs/drawings): a
+ * logical shop drawing, or a floor still to draw (`drawing_id` null). The
+ * same values the Drawings page shows for that drawing. */
+export interface RegisterRow {
+  key: string;
+  drawing_id: number | null;
+  system: string;
+  system_name: string;
+  source: "shop_drawing" | "ifc_floor";
+  floor: string;
+  floor_secondary: string | null;
+  floor_keys: string[];
+  floors: number;
+  typical: boolean;
+  title: string | null;
+  reference: string | null;
+  confirmed: boolean;
+  cells: Record<string, import("../components/drawings/types").LogCell>;
+  latest_revision: string | null;
+  latest_status: import("../components/drawings/types").Status;
+  latest_path: string | null;
+  latest_page: number;
+  latest_note: string | null;
+  candidates: string[];
+  hints: import("../components/drawings/types").Hint[];
+  issues: number;
+  remarks: string;
+  updated_at: string | null;
+  schedule: { reference: string | null; path: string | null } | null;
+}
+
+export interface DrawingsRegister {
+  project: { id: number; ep_number: string; name: string | null };
+  systems: LogsSystem[];
+  selected_system: string;
+  summary: Record<string, number> & { total: number; review_items: number; candidates: number };
+  filtered: number;
+  available_revisions: string[];
+  floors: { key: string; name: string }[];
+  rows: RegisterRow[];
+  pagination: { page: number; page_size: number; pages: number; total: number };
+  synced_at: string | null;
+  reconciled_at: string | null;
+  folder: string | null;
+  warnings: string[];
+}

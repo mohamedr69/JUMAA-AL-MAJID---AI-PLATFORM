@@ -148,6 +148,26 @@ def test_a_system_without_a_submittal_is_an_action_until_one_is_entered(client, 
     assert f"Material submittal required: no material submittal is filed for {code}" not in texts
 
 
+def test_home_counts_shop_drawings_from_their_records(client, db_session, tmp_path):
+    """Home's "Shop drawings" per system is the Drawings page's own count:
+    a schedule entry, a reply or a copy of a file is never a drawing."""
+    from .test_drawings_module import FA, _admin, _doc, _project as _drawn_project, _reconcile, _seed
+
+    _admin(client)
+    pid, folder = _drawn_project(client, tmp_path, "95007")
+    _seed(db_session, pid, folder, [
+        _doc("BASEMENT- 4", "R0", "UR", ref="FA 102", name="BASEMENT- 4 FLOOR PLAN", path="04- Drawings/Shop drawings log.pdf",
+             source="drawing schedule"),
+        _doc("Basement 4", "R0", "approved", ref=f"{FA}-B04"),
+        _doc("Basement 3", "R0", "UR", ref=f"{FA}-B03"),
+    ])
+    _reconcile(client, pid)
+    fas = next(s for s in client.get(f"/projects/{pid}/state").json()["systems"] if s["code"] == "FAS")
+    assert (fas["shop_drawings"]["total"], fas["shop_drawings"]["approved"], fas["shop_drawings"]["under_review"]) == (2, 1, 1)
+    assert fas["shop_drawings"]["label"] == "Under Review"
+    assert len(client.get(f"/projects/{pid}/logs").json()["drawings"]) == 2
+
+
 def test_two_brands_filed_under_one_reference_are_two_log_rows(client, db_session):
     """Filed through the platform, a system's reference is the system's
     (EP-n-MAS-FRC), so Frontier and Tianjie cable can share it. They are

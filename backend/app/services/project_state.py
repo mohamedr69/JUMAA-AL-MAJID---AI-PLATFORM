@@ -201,6 +201,31 @@ def _documents_by_system(project: Project, records: list) -> dict[str, dict]:
     return out
 
 
+def _shop_drawings_by_system(db: Session, project: Project) -> dict[str, dict]:
+    """Each drawn system's shop drawings from their records: every floor of
+    the building with where its drawing stands, as the Drawings page counts
+    them."""
+    from app.services import shop_drawings
+
+    if shop_drawings.needs_reconcile(project):
+        shop_drawings.reconcile(db, project, ai=False)
+    out: dict[str, dict] = {}
+    for s in shop_drawings.summary(db, project):
+        total, approved = s["floors"], s["approved_total"]
+        under_review, returned = s["under_review"] + s["reply_not_found"], s["not_approved"]
+        if under_review or (approved and approved < total):
+            state = "under_review"
+        elif returned:
+            state = "returned"
+        elif approved and approved == total:
+            state = "approved"
+        else:
+            state = "not_submitted"
+        out[s["code"]] = {"total": total, "approved": approved, "under_review": under_review, "returned": returned,
+                          "not_submitted": s["not_submitted"], "status": state, "label": LABELS[state]}
+    return out
+
+
 def summary(db: Session, project: Project, submittals: list | None = None) -> dict:
     """Project Home's per-system board: every system of the project with its
     material submittal, shop drawings and samples, from the records."""
@@ -212,7 +237,10 @@ def summary(db: Session, project: Project, submittals: list | None = None) -> di
     if project.source_folder_path:
         records, _warnings = document_sync.log_records(db, project)
     drawn = system_rules.drawings_in_scope(project)
-    drawings = _documents_by_system(project, [r for r in records if r.category == "drawings"])
+    # The shop drawings are their own records (app.services.shop_drawings),
+    # the same the Drawings page and the Logs register show: never counted
+    # off the document index, where a schedule entry or a file copy is a row.
+    drawings = _shop_drawings_by_system(db, project) if drawn else {}
     samples = _documents_by_system(project, [r for r in records if r.category == "samples"])
     codes = list(dict.fromkeys([*system_rules.project_codes(project), *materials, *drawings, *samples]))
     empty = {"total": 0, "approved": 0, "under_review": 0, "returned": 0, "status": "not_submitted",

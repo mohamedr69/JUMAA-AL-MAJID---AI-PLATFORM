@@ -2058,6 +2058,11 @@ class ProjectShopDrawing(Base):
     # An engineer set the reference or the floors by hand: the sync does not change them.
     confirmed_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+    # The drawing's title as its title block reads ("Basement-4 Floor Plan Fire Alarm Layout").
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # The schedule entry that planned it ("FA 102" in the shop drawings log): evidence, never a row.
+    schedule_reference: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    schedule_path: Mapped[str | None] = mapped_column(Text, nullable=True)
     remarks: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)

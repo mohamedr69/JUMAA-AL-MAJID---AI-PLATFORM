@@ -229,6 +229,9 @@ app.include_router(drawings_router.router)
 # The project's state for every page: the Home summary, actions, changes.
 from app.routers import project_state as project_state_router  # noqa: E402
 app.include_router(project_state_router.router)
+# Project > Logs: the registers, read from the records the operational pages edit.
+from app.routers import logs as logs_router  # noqa: E402
+app.include_router(logs_router.router)
 
 # Search the archive's EP folders from the index rather than walking it.
 from app.routers import archive as archive_router  # noqa: E402

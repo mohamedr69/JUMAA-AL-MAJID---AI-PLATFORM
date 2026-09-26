@@ -55,6 +55,21 @@ _REF_SYSTEM = (("FAS", re.compile(r"-(?:FA|FAS|VE|FT)-", re.I)), ("ELS", re.comp
                ("FRC", re.compile(r"-FRC-", re.I)))
 
 
+def drawing_title(name: str | None, reference: str | None) -> str | None:
+    """The drawing's title as the title block reads it, normalised:
+    "BASEMENT- 4 FLOOR PLAN FIRE ALARM LAYOUT" is "Basement-4 Floor Plan
+    Fire Alarm Layout". A name that is only the reference, or a file name,
+    is not a title."""
+    text = " ".join(str(name or "").split())
+    if not text or text.upper() == (reference or "").upper() or re.search(r"\.(pdf|dwg|dxf)$", text, re.I):
+        return None
+    if " " not in text and "-" in text:
+        return None     # a reference, not words
+    text = re.sub(r"^(?:Title\s*/\s*Subject|Title|Subject)\s*:\s*", "", text, flags=re.I)
+    text = re.sub(r"\s*-\s*(?=\d)", "-", text)
+    return drawing_log.floor_label(text)[:200] or None
+
+
 def _rev(revision: str | None) -> int:
     return drawing_log._rev_number(revision)
 
@@ -261,6 +276,16 @@ def _reconcile_system(db: Session, project: Project, system: str, records: list,
             "detail": {"reference": reference, "path": path, "named_system": reference_system(reference)}}
 
     derived = drawing_log.build(ifc_input, usable, in_system=in_system, floors=registry, aliases=aliases)
+    # The schedule entries of this system, by the floor each plans: evidence
+    # a drawing carries ("planned as FA 102"), never a drawing of its own.
+    scheduled: dict[str, object] = {}
+    for record in records:
+        if getattr(record, "category", None) != "drawings" or getattr(record, "source", None) != "drawing schedule" \
+                or not in_system(record.system_code) or not record.floor:
+            continue
+        keys = drawing_log.floor_identity(record.floor, record.name, aliases)
+        if len(keys) == 1:
+            scheduled.setdefault(next(iter(keys)), record)
     # Every (reference, revision) the folder still holds. Two references for
     # one floor at one revision -- two names of a floor merged into one --
     # give the log one standing drawing for the floor; the other's file is
@@ -311,6 +336,11 @@ def _reconcile_system(db: Session, project: Project, system: str, records: list,
         elif drawing.confirmed_by_id is None:
             drawing.floor_keys, drawing.floor_label, drawing.typical = keys, label, typical
         drawing.active = True
+        if drawing.confirmed_by_id is None:
+            drawing.title = drawing_title(row.get("name"), reference) or drawing.title
+        planned = scheduled.get(keys[0]) if len(keys) == 1 else None
+        if planned is not None:
+            drawing.schedule_reference, drawing.schedule_path = planned.reference, planned.path
         seen.add(reference_key)
         held = {r.revision: r for r in drawing.revisions}
         present: set[str] = set()
@@ -739,6 +769,8 @@ def row_of(drawing: ProjectShopDrawing, revisions: list[str], issues: list, floo
                           "source": issue.source, "issue_id": issue.id, "note": issue.text})
     return {
         "key": f"sd:{drawing.id}", "id": drawing.id, "source": "shop_drawing", "reference": drawing.drawing_reference,
+        "system": drawing.system_code, "title": drawing.title,
+        "schedule": {"reference": drawing.schedule_reference, "path": drawing.schedule_path} if drawing.schedule_reference else None,
         "floor": floor, "floor_secondary": secondary, "floor_named": drawing.floor_label, "floor_keys": keys,
         "floors": len(keys) if drawing.typical else max(1, len(keys)),
         "typical": drawing.typical, "confirmed": drawing.confirmed_by_id is not None, "remarks": drawing.remarks or "",
@@ -753,6 +785,7 @@ def row_of(drawing: ProjectShopDrawing, revisions: list[str], issues: list, floo
         "latest_path": latest.drawing_path if latest else None, "latest_page": latest.drawing_page if latest else 1,
         "candidates": [_candidate_out(c) for c in drawing.candidates],
         "hints": hints, "issues": len(issues),
+        "updated_at": drawing.updated_at.isoformat() if drawing.updated_at else None,
     }
 
 
@@ -795,6 +828,7 @@ def log(db: Session, project: Project, system: str) -> dict:
             continue
         rows.append({
             "key": f"floor:{floor.floor_key}", "id": None, "source": "ifc_floor", "reference": None,
+            "system": system, "title": None, "schedule": None,
             "floor": floor.display_name, "floor_secondary": floor.secondary_name, "floor_named": None,
             "floor_keys": [floor.floor_key], "floors": 1, "typical": False,
             "confirmed": False, "remarks": "", "revision": None, "status": "not_submitted", "label": "Not Submitted",
@@ -854,9 +888,133 @@ def detail(db: Session, project: Project, drawing: ProjectShopDrawing) -> dict:
         "floor_source": {key: {"source": floors[key].source, "ifc_sheet": floors[key].ifc_sheet, "active": floors[key].active}
                          for key in drawing.floor_keys or [] if key in floors},
         "revision_history": [_cell(r, drawing.drawing_reference) for r in sorted(drawing.revisions, key=lambda r: r.number)],
+        "evidence": evidence_of(drawing),
         "issues_list": [drawing_issues.out(i) for i in issues],
         "events": [event_out(e) for e in events],
     }
+
+
+def evidence_of(drawing: ProjectShopDrawing) -> list[dict]:
+    """What the record rests on, in order: the schedule entry that planned
+    it, each revision's submitted drawing and the consultant's reply to it,
+    and the files found that nothing proves were submitted."""
+    out = []
+    if drawing.schedule_reference:
+        out.append({"kind": "schedule", "label": f"Drawing schedule: {drawing.schedule_reference}",
+                    "path": drawing.schedule_path, "page": 1, "revision": None})
+    for r in sorted(drawing.revisions, key=lambda r: r.number):
+        if not r.submitted:
+            continue
+        out.append({"kind": "drawing", "label": f"{r.revision} submitted drawing" + (f" ({r.submission_reference})" if r.submission_reference else ""),
+                    "path": r.drawing_path, "page": r.drawing_page, "revision": r.revision,
+                    "date": r.submitted_at.isoformat() if r.submitted_at else None, "missing": r.source_missing})
+        if r.status in DECIDED or r.reply_reference or r.reply_text:
+            out.append({"kind": "reply", "label": f"{r.revision} consultant reply: {STATUS_LABELS.get(r.status, r.status)}"
+                        + (f" ({r.reply_reference})" if r.reply_reference else ""),
+                        "path": None, "page": 1, "revision": r.revision,
+                        "date": r.reply_at.isoformat() if r.reply_at else None, "text": r.reply_text})
+    for c in drawing.candidates:
+        if c.candidate_status == "available":
+            out.append({"kind": "candidate", "label": f"{c.revision} file found; not confirmed submitted", "path": c.path,
+                        "page": c.page, "revision": c.revision, "date": c.detected_at.isoformat() if c.detected_at else None})
+    return out
+
+
+# --- the Logs register: every system's records, one row per logical drawing --------------------
+
+
+def floors_in_words(keys: list[str]) -> str:
+    """Several floors of one drawing, compactly: "Basement 4, 3, 2", "Level
+    4, 5, 6"; floors of different kinds each by name."""
+    import re as _re
+
+    parts = [_re.fullmatch(r"([BPL])(\d+)", k) for k in keys]
+    if keys and all(parts) and len({m.group(1) for m in parts}) == 1:
+        word = drawing_log._spelled(keys[0]).rsplit(" ", 1)[0]
+        return f"{word} " + ", ".join(m.group(2) for m in parts)
+    return ", ".join(drawing_log._spelled(k) for k in keys)
+
+
+def register_systems(db: Session, project: Project) -> list[dict]:
+    """The project's systems as the Logs module offers them, with the
+    registers each takes part in: every system has material submittals
+    and samples; only a drawn one (never a cable) has shop drawings."""
+    codes = list(system_rules.project_codes(project))
+    for code in project_systems(db, project):
+        if code not in codes:
+            codes.append(code)
+    drawn = system_rules.drawings_in_scope(project)
+    return [{"code": code, "name": system_rules.system_display_name(project, code),
+             "short_name": system_rules.CODE_NAMES.get(code, code),
+             "material_submittals": True, "samples": True,
+             "drawings": drawn and system_rules.has_shop_drawings(code)} for code in codes]
+
+
+def _search_text(db: Session, project: Project) -> dict[int, str]:
+    """{drawing id: the words a search finds it by}: title, reference, floor
+    names, submission and consultant reply references -- the record's
+    fields, never file names alone."""
+    out: dict[int, list[str]] = {}
+    for d in db.query(ProjectShopDrawing).filter(ProjectShopDrawing.project_id == project.id).options(selectinload(ProjectShopDrawing.revisions)):
+        words = [d.drawing_reference, d.title or "", d.floor_label or "", d.schedule_reference or "", *(d.floor_keys or [])]
+        for r in d.revisions:
+            words += [r.submission_reference or "", r.reply_reference or "", r.revision]
+        out[d.id] = " ".join(w for w in words if w).upper()
+    return out
+
+
+def register(db: Session, project: Project, systems: list[str]) -> dict:
+    """The Logs > Drawings register over `systems`: the same rows the
+    Drawings page shows for each (`log`), one after another, each row
+    saying its system; the revision columns the union of theirs. Compact:
+    nothing a row does not show."""
+    rows: list[dict] = []
+    revisions: list[str] = []
+    search = _search_text(db, project)
+    names = {f.floor_key: (f.display_name, f.secondary_name) for f in building_floors.registry(db, project.id)}
+    for system in systems:
+        built = log(db, project, system)
+        for rev in built["revisions"]:
+            if rev not in revisions:
+                revisions.append(rev)
+        # One row per logical drawing. The Drawings page lists a submission
+        # that carries several floors drawn apart ("Basement 4, 3, 2") as a
+        # row per floor; the register is the drawing, its floors together.
+        seen: dict[int, dict] = {}
+        for row in built["rows"]:
+            if row["id"] is not None and row["id"] in seen:
+                held = seen[row["id"]]
+                held["floor_keys"] = [*held["floor_keys"], *[k for k in row["floor_keys"] if k not in held["floor_keys"]]]
+                held["floors"] = len(held["floor_keys"])
+                held["floor"] = floors_in_words(held["floor_keys"])
+                held["floor_secondary"] = None
+                held["search"] = f"{held['search']} {row['floor']}".upper()
+                continue
+            floor_words = " ".join(w for k in row["floor_keys"] for w in (k, *names.get(k, ("", ""))) if w)
+            latest = (row.get("revisions") or {}).get(row["latest_revision"] or "", {}) if row["latest_revision"] else {}
+            entry = {
+                "key": f"{system}:sd:{row['id']}" if row["id"] is not None else f"{system}:{row['key']}",
+                "drawing_id": row["id"], "system": system,
+                "system_name": system_rules.CODE_NAMES.get(system, system), "source": row["source"],
+                "floor": row["floor"], "floor_secondary": row.get("floor_secondary"), "floor_keys": list(row["floor_keys"]),
+                "floors": row["floors"], "typical": row.get("typical", False), "title": row.get("title"),
+                "reference": row["reference"], "confirmed": row.get("confirmed", False),
+                "cells": row["cells"], "latest_revision": row["latest_revision"], "latest_status": row["latest_status"],
+                "latest_path": row["latest_path"], "latest_page": row["latest_page"], "latest_note": row.get("latest_note"),
+                "candidates": [c["label"] for c in row.get("candidates", []) if c.get("status") == "available"],
+                "hints": row.get("hints", []), "issues": row.get("issues", 0), "remarks": row.get("remarks", ""),
+                # When the record last moved: the latest revision's reply, else its submission.
+                "updated_at": latest.get("reply_at") or latest.get("submitted_at") or latest.get("modified") or row.get("updated_at"),
+                "schedule": row.get("schedule"),
+                "search": f"{search.get(row['id'], '')} {floor_words} {row['floor']} {row.get('floor_secondary') or ''}".upper(),
+            }
+            if row["id"] is not None:
+                seen[row["id"]] = entry
+            rows.append(entry)
+    revisions.sort(key=_rev)
+    for row in rows:
+        row["cells"] = {rev: row["cells"].get(rev) or dict(drawing_log.NOT_SUBMITTED) for rev in revisions}
+    return {"revisions": revisions, "rows": rows}
 
 
 def event_out(e: ShopDrawingEvent) -> dict:

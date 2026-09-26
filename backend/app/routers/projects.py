@@ -1386,8 +1386,10 @@ def project_logs(
                                   for row in records if row.system_code and row.category != "submittals"}
                        | {row["system_code"] for row in material_log if row["system_code"]}),
         material_submittals=material_log,
+        # The drawings we issued: a schedule entry plans one, it is not one.
         drawings=[output(row) for row in _in_building_order(db, project,
-                                                            [r for r in records if r.category == "drawings"])],
+                                                            [r for r in records if r.category == "drawings"
+                                                             and r.source != "drawing schedule"])],
         samples=[output(row) for row in records if row.category == "samples"],
         # Not before the first sync: an unread folder is not a missing board.
         sample_boards=sample_board_checks(project, [row for row in records if row.category == "samples"])
