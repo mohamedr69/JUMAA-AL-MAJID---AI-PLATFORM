@@ -36,8 +36,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.timeutils import utc_now
-from app.models import (Project, ProjectDocument, ProjectShopDrawing, ShopDrawingCandidate, ShopDrawingEvent,
-                        ShopDrawingRevision)
+from app.models import (Project, ProjectBuildingFloor, ProjectDocument, ProjectFloorAlias, ProjectShopDrawing,
+                        ShopDrawingCandidate, ShopDrawingEvent, ShopDrawingRevision)
 from app.services import building_floors, document_control, drawing_issues, drawing_log, system_rules
 
 logger = logging.getLogger(__name__)
@@ -154,16 +154,31 @@ def reconcile(db: Session, project: Project, *, user=None, ai: bool = True, reco
                          .options(selectinload(ProjectShopDrawing.revisions), selectinload(ProjectShopDrawing.candidates)).all())
     with_history = {key for d in existing_drawings for key in (d.floor_keys or []) if d.revisions}
     ifc_input = building_floors.in_force_as_log_input(db, project)
-    aliases = drawing_log.floor_aliases(
-        [(r.floor, r.name) for entry in shop_all for r in (entry, *getattr(entry, "superseded", ()))]
-        + [(s.get("floor_name"), s.get("title")) for d in ifc_input for s in d.get("sheets") or [] if s.get("kind") == "plan"])
-    ifc_keys = {e.key for e in building_floors.floors_from_ifc(ifc_input)}
+    # The project's aliases: which physical floor each name is, on this
+    # building -- the one map every path below reads, so the IFC's "1ST
+    # MECHANICAL FLOOR" and the shop drawings' "L02" are one floor here
+    # exactly when they are one floor in the registry.
+    aliases = building_floors.resolve_aliases(
+        db, project, ifc_input,
+        [(r.floor, r.name) for entry in shop_all for r in (entry, *getattr(entry, "superseded", ()))])
+    ifc_keys = {e.key for e in building_floors.floors_from_ifc(ifc_input, aliases)}
+    # The floors the shop drawings name: one no IFC plan has is added from
+    # the shop drawing; one an IFC sheet reaches only through an alias
+    # ("1ST MECHANICAL FLOOR" for L2) takes the shop drawing's own name for
+    # the level ("L02") over a spelling made up for it.
     extra = []
     for record in shop_all:
-        for key in (drawing_log.floor_identity(record.floor, record.name, aliases) if record.floor else set()):
-            if key not in ifc_keys and key not in {e.key for e in extra}:
-                extra.append(building_floors.floor_from_shop_drawing(key, record.floor))
-    floors_changed = building_floors.refresh(db, project, floors_with_history=with_history, extra=extra)
+        if not record.floor:
+            continue
+        direct = drawing_log.floor_identity(record.floor, None, {})
+        for key in drawing_log.floor_identity(record.floor, record.name, aliases):
+            if key not in {e.key for e in extra}:
+                entry = building_floors.floor_from_shop_drawing(key, record.floor)
+                entry.direct = key in direct
+                extra.append(entry)
+    shop_only = {e.key for e in extra if e.key not in ifc_keys}
+    floors_changed = building_floors.refresh(db, project, floors_with_history=with_history, extra=extra, aliases=aliases,
+                                             drawings=ifc_input)
     registry = building_floors.as_log_floors(building_floors.registry(db, project.id))
     floor_names = {f["key"]: f["display"] for f in registry}
 
@@ -172,11 +187,22 @@ def reconcile(db: Session, project: Project, *, user=None, ai: bool = True, reco
         wanted_issues[f"floor_not_in_ifc:{key}"] = {
             "kind": "floor_not_in_ifc", "floor_key": key, "system_code": None,
             "text": f"{floor_names.get(key, key)} is not in the latest IFC drawings; its shop drawing history is kept."}
+    # Two names that may be one floor: asked, never merged on a suspicion.
+    separate = building_floors.separate_pairs(building_floors.alias_rows(db, project.id))
+    for suspect in building_floors.suspects(ifc_input, shop_only, aliases, separate):
+        wanted_issues[f"possible_duplicate_floor:{suspect.alias_key}:{suspect.canonical_key}"] = {
+            "kind": "possible_duplicate_floor", "floor_key": suspect.canonical_key, "system_code": None,
+            "text": f"{suspect.alias_label} and {floor_names.get(suspect.canonical_key, suspect.canonical_label)} may represent "
+                    f"the same physical level. {suspect.evidence}",
+            "detail": {"alias_key": suspect.alias_key, "canonical_key": suspect.canonical_key,
+                       "alias_label": suspect.alias_label,
+                       "canonical_label": floor_names.get(suspect.canonical_key, suspect.canonical_label),
+                       "evidence": suspect.evidence, **suspect.context}}
 
     changed: dict[str, dict] = {}
     for system in systems:
         changed[system] = _reconcile_system(db, project, system, records, shop_all, rows, sha_by_path, registry,
-                                            ifc_input, integrated, wanted_issues, now, user=user)
+                                            ifc_input, integrated, wanted_issues, now, user=user, aliases=aliases)
 
     drawing_issues.reconcile(db, project, {k: v for k, v in wanted_issues.items() if v.get("system_code") is None
                                            or v["system_code"] in systems}, source=drawing_issues.SYSTEM)
@@ -195,8 +221,10 @@ def reconcile(db: Session, project: Project, *, user=None, ai: bool = True, reco
 
 def _reconcile_system(db: Session, project: Project, system: str, records: list, shop_all: list,
                       rows: list[ProjectDocument], sha_by_path: dict[str, str], registry: list[dict], ifc_input: list[dict],
-                      integrated: bool, wanted_issues: dict, now: datetime, *, user=None) -> dict:
+                      integrated: bool, wanted_issues: dict, now: datetime, *, user=None,
+                      aliases: dict[str, str] | None = None) -> dict:
     counts = {"drawings": 0, "revisions": 0, "candidates": 0, "missing": 0}
+    aliases = aliases or {}
 
     def in_system(code):
         return system_rules.effective_code(code, integrated=integrated) == system
@@ -232,7 +260,13 @@ def _reconcile_system(db: Session, project: Project, system: str, records: list,
                     f"{reference_system(reference)}: not logged under {system}.",
             "detail": {"reference": reference, "path": path, "named_system": reference_system(reference)}}
 
-    derived = drawing_log.build(ifc_input, usable, in_system=in_system, floors=registry)
+    derived = drawing_log.build(ifc_input, usable, in_system=in_system, floors=registry, aliases=aliases)
+    # Every (reference, revision) the folder still holds. Two references for
+    # one floor at one revision -- two names of a floor merged into one --
+    # give the log one standing drawing for the floor; the other's file is
+    # in the folder all the same, and is never marked missing for it.
+    on_file = {(r.reference.upper(), r.revision or "R0") for entry in usable
+               for r in (entry, *(getattr(entry, "superseded", ()) or ()))}
     existing = {d.drawing_reference.upper(): d for d in
                 db.query(ProjectShopDrawing).filter(ProjectShopDrawing.project_id == project.id,
                                                     ProjectShopDrawing.system_code == system)
@@ -365,7 +399,7 @@ def _reconcile_system(db: Session, project: Project, system: str, records: list,
 
         # Revisions on record that the folder no longer shows: the status stands.
         for rev, revision in held.items():
-            if rev in present or not revision.submitted:
+            if rev in present or not revision.submitted or (reference_key, rev) in on_file:
                 continue
             if not revision.source_missing and revision.drawing_path:
                 revision.source_missing = True
@@ -393,7 +427,7 @@ def _reconcile_system(db: Session, project: Project, system: str, records: list,
 
     # Drawings on record the folder no longer has at all: kept, marked.
     for reference, drawing in existing.items():
-        if reference in seen:
+        if reference in seen or any(ref == reference for ref, _rev in on_file):
             continue
         for revision in drawing.revisions:
             if revision.submitted and revision.drawing_path and not revision.source_missing:
@@ -409,7 +443,7 @@ def _reconcile_system(db: Session, project: Project, system: str, records: list,
 
     # Two references for one floor, and two files for one revision.
     _conflicts(db, system, [r for r in shop_all if in_system(r.system_code) and reference_system(r.reference) in (None, system)],
-               rows, existing, floor_names, wanted_issues, in_system)
+               rows, existing, floor_names, wanted_issues, in_system, aliases)
     db.flush()
     return counts
 
@@ -437,9 +471,11 @@ def _reference_shape(reference: str) -> str:
 
 
 def _conflicts(db: Session, system: str, shop: list, rows: list[ProjectDocument], existing: dict, floor_names: dict,
-               wanted_issues: dict, in_system) -> None:
+               wanted_issues: dict, in_system, aliases: dict[str, str] | None = None) -> None:
     """A floor drawn under two references (not a typical run and a floor of
-    its own), and a revision on two different files."""
+    its own), and a revision on two different files. The floor a record is
+    of is read through the project's aliases: "1ST MECHANICAL FLOOR" and
+    "L02", once merged, are one floor with two references."""
     by_floor: dict[str, dict[str, object]] = {}
     for entry in shop:
         # The index folds a floor's earlier revisions under the one that
@@ -447,7 +483,7 @@ def _conflicts(db: Session, system: str, shop: list, rows: list[ProjectDocument]
         for record in (entry, *(getattr(entry, "superseded", ()) or ())):
             if not record.floor or drawing_log._is_typical(record):
                 continue
-            keys = drawing_log.floors_named(record.floor)
+            keys = drawing_log.floor_identity(record.floor, record.name, aliases or {})
             if len(keys) != 1:
                 continue
             by_floor.setdefault(next(iter(keys)), {}).setdefault(record.reference.upper(), record)
@@ -560,6 +596,13 @@ def _ai_review(db: Session, project: Project, systems: list[str], rows: list[Pro
                                    "floor_key": finding.floor_key, "text": finding.text, "ai": finding.ai,
                                    "severity": drawing_issues.INFO if finding.kind == "ai_suggestion" else None}
     drawing_issues.reconcile(db, project, wanted, source=drawing_issues.AI)
+    # Two names that may be one floor: the AI's opinion goes beside the
+    # rules' suspicion, on the same item, so the engineer decides once.
+    suspects = [i for i in drawing_issues.open_issues(db, project.id)
+                if i.kind == "possible_duplicate_floor" and i.source == drawing_issues.SYSTEM]
+    for issue, verdict in drawing_ai_review.review_floor_duplicates(db, project.id, suspects, report):
+        issue.ai = verdict
+    db.flush()
     if report.calls or report.cache_hits:
         logger.info("drawings.ai project=%s calls=%d cache_hits=%d errors=%d skipped=%d", project.id, report.calls,
                  report.cache_hits, report.errors, report.skipped)
@@ -660,7 +703,8 @@ def _candidate_out(c: ShopDrawingCandidate) -> dict:
             "label": f"{c.revision} available"}
 
 
-def row_of(drawing: ProjectShopDrawing, revisions: list[str], issues: list, floor_names: dict[str, str]) -> dict:
+def row_of(drawing: ProjectShopDrawing, revisions: list[str], issues: list, floor_names: dict[str, str],
+           secondaries: dict[str, str | None] | None = None) -> dict:
     official = sorted((r for r in drawing.revisions if r.submitted), key=lambda r: r.number)
     cells = {rev: _cell(r, drawing.drawing_reference) for rev, r in ((r.revision, r) for r in official)}
     candidates = [c for c in drawing.candidates if c.candidate_status == "available"]
@@ -670,15 +714,23 @@ def row_of(drawing: ProjectShopDrawing, revisions: list[str], issues: list, floo
                                  "path": c.path, "page": c.page, "candidate": _candidate_out(c)}
     latest = official[-1] if official else None
     keys = list(drawing.floor_keys or [])
-    if drawing.floor_label:
+    secondaries = secondaries or {}
+    # The floor's canonical name (the registry's) first; what the drawing
+    # itself calls it where the registry has no row for it.
+    if len(keys) == 1 and keys[0] in floor_names:
+        floor = floor_names[keys[0]]
+    elif drawing.floor_label:
         floor = drawing_log.floor_label(drawing.floor_label)
-        if len(keys) == 1 and keys[0] in floor_names and floor_names[keys[0]].upper() not in floor.upper() \
-                and " - " in floor_names[keys[0]]:
-            floor = floor_names[keys[0]]
     elif len(keys) == 1:
-        floor = floor_names.get(keys[0], drawing_log._spelled(keys[0]))
+        floor = drawing_log._spelled(keys[0])
     else:
         floor = "Floor not named on the drawing"
+    secondary = secondaries.get(keys[0]) if len(keys) == 1 else None
+    if len(keys) == 1 and drawing.floor_label and not secondary:
+        # The drawing's own wording, under the canonical one, where it says more.
+        own = drawing_log.floor_label(drawing.floor_label)
+        if own.upper() != floor.upper() and floor.upper() not in own.upper() and own.upper() not in floor.upper():
+            secondary = own
     hints = [{"kind": "revision_candidate", "revision": c.revision, "label": f"{c.revision} available", "severity": "info",
               "candidate_id": c.id, "path": c.path, "note": (c.evidence or {}).get("note")} for c in candidates]
     for issue in issues:
@@ -687,7 +739,8 @@ def row_of(drawing: ProjectShopDrawing, revisions: list[str], issues: list, floo
                           "source": issue.source, "issue_id": issue.id, "note": issue.text})
     return {
         "key": f"sd:{drawing.id}", "id": drawing.id, "source": "shop_drawing", "reference": drawing.drawing_reference,
-        "floor": floor, "floor_named": drawing.floor_label, "floor_keys": keys, "floors": len(keys) if drawing.typical else max(1, len(keys)),
+        "floor": floor, "floor_secondary": secondary, "floor_named": drawing.floor_label, "floor_keys": keys,
+        "floors": len(keys) if drawing.typical else max(1, len(keys)),
         "typical": drawing.typical, "confirmed": drawing.confirmed_by_id is not None, "remarks": drawing.remarks or "",
         "revision": latest.revision if latest else None, "status": latest.status if latest else "not_submitted",
         "label": STATUS_LABELS.get(latest.status if latest else "not_submitted"),
@@ -703,17 +756,18 @@ def row_of(drawing: ProjectShopDrawing, revisions: list[str], issues: list, floo
     }
 
 
-def rows_of(drawing: ProjectShopDrawing, revisions: list[str], issues: list, floor_names: dict[str, str]) -> list[dict]:
+def rows_of(drawing: ProjectShopDrawing, revisions: list[str], issues: list, floor_names: dict[str, str],
+            secondaries: dict[str, str | None] | None = None) -> list[dict]:
     """The drawing as the log lists it: one row, or -- for a submission
     that carries several floors drawn apart ("Basement 4, 3, 2") -- a row
     per floor, each with the same reference and revisions. A typical sheet
     is one drawing for a run of floors and stays one row."""
-    whole = row_of(drawing, revisions, issues, floor_names)
+    whole = row_of(drawing, revisions, issues, floor_names, secondaries)
     keys = list(drawing.floor_keys or [])
     if drawing.typical or len(keys) <= 1:
         return [whole]
     return [{**whole, "key": f"sd:{drawing.id}:{key}", "floor": floor_names.get(key, drawing_log._spelled(key)),
-             "floor_keys": [key], "floors": 1} for key in keys]
+             "floor_secondary": (secondaries or {}).get(key), "floor_keys": [key], "floors": 1} for key in keys]
 
 
 def log(db: Session, project: Project, system: str) -> dict:
@@ -721,6 +775,7 @@ def log(db: Session, project: Project, system: str) -> dict:
     building, with its shop drawing at every official revision."""
     registry = building_floors.registry(db, project.id)
     floor_names = {f.floor_key: f.display_name for f in registry}
+    secondaries = {f.floor_key: f.secondary_name for f in registry}
     drawings = (db.query(ProjectShopDrawing)
                 .filter(ProjectShopDrawing.project_id == project.id, ProjectShopDrawing.system_code == system,
                         ProjectShopDrawing.active.is_(True))
@@ -733,14 +788,15 @@ def log(db: Session, project: Project, system: str) -> dict:
     top = max([r.number for d in drawings for r in d.revisions if r.submitted]
               + [_rev(c.revision) for d in drawings for c in d.candidates if c.candidate_status == "available"], default=-1)
     revisions = [f"R{n}" for n in range(max(MIN_REVISIONS, top + 1))]
-    rows = [row for d in drawings for row in rows_of(d, revisions, by_drawing.get(d.id, []), floor_names)]
+    rows = [row for d in drawings for row in rows_of(d, revisions, by_drawing.get(d.id, []), floor_names, secondaries)]
     covered = {key for row in rows for key in row["floor_keys"]}
     for floor in registry:
         if floor.floor_key in covered:
             continue
         rows.append({
             "key": f"floor:{floor.floor_key}", "id": None, "source": "ifc_floor", "reference": None,
-            "floor": floor.display_name, "floor_named": None, "floor_keys": [floor.floor_key], "floors": 1, "typical": False,
+            "floor": floor.display_name, "floor_secondary": floor.secondary_name, "floor_named": None,
+            "floor_keys": [floor.floor_key], "floors": 1, "typical": False,
             "confirmed": False, "remarks": "", "revision": None, "status": "not_submitted", "label": "Not Submitted",
             "path": None, "page": 1, "name": None, "revisions": {},
             "cells": {rev: dict(drawing_log.NOT_SUBMITTED) for rev in revisions},
@@ -757,7 +813,8 @@ def log(db: Session, project: Project, system: str) -> dict:
         "submissions": sum(1 for d in drawings if any(r.submitted for r in d.revisions)),
         "review_items": len(issues),
         "candidates": sum(1 for d in drawings for c in d.candidates if c.candidate_status == "available"),
-        "floors": [{"key": f.floor_key, "name": f.display_name, "source": f.source, "ifc_sheet": f.ifc_sheet} for f in registry],
+        "floors": [{"key": f.floor_key, "name": f.display_name, "secondary": f.secondary_name, "source": f.source,
+                    "ifc_sheet": f.ifc_sheet} for f in registry],
     }
 
 
@@ -786,7 +843,8 @@ def detail(db: Session, project: Project, drawing: ProjectShopDrawing) -> dict:
     floors = {f.floor_key: f for f in registry}
     issues = [i for i in drawing_issues.open_issues(db, project.id, drawing.system_code) if i.shop_drawing_id == drawing.id]
     top = max([r.number for r in drawing.revisions if r.submitted] + [_rev(c.revision) for c in drawing.candidates], default=-1)
-    row = row_of(drawing, [f"R{n}" for n in range(max(MIN_REVISIONS, top + 1))], issues, floor_names)
+    row = row_of(drawing, [f"R{n}" for n in range(max(MIN_REVISIONS, top + 1))], issues, floor_names,
+                 {f.floor_key: f.secondary_name for f in registry})
     events = (db.query(ShopDrawingEvent).filter(ShopDrawingEvent.project_id == project.id,
                                                 ShopDrawingEvent.shop_drawing_id == drawing.id)
               .order_by(ShopDrawingEvent.at.desc(), ShopDrawingEvent.id.desc()).limit(100).all())
@@ -908,6 +966,132 @@ def set_drawing(db: Session, project: Project, drawing: ProjectShopDrawing, user
     drawing.updated_at = now
     db.flush()
     return drawing
+
+
+# --- two names, one floor: the engineer's word ---------------------------------------------------
+
+
+def _floor_label(db: Session, project: Project, key: str) -> str:
+    row = (db.query(ProjectBuildingFloor).filter(ProjectBuildingFloor.project_id == project.id,
+                                                  ProjectBuildingFloor.floor_key == key).first())
+    return row.display_name if row is not None else drawing_log._spelled(key)
+
+
+def merge_conflicts(db: Session, project: Project, alias_key: str, canonical_key: str) -> list[dict]:
+    """Where both floors already carry shop drawing data in one system: the
+    drawings on each, so the engineer sees what a merge brings together.
+    Nothing is changed."""
+    drawings = (db.query(ProjectShopDrawing).filter(ProjectShopDrawing.project_id == project.id,
+                                                    ProjectShopDrawing.active.is_(True))
+                .options(selectinload(ProjectShopDrawing.revisions)).all())
+
+    def brief(d: ProjectShopDrawing) -> dict:
+        return {"id": d.id, "reference": d.drawing_reference, "floor_label": d.floor_label,
+                "revisions": [{"revision": r.revision, "status": r.status, "label": STATUS_LABELS.get(r.status, r.status)}
+                              for r in sorted(d.revisions, key=lambda r: r.number) if r.submitted]}
+
+    out = []
+    for system in sorted({d.system_code for d in drawings}):
+        on_alias = [d for d in drawings if d.system_code == system and alias_key in (d.floor_keys or [])]
+        on_canonical = [d for d in drawings if d.system_code == system and canonical_key in (d.floor_keys or [])]
+        if not on_alias or not on_canonical:
+            continue
+        if {d.drawing_reference.upper() for d in on_alias} == {d.drawing_reference.upper() for d in on_canonical}:
+            continue
+        out.append({"system": system, "alias": [brief(d) for d in on_alias], "canonical": [brief(d) for d in on_canonical]})
+    return out
+
+
+def _decide_alias(db: Session, project: Project, alias_key: str, canonical_key: str, decision: str, user,
+                  evidence: dict | None = None) -> ProjectFloorAlias:
+    row = (db.query(ProjectFloorAlias).filter(ProjectFloorAlias.project_id == project.id,
+                                              ProjectFloorAlias.alias_key == alias_key).first())
+    now = utc_now()
+    if row is None:
+        row = ProjectFloorAlias(project_id=project.id, alias_key=alias_key, alias_label=building_floors.alias_label(alias_key),
+                                created_at=now)
+        db.add(row)
+    row.canonical_key, row.decision, row.source = canonical_key, decision, building_floors.ENGINEER
+    row.confirmed_by_id, row.updated_at = user.id if user else None, now
+    row.evidence = {**(row.evidence or {}), **(evidence or {}), "decided_by": user.id if user else None}
+    db.flush()
+    return row
+
+
+def _settle_duplicate_issues(db: Session, project: Project, alias_key: str, canonical_key: str, user, resolution: str) -> None:
+    for issue in db.query(drawing_issues.DrawingIssue).filter(
+            drawing_issues.DrawingIssue.project_id == project.id, drawing_issues.DrawingIssue.resolved_at.is_(None),
+            drawing_issues.DrawingIssue.kind == "possible_duplicate_floor"):
+        detail = issue.detail or {}
+        if detail.get("alias_key") == alias_key and detail.get("canonical_key") == canonical_key:
+            drawing_issues.resolve(db, issue, user, resolution)
+
+
+def merge_floors(db: Session, project: Project, alias_key: str, canonical_key: str, user, *, confirm: bool = False) -> dict:
+    """The engineer's word that a named floor is a level: "1st Mechanical
+    Floor" is L02 on this building. Kept as the project's alias, so every
+    IFC revision and sync reuses it; the named floor's row stays, inactive,
+    pointing at the level.
+
+    Nothing of any shop drawing is overwritten. Where both floors already
+    carry drawings in one system, the merge stops and returns them
+    (`requires_confirmation`) until `confirm` is given; then both drawings
+    are kept, both on the one floor, and the floor's two references are a
+    conflict for the engineer to settle (drawing_issues "reference_conflict").
+    Commits."""
+    from app.services import project_state
+
+    if alias_key == canonical_key:
+        raise ValueError("A floor cannot be merged into itself")
+    conflicts = merge_conflicts(db, project, alias_key, canonical_key)
+    if conflicts and not confirm:
+        return {"merged": False, "requires_confirmation": True, "alias_key": alias_key, "canonical_key": canonical_key,
+                "alias_label": _floor_label(db, project, alias_key), "canonical_label": _floor_label(db, project, canonical_key),
+                "conflicts": conflicts}
+    alias_name, canonical_name = _floor_label(db, project, alias_key), _floor_label(db, project, canonical_key)
+    _decide_alias(db, project, alias_key, canonical_key, building_floors.MERGE, user,
+                  evidence={"confirmed": f"{alias_name} merged as {canonical_name}", "conflicts": len(conflicts)})
+    # Every drawing on the named floor is on the level now -- the engineer's
+    # corrected ones too, which the sync would otherwise leave where they were.
+    moved = 0
+    for drawing in db.query(ProjectShopDrawing).filter(ProjectShopDrawing.project_id == project.id):
+        keys = list(drawing.floor_keys or [])
+        if alias_key not in keys:
+            continue
+        drawing.floor_keys = list(dict.fromkeys(canonical_key if k == alias_key else k for k in keys))
+        drawing.updated_at = utc_now()
+        moved += 1
+        event(db, project, "floor.merged", f"{drawing.drawing_reference}: {alias_name} is {canonical_name}; the drawing is on it",
+              system=drawing.system_code, drawing=drawing, floor_key=canonical_key, user=user,
+              detail={"alias_key": alias_key, "canonical_key": canonical_key})
+    event(db, project, "floor.merged", f"{alias_name} and {canonical_name} are one floor ({canonical_name})",
+          floor_key=canonical_key, user=user,
+          detail={"alias_key": alias_key, "canonical_key": canonical_key, "drawings": moved, "conflicts": len(conflicts)})
+    _settle_duplicate_issues(db, project, alias_key, canonical_key, user, f"Merged as {canonical_name}")
+    project_state.record_change(db, project.id, "drawing", "floors")
+    db.commit()
+    # The registry and every system's records brought up to the alias.
+    reconcile(db, project, user=user, ai=False)
+    return {"merged": True, "requires_confirmation": False, "alias_key": alias_key, "canonical_key": canonical_key,
+            "alias_label": alias_name, "canonical_label": canonical_name, "drawings": moved, "conflicts": conflicts}
+
+
+def keep_floors_separate(db: Session, project: Project, alias_key: str, canonical_key: str, user) -> dict:
+    """The engineer's word that two names are two floors. Kept, so it is
+    not asked again -- and an alias the titles had read is undone. Commits."""
+    from app.services import project_state
+
+    alias_name, canonical_name = _floor_label(db, project, alias_key), _floor_label(db, project, canonical_key)
+    _decide_alias(db, project, alias_key, canonical_key, building_floors.SEPARATE, user,
+                  evidence={"confirmed": f"{alias_name} kept separate from {canonical_name}"})
+    event(db, project, "floor.kept_separate", f"{alias_name} and {canonical_name} are two floors", floor_key=alias_key,
+          user=user, detail={"alias_key": alias_key, "canonical_key": canonical_key})
+    _settle_duplicate_issues(db, project, alias_key, canonical_key, user, "Kept separate")
+    project_state.record_change(db, project.id, "drawing", "floors")
+    db.commit()
+    reconcile(db, project, user=user, ai=False)
+    return {"merged": False, "separate": True, "alias_key": alias_key, "canonical_key": canonical_key,
+            "alias_label": alias_name, "canonical_label": canonical_name}
 
 
 def find_reply_document(rows: list[ProjectDocument], path: str | None) -> ProjectDocument | None:

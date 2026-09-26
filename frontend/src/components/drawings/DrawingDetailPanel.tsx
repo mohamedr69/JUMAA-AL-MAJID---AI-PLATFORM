@@ -66,6 +66,7 @@ export function DrawingDetailPanel({ projectId, drawingId, canEdit, summary, onC
       <div className="flex items-start justify-between gap-2 border-b border-gray-100 px-4 py-3">
         <div className="min-w-0">
           <div className="truncate text-base font-bold text-navy-900">{d ? `${d.floor} — ${d.reference}` : "Loading…"}</div>
+          {d?.floor_secondary && <div className="truncate text-xs text-gray-500">{d.floor_secondary}</div>}
           {d && (
             <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
               <div><div className="text-gray-500">Latest Revision</div><div className="font-semibold text-navy-900">{d.latest_revision ?? "–"}</div></div>

@@ -28,6 +28,7 @@ KINDS = {
     "system_mismatch": ("System mismatch", ERROR),
     "floor_unknown": ("Unknown floor", WARNING),
     "floor_not_in_ifc": ("Floor missing from latest IFC", WARNING),
+    "possible_duplicate_floor": ("Possible duplicate floor", WARNING),
     "source_missing": ("Source file missing", WARNING),
     "reply_unmatched": ("Consultant reply not matched", WARNING),
     "status_conflict": ("Status conflict", WARNING),
@@ -69,6 +70,11 @@ def reconcile(db: Session, project: Project, wanted: dict[str, dict], *, source:
             opened.append(key)
             continue
         changed = issue.text != want["text"]
+        if fields["ai"] is None:
+            # The AI's opinion on a rules-found item (a possible duplicate
+            # floor) is put there by the sync's AI pass: a pass without the
+            # AI keeps it rather than wiping it until the next sync.
+            fields.pop("ai")
         for name, value in fields.items():
             setattr(issue, name, value)
         if issue.resolved_at is not None and (changed or issue.resolved_by_id is None):

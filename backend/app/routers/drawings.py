@@ -203,6 +203,91 @@ def issues(project_id: int, system: str | None = None, _current_user: User = Dep
             "ai_review": [drawing_issues.out(i) for i in rows if i.source == drawing_issues.AI]}
 
 
+# --- the building's floors: one row per physical floor ------------------------------------------
+
+
+@router.get("/projects/{project_id}/drawings/floors")
+def building_floors_view(project_id: int, _current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """The Building Floor Registry: each floor's canonical identity, the
+    project's own name for it, and the aliases the project holds -- read
+    off its drawings' titles or confirmed by an engineer."""
+    project = _get_project_or_404(db, project_id)
+    _catch_up(db, project)
+    rows = building_floors.registry(db, project.id, include_inactive=True)
+    aliases = building_floors.alias_rows(db, project.id)
+    return {
+        "floors": [{"key": f.floor_key, "name": f.display_name, "secondary": f.secondary_name, "elevation": f.elevation,
+                    "active": f.active, "merged_into": f.merged_into, "source": f.source, "ifc_sheet": f.ifc_sheet}
+                   for f in rows],
+        "aliases": [{"alias_key": a.alias_key, "canonical_key": a.canonical_key, "alias_label": a.alias_label,
+                     "decision": a.decision, "source": a.source, "evidence": a.evidence or {},
+                     "confirmed_by_id": a.confirmed_by_id, "updated_at": a.updated_at.isoformat() if a.updated_at else None}
+                    for a in aliases],
+    }
+
+
+class FloorDecision(BaseModel):
+    alias_key: str = Field(max_length=80)
+    canonical_key: str = Field(max_length=80)
+    # A merge that brings two drawings together on one floor goes ahead only when confirmed.
+    confirm: bool = False
+
+
+def _floor_decision(db: Session, project: Project, body: FloorDecision) -> tuple[str, str]:
+    alias_key, canonical_key = body.alias_key.strip(), body.canonical_key.strip()
+    if not alias_key or not canonical_key:
+        raise HTTPException(422, "Both floors must be named")
+    if alias_key == canonical_key:
+        raise HTTPException(422, "A floor cannot be merged with itself")
+    known = {f.floor_key for f in building_floors.registry(db, project.id, include_inactive=True)}
+    if alias_key not in known:
+        raise HTTPException(404, f"{alias_key} is not a floor of this building")
+    # The floor merged into must be one the building has, or a level a
+    # drawing could name ("L2"): never a key nothing will ever match.
+    from app.services import drawing_log
+
+    if canonical_key not in known and drawing_log._elevation(canonical_key) is None:
+        raise HTTPException(404, f"{canonical_key} is not a floor of this building")
+    return alias_key, canonical_key
+
+
+@router.post("/projects/{project_id}/drawings/floors/merge")
+def merge_floors(project_id: int, body: FloorDecision, current_user: User = Depends(require_role(*CREATOR_ROLES)),
+                 db: Session = Depends(get_db)):
+    """Two names, one physical floor: "1st Mechanical Floor" is L02 on this
+    building. Kept as the project's alias and reused by every IFC revision
+    and sync. Where both floors already carry shop drawings, answers 409
+    `merge_review` with what a merge brings together, until confirmed;
+    nothing of any drawing is overwritten either way."""
+    project = _get_project_or_404(db, project_id)
+    alias_key, canonical_key = _floor_decision(db, project, body)
+    result = shop_drawings.merge_floors(db, project, alias_key, canonical_key, current_user, confirm=body.confirm)
+    if result.get("requires_confirmation"):
+        raise HTTPException(409, detail={
+            "code": "merge_review",
+            "message": f"Both {result['alias_label']} and {result['canonical_label']} already carry shop drawings: "
+                       f"review what the merge brings together, then confirm.",
+            **{k: v for k, v in result.items() if k not in ("merged", "requires_confirmation")}})
+    activity.record(db, current_user, "drawings.floors_merged",
+                    f"Merged the floor {result['alias_label']} as {result['canonical_label']}", project=project,
+                    entity_type="building_floor", detail={"alias_key": alias_key, "canonical_key": canonical_key,
+                                                          "drawings": result.get("drawings", 0)})
+    return result
+
+
+@router.post("/projects/{project_id}/drawings/floors/separate")
+def keep_floors_separate(project_id: int, body: FloorDecision, current_user: User = Depends(require_role(*CREATOR_ROLES)),
+                         db: Session = Depends(get_db)):
+    """Two names, two floors: kept, so the question is not asked again."""
+    project = _get_project_or_404(db, project_id)
+    alias_key, canonical_key = _floor_decision(db, project, body)
+    result = shop_drawings.keep_floors_separate(db, project, alias_key, canonical_key, current_user)
+    activity.record(db, current_user, "drawings.floors_kept_separate",
+                    f"Kept the floors {result['alias_label']} and {result['canonical_label']} separate", project=project,
+                    entity_type="building_floor", detail={"alias_key": alias_key, "canonical_key": canonical_key})
+    return result
+
+
 class Resolve(BaseModel):
     resolution: str = Field(default="Reviewed", max_length=500)
 

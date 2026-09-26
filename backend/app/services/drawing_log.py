@@ -121,6 +121,24 @@ def floor_aliases(pairs) -> dict[str, str]:
     return aliases
 
 
+def floor_alias_evidence(pairs) -> dict[str, tuple[str, list[str]]]:
+    """{named floor: (its level, the titles that say so)}: `floor_aliases`
+    with its evidence, for keeping the alias at project level."""
+    out: dict[str, tuple[str, list[str]]] = {}
+    for floor, title in pairs:
+        levels = {k for k in floors_named(floor) if _LEVEL_KEY.fullmatch(k)}
+        named = _named_floors(floor) | _named_floors(title)
+        if len(levels) == 1 and named:
+            level = next(iter(levels))
+            for name in named:
+                held = out.get(name)
+                if held is None:
+                    out[name] = (level, [str(title or floor)])
+                elif held[0] == level and str(title or floor) not in held[1]:
+                    held[1].append(str(title or floor))
+    return out
+
+
 def floor_identity(floor: str | None, title: str | None = None, aliases: dict[str, str] | None = None) -> set[str]:
     """The floors a drawing is of, from its floor and its full title: the
     levels it names, and the floors it names by what they are -- each
@@ -529,7 +547,7 @@ def revision_gaps(history: dict[str, dict]) -> list[str]:
 
 
 def build(drawings: list[dict], records: list, in_system=lambda code: (code or "").upper() in ("FAS", "FA"),
-          floors: list[dict] | None = None) -> dict:
+          floors: list[dict] | None = None, aliases: dict[str, str] | None = None) -> dict:
     """`drawings`: the IFC drawings in force -- read for their floors only
     (id, filename, revision and sheets; `building_floors.in_force_as_log_input`).
     `floors`: the building floor registry instead (`building_floors.
@@ -558,10 +576,12 @@ def build(drawings: list[dict], records: list, in_system=lambda code: (code or "
 
     # Which level each named floor is, from every title that names both --
     # the shop drawings' and the IFC sheets' ("L41 - 3RD MECHANICAL FLOOR").
-    aliases = floor_aliases(
+    # The project's own aliases (`building_floors.resolve_aliases`) stand
+    # over what the titles in hand say.
+    aliases = {**floor_aliases(
         [(r.floor, r.name) for entry in shop for r in (entry, *getattr(entry, "superseded", ()))]
         + [(sheet.get("floor_name"), sheet.get("title")) for d in drawings for sheet in d.get("sheets") or []
-           if sheet.get("kind") == "plan"])
+           if sheet.get("kind") == "plan"]), **(aliases or {})}
     named_as = {level: name for name, level in aliases.items()}
 
     # Every shop drawing, from the shop drawings alone.

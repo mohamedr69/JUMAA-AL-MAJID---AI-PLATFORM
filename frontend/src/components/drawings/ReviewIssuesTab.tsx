@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api } from "../../lib/api";
+import { ApiError, api } from "../../lib/api";
 import { useOnProjectChange } from "../../lib/projectChanges";
 import type { Issue, Issues } from "./types";
 
@@ -12,6 +12,19 @@ const SEVERITY: Record<Issue["severity"], { mark: string; tone: string; label: s
 /** Review & Issues: exceptions only. What the rules found (System Check)
  *  kept apart from what the AI suggested (AI Review), so a fact is never
  *  read as a guess. */
+interface MergeReview {
+  issue: Issue;
+  alias_key: string;
+  canonical_key: string;
+  alias_label: string;
+  canonical_label: string;
+  conflicts: {
+    system: string;
+    alias: { id: number; reference: string; revisions: { revision: string; status: string; label: string }[] }[];
+    canonical: { id: number; reference: string; revisions: { revision: string; status: string; label: string }[] }[];
+  }[];
+}
+
 export function ReviewIssuesTab({
   projectId,
   canEdit,
@@ -28,6 +41,8 @@ export function ReviewIssuesTab({
   const [data, setData] = useState<Issues | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<number | null>(null);
+  // A merge that brings two drawings together on one floor: shown for confirmation first.
+  const [review, setReview] = useState<MergeReview | null>(null);
 
   const load = useCallback(() => {
     api
@@ -43,6 +58,31 @@ export function ReviewIssuesTab({
     load();
   }, [load]);
   useOnProjectChange(["documents", "drawing"], load);
+
+  /** The engineer's word on two names: one floor (merged as the level,
+   *  kept for every later IFC revision and sync) or two floors (not asked
+   *  again). Where both floors already carry drawings, the merge stops and
+   *  shows them until it is confirmed: nothing is overwritten either way. */
+  const decideFloor = async (issue: Issue, decision: "merge" | "separate", confirm = false) => {
+    const { alias_key, canonical_key } = issue.detail;
+    if (!alias_key || !canonical_key) return;
+    setBusy(issue.id);
+    setError("");
+    try {
+      await api.post(`/projects/${projectId}/drawings/floors/${decision}`, { alias_key, canonical_key, confirm });
+      setReview(null);
+      load();
+      onChanged();
+    } catch (e) {
+      if (e instanceof ApiError && e.code === "merge_review" && e.detail) {
+        setReview({ issue, ...(e.detail as unknown as Omit<MergeReview, "issue">) });
+      } else {
+        setError((e as Error).message);
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const act = async (issue: Issue, action: "resolve" | "confirm" | "ignore") => {
     setBusy(issue.id);
@@ -81,6 +121,7 @@ export function ReviewIssuesTab({
           {items.map((issue) => {
             const s = SEVERITY[issue.severity];
             const candidate = issue.kind === "revision_candidate" && issue.detail.candidate_id;
+            const duplicate = issue.kind === "possible_duplicate_floor" && issue.detail.alias_key && issue.detail.canonical_key;
             return (
               <li key={issue.id} className="flex flex-wrap items-start gap-3 px-5 py-3">
                 <span className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs ${s.tone}`} title={s.label} aria-label={s.label}>{s.mark}</span>
@@ -92,10 +133,40 @@ export function ReviewIssuesTab({
                   <p className="mt-0.5 text-sm text-gray-700">{issue.text}</p>
                   {issue.ai && (issue.ai.confidence != null || issue.ai.reason_code) && (
                     <p className="mt-0.5 text-xs text-gray-500">
+                      {issue.kind === "possible_duplicate_floor" && <>AI: {issue.ai.possible_same_floor ? "possibly the same floor" : "possibly different floors"} · </>}
                       {issue.ai.confidence != null && <>Confidence {Math.round(issue.ai.confidence * 100)}% · </>}
-                      {issue.ai.reason_code?.toLowerCase().replace(/_/g, " ")}
+                      {issue.kind !== "possible_duplicate_floor" && issue.ai.reason_code?.toLowerCase().replace(/_/g, " ")}
+                      {issue.ai.evidence && <>{issue.ai.evidence}</>}
                       {issue.ai.validation_reason && <> · {issue.ai.validation_reason}</>}
+                      {issue.kind === "possible_duplicate_floor" && <> · the AI merges nothing: your confirmation decides</>}
                     </p>
+                  )}
+                  {review && review.issue.id === issue.id && (
+                    <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                      <div className="font-semibold">Merge review: both floors already carry shop drawings</div>
+                      <p className="mt-1">
+                        Merging keeps every drawing, revision, status and consultant reply of both. The floor will then have two
+                        drawing references, listed as a conflict for you to settle. Nothing is overwritten.
+                      </p>
+                      <ul className="mt-2 space-y-1">
+                        {review.conflicts.map((c) => (
+                          <li key={c.system}>
+                            <span className="font-semibold">{c.system}:</span>{" "}
+                            {c.alias.map((d) => `${d.reference} (${d.revisions.map((r) => `${r.revision} ${r.label}`).join(", ") || "no revision"})`).join("; ")}
+                            {" "}on {review.alias_label} · {c.canonical.map((d) => `${d.reference} (${d.revisions.map((r) => `${r.revision} ${r.label}`).join(", ") || "no revision"})`).join("; ")}
+                            {" "}on {review.canonical_label}
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="mt-2 flex gap-2">
+                        <button type="button" disabled={busy === issue.id} onClick={() => decideFloor(issue, "merge", true)} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                          Confirm merge as {review.canonical_label}
+                        </button>
+                        <button type="button" onClick={() => setReview(null)} className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-navy-900 hover:bg-gray-50">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -114,7 +185,17 @@ export function ReviewIssuesTab({
                       </button>
                     </>
                   )}
-                  {canEdit && !candidate && (
+                  {canEdit && duplicate && (
+                    <>
+                      <button type="button" disabled={busy === issue.id} onClick={() => decideFloor(issue, "merge")} className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:opacity-50">
+                        Merge as {issue.detail.canonical_label ?? issue.detail.canonical_key}
+                      </button>
+                      <button type="button" disabled={busy === issue.id} onClick={() => decideFloor(issue, "separate")} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-navy-900 hover:bg-gray-50 disabled:opacity-50">
+                        Keep Separate
+                      </button>
+                    </>
+                  )}
+                  {canEdit && !candidate && !duplicate && (
                     <button type="button" disabled={busy === issue.id} onClick={() => act(issue, "resolve")} className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-navy-900 hover:bg-gray-50 disabled:opacity-50">
                       Resolve
                     </button>

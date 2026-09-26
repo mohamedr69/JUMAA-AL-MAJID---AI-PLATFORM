@@ -268,6 +268,7 @@ function LogTableRow({ row, index, revisions, showDetected, selected, projectId,
       <td className="px-3 py-2.5 text-gray-500">{index}</td>
       <td className="px-3 py-2.5">
         <div className="font-medium text-navy-900">{row.floor}</div>
+        {row.floor_secondary && <div className="text-xs text-gray-500">{row.floor_secondary}</div>}
         {row.floors > 1 && <div className="text-xs text-gray-500">{row.floors} floors</div>}
       </td>
       <td className="px-3 py-2.5 font-mono text-xs text-gray-700">

@@ -73,7 +73,9 @@ export interface LogRow {
   id: number | null;
   source: "shop_drawing" | "ifc_floor";
   reference: string | null;
+  /** The floor's canonical name ("L02"); the project's own name for it under it ("1st Mechanical Floor"). */
   floor: string;
+  floor_secondary?: string | null;
   floor_named: string | null;
   floor_keys: string[];
   floors: number;
@@ -99,7 +101,7 @@ export interface DrawingsLog {
   submissions: number;
   review_items: number;
   candidates: number;
-  floors: { key: string; name: string; source: string; ifc_sheet: string | null }[];
+  floors: { key: string; name: string; secondary?: string | null; source: string; ifc_sheet: string | null }[];
   project: { id: number; ep_number: string; name: string | null };
   system: string;
   system_name: string;
@@ -140,6 +142,8 @@ export interface AiVerdict {
   revision?: string | null;
   status?: string | null;
   assessment?: string | null;
+  possible_same_floor?: boolean;
+  evidence?: string | null;
   confidence?: number | null;
   reason_code?: string | null;
   requires_engineer?: boolean;
@@ -159,7 +163,11 @@ export interface Issue {
   shop_drawing_id: number | null;
   floor_key: string | null;
   text: string;
-  detail: Record<string, unknown> & { revision?: string; candidate_id?: number; path?: string };
+  detail: Record<string, unknown> & {
+    revision?: string; candidate_id?: number; path?: string;
+    /** A possible duplicate floor: the named floor and the level it may be. */
+    alias_key?: string; canonical_key?: string; alias_label?: string; canonical_label?: string; evidence?: string;
+  };
   ai: AiVerdict | null;
   created_at: string | null;
   updated_at: string | null;

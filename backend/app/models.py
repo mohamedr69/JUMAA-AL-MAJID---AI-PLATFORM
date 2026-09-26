@@ -1999,8 +1999,42 @@ class ProjectBuildingFloor(Base):
     source: Mapped[str] = mapped_column(String(16), nullable=False, default="ifc")
     # The IFC sheet it came from, for the details panel ("FA 111 · TYPICAL 3RD TO 16TH FLOOR").
     ifc_sheet: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # The project's own name for it, shown under the canonical one: "L02" /
+    # "1st Mechanical Floor" (app.services.building_floors, the aliases).
+    secondary_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    # A floor merged into another keeps its row, inactive, pointing at the floor it is now.
+    merged_into: Mapped[str | None] = mapped_column(String(80), nullable=True)
     first_detected_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
     last_detected_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
+class ProjectFloorAlias(Base):
+    """One project's word on which physical floor a name is: "1ST
+    MECHANICAL FLOOR" (MECHANICAL#1) is L2 on this building. Never a rule
+    for every building -- which level a mechanical, structural or transfer
+    floor is depends on the project -- so it is read off this project's
+    own drawings (a title naming both, `source` "evidence") or confirmed
+    by an engineer (`source` "engineer"), and kept, so every IFC revision,
+    sync and restart reuses it. `decision` "separate" is the engineer's
+    word that two names are two floors: not asked again."""
+
+    __tablename__ = "project_floor_aliases"
+    __table_args__ = (UniqueConstraint("project_id", "alias_key", name="uq_project_floor_alias"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    # The name's identity ("MECHANICAL#1", "LIFT MACHINE") and the floor it is ("L2").
+    alias_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    canonical_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    alias_label: Mapped[str] = mapped_column(String(160), nullable=False)
+    # "merge" | "separate"
+    decision: Mapped[str] = mapped_column(String(16), nullable=False, default="merge")
+    # "evidence" (a title naming both) | "engineer" | "ai"
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="evidence")
+    evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    confirmed_by_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, onupdate=utc_now, nullable=False)
 
 
 class ProjectShopDrawing(Base):

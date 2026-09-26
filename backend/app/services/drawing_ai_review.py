@@ -40,6 +40,7 @@ log = logging.getLogger(__name__)
 
 TASK_REPLY = "drawings_reply_match"
 TASK_REFERENCE = "drawings_reference_conflict"
+TASK_FLOOR = "drawings_floor_alias"
 PROMPT_VERSION = "drawings-review-2026-09-26.1"
 
 SYSTEM_PROMPT = (
@@ -66,6 +67,17 @@ REPLY_SCHEMA = {
         "requires_engineer": {"type": "boolean"},
     },
 }
+FLOOR_SCHEMA = {
+    "type": "object", "additionalProperties": False,
+    "required": ["possible_same_floor", "confidence", "evidence", "requires_engineer"],
+    "properties": {
+        "possible_same_floor": {"type": "boolean"},
+        "confidence": {"type": "number"},
+        "evidence": {"type": "string"},
+        "requires_engineer": {"type": "boolean"},
+    },
+}
+
 REFERENCE_SCHEMA = {
     "type": "object", "additionalProperties": False,
     "required": ["assessment", "keep_reference", "confidence", "reason_code", "requires_engineer"],
@@ -241,6 +253,39 @@ def review_reference_conflicts(db: Session, project_id: int, system: str, confli
             ai={"task": TASK_REFERENCE, **{k: data.get(k) for k in ("assessment", "keep_reference", "confidence", "reason_code",
                                                                      "requires_engineer")}, "prompt_version": PROMPT_VERSION}))
     return findings
+
+
+def review_floor_duplicates(db: Session, project_id: int, issues: list, report: Report) -> list[tuple]:
+    """Two names the rules suspect are one floor ("1st Mechanical Floor"
+    and L02): what the AI makes of it, beside the suspicion -- possible
+    same floor, how sure, and why. An opinion for the engineer's Merge or
+    Keep Separate; it merges nothing, whatever the confidence. Returns
+    (issue, verdict) pairs. The model sees the two names and the sheets
+    around them: no project, client, path or drawing content."""
+    out = []
+    for issue in issues:
+        detail = issue.detail or {}
+        if not detail.get("alias_key") or not detail.get("canonical_key"):
+            continue
+        payload = {"named_floor": (detail.get("alias_label") or detail["alias_key"])[:80],
+                   "level": (detail.get("canonical_label") or detail["canonical_key"])[:80],
+                   "ifc_sheet_title": (detail.get("ifc_title") or "")[:120],
+                   "neighbouring_sheets": [str(n)[:80] for n in (detail.get("neighbours") or [])[:4]],
+                   "question": "Could the named floor and the level be the same physical floor of this building?"}
+        sha = hashlib.sha256(f"{detail['alias_key']}|{detail['canonical_key']}".encode()).hexdigest()
+        data, error = _ask(TASK_FLOOR, FLOOR_SCHEMA, payload, sha=sha, project_id=project_id, db=db, report=report)
+        if data is None:
+            continue
+        confidence = data.get("confidence")
+        if not isinstance(confidence, (int, float)) or isinstance(confidence, bool) or not 0 <= confidence <= 1:
+            confidence = None
+        same = bool(data.get("possible_same_floor"))
+        out.append((issue, {"task": TASK_FLOOR, "possible_same_floor": same, "confidence": confidence,
+                            "evidence": str(data.get("evidence") or "")[:300],
+                            "reason_code": "POSSIBLE_SAME_FLOOR" if same else "DIFFERENT_FLOORS",
+                            # The AI never merges a floor: the engineer's confirmation is required either way.
+                            "requires_engineer": True, "prompt_version": PROMPT_VERSION}))
+    return out
 
 
 def _tokens(reference: str) -> set[str]:
