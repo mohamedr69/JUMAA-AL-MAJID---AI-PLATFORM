@@ -1,0 +1,7 @@
+{
+ "population_documents_also_repaired": 118,
+ "identical_records": 118,
+ "different": 0,
+ "examples": [],
+ "note": "the repair manifest's re-read (clone, cache_repair3) vs the isolated population parse (cache_final): both under parse-2026-09-28.2; a difference would mean the runs used different code or non-deterministic OCR"
+}

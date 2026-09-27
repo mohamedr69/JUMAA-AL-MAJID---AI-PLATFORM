@@ -1,0 +1,210 @@
+{
+ "discovery_seconds": 0.7,
+ "hashing_seconds": 0.0,
+ "document_processing_seconds": 0.0,
+ "ai_seconds": 0.0,
+ "reconcile_seconds": 0.0,
+ "total_seconds": 295.45,
+ "processed_count": 354,
+ "failed_count": 0,
+ "unavailable_count": 0,
+ "partial_count": 5,
+ "unchanged_after_hash_count": 0,
+ "slowest_files": [
+  {
+   "path": "04- Drawings/08-Shop Drawing/2.EML/Emergency Lighting Layout/BBY006-GME-SDW-EL-LI-XXX-XXX-010048 Shop Drawing for Lift Machine Floor Plan Emergency Lighting Layout.pdf",
+   "seconds": 17.7,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/2.EML/R00/27. Lift Machine Room/BBY006-GME-SDW-EL-LI-XXX-XXX-010048.pdf",
+   "seconds": 14.3,
+   "role": "spec",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/1.FAVE/R1/09. L01-Amenities Floor/BBY006-GME-SDW-FP-FA-ZZZ-L01-010006.pdf",
+   "seconds": 13.4,
+   "role": "spec",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/1.FAVE/recieved/BBY006-GME-SDW-FP-FA-ZZZ-ZZZ-010008-01 Shop Drawing for L03 To L21 RES 01 to 19 (TYP 1) Floor Plan - Fire Alarm Layout.pdf",
+   "seconds": 13.4,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/1.FAVE/R1/rejected/BBY006-GME-SDW-FP-FA-ZZZ-L01-010006 Shop Drawing for L01 Amenities Floor Plan - Fire Alarm Layout.pdf",
+   "seconds": 11.2,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/1.FAVE/recieved/BBY006-GME-SDW-FP-FA-ZZZ-L02-010007-01 Shop Drawing for L02 1st Mechanical Floor Plan - Fire Alarm Layout.pdf",
+   "seconds": 11.0,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/2.EML/Emergency Lighting Layout/BBY006-GME-SDW-EL-LI-ZZZ-L01-010032 Shop Drawing for 1st Floor Amenity Plan Emergency Lighting Layout.pdf",
+   "seconds": 10.0,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/1.FAVE/recieved/BBY006-GME-SDW-FP-FA-ZZZ-L01-010006 Shop Drawing for L01 Amenities Floor Plan - Fire Alarm Layout.pdf",
+   "seconds": 9.4,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/1.FAVE/R1/13. L23-L40(TYP1A) Floor Plan/BBY006-GME-SDW-FP-FA-ZZZ-ZZZ-010010.pdf",
+   "seconds": 9.3,
+   "role": "spec",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/2.EML/Emergency Lighting Layout/BBY006-GME-SDW-EL-LI-POD-BGF-010028 Shop Drawing for Ground Floor Plan Emergency Lighting Layout.pdf",
+   "seconds": 9.1,
+   "role": "document",
+   "result": "processed"
+  }
+ ],
+ "documents": 359,
+ "documents_per_minute": 72.9,
+ "percentiles_ms": {
+  "median": 712,
+  "p90": 6423,
+  "p95": 8584,
+  "p99": 11230,
+  "max": 17740
+ },
+ "stage_ms": {
+  "boxes": 353438,
+  "classification": 1132,
+  "deterministic_extract": 2501,
+  "hash": 8664,
+  "ocr_engine": 177455,
+  "ocr_render": 119236,
+  "pdf_open": 2075,
+  "pdf_text_extract": 106141,
+  "storage_wait": 9406
+ },
+ "stage_share_pct": {
+  "boxes": 45.3,
+  "classification": 0.1,
+  "deterministic_extract": 0.3,
+  "hash": 1.1,
+  "ocr_engine": 22.7,
+  "ocr_render": 15.3,
+  "pdf_open": 0.3,
+  "pdf_text_extract": 13.6,
+  "storage_wait": 1.2
+ },
+ "events": {
+  "box_cache_hits": 90,
+  "ocr_cache_hits": 85,
+  "ocr_full_pages": 12,
+  "ocr_pages_attempted": 262,
+  "ocr_pages_used": 130,
+  "ocr_regions": 718,
+  "ocr_runs": 177,
+  "page_text_extractions": 795,
+  "page_text_reused": 355,
+  "pages_scanned": 795,
+  "pdf_opens": 355,
+  "read_pdf": 355
+ },
+ "largest_files": [
+  {
+   "path": "03- MS/01- FA/04- Technical Catalogues, Manual and Procedures/Data Sheet.pdf",
+   "mb": 102.8,
+   "seconds": 1.6,
+   "role": "submittal_form"
+  },
+  {
+   "path": "03- MS/01- FA/FA MS R0.pdf",
+   "mb": 80.0,
+   "seconds": 0.5,
+   "role": "submittal_form"
+  },
+  {
+   "path": "03- MS/03- FRC/02- FIREGUARD/R2/BBY006_2.PDF",
+   "mb": 75.8,
+   "seconds": 1.1,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045LPGSYSTEMREVISEDPART01.pdf",
+   "mb": 42.2,
+   "seconds": 4.3,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045FIREPROTECTIONSYSTEMREVISEDPART02.pdf",
+   "mb": 41.5,
+   "seconds": 0.9,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045LIFESAFETYREVISEDPART01.pdf",
+   "mb": 41.0,
+   "seconds": 0.3,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/LIFESAFETYASREVISEDPART01.pdf",
+   "mb": 39.7,
+   "seconds": 0.5,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045SMOKECONTROLSYSTEMREVISEDPART01.pdf",
+   "mb": 38.4,
+   "seconds": 0.5,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045LPGSYSTEMREVISEDPART02.pdf",
+   "mb": 37.3,
+   "seconds": 2.1,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045FIREPROTECTIONSYSTEMREVISEDPART01.pdf",
+   "mb": 36.4,
+   "seconds": 0.6,
+   "role": "document"
+  }
+ ],
+ "roles": {
+  "document": 197,
+  "spec": 144,
+  "submittal_form": 14,
+  "transmittal": 4
+ },
+ "ocr_documents": 139,
+ "ai_documents": 0,
+ "processor_version": "2.0-phase0",
+ "workers": 3,
+ "planned": 359,
+ "duration_seconds": 295.4,
+ "failed": 0,
+ "unavailable": 0,
+ "ocr_enabled": true,
+ "fresh_cache": true,
+ "label": "phase2c-batched-w3-fresh",
+ "resources": {
+  "available": true,
+  "cpu_avg_pct": 29.7,
+  "cpu_peak_pct": 37.7,
+  "rss_avg_mb": 1002,
+  "rss_peak_mb": 1769,
+  "reader_rss_peak_mb": 912,
+  "logical_cpus": 8
+ },
+ "folder": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Granada Europe\\EP-30784 - Binghatti Skyblade",
+ "ai_candidates": 14
+}

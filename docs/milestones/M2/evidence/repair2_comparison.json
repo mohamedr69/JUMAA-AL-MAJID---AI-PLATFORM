@@ -1,0 +1,291 @@
+{
+ "repair_dir": "repair2",
+ "snapshot_p4": {
+  "before_hash": "947d6a7af49f2530",
+  "after_hash": "bd2a9d4f1363c559",
+  "top_level_keys": [
+   "hash",
+   "project",
+   "tables"
+  ],
+  "changed_leaf_counts_by_section": {
+   "tables": 3025,
+   "hash": 1
+  }
+ },
+ "records_p4": {
+  "documents": 522,
+  "documents_with_changed_records": 188,
+  "roles_changed": 0,
+  "records_before": 151,
+  "records_after": 234,
+  "examples": [
+   {
+    "path": "/ICC-DLRC-SPM-SD-MEP-0010-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0010-00.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 0,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0010-01-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 0,
+    "records_after": 1
+   },
+   {
+    "path": "/ICC-DLRC-SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 1,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0011-01-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 0,
+    "records_after": 2
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0073-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 0,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0074-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 0,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0075-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 0,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0076-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 0,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0077-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 1,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0078-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 1,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0079-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 1,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0080-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 1,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0081-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 1,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0082-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 1,
+    "records_after": 1
+   },
+   {
+    "path": "DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0083-00-COMMENTED-C.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 1,
+    "records_after": 1
+   }
+  ]
+ },
+ "manifest_p4": {
+  "mode": "apply",
+  "parser_version": "parse-2026-09-28.2",
+  "selected": 522,
+  "counts": {
+   "repaired": 520,
+   "skipped": 2
+  },
+  "seconds": 624.4,
+  "skip_reasons": {
+   "a transmittal is read by the transmittal reader, not the par": 2
+  },
+  "errors": []
+ },
+ "snapshot_p1": {
+  "before_hash": "2a20df5873d4cc74",
+  "after_hash": "e6b2113d76f7c3aa",
+  "top_level_keys": [
+   "hash",
+   "project",
+   "tables"
+  ],
+  "changed_leaf_counts_by_section": {
+   "tables": 961,
+   "hash": 1
+  }
+ },
+ "records_p1": {
+  "documents": 356,
+  "documents_with_changed_records": 46,
+  "roles_changed": 0,
+  "records_before": 393,
+  "records_after": 400,
+  "examples": [
+   {
+    "path": "01- EP-30784 Scan/EP-30784 EML Sam B Ack 06.08.26.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 0,
+    "records_after": 1
+   },
+   {
+    "path": "01- EP-30784 Scan/EP-30784 FA & EM Sam B Ack 03.04.26.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 0,
+    "records_after": 3
+   },
+   {
+    "path": "01- EP-30784 Scan/EP-30784 FA EML Sam B ack 03.04.26.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 0,
+    "records_after": 3
+   },
+   {
+    "path": "-010001 Shop Drawing for Basement-1 Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "-BGF-010002 Shop Drawing for Ground Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "01-010003 Shop Drawing for Podium-1 Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "02-010004 Shop Drawing for Podium-2 Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "03-010005 Shop Drawing for Podium-3 Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "Shop Drawing for L02 1st Mechanical Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "r L03 To L21  RES 01 to 19 (TYP 1) Floor Plan  - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "or L23 To L40 RES 20 to 37 (TYP 1A) Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "hop Drawing for L41 3rd  Mechanical Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "-010001 Shop Drawing for Basement-1 Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "-BGF-010002 Shop Drawing for Ground Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   },
+   {
+    "path": "01-010003 Shop Drawing for Podium-1 Floor Plan - Fire Alarm Layout.pdf",
+    "role_before": "document",
+    "role_after": "document",
+    "records_before": 2,
+    "records_after": 2
+   }
+  ]
+ },
+ "manifest_p1": {
+  "mode": "apply",
+  "parser_version": "parse-2026-09-28.2",
+  "selected": 356,
+  "counts": {
+   "repaired": 352,
+   "skipped": 4
+  },
+  "seconds": 589.1,
+  "skip_reasons": {
+   "a transmittal is read by the transmittal reader, not the par": 4
+  },
+  "errors": []
+ },
+ "timing_common_population": {
+  "documents": 115,
+  "before_parse_2026_09_28_1_cold_cache_seconds": 175.5,
+  "after_parse_2026_09_28_2_cold_cache_seconds": 231.2,
+  "note": "both runs on the same machine, same files, each with an empty scratch page cache; OCR dominates; not a latency claim beyond this workload"
+ }
+}

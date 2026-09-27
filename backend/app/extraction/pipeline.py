@@ -80,7 +80,11 @@ def record_design_sheet_run(
     result: DesignSheetExtraction,
     *,
     trigger: str = "auto",
+    commit: bool = True,
 ) -> ExtractionRun:
+    """The run row for a read, with its issues. `commit=False` leaves it
+    flushed in the caller's transaction, so the run, its issues and the
+    lines that name it are written together or not at all."""
     run = ExtractionRun(
         project_id=project.id,
         kind="design_sheet",
@@ -96,11 +100,16 @@ def record_design_sheet_run(
         # Who read the lines and, for the model, from which stored reading.
         reader=getattr(result, "reader", "ai") or "ai",
         reading_id=getattr(result, "reading_id", None),
+        state=getattr(result, "state", "completed") or "completed",
+        budget_exhausted=getattr(result, "budget_exhausted", None),
         finished_at=utc_now(),
     )
     for issue in result.issues:
         run.issues.append(_issue_row(issue))
     db.add(run)
+    if not commit:
+        db.flush()
+        return run
     db.commit()
     db.refresh(run)
     return run
@@ -547,6 +556,9 @@ def accept_issue(db: Session, project: Project, row: ExtractionIssue, user: User
     row.resolved_at = utc_now()
     row.resolved_value = value
     record_outcomes(row, "resolved", value)
+    from app.services import boq_corrections
+
+    boq_corrections.record_issue_decision(db, row, user.id, kind="review_accepted", final_quantity=value)
     db.commit()
     db.refresh(line)
     return line
@@ -560,4 +572,8 @@ def reject_issue(db: Session, row: ExtractionIssue, user: User, reason: str | No
     row.resolved_by_id = user.id
     row.resolved_at = utc_now()
     record_outcomes(row, "rejected", None)
+    if row.target.startswith("boq_line:"):
+        from app.services import boq_corrections
+
+        boq_corrections.record_issue_decision(db, row, user.id, kind="review_rejected", final_quantity=None)
     db.commit()

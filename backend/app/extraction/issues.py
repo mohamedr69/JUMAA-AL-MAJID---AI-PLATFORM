@@ -34,6 +34,36 @@ class IssueCode(str, enum.Enum):
     MISSING_ENGINEERING_EVIDENCE = "MISSING_ENGINEERING_EVIDENCE"
 
 
+class ReviewReason(str, enum.Enum):
+    """Why a row is for the engineer: the structured reason on a review
+    issue (`detail["reason_code"]`), which the pages word. A reason about
+    the process (the verification not completed, a timeout, the budget) is
+    not a reason about the row: the primary reading of such a row stands,
+    unverified, and the row is not "unknown"."""
+
+    VERIFICATION_NOT_COMPLETED = "VERIFICATION_NOT_COMPLETED"
+    PART_NUMBER_CONFLICT = "PART_NUMBER_CONFLICT"
+    QUANTITY_CONFLICT = "QUANTITY_CONFLICT"
+    ROW_ASSOCIATION_AMBIGUOUS = "ROW_ASSOCIATION_AMBIGUOUS"
+    GROUP_UNRESOLVED = "GROUP_UNRESOLVED"
+    MULTIPLE_QUANTITY_CANDIDATES = "MULTIPLE_QUANTITY_CANDIDATES"
+    AI_TIMEOUT = "AI_TIMEOUT"
+    AI_PROVIDER_ERROR = "AI_PROVIDER_ERROR"
+    AI_INVALID_RESPONSE = "AI_INVALID_RESPONSE"
+    AI_BUDGET_EXHAUSTED = "AI_BUDGET_EXHAUSTED"
+    TIME_BUDGET_EXHAUSTED = "TIME_BUDGET_EXHAUSTED"
+    LOW_CONFIDENCE = "LOW_CONFIDENCE"
+    UNREADABLE = "UNREADABLE"
+
+
+# Reasons about the process, not the row: the row's primary reading stands
+# and the row is asked again when the read is resumed.
+PROCESS_REASONS = frozenset({
+    ReviewReason.VERIFICATION_NOT_COMPLETED, ReviewReason.AI_TIMEOUT, ReviewReason.AI_PROVIDER_ERROR,
+    ReviewReason.AI_INVALID_RESPONSE, ReviewReason.AI_BUDGET_EXHAUSTED, ReviewReason.TIME_BUDGET_EXHAUSTED,
+})
+
+
 class Outcome(str, enum.Enum):
     VALID = "VALID"
     VALID_PARTIAL = "VALID_PARTIAL"

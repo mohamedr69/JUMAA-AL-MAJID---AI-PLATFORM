@@ -18,6 +18,7 @@ from app.models import (
     ActivityEvent,
     ProjectDocument,
     Project,
+    ExtractionRun,
     ProjectBoqItem,
     ProjectBoqRevision,
     ProjectDesignSheet,
@@ -696,7 +697,7 @@ def replace_project_boq(
     incoming = [
         {**item.model_dump(), "system_code": system_rules.effective_code(item.system_code, project)} for item in items
     ]
-    project.boq_items = boq_provenance.rebuild_items(project, incoming, current_user)
+    project.boq_items = boq_provenance.rebuild_items(project, incoming, current_user, db=db)
     project.boq_version += 1
     db.commit()
     concurrency.set_version_header(response, project.boq_version)
@@ -838,7 +839,12 @@ def _start_boq_read(db: Session, project: Project, user: User):
                             + (f"; {unread} sheet{'s' if unread != 1 else ''} not read" if unread else ""),
                             project=target, entity_type="boq", entity_id=project_id,
                             detail={"lines": lines, "warnings": response.warnings})
-        return {"lines": len(response.items), "warnings": response.warnings, "extracted": response.extracted}
+        states = [run.state for run in session.query(ExtractionRun).filter(ExtractionRun.project_id == project_id,
+                                                                            ExtractionRun.kind == "design_sheet")
+                  .order_by(ExtractionRun.id.desc()).limit(len(target.design_sheets) or 1)]
+        state = next((s for s in ("timed_out", "partial", "failed", "cancelled") if s in states), "completed")
+        return {"lines": len(response.items), "warnings": response.warnings, "extracted": response.extracted,
+                "state": state}
 
     from app.routers import jobs as jobs_router
     from app.services import jobs
@@ -879,47 +885,53 @@ def _extract_boq(db: Session, project: Project, *, user_id: int | None, ctx=None
                 continue
             extracted.extend((system_rules.effective_code(sheet.system_code, project), line) for line in result.lines)
 
-        # Test and set the stamp in one statement. Checking it up front and
-        # setting it after the OCR is what let two overlapping opens both
-        # extract, storing every line twice.
-        claimed = db.execute(
-            update(Project)
-            .where(Project.id == project.id, Project.boq_extracted_at.is_(None))
-            .values(boq_extracted_at=utc_now(), boq_extraction_warnings=warnings or None)
-        ).rowcount
-        if not claimed:
-            # Beaten by a request in another process; return what it stored.
-            # The rollback ends the transaction the claim opened and expires
-            # `project`, so nothing loaded before that request committed is
-            # returned in place of its lines.
+        # One transaction: the stamp, the runs with their review rows, the
+        # lines and the version are written together or not at all -- the
+        # BOQ never shows as extracted with its lines missing.
+        #
+        # The stamp is tested and set in one statement. Checking it up
+        # front and setting it after the read is what let two overlapping
+        # opens both extract, storing every line twice.
+        try:
+            claimed = db.execute(
+                update(Project)
+                .where(Project.id == project.id, Project.boq_extracted_at.is_(None))
+                .values(boq_extracted_at=utc_now(), boq_extraction_warnings=warnings or None)
+            ).rowcount
+            if not claimed:
+                # Beaten by a request in another process; return what it stored.
+                # The rollback ends the transaction the claim opened and expires
+                # `project`, so nothing loaded before that request committed is
+                # returned in place of its lines.
+                db.rollback()
+                return _stored_boq(project)
+            # The runs are recorded first, so every line can name the run -- and
+            # through it the document, its hash and the parser -- it was read by.
+            runs = {id(sheet): extraction_pipeline.record_design_sheet_run(db, project, sheet, result, commit=False)
+                    for sheet, result in reads}
+            position = len(project.boq_items)
+            library = boq_provenance.part_library(db)
+            for sheet, result in reads:
+                if result.failure:
+                    continue
+                system_code = system_rules.effective_code(sheet.system_code, project)
+                for line in result.lines:
+                    # Prices, unit and remarks are left for the engineer. The
+                    # sheets carry Unit/Total Price columns but they are blank on
+                    # every sheet in the archive, so there is nothing to read and
+                    # nothing to check a read against.
+                    item = boq_provenance.extracted_item(
+                        system_code=system_code, line=line, run=runs[id(sheet)], position=position,
+                        manufacturer=_brand_for(system_code, project.systems, project.separate_ve_panel),
+                    )
+                    boq_provenance.check_catalog(item, library)
+                    project.boq_items.append(item)
+                    position += 1
+            project.boq_version += 1
+            db.commit()
+        except Exception:
             db.rollback()
-            return _stored_boq(project)
-
-        db.commit()
-        # The runs are recorded first, so every line can name the run -- and
-        # through it the document, its hash and the parser -- it was read by.
-        runs = {id(sheet): extraction_pipeline.record_design_sheet_run(db, project, sheet, result)
-                for sheet, result in reads}
-        position = len(project.boq_items)
-        library = boq_provenance.part_library(db)
-        for sheet, result in reads:
-            if result.failure:
-                continue
-            system_code = system_rules.effective_code(sheet.system_code, project)
-            for line in result.lines:
-                # Prices, unit and remarks are left for the engineer. The
-                # sheets carry Unit/Total Price columns but they are blank on
-                # every sheet in the archive, so there is nothing to read and
-                # nothing to check a read against.
-                item = boq_provenance.extracted_item(
-                    system_code=system_code, line=line, run=runs[id(sheet)], position=position,
-                    manufacturer=_brand_for(system_code, project.systems, project.separate_ve_panel),
-                )
-                boq_provenance.check_catalog(item, library)
-                project.boq_items.append(item)
-                position += 1
-        project.boq_version += 1
-        db.commit()
+            raise
 
     # The BOQ now stands on these sheets as they are: a later change to one
     # of them marks it stale (app.services.document_sync).

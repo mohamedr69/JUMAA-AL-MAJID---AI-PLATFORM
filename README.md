@@ -64,16 +64,69 @@ is three files (`ep_platform.db`, `-wal`, `-shm`: write-ahead-log mode, so pages
 read while a sync writes) and the `.db` alone is not the whole of it; once both
 have stopped it is one file again. The Backups page copies it safely at any time.
 
-**The background worker.** Every document sync -- the Sync documents button,
-a project's first open, the catch-up after a change to the reading rules --
+**The background workers.** Every file sync -- the Sync Files button, a
+project's first open, the catch-up after a change to the reading rules --
 runs in a second process, `python -m app.workers.sync_worker`, which
 `start.bat` starts in its own window below normal priority. The API only
 queues the sync and answers at once, so the pages stay quick while a folder
-is read; the Jobs panel follows it from the database. A project has at most
-one sync queued or running, however many times, tabs or people ask; the
-database refuses a second one. One sync runs at a time across all projects.
-Without the worker window a sync waits in the queue, and the page says so.
-The worker has no hot reload: after changing backend code, restart it.
+is listed; the Jobs panel follows it from the database. A project has at
+most one sync queued or running, however many times, tabs or people ask;
+the database refuses a second one. One sync runs at a time across all
+projects. Without the worker window a sync waits in the queue, and the page
+says so. The workers have no hot reload: after changing backend code,
+restart them -- `start-backend.bat` stops this project's old backend
+processes (`stop-backend.bat`: the processes running `app.workers.*` or
+`uvicorn app.main` from this backend folder, their children, and orphaned
+children of this venv's interpreter left by an earlier stop -- `uvicorn
+--reload` serves the API from a `multiprocessing` child that does not
+name uvicorn, and killing only the supervisor leaves it on port 8000
+with the old code) and starts the API and the three workers again
+without touching the web app. `GET /health` says which process answers:
+its PID, Python, root, models.py, revision and feature flags. A worker left running
+keeps the code it started with, and imports the service modules lazily
+per job, so a model added after its start fails its next job with
+"cannot import name ... from app.models" hours later. Every worker now
+logs a runtime fingerprint at start (PID, Python, root, the models.py it
+loaded, the revision) and proves it can import what its jobs need; a
+mismatch ends it at once with the paths in the message
+(`app.workers.runtime`; the same check by hand:
+`venv\Scripts\python -m app.workers.runtime document-worker`).
+
+Document Classification V2 (`DOCUMENT_CLASSIFICATION_V2=true` in
+`backend/.env`; off by default) writes explainable metadata beside each
+indexed file -- what it appears to contain, on what basis, and whether
+that answer is still current -- and changes nothing else: no role, state,
+status, revision or register reads it. Project > File Sync >
+"Classification (diagnostic)" shows it; `POST
+/projects/{id}/jobs/classify-documents` assesses a project from stored
+data (no file opened, no model asked). See docs/DOCUMENT_CLASSIFICATION_V2.md.
+
+A stored reading the parser got wrong is repaired, never re-typed by hand:
+`backend/scripts/repair_extraction.py` (dry run by default; `--apply`,
+`--reassess`, `--reconcile`, `--rollback`) re-reads the selected rows with the
+parser as it is now and writes a manifest of what changed;
+`backend/scripts/consumer_shadow.py` compares what each tab reads today with
+what the classification would give it. Point both at a clone first
+(`DATABASE_URL=sqlite:///<clone>`, a scratch `CACHE_ROOT`).
+
+Since 27 September 2026 the sync only *indexes*: a stat per file, so a
+project of 350 documents is synced in seconds, every file is a row of the
+index marked `pending`, and the project's Last File Sync has a time. The
+reading -- opening each PDF, the approval boxes, OCR, the model on a
+material submittal form -- is a second job, `process_documents`, run by a
+third process, `python -m app.workers.document_worker` (also started by
+`start.bat`), one project at a time, each document written to the index
+the moment its reading finishes, in an order that puts submittal forms,
+consultant replies, transmittals and shop drawings before catalogues and
+specifications. The pages fill in as it goes and the engineer works
+meanwhile; File Sync shows the two as two -- "File discovery complete" and
+"Document Processing 70 / 353 completed" -- with a Stop for each, and
+"Process remaining" for documents left pending by a stop. A file whose
+size or time changed is hashed before it is read and, when its content is
+what was read before, is put back to fresh without being opened; a changed
+file keeps its previous reading until the new one succeeds. A sync's and a
+processing job's result carries `telemetry`: seconds per phase, counts per
+outcome and the ten slowest files.
 
 ## Setting up on a machine
 

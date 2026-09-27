@@ -33,7 +33,7 @@ from pathlib import Path
 log = logging.getLogger(__name__)
 
 # What the OCR text depends on besides the page: the render resolution and
-# Tesseract's settings in document_control._ocr_page. Change either, bump this.
+# Tesseract's settings in document_control._ocr_images. Change either, bump this.
 OCR_VERSION = "ocr-1"
 
 _lock = threading.Lock()
@@ -71,11 +71,14 @@ def _connect() -> sqlite3.Connection | None:
     return connection
 
 
-def _key(sha256: str, page_index: int) -> str:
-    return f"{sha256}:{page_index}:{OCR_VERSION}"
+def _key(sha256: str, page_index: int, variant: str = "") -> str:
+    # `variant` names what was OCRed when it was not the whole page (the
+    # images on it: document_control.OCR_REGIONS_VARIANT); the whole-page
+    # entries keep the key they always had.
+    return f"{sha256}:{page_index}:{OCR_VERSION}" + (f":{variant}" if variant else "")
 
 
-def get_ocr(sha256: str | None, page_index: int) -> str | None:
+def get_ocr(sha256: str | None, page_index: int, variant: str = "") -> str | None:
     if not sha256:
         return None
     with _lock:
@@ -83,13 +86,13 @@ def get_ocr(sha256: str | None, page_index: int) -> str | None:
         if connection is None:
             return None
         try:
-            row = connection.execute("SELECT text FROM ocr WHERE key = ?", (_key(sha256, page_index),)).fetchone()
+            row = connection.execute("SELECT text FROM ocr WHERE key = ?", (_key(sha256, page_index, variant),)).fetchone()
         except sqlite3.Error:
             return None
     return row[0] if row else None
 
 
-def put_ocr(sha256: str | None, page_index: int, text: str) -> None:
+def put_ocr(sha256: str | None, page_index: int, text: str, variant: str = "") -> None:
     if not sha256:
         return
     with _lock:
@@ -97,7 +100,8 @@ def put_ocr(sha256: str | None, page_index: int, text: str) -> None:
         if connection is None:
             return
         try:
-            connection.execute("INSERT OR REPLACE INTO ocr (key, text) VALUES (?, ?)", (_key(sha256, page_index), text))
+            connection.execute("INSERT OR REPLACE INTO ocr (key, text) VALUES (?, ?)",
+                               (_key(sha256, page_index, variant), text))
             connection.commit()
         except sqlite3.Error:
             log.debug("Could not keep OCR text for %s page %s", sha256, page_index, exc_info=True)

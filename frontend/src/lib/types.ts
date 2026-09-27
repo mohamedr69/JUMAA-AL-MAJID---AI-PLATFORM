@@ -162,6 +162,13 @@ export interface DocumentStatus {
   /** Whether the background worker that runs syncs is alive; a queued sync
    * with no worker waits until start.bat starts one. */
   worker_running: boolean;
+  /** Documents discovered whose content is still to be read (File Sync v2:
+   * the index knows them; the document worker reads them in the background). */
+  pending: number;
+  /** The project's document processing job, when one is queued or running. */
+  processing: import("./useJob").Job | null;
+  /** Whether the document processing worker is alive. */
+  documents_worker_running: boolean;
 }
 
 /** Whether a system has had its sample board sent, read off the
@@ -1634,6 +1641,9 @@ export interface ExtractionRun {
   reader: "ocr" | "ai";
   /** What the reader noted about the read. */
   notes: string[];
+  /** Whether the read finished: "completed", or "partial" / "timed_out" (rows or
+   * pages still pending: resuming the read takes only those), "failed", "cancelled". */
+  state?: "completed" | "partial" | "timed_out" | "failed" | "cancelled";
   started_at: string;
   issues: ExtractionIssue[];
 }
@@ -2370,22 +2380,69 @@ export interface ArchiveStatus {
 }
 
 /** A file's status in File Sync (`GET /projects/{id}/documents/sync-files`). */
-export type FileSyncStatus = "processed" | "unchanged" | "partial" | "unavailable" | "failed";
+export type FileSyncStatus = "processed" | "unchanged" | "pending" | "partial" | "unavailable" | "failed";
+
+/** What the last file sync (the index: a stat per file, nothing opened) found. */
+export interface FileSyncLastSync {
+  files: number;
+  new: number;
+  changed: number;
+  unchanged: number;
+  removed: number;
+  /** Documents the sync left for the processing job to read. */
+  pending: number;
+  duration_s: number | null;
+  finished_at: string | null;
+}
+
+/** Document processing: the background reading of the documents the index
+ * found, as a job of its own (`process_documents`). */
+export interface FileSyncProcessing {
+  status: "idle" | "queued" | "running" | "complete" | "stopped" | "failed";
+  /** Documents the current (or last) processing job set out to read. */
+  total: number;
+  /** ...and how many it has finished with. */
+  completed: number;
+  /** Documents still to be read, as the index stands now. */
+  pending: number;
+  /** Per-file outcomes, as the index stands now. */
+  processed: number;
+  failed: number;
+  unavailable: number;
+  partial: number;
+  /** The document being read, while running. */
+  current: string | null;
+  job: import("./useJob").Job | null;
+  last_job: import("./useJob").Job | null;
+  duration_s: number | null;
+  finished_at: string | null;
+  /** Whether the document processing worker is alive. */
+  worker_running: boolean;
+}
 
 /** File Sync's header (`GET /projects/{id}/documents/sync-summary`): the
- * folder, the last sync, and how many files are in each status. */
+ * folder, the last file sync, document processing, and how many files
+ * are in each status. */
 export interface FileSyncSummary {
   source: string;
   folder: string | null;
   folder_display: string | null;
+  /** When the index was last brought up to the folder (the file sync, not
+   * the processing that follows it). */
   synced_at: string | null;
   started_by: string | null;
   automatic: boolean;
   duration_s: number | null;
   removed: number;
+  /** Files discovered: every indexed file still in the folder. */
   total: number;
+  discovered: number;
+  last_sync: FileSyncLastSync | null;
+  processing: FileSyncProcessing;
   counts: Record<FileSyncStatus, number>;
+  /** The file sync job, when one is queued or running. */
   job: import("./useJob").Job | null;
+  /** Whether the sync worker is alive. */
   worker_running: boolean;
 }
 
@@ -2395,6 +2452,98 @@ export interface FileSyncFile {
   status: FileSyncStatus;
   reason: string | null;
   role: string;
+  /** Document Classification V2: present with the feature on and an assessment stored; null otherwise. */
+  classification?: ClassificationAssessment | null;
+}
+
+/** Document Classification V2 (GET /projects/{id}/documents/classification):
+ * what a file appears to contain, at what stage of evidence, on what basis
+ * and why. Metadata only: nothing routes, reconciles or changes status from it. */
+export type ClassificationStage = "hint" | "supported" | "ambiguous" | "unknown";
+export type ClassificationBasis = "intake_association" | "metadata" | "content" | "none";
+export type ClassificationFreshness = "current" | "rules_changed" | "context_changed" | "source_changed";
+
+export interface ClassificationAssessment {
+  id: number;
+  document_id: number;
+  primary_type: string;
+  stage: ClassificationStage;
+  evidence_strength: "strong" | "moderate" | "weak" | "conflicting" | "unknown";
+  component_types: string[];
+  evidence: string[];
+  evidence_sources: string[];
+  reason: string;
+  system_code: string | null;
+  discipline: string | null;
+  rules_version: string;
+  content_sha256: string | null;
+  context_fingerprint: string;
+  source: string;
+  engineer_confirmed: boolean;
+  assessed_at: string;
+  stale: boolean;
+  freshness: ClassificationFreshness;
+  current: boolean;
+  basis: ClassificationBasis;
+  component_support: Record<string, ClassificationBasis>;
+  source_state: string | null;
+  needs_review: boolean;
+  review_reasons: string[];
+  /** Source-quality findings: a printed project code that differs, a record whose reference is a date, ... */
+  flags: string[];
+  /** What the first pages were found to hold. */
+  evidence_pages: { kind: string; page: number; excerpt: string; method: "text" | "ocr"; rule?: string }[];
+}
+
+/** What the readers stored on the row, beside the classification. */
+export interface ExtractedSummary {
+  reference: string | null;
+  revision: string | null;
+  status: string | null;
+  categories: string[];
+  records: number;
+  parser_version: string | null;
+  parser_current: boolean;
+  form_is_submittal: boolean | null;
+  notes: string[];
+  error: string | null;
+  evidence_pages_read: number | null;
+  page_count: number | null;
+}
+
+export interface ClassificationRow {
+  document_id: number;
+  name: string;
+  path: string;
+  role: string;
+  state: string;
+  classification: ClassificationAssessment | null;
+  extracted: ExtractedSummary | null;
+}
+
+export interface ClassificationMetrics {
+  documents: number;
+  eligible: number;
+  assessed: number;
+  unassessed: number;
+  by_type: Record<string, number>;
+  by_stage: Record<string, number>;
+  by_basis: Record<string, number>;
+  by_freshness: Record<string, number>;
+  unknown: number;
+  ambiguous: number;
+  agree_with_role: number;
+  conflict_with_role: number;
+  mixed_component_files: number;
+  path_only: number;
+  metadata_only: number;
+  content_supported: number;
+  stale: number;
+  current: number;
+  needs_review: number;
+  flagged: number;
+  duplicate_current: number;
+  rules_version: string;
 }
 
 /** Project > Logs: the project's systems and the registers each takes part

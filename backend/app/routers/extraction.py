@@ -83,6 +83,9 @@ class RunOut(BaseModel):
     # reader noted about the read.
     reader: str = "ocr"
     notes: list[str] = []
+    # Whether the read finished: "completed" | "partial" | "timed_out" |
+    # "failed" | "cancelled" (app.models.ExtractionRun.state).
+    state: str = "completed"
     started_at: datetime
     issues: list[IssueOut]
 
@@ -127,7 +130,7 @@ def _run_out(run: ExtractionRun) -> RunOut:
         outcome=run.outcome, lines_accepted=run.lines_accepted, failure=run.failure, unprocessed_pages=unprocessed,
         ai_calls=run.ai_calls, ai_cost=float(run.ai_cost or 0), budget_exhausted=run.budget_exhausted,
         trigger=run.trigger, reader=run.reader or "ocr", notes=[str(n) for n in (coverage.get("notes") or [])],
-        started_at=run.started_at,
+        state=run.state or "completed", started_at=run.started_at,
         issues=[
             IssueOut(
                 id=i.id, code=i.code, severity=i.severity, page=i.page, target=i.target, detail=i.detail or {},

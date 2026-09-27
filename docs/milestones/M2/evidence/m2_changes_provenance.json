@@ -1,0 +1,9 @@
+{
+ "backend/app/services/document_control.py": "matches pre-M2 snapshot hash",
+ "backend/app/services/document_sync.py": "matches pre-M2 snapshot hash",
+ "backend/app/services/transmittals.py": "not dirty before M2 (HEAD version)",
+ "backend/app/ai/sheet_reader.py": "differs from the snapshot only by line endings",
+ "backend/tests/test_ai_sheet_reader.py": "matches pre-M2 snapshot hash",
+ "backend/tests/test_extraction_repair.py": "matches pre-M2 snapshot hash",
+ "backend/tests/test_repair_tool.py": "differs from the snapshot only by line endings"
+}

@@ -71,6 +71,8 @@ def extracted_item(*, system_code: str | None, line, run: ExtractionRun | None, 
         item.raw_values = {**item.raw_values, "catalog_no": getattr(line, "catalog_raw", None) or line.catalog_no,
                            "alternates": getattr(line, "alternates", None),
                            "ai_reading": getattr(line, "ai_reading", None),
+                           "row_id": getattr(line, "row_id", None),
+                           "evidence": getattr(line, "evidence", None),
                            "building_aliases": (getattr(line, "building", None) or {}).get("aliases")}
     item.extracted_values = {**sheet_values(item)}
     return item
@@ -89,7 +91,7 @@ def _same(a, b) -> bool:
     return a == b
 
 
-def rebuild_items(project: Project, incoming: list[dict], user: User | None) -> list[ProjectBoqItem]:
+def rebuild_items(project: Project, incoming: list[dict], user: User | None, db=None) -> list[ProjectBoqItem]:
     """The BOQ as saved: one row per incoming line, in order, each keeping
     the provenance of the stored row whose id it carries. An id that is not
     one of this project's lines is ignored (the line is new): provenance is
@@ -120,6 +122,10 @@ def rebuild_items(project: Project, incoming: list[dict], user: User | None) -> 
             if any(not _same(getattr(previous, name), content.get(name)) for name in SHEET_FIELDS):
                 # The AI's verdict was about the values it checked, not these.
                 item.ai_check = None
+                if db is not None:
+                    from app.services import boq_corrections
+
+                    boq_corrections.record_line_edit(db, previous, item, user.id if user else None)
         rows.append(item)
     return rows
 

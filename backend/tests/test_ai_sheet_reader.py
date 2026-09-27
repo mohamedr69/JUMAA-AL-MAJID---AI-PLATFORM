@@ -61,7 +61,12 @@ SECOND = _page_with({})
 
 @pytest.fixture()
 def ai(monkeypatch):
+    """The reader with the second full-page reading on (the reader before
+    2026-09-27; since then a setting): these tests script that second
+    reading. `tests/test_boq_selective_v2.py` covers the reader as it is
+    configured now."""
     monkeypatch.setattr(settings, "ai_enabled", True)
+    monkeypatch.setattr(settings, "ai_read_full_second_pass", True)
     monkeypatch.setattr(jobs_router, "RUN_INLINE", True)
     monkeypatch.setattr(sheet_reader, "page_images", lambda path: iter([(1, 1, PAGE)]))
     monkeypatch.setattr(sheet_reader, "render_page", lambda path, number: PAGE)
@@ -195,6 +200,7 @@ def test_without_the_model_the_sheet_is_recorded_as_not_read(client, db_session,
     assert body["warnings"] and "Not read: AI assistance is disabled" in body["warnings"][0], body["warnings"]
     run = db_session.query(ExtractionRun).filter(ExtractionRun.project_id == project.id).one()
     assert run.reader == "ai" and run.reading_id is None and run.failure.startswith("Not read")
+    assert run.state == "failed", "a sheet that was not read did not complete (M2)"
     assert db_session.query(DocumentReading).count() == 0
     checks = {c["key"]: c for c in client.get(f"/projects/{project.id}/readiness").json()["checks"]}
     assert checks["coverage"]["status"] == "blocked" and checks["unresolved_rows"]["count"] == 0

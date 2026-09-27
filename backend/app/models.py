@@ -537,6 +537,54 @@ class ProjectDocument(Base):
     last_processed_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
 
+_ONE_CURRENT_CLASSIFICATION = "superseded_at IS NULL"
+
+
+class DocumentClassification(Base):
+    """What a project document appears to contain, as the classification
+    layer assessed it (app.services.document_classification): the type,
+    the stage of evidence, the components, why, under which rules, for
+    which content and in which context. One row per assessment: the
+    earlier ones are kept, superseded; an engineer's confirmation is
+    never superseded by an automatic one. Informational only -- nothing
+    else reads it as authority."""
+
+    __tablename__ = "document_classifications"
+    __table_args__ = (
+        Index("ix_document_classifications_current", "document_id", "superseded_at"),
+        # At most one current (not superseded) assessment per document: the
+        # earlier one is closed before the new one opens (document_classification.record).
+        Index("uq_document_classifications_one_current", "document_id", unique=True,
+              sqlite_where=text(_ONE_CURRENT_CLASSIFICATION), postgresql_where=text(_ONE_CURRENT_CLASSIFICATION)),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("project_documents.id"), nullable=False, index=True)
+    content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # sha256 of the normalised relative path, role, intake association and project.
+    context_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    rules_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    # "hint" | "supported" | "ambiguous" | "unknown"
+    stage: Mapped[str] = mapped_column(String(16), nullable=False)
+    primary_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    component_types: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # "strong" | "moderate" | "weak" | "conflicting" | "unknown"
+    evidence_strength: Mapped[str] = mapped_column(String(16), nullable=False)
+    evidence: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    evidence_sources: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    system_code: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    discipline: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # "hint" | "assessment" | "backfill" | "engineer"
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    engineer_confirmed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
+    confirmed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    assessment: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
+
+
 class DocumentDependency(Base):
     """What was built from a document, so a change to the document marks
     it stale and nothing else: a Design Sheet -> the BOQ, the DRF -> Project
@@ -857,6 +905,7 @@ class AiVerification(Base):
 
 
 _ACTIVE_SYNC = "kind = 'sync_documents' AND status IN ('queued', 'running')"
+_ACTIVE_PROCESSING = "kind = 'process_documents' AND status IN ('queued', 'running')"
 _ACTIVE_DEDUP = "dedup_key IS NOT NULL AND status IN ('queued', 'running')"
 
 
@@ -876,6 +925,11 @@ class BackgroundJob(Base):
     __table_args__ = (
         Index("uq_background_jobs_one_active_sync", "project_id", "kind", unique=True,
               sqlite_where=text(_ACTIVE_SYNC), postgresql_where=text(_ACTIVE_SYNC)),
+        # And one queued-or-running document processing job per project
+        # (app.services.document_processing): a second Process request
+        # while one runs returns that one.
+        Index("uq_background_jobs_one_active_processing", "project_id", "kind", unique=True,
+              sqlite_where=text(_ACTIVE_PROCESSING), postgresql_where=text(_ACTIVE_PROCESSING)),
         # One queued-or-running job per `dedup_key`: the same file sent twice
         # for the same drawing and revision is one read (app.services.jobs.enqueue).
         Index("uq_background_jobs_active_dedup", "dedup_key", unique=True,
@@ -1248,6 +1302,12 @@ class ExtractionRun(Base):
     ai_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ai_cost: Mapped[float] = mapped_column(Numeric(10, 5), nullable=False, default=0)
     budget_exhausted: Mapped[str | None] = mapped_column(String(48), nullable=True)
+    # Whether the read finished: "completed" (every page read twice and
+    # every row settled or persisted for review), "partial" (readings or
+    # rows still pending: a re-read resumes them), "timed_out" (pending
+    # because the time budget ran out), "failed", "cancelled". `outcome`
+    # is about what was read; this is about whether the reading is done.
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="completed", server_default="completed")
     started_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
@@ -1368,6 +1428,37 @@ class DocumentReading(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
+
+
+class BoqCorrection(Base):
+    """What an engineer made of a row the Design Sheet read produced,
+    beside what the machine had read of it: a review row accepted or
+    rejected, a machine-read line's sheet values edited. Evaluation data
+    (app.services.boq_corrections); nothing is trained on it yet."""
+
+    __tablename__ = "boq_corrections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False, index=True)
+    document_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    page: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bbox: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    row_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # "review_accepted" | "review_rejected" | "line_edited"
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    primary_part_number: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    primary_quantity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    primary_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    verification: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    evidence: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    final_part_number: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    final_quantity: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    final_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    final_group: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    processor_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utc_now, nullable=False)
 
 

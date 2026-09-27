@@ -1,0 +1,82 @@
+ M README.md
+ M backend/app/ai/budget.py
+ M backend/app/ai/provider.py
+ M backend/app/ai/sheet_reader.py
+ M backend/app/ai/submittal_reader.py
+ M backend/app/ai/verification.py
+ M backend/app/core/config.py
+ M backend/app/extraction/issues.py
+ M backend/app/extraction/pipeline.py
+ M backend/app/main.py
+ M backend/app/models.py
+ M backend/app/routers/documents.py
+ M backend/app/routers/extraction.py
+ M backend/app/routers/projects.py
+ M backend/app/services/boq_provenance.py
+ M backend/app/services/design_sheet_extractor.py
+ M backend/app/services/document_control.py
+ M backend/app/services/document_sync.py
+ M backend/app/services/jobs.py
+ M backend/app/services/page_cache.py
+ M backend/app/services/project_deletion.py
+ M backend/app/services/sync_service.py
+ M backend/app/workers/ifc_worker.py
+ M backend/app/workers/sync_worker.py
+ M backend/library/symbols/symbol_library.json
+ M backend/requirements.txt
+ M backend/tests/conftest.py
+ M backend/tests/fixtures/boq_ep30784.json
+ M backend/tests/test_ai_sheet_reader.py
+ M backend/tests/test_ai_verification.py
+ M backend/tests/test_document_control.py
+ M backend/tests/test_document_sync.py
+ M frontend/src/components/ExtractionReview.tsx
+ M frontend/src/components/SyncDocumentsCard.tsx
+ M frontend/src/lib/types.ts
+ M frontend/src/pages/ProjectFileSyncPage.tsx
+ M start.bat
+?? backend/alembic/versions/a5b6c7d8e9f0_one_current_classification.py
+?? backend/alembic/versions/c9e1f2a3b4d6_document_processing_jobs.py
+?? backend/alembic/versions/d2e3f4a5b6c7_extraction_run_state.py
+?? backend/alembic/versions/e3f4a5b6c7d8_boq_corrections.py
+?? backend/alembic/versions/f4a5b6c7d8e9_document_classifications.py
+?? backend/app/extraction/row_geometry.py
+?? backend/app/services/boq_corrections.py
+?? backend/app/services/content_evidence.py
+?? backend/app/services/document_classification.py
+?? backend/app/services/document_processing.py
+?? backend/app/services/document_routing.py
+?? backend/app/workers/document_worker.py
+?? backend/app/workers/runtime.py
+?? backend/bench/
+?? backend/scripts/benchmark_processing.py
+?? backend/scripts/boq_metrics.py
+?? backend/scripts/business_snapshot.py
+?? backend/scripts/classification_inspection.sql
+?? backend/scripts/consumer_shadow.py
+?? backend/scripts/golden_records.py
+?? backend/scripts/repair_extraction.py
+?? backend/tests/fixtures/boq_ep30784_golden_v1.json
+?? backend/tests/test_boq_corrections_v2.py
+?? backend/tests/test_boq_extraction_v2.py
+?? backend/tests/test_boq_geometry_v2.py
+?? backend/tests/test_boq_selective_v2.py
+?? backend/tests/test_boq_verification_v2.py
+?? backend/tests/test_classification_evidence.py
+?? backend/tests/test_document_classification_pilot.py
+?? backend/tests/test_document_classification_v2.py
+?? backend/tests/test_document_control.py.new
+?? backend/tests/test_document_processing_v2.py
+?? backend/tests/test_document_routing.py
+?? backend/tests/test_extraction_repair.py
+?? backend/tests/test_file_sync_v2.py
+?? backend/tests/test_file_sync_v2_processing.py
+?? backend/tests/test_repair_tool.py
+?? backend/tests/test_worker_runtime.py
+?? docs/BOQ_EXTRACTION_V2.md
+?? docs/DOCUMENT_CLASSIFICATION_V2.md
+?? docs/RUNTIME_MISMATCH_2026-09-27.md
+?? docs/milestones/
+?? start-backend.bat
+?? stop-backend.bat
+?? stop-backend.ps1

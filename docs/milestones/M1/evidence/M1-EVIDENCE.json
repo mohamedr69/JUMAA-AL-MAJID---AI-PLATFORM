@@ -1,0 +1,1279 @@
+{
+ "collected_at_utc": "2026-09-27T18:02:39+00:00",
+ "database": "C:\\Users\\moham\\Desktop\\dev\\dev\\ep-platform\\backend\\ep_platform.db",
+ "database_size_bytes": 95461376,
+ "connection": {
+  "uri": "file:C:/Users/moham/Desktop/dev/dev/ep-platform/backend/ep_platform.db?mode=ro",
+  "query_only": 1,
+  "journal_mode": "wal"
+ },
+ "date_regex": "\\d{1,2}[-/.](?:\\d{1,2}|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[-/.]\\d{2,4}  (fullmatch, case-insensitive, on the stripped value; the earlier M1 baseline's regex, build_baseline.py line 115)",
+ "results": {
+  "population": [
+   {
+    "indexed_documents": 890,
+    "extracted_json_present": 881,
+    "documents_with_records": 367,
+    "total_extracted_records": 547
+   }
+  ],
+  "projects": [
+   {
+    "id": 1,
+    "ep_number": "30784",
+    "status": "active"
+   },
+   {
+    "id": 2,
+    "ep_number": "30880",
+    "status": "active"
+   },
+   {
+    "id": 3,
+    "ep_number": "29076",
+    "status": "active"
+   },
+   {
+    "id": 4,
+    "ep_number": "30088",
+    "status": "active"
+   }
+  ],
+  "table_counts": [
+   {
+    "entity": "projects",
+    "n": 4
+   },
+   {
+    "entity": "project_documents",
+    "n": 890
+   },
+   {
+    "entity": "document_classifications_all",
+    "n": 1070
+   },
+   {
+    "entity": "document_classifications_current",
+    "n": 534
+   },
+   {
+    "entity": "document_dependencies",
+    "n": 556
+   },
+   {
+    "entity": "project_shop_drawings",
+    "n": 60
+   },
+   {
+    "entity": "shop_drawing_revisions",
+    "n": 93
+   },
+   {
+    "entity": "shop_drawing_candidates",
+    "n": 8
+   },
+   {
+    "entity": "drawing_issues_open",
+    "n": 39
+   },
+   {
+    "entity": "project_submittals",
+    "n": 11
+   },
+   {
+    "entity": "project_submittal_revisions",
+    "n": 12
+   },
+   {
+    "entity": "project_submittal_status_history",
+    "n": 12
+   },
+   {
+    "entity": "submittal_replies",
+    "n": 0
+   },
+   {
+    "entity": "project_actions",
+    "n": 10
+   },
+   {
+    "entity": "battery_panel_results",
+    "n": 9
+   },
+   {
+    "entity": "project_designs",
+    "n": 0
+   },
+   {
+    "entity": "project_amplifier_design",
+    "n": 0
+   },
+   {
+    "entity": "project_floor_schedule",
+    "n": 0
+   },
+   {
+    "entity": "project_ifc_drawings",
+    "n": 0
+   },
+   {
+    "entity": "project_building_floors",
+    "n": 73
+   },
+   {
+    "entity": "project_boq_items",
+    "n": 266
+   },
+   {
+    "entity": "project_boq_revisions",
+    "n": 0
+   },
+   {
+    "entity": "boq_candidates",
+    "n": 4
+   },
+   {
+    "entity": "project_proposed_materials",
+    "n": 0
+   },
+   {
+    "entity": "compliance_statements",
+    "n": 0
+   },
+   {
+    "entity": "compliance_audit",
+    "n": 0
+   },
+   {
+    "entity": "design_rules_current",
+    "n": 45
+   },
+   {
+    "entity": "equipment_currents",
+    "n": 51
+   },
+   {
+    "entity": "document_readings_submittal_map",
+    "n": 3
+   },
+   {
+    "entity": "estimation_projects",
+    "n": 0
+   },
+   {
+    "entity": "division_projects",
+    "n": 0
+   }
+  ],
+  "classification_coverage": [
+   {
+    "project_id": 1,
+    "ep_number": "30784",
+    "documents": 359,
+    "current_classifications": 3
+   },
+   {
+    "project_id": 2,
+    "ep_number": "30880",
+    "documents": 6,
+    "current_classifications": 6
+   },
+   {
+    "project_id": 3,
+    "ep_number": "29076",
+    "documents": 0,
+    "current_classifications": 0
+   },
+   {
+    "project_id": 4,
+    "ep_number": "30088",
+    "documents": 525,
+    "current_classifications": 525
+   }
+  ],
+  "classification_rules_stages": [
+   {
+    "rules_version": "classify-2026-09-27.2",
+    "stage": "ambiguous",
+    "n": 17
+   },
+   {
+    "rules_version": "classify-2026-09-27.2",
+    "stage": "hint",
+    "n": 358
+   },
+   {
+    "rules_version": "classify-2026-09-27.2",
+    "stage": "supported",
+    "n": 134
+   },
+   {
+    "rules_version": "classify-2026-09-27.2",
+    "stage": "unknown",
+    "n": 25
+   }
+  ],
+  "parser_storage": [
+   {
+    "documents_with_parser_version": 0
+   }
+  ],
+  "evidence_storage": [
+   {
+    "documents_with_evidence": 0
+   }
+  ],
+  "example_687": [
+   {
+    "id": 687,
+    "project_id": 4,
+    "top_level_reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-ZZZ-1004",
+    "third_record_reference": "24-Mar-22"
+   }
+  ],
+  "dependencies": [
+   {
+    "dependent_type": "boq",
+    "stale": 0,
+    "n": 6
+   },
+   {
+    "dependent_type": "compliance",
+    "stale": 0,
+    "n": 162
+   },
+   {
+    "dependent_type": "details",
+    "stale": 0,
+    "n": 3
+   },
+   {
+    "dependent_type": "log",
+    "stale": 0,
+    "n": 364
+   },
+   {
+    "dependent_type": "submittal",
+    "stale": 0,
+    "n": 21
+   }
+  ],
+  "submittals": [
+   {
+    "status": "approved",
+    "n": 5
+   },
+   {
+    "status": "rejected",
+    "n": 3
+   },
+   {
+    "status": "under_review",
+    "n": 3
+   }
+  ],
+  "submittal_status_history_sources": [
+   {
+    "source": "ai_check",
+    "n": 12
+   }
+  ],
+  "submittal_revisions_manual_vs_ai": [
+   {
+    "source": "ai_check",
+    "revisions": 12
+   }
+  ],
+  "drawing_revisions": [
+   {
+    "status": "approved_as_noted",
+    "source": "sync",
+    "n": 11
+   },
+   {
+    "status": "not_approved",
+    "source": "sync",
+    "n": 32
+   },
+   {
+    "status": "reply_not_found",
+    "source": "sync",
+    "n": 1
+   },
+   {
+    "status": "under_review",
+    "source": "sync",
+    "n": 49
+   }
+  ],
+  "shop_drawings_confirmed": [
+   {
+    "ep_number": "30088",
+    "drawings": 8,
+    "confirmed": 0
+   },
+   {
+    "ep_number": "30784",
+    "drawings": 52,
+    "confirmed": 0
+   }
+  ],
+  "drawing_issues_open": [
+   {
+    "kind": "ai_review_required",
+    "source": "ai",
+    "n": 1
+   },
+   {
+    "kind": "floor_unknown",
+    "source": "system",
+    "n": 7
+   },
+   {
+    "kind": "reply_missing",
+    "source": "system",
+    "n": 1
+   },
+   {
+    "kind": "reply_unmatched",
+    "source": "ai",
+    "n": 18
+   },
+   {
+    "kind": "revision_candidate",
+    "source": "system",
+    "n": 8
+   },
+   {
+    "kind": "revision_conflict",
+    "source": "system",
+    "n": 4
+   }
+  ],
+  "actions": [
+   {
+    "kind": "material_submittal_missing",
+    "state": "resolved",
+    "n": 5
+   },
+   {
+    "kind": "material_submittal_revision",
+    "state": "open",
+    "n": 3
+   },
+   {
+    "kind": "material_submittal_revision",
+    "state": "resolved",
+    "n": 2
+   }
+  ],
+  "battery_results": [
+   {
+    "ep_number": "30088",
+    "state": "fresh",
+    "n": 4
+   },
+   {
+    "ep_number": "30784",
+    "state": "fresh",
+    "n": 5
+   }
+  ],
+  "floors": [
+   {
+    "ep_number": "30088",
+    "source": "shop_drawing",
+    "n": 1
+   },
+   {
+    "ep_number": "30784",
+    "source": "shop_drawing",
+    "n": 72
+   }
+  ],
+  "boq_items": [
+   {
+    "ep_number": "30088",
+    "origin": "ai_accepted",
+    "n": 1
+   },
+   {
+    "ep_number": "30088",
+    "origin": "extracted",
+    "n": 88
+   },
+   {
+    "ep_number": "30784",
+    "origin": "ai_accepted",
+    "n": 6
+   },
+   {
+    "ep_number": "30784",
+    "origin": "extracted",
+    "n": 82
+   },
+   {
+    "ep_number": "30880",
+    "origin": "extracted",
+    "n": 89
+   }
+  ],
+  "design_rule_categories": [
+   {
+    "category": "battery.selection",
+    "current_rules": 1,
+    "auto_written": 0
+   },
+   {
+    "category": "battery.sizing",
+    "current_rules": 1,
+    "auto_written": 0
+   },
+   {
+    "category": "part.current",
+    "current_rules": 29,
+    "auto_written": 29
+   },
+   {
+    "category": "power.device",
+    "current_rules": 6,
+    "auto_written": 0
+   },
+   {
+    "category": "power.module",
+    "current_rules": 1,
+    "auto_written": 0
+   },
+   {
+    "category": "power.supply",
+    "current_rules": 1,
+    "auto_written": 0
+   },
+   {
+    "category": "ve.limit",
+    "current_rules": 1,
+    "auto_written": 0
+   },
+   {
+    "category": "ve.module",
+    "current_rules": 1,
+    "auto_written": 0
+   },
+   {
+    "category": "ve.speaker",
+    "current_rules": 3,
+    "auto_written": 0
+   },
+   {
+    "category": "ve.staircase",
+    "current_rules": 1,
+    "auto_written": 0
+   }
+  ],
+  "schema_tables": [
+   {
+    "name": "activity_events"
+   },
+   {
+    "name": "ai_proposals"
+   },
+   {
+    "name": "ai_usage"
+   },
+   {
+    "name": "ai_verifications"
+   },
+   {
+    "name": "alembic_version"
+   },
+   {
+    "name": "background_jobs"
+   },
+   {
+    "name": "background_workers"
+   },
+   {
+    "name": "battery_panel_results"
+   },
+   {
+    "name": "boq_candidates"
+   },
+   {
+    "name": "boq_corrections"
+   },
+   {
+    "name": "boq_snapshots"
+   },
+   {
+    "name": "brand_suppliers"
+   },
+   {
+    "name": "compliance_audit"
+   },
+   {
+    "name": "compliance_learned_answers"
+   },
+   {
+    "name": "compliance_statements"
+   },
+   {
+    "name": "datasheet_documents"
+   },
+   {
+    "name": "design_rules"
+   },
+   {
+    "name": "division_projects"
+   },
+   {
+    "name": "document_classifications"
+   },
+   {
+    "name": "document_dependencies"
+   },
+   {
+    "name": "document_readings"
+   },
+   {
+    "name": "drawing_issues"
+   },
+   {
+    "name": "drawing_requirement_states"
+   },
+   {
+    "name": "ep_archive_folders"
+   },
+   {
+    "name": "ep_archive_roots"
+   },
+   {
+    "name": "equipment_currents"
+   },
+   {
+    "name": "estimation_projects"
+   },
+   {
+    "name": "extraction_issues"
+   },
+   {
+    "name": "extraction_runs"
+   },
+   {
+    "name": "ifc_block_aliases"
+   },
+   {
+    "name": "ifc_device_types"
+   },
+   {
+    "name": "ifc_symbol_reviews"
+   },
+   {
+    "name": "ifc_symbols"
+   },
+   {
+    "name": "knowledge_equivalences"
+   },
+   {
+    "name": "knowledge_files"
+   },
+   {
+    "name": "knowledge_imports"
+   },
+   {
+    "name": "knowledge_issues"
+   },
+   {
+    "name": "knowledge_mapping_reviews"
+   },
+   {
+    "name": "knowledge_mappings"
+   },
+   {
+    "name": "knowledge_models"
+   },
+   {
+    "name": "knowledge_requirements"
+   },
+   {
+    "name": "knowledge_response_sources"
+   },
+   {
+    "name": "knowledge_responses"
+   },
+   {
+    "name": "knowledge_sources"
+   },
+   {
+    "name": "part_datasheet_links"
+   },
+   {
+    "name": "project_actions"
+   },
+   {
+    "name": "project_amplifier_design"
+   },
+   {
+    "name": "project_boq_items"
+   },
+   {
+    "name": "project_boq_revisions"
+   },
+   {
+    "name": "project_building_floors"
+   },
+   {
+    "name": "project_changes"
+   },
+   {
+    "name": "project_design_sheets"
+   },
+   {
+    "name": "project_designs"
+   },
+   {
+    "name": "project_documents"
+   },
+   {
+    "name": "project_floor_aliases"
+   },
+   {
+    "name": "project_floor_schedule"
+   },
+   {
+    "name": "project_frc_cables"
+   },
+   {
+    "name": "project_ifc_drawings"
+   },
+   {
+    "name": "project_proposed_materials"
+   },
+   {
+    "name": "project_shop_drawings"
+   },
+   {
+    "name": "project_submittal_events"
+   },
+   {
+    "name": "project_submittal_revisions"
+   },
+   {
+    "name": "project_submittal_status_history"
+   },
+   {
+    "name": "project_submittals"
+   },
+   {
+    "name": "project_systems"
+   },
+   {
+    "name": "projects"
+   },
+   {
+    "name": "result_cache"
+   },
+   {
+    "name": "shop_drawing_candidates"
+   },
+   {
+    "name": "shop_drawing_events"
+   },
+   {
+    "name": "shop_drawing_revisions"
+   },
+   {
+    "name": "sqlite_sequence"
+   },
+   {
+    "name": "submittal_replies"
+   },
+   {
+    "name": "users"
+   }
+  ],
+  "project_documents_columns": [
+   {
+    "cid": 0,
+    "name": "id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 1
+   },
+   {
+    "cid": 1,
+    "name": "project_id",
+    "type": "INTEGER",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 2,
+    "name": "role",
+    "type": "VARCHAR(24)",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 3,
+    "name": "system_code",
+    "type": "VARCHAR(16)",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 4,
+    "name": "path",
+    "type": "TEXT",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 5,
+    "name": "relative_path",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 6,
+    "name": "filename",
+    "type": "VARCHAR(255)",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 7,
+    "name": "sha256",
+    "type": "VARCHAR(64)",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 8,
+    "name": "size",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 9,
+    "name": "mime",
+    "type": "VARCHAR(100)",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 10,
+    "name": "page_count",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 11,
+    "name": "printed_pages",
+    "type": "JSON",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 12,
+    "name": "intake_status",
+    "type": "VARCHAR(16)",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 13,
+    "name": "findings",
+    "type": "JSON",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 14,
+    "name": "intake_version",
+    "type": "VARCHAR(32)",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 15,
+    "name": "first_seen_at",
+    "type": "DATETIME",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 16,
+    "name": "last_seen_at",
+    "type": "DATETIME",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 17,
+    "name": "checked_at",
+    "type": "DATETIME",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 18,
+    "name": "acknowledged",
+    "type": "JSON",
+    "notnull": 1,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 19,
+    "name": "mtime",
+    "type": "FLOAT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 20,
+    "name": "state",
+    "type": "VARCHAR(16)",
+    "notnull": 1,
+    "dflt_value": "'fresh'",
+    "pk": 0
+   },
+   {
+    "cid": 21,
+    "name": "error",
+    "type": "TEXT",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 22,
+    "name": "reference",
+    "type": "VARCHAR(120)",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 23,
+    "name": "revision",
+    "type": "VARCHAR(16)",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 24,
+    "name": "status",
+    "type": "VARCHAR(16)",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 25,
+    "name": "extracted",
+    "type": "JSON",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 26,
+    "name": "reading_id",
+    "type": "INTEGER",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 27,
+    "name": "index_version",
+    "type": "VARCHAR(32)",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   },
+   {
+    "cid": 28,
+    "name": "last_processed_at",
+    "type": "DATETIME",
+    "notnull": 0,
+    "dflt_value": null,
+    "pk": 0
+   }
+  ],
+  "alembic": [
+   {
+    "version_num": "a5b6c7d8e9f0"
+   }
+  ]
+ },
+ "date_shaped_reference": {
+  "definition_top_level": "document IDs whose project_documents.reference (the row's top-level reference) fully matches the date regex",
+  "definition_embedded": "document IDs with at least one extracted.records[*].reference (top-level key of each record object) fully matching the date regex",
+  "top_level_document_ids": [
+   434,
+   436,
+   437,
+   440,
+   444,
+   448,
+   452,
+   454,
+   457,
+   458,
+   459,
+   460,
+   461,
+   463,
+   578,
+   783,
+   848
+  ],
+  "top_level_count": 17,
+  "embedded_record_document_ids": [
+   434,
+   436,
+   437,
+   440,
+   444,
+   448,
+   452,
+   454,
+   457,
+   458,
+   459,
+   460,
+   461,
+   463,
+   578,
+   687,
+   783,
+   848
+  ],
+  "embedded_count": 18,
+  "embedded_only_document_ids": [
+   687
+  ],
+  "embedded_distinct_normalized_paths": 18,
+  "note": "Counts are document IDs, not records. A document can hold several date-shaped records."
+ },
+ "generic_reference": {
+  "top_level_exact": {
+   "definition": "document IDs whose project_documents.reference equals the string exactly (the row's top-level reference)",
+   "count": 84,
+   "document_ids": [
+    409,
+    415,
+    416,
+    417,
+    418,
+    419,
+    420,
+    421,
+    422,
+    423,
+    424,
+    425,
+    426,
+    429,
+    430,
+    433,
+    435,
+    516,
+    520,
+    521,
+    522,
+    523,
+    524,
+    525,
+    526,
+    527,
+    528,
+    529,
+    530,
+    538,
+    539,
+    540,
+    541,
+    542,
+    543,
+    566,
+    567,
+    570,
+    571,
+    572,
+    573,
+    575,
+    576,
+    577,
+    597,
+    764,
+    765,
+    766,
+    767,
+    768,
+    769,
+    777,
+    778,
+    780,
+    781,
+    782,
+    786,
+    790,
+    791,
+    792,
+    793,
+    794,
+    795,
+    796,
+    797,
+    798,
+    799,
+    800,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    836,
+    837,
+    840,
+    841,
+    842,
+    843,
+    845,
+    846,
+    847,
+    868
+   ]
+  },
+  "top_level_prefix": {
+   "definition": "document IDs whose top-level reference starts with the string; includes full drawing references such as ...-MEP-FA-0054, so NOT a truncation-defect count",
+   "count": 91,
+   "document_ids": [
+    409,
+    415,
+    416,
+    417,
+    418,
+    419,
+    420,
+    421,
+    422,
+    423,
+    424,
+    425,
+    426,
+    429,
+    430,
+    433,
+    435,
+    516,
+    520,
+    521,
+    522,
+    523,
+    524,
+    525,
+    526,
+    527,
+    528,
+    529,
+    530,
+    538,
+    539,
+    540,
+    541,
+    542,
+    543,
+    566,
+    567,
+    570,
+    571,
+    572,
+    573,
+    575,
+    576,
+    577,
+    597,
+    764,
+    765,
+    766,
+    767,
+    768,
+    769,
+    771,
+    772,
+    773,
+    774,
+    775,
+    776,
+    777,
+    778,
+    780,
+    781,
+    782,
+    784,
+    786,
+    790,
+    791,
+    792,
+    793,
+    794,
+    795,
+    796,
+    797,
+    798,
+    799,
+    800,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    836,
+    837,
+    840,
+    841,
+    842,
+    843,
+    845,
+    846,
+    847,
+    868
+   ]
+  },
+  "embedded_exact": {
+   "definition": "document IDs with at least one extracted.records[*].reference equal to the string exactly (the earlier M1 baseline's measure, build_baseline.py 'documents_with_generic_reference_prefix' despite its name)",
+   "count": 86,
+   "document_ids": [
+    409,
+    415,
+    416,
+    417,
+    418,
+    419,
+    420,
+    421,
+    422,
+    423,
+    424,
+    425,
+    426,
+    429,
+    430,
+    433,
+    434,
+    435,
+    436,
+    516,
+    520,
+    521,
+    522,
+    523,
+    524,
+    525,
+    526,
+    527,
+    528,
+    529,
+    530,
+    538,
+    539,
+    540,
+    541,
+    542,
+    543,
+    566,
+    567,
+    570,
+    571,
+    572,
+    573,
+    575,
+    576,
+    577,
+    597,
+    764,
+    765,
+    766,
+    767,
+    768,
+    769,
+    777,
+    778,
+    780,
+    781,
+    782,
+    786,
+    790,
+    791,
+    792,
+    793,
+    794,
+    795,
+    796,
+    797,
+    798,
+    799,
+    800,
+    808,
+    809,
+    810,
+    811,
+    812,
+    813,
+    836,
+    837,
+    840,
+    841,
+    842,
+    843,
+    845,
+    846,
+    847,
+    868
+   ]
+  },
+  "embedded_exact_only_ids": [
+   434,
+   436
+  ],
+  "prefix_not_exact_ids": [
+   771,
+   772,
+   773,
+   774,
+   775,
+   776,
+   784
+  ]
+ },
+ "sqlite_total_changes": 0
+}

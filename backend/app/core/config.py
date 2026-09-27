@@ -112,6 +112,13 @@ class Settings(BaseSettings):
     # the worker queues a sync for each when it starts. Off, a project keeps
     # what it was read as until someone presses Sync documents on it.
     reread_on_rules_change: bool = True
+    # Document Classification V2 (app.services.document_classification):
+    # off, nothing is classified and every path behaves as before; on, the
+    # sync writes a metadata hint beside each new or changed row and the
+    # processing an assessment from what it stored -- metadata only, never
+    # a routing, a status or a record. Stored assessments stay when it is
+    # turned off again.
+    document_classification_v2: bool = False
 
     # The background worker (app.workers.sync_worker), a process of its own
     # that runs the document syncs so they never slow the pages down.
@@ -128,6 +135,19 @@ class Settings(BaseSettings):
     # takes about 100 MB.) 0 or 1 reads them one after another in the worker
     # itself. The AI reads forms one at a time whatever this is.
     sync_file_workers: int = 3
+    # The reader processes are replaced after this many files each: a
+    # reader that has opened fifty documents holds on to memory MuPDF does
+    # not give back. Done between files with nothing in flight
+    # (document_sync.read_in_completion_order), never by the pool itself.
+    sync_reader_recycle_tasks: int = 50
+    # Nothing finished reading for this long while files were in flight:
+    # the readers are stuck or gone. They are stopped, those files are
+    # marked failed with the reason, and the rest are read by fresh
+    # readers. A safety net against a hang -- EP-30784's first sync sat
+    # for three hours on a reading that was never going to come back --
+    # not a time a slow document is expected to keep to: a drawing set of
+    # two hundred CAD sheets can take twenty minutes legitimately.
+    sync_read_stall_seconds: int = 1800
     archive_index_enabled: bool = True
     # Scan on server start when the index has never been built, or has
     # gone stale, so a new machine needs nothing done to it.
@@ -320,6 +340,26 @@ class Settings(BaseSettings):
     ai_read_max_calls_per_project_per_day: int = 600
     ai_read_max_elapsed_s: float = 1800.0
     ai_read_effort: str = "high"
+    # Time a read keeps in hand before starting a call: a page band or a
+    # row close-up is not begun when less than this remains of
+    # AI_READ_MAX_ELAPSED_S, so the limit stops the read between calls,
+    # with everything so far kept, rather than in the middle of one.
+    ai_read_band_reserve_s: float = 90.0
+    ai_read_close_up_reserve_s: float = 20.0
+    # A row the model read is scored against the page's own geometry (the
+    # columns and Tesseract's words there: app.extraction.row_geometry), 0 to
+    # 1. At or above HIGH the row is accepted on the model's reading and the
+    # geometry alone; below LOW it needs the stronger verification; between,
+    # the fast one. Set by benchmark (EP-30784), not by hand.
+    boq_confidence_high: float = 0.85
+    boq_confidence_low: float = 0.5
+    # Whether every page is read a second time in full by the standard
+    # model (the reader before 2026-09-27). Off, a row the geometry rates
+    # high is accepted on the first reading; the rest are verified as row
+    # crops, AI_VERIFY_ROWS_PER_CALL to a call, by the small tier first and
+    # the standard tier only where that disagrees or cannot read the row.
+    ai_read_full_second_pass: bool = False
+    ai_verify_rows_per_call: int = 8
     # The Claude Code program for "claude-code": a name on the PATH or the full
     # path to claude.exe. Sign in once with `claude` as the user the server runs as.
     ai_claude_cli: str = "claude"

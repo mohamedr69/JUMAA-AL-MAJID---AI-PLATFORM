@@ -1,0 +1,352 @@
+{
+ "parser_version": "parse-2026-09-28.1",
+ "box_version": "box-2",
+ "run_at": "2026-09-27T18:53:13+00:00",
+ "docs": {
+  "22": {
+   "relative_path": "03- Drawings/SD/FA/01. Basement-4/R1/Submitted/BBY006-GME-SDW-FP-FA-BSM-B04-010025.pdf",
+   "role": "spec",
+   "stored": {
+    "reference": "BBY006-GME-SDW-FP-FA-BSM-B04-010025",
+    "revision": "R1",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-BSM-B04-010025",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "BASEMENT-4",
+      "name": "BASEMENT-4 FLOOR PLAN",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-BSM-B04-010025",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "BASEMENT-4",
+      "name": "BASEMENT-4 FLOOR PLAN",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.5
+  },
+  "24": {
+   "relative_path": "03- Drawings/SD/FA/02. Basement-3/R1/Submitted/BBY006-GME-SDW-FP-FA-BSM-B03-010026.pdf",
+   "role": "spec",
+   "stored": {
+    "reference": "BBY006-GME-SDW-FP-FA-BSM-B03-010026",
+    "revision": "R1",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-BSM-B03-010026",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "BASEMENT-3",
+      "name": "BASEMENT-3 FLOOR PLAN",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-BSM-B03-010026",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "BASEMENT-3",
+      "name": "BASEMENT-3 FLOOR PLAN",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.3
+  },
+  "120": {
+   "relative_path": "04- Drawings/08-Shop Drawing/1.FAVE/R1/05. Ground Floor/BBY006-GME-SDW-FP-FA-POD-BGF-010002 Shop Drawing for Ground Floor Plan - Fire Alarm Layout.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+    "revision": "R0",
+    "status": "rejected",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "Ground Floor",
+      "name": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+      "reply_text": "(C) Revise & Resubmit HH"
+     },
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 2,
+      "source": "document",
+      "listed": null,
+      "floor": "GROUND FLOOR",
+      "name": "GROUND FLOOR PLAN",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "Ground Floor",
+      "name": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": "Re- Submit (C)",
+      "group_reference": null
+     },
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+      "revision": "R1",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "GROUND FLOOR",
+      "name": "GROUND FLOOR PLAN",
+      "page": 2,
+      "source": "document",
+      "listed": [],
+      "reply_text": "(C) Revise & Resubmit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 5.0
+  },
+  "122": {
+   "relative_path": "04- Drawings/08-Shop Drawing/1.FAVE/R1/06. Podium-1/BBY006-GME-SDW-FP-FA-POD-P01-010003 Shop Drawing for Podium-1 Floor Plan - Fire Alarm Layout.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+    "revision": "R0",
+    "status": "rejected",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "Podium-1",
+      "name": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+      "reply_text": "(C) Revise & Resubmit en"
+     },
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 2,
+      "source": "document",
+      "listed": null,
+      "floor": "PODIUM-1",
+      "name": "PODIUM-1 FLOOR PLAN",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "Podium-1",
+      "name": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": "Re- Submit (C)",
+      "group_reference": null
+     },
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+      "revision": "R1",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "PODIUM-1",
+      "name": "PODIUM-1 FLOOR PLAN",
+      "page": 2,
+      "source": "document",
+      "listed": [],
+      "reply_text": "(C) revise & Resubmit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 4.8
+  },
+  "313": {
+   "relative_path": "04- Drawings/08-Shop Drawing/2.EML/R01/POD-1/BBY006-GME-SDW-EL-LI-POD-P01-010029 Shop Drawing for Podium-1 Floor Plan Emergency Lighting Layout.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "BBY006-GME-SDW-EL-LI-POD-P01-010029",
+    "revision": "R0",
+    "status": "rejected",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-EL-LI-POD-P01-010029",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "Podium-1",
+      "name": "BBY006-GME-SDW-EL-LI-POD-P01-010029",
+      "reply_text": "(C) Revise & Resubmit en"
+     },
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-EL-LI-POD-P01-010029",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 2,
+      "source": "document",
+      "listed": null,
+      "floor": "PODIUM-1",
+      "name": "PODIUM-1 FLOOR PLAN",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-EL-LI-POD-P01-010029",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "Podium-1",
+      "name": "BBY006-GME-SDW-EL-LI-POD-P01-010029",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": "Re- Submit (C)",
+      "group_reference": null
+     },
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-EL-LI-POD-P01-010029",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "PODIUM-1",
+      "name": "PODIUM-1 FLOOR PLAN",
+      "page": 2,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 5.2
+  },
+  "316": {
+   "relative_path": "04- Drawings/08-Shop Drawing/2.EML/R01/POD-2/BBY006-GME-SDW-EL-LI-POD-P02-010030 -.pdf",
+   "role": "spec",
+   "stored": {
+    "reference": "BBY006-GME-SDW-EL-LI-POD-P02-010030",
+    "revision": "R1",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-EL-LI-POD-P02-010030",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "PODIUM-2",
+      "name": "PODIUM-2 FLOOR PLAN",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "BBY006-GME-SDW-EL-LI-POD-P02-010030",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "PODIUM-2",
+      "name": "PODIUM-2 FLOOR PLAN",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 4.1
+  }
+ }
+}

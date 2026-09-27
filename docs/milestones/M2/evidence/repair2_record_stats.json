@@ -1,0 +1,113 @@
+{
+ "p4": {
+  "before": {
+   "records": 142,
+   "by_category": {
+    "drawings": 89,
+    "submittals": 42,
+    "reply": 8,
+    "samples": 3
+   },
+   "by_status": {
+    "UR": 138,
+    "rejected": 4
+   },
+   "system_none": 0,
+   "raw_system_set": 0,
+   "pdf_transmittal_records": 0,
+   "date_shaped_refs": 18,
+   "generic_exact_refs": 86,
+   "frame_or_box_evidence": 0,
+   "revision_source": {
+    "null": 142
+   },
+   "printed_revision_set": 0,
+   "docs_with_records": 130
+  },
+  "after": {
+   "records": 225,
+   "by_category": {
+    "drawings": 186,
+    "reply": 8,
+    "submittals": 25,
+    "samples": 6
+   },
+   "by_status": {
+    "rejected": 133,
+    "UR": 56,
+    "ANN": 36
+   },
+   "system_none": 36,
+   "raw_system_set": 36,
+   "pdf_transmittal_records": 3,
+   "date_shaped_refs": 0,
+   "generic_exact_refs": 0,
+   "frame_or_box_evidence": 165,
+   "revision_source": {
+    "cover": 188,
+    "default": 23,
+    "folder": 7,
+    "printed": 1,
+    "null": 6
+   },
+   "printed_revision_set": 0,
+   "docs_with_records": 200
+  }
+ },
+ "p1": {
+  "before": {
+   "records": 391,
+   "by_category": {
+    "drawings": 320,
+    "submittals": 17,
+    "reply": 34,
+    "samples": 20
+   },
+   "by_status": {
+    "UR": 279,
+    "ANN": 35,
+    "rejected": 77
+   },
+   "system_none": 0,
+   "raw_system_set": 0,
+   "pdf_transmittal_records": 0,
+   "date_shaped_refs": 0,
+   "generic_exact_refs": 0,
+   "frame_or_box_evidence": 0,
+   "revision_source": {
+    "null": 391
+   },
+   "printed_revision_set": 0,
+   "docs_with_records": 223
+  },
+  "after": {
+   "records": 398,
+   "by_category": {
+    "samples": 27,
+    "drawings": 320,
+    "submittals": 17,
+    "reply": 34
+   },
+   "by_status": {
+    "UR": 243,
+    "ANN": 41,
+    "rejected": 114
+   },
+   "system_none": 0,
+   "raw_system_set": 0,
+   "pdf_transmittal_records": 7,
+   "date_shaped_refs": 0,
+   "generic_exact_refs": 0,
+   "frame_or_box_evidence": 0,
+   "revision_source": {
+    "null": 85,
+    "folder": 121,
+    "printed": 118,
+    "default": 73,
+    "cover": 1
+   },
+   "printed_revision_set": 155,
+   "docs_with_records": 226
+  }
+ }
+}

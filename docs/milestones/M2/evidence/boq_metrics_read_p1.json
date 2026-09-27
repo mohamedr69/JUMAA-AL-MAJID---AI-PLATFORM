@@ -1,0 +1,597 @@
+{
+ "label": "",
+ "project": "30784",
+ "source": "read",
+ "systems": {
+  "EML": {
+   "golden_rows": 12,
+   "lines": 0,
+   "review_rows": 0,
+   "row_detection_recall": 0.0,
+   "row_detection_precision": null,
+   "part_number_accuracy": null,
+   "quantity_accuracy": null,
+   "pair_accuracy": null,
+   "group_accuracy": null,
+   "review_rate": null,
+   "false_auto_accept_rate": null,
+   "false_auto_accepts": [],
+   "false_removal_rate": 1.0,
+   "missing_rows": [
+    {
+     "page": 1,
+     "part_number": "SL2-42D3D-CGL-M",
+     "quantity": "759",
+     "description": "Surface Mounted Emergency Light"
+    },
+    {
+     "page": 1,
+     "part_number": "SL2-65D3D-CGL-M",
+     "quantity": "458",
+     "description": "Surface Mounted Emergency Light"
+    },
+    {
+     "page": 1,
+     "part_number": "RT2RHEO200CGL3HIPM",
+     "quantity": "458",
+     "description": "RTECH MR HEO CGL+ 200 MNM 3H IP65"
+    },
+    {
+     "page": 1,
+     "part_number": "SL2-42D3D-CGL-M",
+     "quantity": "327",
+     "description": "Wall Mounted Exit, 20 metre viewing"
+    },
+    {
+     "page": 1,
+     "part_number": "SL210DI",
+     "quantity": "33",
+     "description": "Pictogram"
+    },
+    {
+     "page": 1,
+     "part_number": "SL2-65D3D-CGL-M",
+     "quantity": "169",
+     "description": "Wall Mounted Exit, 20 metre viewing"
+    },
+    {
+     "page": 1,
+     "part_number": "SL210DI",
+     "quantity": "17",
+     "description": "Pictogram"
+    },
+    {
+     "page": 1,
+     "part_number": "SL2-42D3D-CGL-M +SL2PPLR+SL2RB",
+     "quantity": "119",
+     "description": "Exit Directional, Corridor Recessed, 20 metre viewing distance"
+    },
+    {
+     "page": 1,
+     "part_number": "SL2-65D3D-CGL-M +SL2CD +SL2DC3I",
+     "quantity": "111",
+     "description": "Exit Directional, Hanging , Driveway, 30 metre viewing distance"
+    },
+    {
+     "page": 1,
+     "part_number": "CTR400CGL2KS-M",
+     "quantity": "8",
+     "description": "Menvier Brand CGLine+ Web Compact Contro..."
+    },
+    {
+     "page": 1,
+     "part_number": "SL2NM65D3-M",
+     "quantity": "7",
+     "description": "Surface Emergency Light -SELF CONTAINED"
+    },
+    {
+     "page": 1,
+     "part_number": "SL2MNM65D3C-M +SL23I",
+     "quantity": "1",
+     "description": "Wall Mounted Exit, 20 metre viewing distance, IP65"
+    }
+   ],
+   "extra_review_rows": [],
+   "wrong_quantity": [],
+   "wrong_group": [],
+   "state": "completed",
+   "budget_exhausted": null,
+   "wall_s": 0.0,
+   "ai_calls": 0,
+   "ai_calls_per_page": 0.0,
+   "cache_hits": 0,
+   "ai_timeouts": 0,
+   "ai_timeout_rate": 0.0,
+   "ai_verification_rate": 0.0,
+   "calls_by_task": {},
+   "latency_s_by_task": {},
+   "review_reasons": {},
+   "evidence_levels": {},
+   "evidence_components": {},
+   "notes": [
+    "Not read: AI assistance is disabled (AI_ENABLED=false)"
+   ]
+  },
+  "FAS": {
+   "golden_rows": 74,
+   "lines": 0,
+   "review_rows": 0,
+   "row_detection_recall": 0.0,
+   "row_detection_precision": null,
+   "part_number_accuracy": null,
+   "quantity_accuracy": null,
+   "pair_accuracy": null,
+   "group_accuracy": null,
+   "review_rate": null,
+   "false_auto_accept_rate": null,
+   "false_auto_accepts": [],
+   "false_removal_rate": 1.0,
+   "missing_rows": [
+    {
+     "page": 1,
+     "part_number": null,
+     "quantity": "1",
+     "description": "EST4 fire alarm control panel complete with power supply/charger, sealed lead acid maintenance-free rechargeable batteries to power the system for 24 hours standby and 30 minutes alarm condition. Includes:"
+    },
+    {
+     "page": 1,
+     "part_number": "4-CPU",
+     "quantity": "2",
+     "description": "Central Processor Module"
+    },
+    {
+     "page": 1,
+     "part_number": "4-PPS/M",
+     "quantity": "2",
+     "description": "Primary Power Supply, 230 V"
+    },
+    {
+     "page": 1,
+     "part_number": "4-LCDLE",
+     "quantity": "2",
+     "description": "4-LCD w/ cable for 3-CAB5B, 7B, 14B, 21B, 4-8ANN, 16ANN and 24ANN mounting"
+    },
+    {
+     "page": 1,
+     "part_number": "4-FWAL4",
+     "quantity": "1",
+     "description": "Firewall W/DACT/ EMAIL/DIAG - Provides secure connection to external systems. Support ..."
+    },
+    {
+     "page": 1,
+     "part_number": "4-BRKT-CB",
+     "quantity": "1",
+     "description": "Mounting Bracket provides space for mounting any one of 4-ANNCPU, 4-FWAL-1, 4-FWAL..."
+    },
+    {
+     "page": 1,
+     "part_number": "4-NET-TP",
+     "quantity": "2",
+     "description": "SFP Network Controller, 2Mbps Shared TX/RX, Twisted Pair"
+    },
+    {
+     "page": 1,
+     "part_number": "4-USBHUB",
+     "quantity": "1",
+     "description": "The 4-USBHUB Multi-port USB Hub module mounts in a 1/2 footprint module space and provi..."
+    },
+    {
+     "page": 1,
+     "part_number": "4-COMREL",
+     "quantity": "1",
+     "description": "Common Relay Module"
+    },
+    {
+     "page": 1,
+     "part_number": "3-SDDC2",
+     "quantity": "8",
+     "description": "Dual loop SIGA Data Controller"
+    },
+    {
+     "page": 1,
+     "part_number": "3-ZA20A",
+     "quantity": "2",
+     "description": "Zoned Amplifier, 20 Watt, Class A/B. 20 Watt selectable for 25 or 70 Vrms Class A/B Output"
+    },
+    {
+     "page": 1,
+     "part_number": "4-AUDTELS",
+     "quantity": "1",
+     "description": "Audio and Telephone Interface/Riser Module"
+    },
+    {
+     "page": 1,
+     "part_number": "4-MIC",
+     "quantity": "1",
+     "description": "Paging Microphone"
+    },
+    {
+     "page": 1,
+     "part_number": "4-FT",
+     "quantity": "1",
+     "description": "Firefighter Master Handset"
+    },
+    {
+     "page": 1,
+     "part_number": "3-CHAS7",
+     "quantity": "3",
+     "description": "Seven Space Chassis with Rails"
+    },
+    {
+     "page": 1,
+     "part_number": "4-FIL",
+     "quantity": "16",
+     "description": "Blank Filler Plate"
+    },
+    {
+     "page": 1,
+     "part_number": "3-CAB21B",
+     "quantity": "1",
+     "description": "White Backbox with 21 x LRM spaces, no door"
+    },
+    {
+     "page": 1,
+     "part_number": "4-CAB24DL",
+     "quantity": "1",
+     "description": "Door Assembly - Bronze outer door and black inner door with 24 user interface spaces, mounts..."
+    },
+    {
+     "page": 1,
+     "part_number": "BC-1",
+     "quantity": "1",
+     "description": "Battery cabinet"
+    },
+    {
+     "page": 1,
+     "part_number": "12V65A",
+     "quantity": "2",
+     "description": "Battery, 12 V @ 65 AH"
+    },
+    {
+     "page": 1,
+     "part_number": null,
+     "quantity": "2",
+     "description": "EST4 fire alarm control panel complete with power supply/charger, sealed lead acid maintenance-free rechargeable batteries to power the system for 24 hours standby and 30 minutes alarm condition. Includes:"
+    },
+    {
+     "page": 1,
+     "part_number": "4-CPU",
+     "quantity": "1",
+     "description": "Central Processor Module"
+    },
+    {
+     "page": 1,
+     "part_number": "4-PPS/M",
+     "quantity": "1",
+     "description": "Primary Power Supply, 230 V"
+    },
+    {
+     "page": 1,
+     "part_number": "4-LCDLE",
+     "quantity": "1",
+     "description": "4-LCD w/ cable for 3-CAB5B, 7B, 14B, 21B, 4-8ANN, 16ANN and 24ANN mounting"
+    },
+    {
+     "page": 1,
+     "part_number": "4-NET-TP",
+     "quantity": "2",
+     "description": "SFP Network Controller, 2Mbps Shared TX/RX, Twisted Pair"
+    },
+    {
+     "page": 1,
+     "part_number": "3-SDDC2",
+     "quantity": "4",
+     "description": "Dual loop SIGA Data Controller"
+    },
+    {
+     "page": 1,
+     "part_number": "3-CHAS7",
+     "quantity": "1",
+     "description": "Seven Space Chassis with Rails"
+    },
+    {
+     "page": 1,
+     "part_number": "4-FIL",
+     "quantity": "14",
+     "description": "Blank Filler Plate"
+    },
+    {
+     "page": 1,
+     "part_number": "3-CAB7B",
+     "quantity": "1",
+     "description": "Wallbox with 1 Chassis Space"
+    },
+    {
+     "page": 1,
+     "part_number": "4-CAB16D",
+     "quantity": "1",
+     "description": "Door Assembly - Bronze, comes with 16 User Interface spaces, mounts to 3-CAB7B wallbox."
+    },
+    {
+     "page": 1,
+     "part_number": "BC-1",
+     "quantity": "1",
+     "description": "Battery cabinet"
+    },
+    {
+     "page": 1,
+     "part_number": "12V65A",
+     "quantity": "2",
+     "description": "Battery, 12 V @ 65 AH"
+    },
+    {
+     "page": 1,
+     "part_number": null,
+     "quantity": "18",
+     "description": "Remote audio closet cabinet wallbox, red. Supports 2 x SIGA amplifiers, and one APS. Components are:"
+    },
+    {
+     "page": 1,
+     "part_number": "SIGA-AA50",
+     "quantity": "2",
+     "description": "Intelligent Audio Amplifier - 50 Watt"
+    },
+    {
+     "page": 1,
+     "part_number": "APS6A/230",
+     "quantity": "1",
+     "description": "Auxiliary power supply, 6.5 Amp, 230V"
+    },
+    {
+     "page": 1,
+     "part_number": "SIGA-CT2",
+     "quantity": "1",
+     "description": "Dual Input Module"
+    },
+    {
+     "page": 1,
+     "part_number": "12V10A",
+     "quantity": "2",
+     "description": "10Ah Sealed Lead Acid Battery - 12 Vdc"
+    },
+    {
+     "page": 1,
+     "part_number": null,
+     "quantity": "8",
+     "description": "Remote power supply cabinet wallbox, red. Supports one BPS. Components are:"
+    },
+    {
+     "page": 1,
+     "part_number": "BPS10A/230",
+     "quantity": "1",
+     "description": "10 Amp Booster Power Supply, 220V"
+    },
+    {
+     "page": 1,
+     "part_number": "SIGA-CT2",
+     "quantity": "1",
+     "description": "Dual Input Module"
+    },
+    {
+     "page": 1,
+     "part_number": "12V10A",
+     "quantity": "2",
+     "description": "10Ah Sealed Lead Acid Battery - 12 Vdc"
+    },
+    {
+     "page": 1,
+     "part_number": "6538-G5",
+     "quantity": "4",
+     "description": "Call for Assistance Kit"
+    },
+    {
+     "page": 2,
+     "part_number": null,
+     "quantity": "4",
+     "description": "Super Duct Detector"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-SD",
+     "quantity": "1",
+     "description": "SuperDuct"
+    },
+    {
+     "page": 2,
+     "part_number": "SD-T42",
+     "quantity": "1",
+     "description": "Duct Detector Accessory, 42 in. Sampling Tube"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-OSD-FCN",
+     "quantity": "2396",
+     "description": "Intelligent Photoelectric Smoke Detector"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-HRD-FCN",
+     "quantity": "281",
+     "description": "Intelligent Fixed Temperature / Rate-of-Rise Heat Detector"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-OSHD-FCN",
+     "quantity": "525",
+     "description": "Intelligent 3D Multisensor Detector - Photoelectric, Heat"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-SB",
+     "quantity": "2206",
+     "description": "Signature Detector Base"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-IB",
+     "quantity": "250",
+     "description": "Detector Base with Isolator"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-LPS",
+     "quantity": "746",
+     "description": "Audible (Sounder) Base"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-278",
+     "quantity": "150",
+     "description": "Manual Pull Station - Double Action, 1-stage"
+    },
+    {
+     "page": 2,
+     "part_number": "STI-1230",
+     "quantity": "29",
+     "description": "Stopper II without Horn - for Surface Stations"
+    },
+    {
+     "page": 2,
+     "part_number": "STI-3002",
+     "quantity": "29",
+     "description": "Weatherresistant Gasket"
+    },
+    {
+     "page": 2,
+     "part_number": "G4SRN",
+     "quantity": "142",
+     "description": "Wall Speaker, Red, No Marking"
+    },
+    {
+     "page": 2,
+     "part_number": "EST-S186C",
+     "quantity": "470",
+     "description": "Ceiling speaker, ABS fire dome (diameter 17,5 cm)"
+    },
+    {
+     "page": 2,
+     "part_number": "757-1A-T",
+     "quantity": "4",
+     "description": "Temporal Horn, Self-synchronized - 24 Vdc, RED"
+    },
+    {
+     "page": 2,
+     "part_number": "757-7A-T",
+     "quantity": "56",
+     "description": "15/75 cd Temporal Horn/Strobe - 24 Vdc, RED"
+    },
+    {
+     "page": 2,
+     "part_number": "G1ARN",
+     "quantity": "121",
+     "description": "Compact Wall Horn, Red, No Marking"
+    },
+    {
+     "page": 2,
+     "part_number": "6833-4",
+     "quantity": "220",
+     "description": "Four-state Portable Telephone Handset Receptacle"
+    },
+    {
+     "page": 2,
+     "part_number": "TCS-6",
+     "quantity": "1",
+     "description": "Storage Enclosure for 6830 handsets (6)"
+    },
+    {
+     "page": 2,
+     "part_number": "6830-3",
+     "quantity": "4",
+     "description": "Portable (Plug-in) Telephone Handset - BLACK"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-CT2",
+     "quantity": "119",
+     "description": "Dual Input Module"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-CR",
+     "quantity": "26",
+     "description": "Control Relay Module"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-IO",
+     "quantity": "420",
+     "description": "Universal Input/Output Module - input with programmable output"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-UM",
+     "quantity": "20",
+     "description": "Universal Class A/B Module"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-CC1",
+     "quantity": "6",
+     "description": "Single Input (Riser) Module"
+    },
+    {
+     "page": 2,
+     "part_number": "SIGA-CC2A",
+     "quantity": "80",
+     "description": "Dual Input (Riser) Module-Class A"
+    },
+    {
+     "page": 2,
+     "part_number": "TP606",
+     "quantity": "491",
+     "description": "2\"x4\" GI Concealed Back Box Single Gange"
+    },
+    {
+     "page": 2,
+     "part_number": "TP434",
+     "quantity": "142",
+     "description": "4\"x4\" GI Concealed Back Box Double Gange"
+    },
+    {
+     "page": 2,
+     "part_number": "27193-11",
+     "quantity": "565",
+     "description": "Surface Mount Box - Indoor, RED, 1-gang"
+    },
+    {
+     "page": 2,
+     "part_number": "27193-21",
+     "quantity": "106",
+     "description": "Surface Mount Box - Indoor, RED, 2-gang"
+    },
+    {
+     "page": 2,
+     "part_number": "757A-WB",
+     "quantity": "60",
+     "description": "Weatherproof Box, Cast - RED"
+    },
+    {
+     "page": 2,
+     "part_number": "GRSW-10",
+     "quantity": "15",
+     "description": "Universal Wiring Plate - 10Packs"
+    }
+   ],
+   "extra_review_rows": [],
+   "wrong_quantity": [],
+   "wrong_group": [],
+   "state": "completed",
+   "budget_exhausted": null,
+   "wall_s": 0.0,
+   "ai_calls": 0,
+   "ai_calls_per_page": 0.0,
+   "cache_hits": 0,
+   "ai_timeouts": 0,
+   "ai_timeout_rate": 0.0,
+   "ai_verification_rate": 0.0,
+   "calls_by_task": {},
+   "latency_s_by_task": {},
+   "review_reasons": {},
+   "evidence_levels": {},
+   "evidence_components": {},
+   "notes": [
+    "Not read: AI assistance is disabled (AI_ENABLED=false)"
+   ]
+  }
+ }
+}

@@ -65,7 +65,11 @@ ACTIVE = ("queued", "running")
 FINISHED = ("succeeded", "failed", "cancelled")
 # The kinds the worker processes run, by lane; the API never runs these itself.
 LANES: dict[str, tuple[str, ...]] = {
+    # The file sync: the index, a stat per file (app.workers.sync_worker).
     "sync": ("sync_documents",),
+    # Reading the documents the index found: PDFs, OCR, the AI on forms, one
+    # project at a time (app.workers.document_worker).
+    "documents": ("process_documents",),
     "ifc": ("ifc_read", "ifc_read_zip", "ifc_reprocess"),
 }
 WORKER_KINDS = tuple(kind for kinds in LANES.values() for kind in kinds)
@@ -126,6 +130,11 @@ class JobContext:
     stop: threading.Event | None = None
     session_factory: Callable[[], Session] | None = None
     _last_write: float = field(default=0.0, init=False, repr=False)
+    # The last step the spacing left unwritten, written at the next `check`:
+    # a burst of quick steps used to leave the page showing the first of
+    # them for as long as the next slow step took (EP-30784: "70 of 356"
+    # while 147 were done).
+    _skipped: tuple | None = field(default=None, init=False, repr=False)
 
     def _session(self) -> Session:
         return (self.session_factory or SessionLocal)()
@@ -137,8 +146,13 @@ class JobContext:
             raise Interrupted()
         now = time.monotonic()
         if self.min_interval and self._last_write and now - self._last_write < self.min_interval and done < total:
+            self._skipped = (done, total, message, extra)
             return
-        self._last_write = now
+        self._write(done, total, message, extra)
+
+    def _write(self, done: int, total: int, message: str, extra: dict) -> None:
+        self._last_write = time.monotonic()
+        self._skipped = None
         db = self._session()
         try:
             job = db.get(BackgroundJob, self.job_id)
@@ -154,8 +168,13 @@ class JobContext:
             raise Cancelled()
 
     def check(self) -> None:
+        """Raise if a stop was asked for. Also writes the last progress step
+        the spacing skipped, so a long wait never shows a stale count."""
         if self.stop is not None and self.stop.is_set():
             raise Interrupted()
+        if self._skipped is not None:
+            self._write(*self._skipped)
+            return
         db = self._session()
         try:
             job = db.get(BackgroundJob, self.job_id)

@@ -21,10 +21,12 @@ from app.models import (
     BackgroundJob,
     BatteryPanelResult,
     BoqCandidate,
+    BoqCorrection,
     BoqSnapshot,
     ComplianceAudit,
     ComplianceLearnedAnswer,
     ComplianceStatement,
+    DocumentClassification,
     DocumentDependency,
     DocumentReading,
     DrawingIssue,
@@ -80,7 +82,9 @@ def delete_project(db: Session, project: Project) -> None:
     drawings = select(ProjectShopDrawing.id).where(ProjectShopDrawing.project_id == project_id)
     db.execute(delete(ShopDrawingRevision).where(ShopDrawingRevision.shop_drawing_id.in_(drawings)))
     db.execute(delete(ShopDrawingCandidate).where(ShopDrawingCandidate.project_id == project_id))
-    for model in (AiVerification, DocumentDependency, DocumentReading, BatteryPanelResult, SubmittalReply,
+    # Classification assessments and BOQ corrections point at the project's
+    # documents and users; they go before the documents do.
+    for model in (DocumentClassification, BoqCorrection, AiVerification, DocumentDependency, DocumentReading, BatteryPanelResult, SubmittalReply,
                   ProjectShopDrawing, ProjectBuildingFloor, ProjectFloorAlias, DrawingIssue, DrawingRequirementState, ShopDrawingEvent,
                   ProjectFrcCables, ProjectProposedMaterial, ProjectFloorSchedule, ProjectAmplifierDesign, ProjectIfcDrawing,
                   BoqCandidate, BoqSnapshot, ProjectDocument, BackgroundJob, ResultCache, ProjectAction, ProjectChange):

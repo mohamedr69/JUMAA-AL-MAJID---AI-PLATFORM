@@ -90,6 +90,23 @@ export function SyncDocumentsCard({
     void start();
   }, [autoStart, canEdit, status, projectId, start]);
 
+  // Document processing: the reading of what the file sync found, a job of
+  // its own that goes on after the sync has finished. Followed here so the
+  // page refreshes as documents are read, and shown as one line.
+  const processing = useJob(projectId, "process_documents", `/projects/${projectId}/jobs/process-documents`, () => {
+    void load();
+    onSyncedRef.current?.();
+  });
+  const { active: processingActive, follow: followProcessing } = processing;
+  useEffect(() => {
+    if (status?.processing && !processingActive) followProcessing(status.processing);
+  }, [status, processingActive, followProcessing]);
+  useEffect(() => {
+    if (!processingActive) return;
+    const timer = window.setInterval(() => void load(), 5000);
+    return () => window.clearInterval(timer);
+  }, [processingActive, load]);
+
   if (!status) return error ? <div className="text-xs text-red-700">{error}</div> : null;
   const stale = status.stale;
   const fileSync = `/projects/${projectId}/sync`;
@@ -97,7 +114,20 @@ export function SyncDocumentsCard({
   // index as it stands, and are refreshed when it finishes.
   const hint = queued && !status.worker_running
     ? "Waiting: the background worker is not running on this PC. Start the platform with start.bat."
-    : "Syncing in the background: keep working, the pages show the current index until it finishes.";
+    : "Finding files in the background: seconds, nothing opened. The documents are then read by the processing worker.";
+  const processingLine = processing.job && processingActive ? (
+    <Link to={fileSync} className="mt-1 block text-xs text-sky-700 hover:underline" title="Open File Sync">
+      {processing.job.status === "queued"
+        ? (status.documents_worker_running
+          ? "Document processing queued"
+          : "Document processing queued: the processing worker is not running (start.bat)")
+        : `Processing documents in the background: ${processing.job.progress.done ?? 0} of ${processing.job.progress.total ?? 0}`}
+    </Link>
+  ) : status.pending > 0 ? (
+    <Link to={fileSync} className="mt-1 block text-xs text-sky-700 hover:underline" title="Open File Sync">
+      {status.pending} document{status.pending === 1 ? "" : "s"} waiting to be processed
+    </Link>
+  ) : null;
 
   if (header) {
     return (
@@ -123,9 +153,10 @@ export function SyncDocumentsCard({
         </div>
         {sync.job && (active || sync.job.status === "failed") && (
           <div className="mt-2 text-left">
-            <JobProgress job={sync.job} onCancel={sync.cancel} what="the document sync" hint={hint} />
+            <JobProgress job={sync.job} onCancel={sync.cancel} what="the file sync" hint={hint} />
           </div>
         )}
+        {processingLine}
         {sync.error && <div className="mt-1 text-xs text-red-700">{sync.error}</div>}
       </div>
     );
@@ -154,7 +185,8 @@ export function SyncDocumentsCard({
           </button>
         )}
       </div>
-      {sync.job && (active || sync.job.status === "failed") && <JobProgress job={sync.job} onCancel={sync.cancel} what="the document sync" hint={hint} />}
+      {sync.job && (active || sync.job.status === "failed") && <JobProgress job={sync.job} onCancel={sync.cancel} what="the file sync" hint={hint} />}
+      {processingLine}
       {sync.error && <div className="mt-1 text-xs text-red-700">{sync.error}</div>}
       {stale.length > 0 && (
         <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">

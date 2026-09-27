@@ -1,0 +1,3186 @@
+{
+ "r1": [
+  {
+   "revision_row": 2,
+   "ref": "BBY006-GME-SDW-FP-FA-BSM-B04-010025",
+   "floor": "BASEMENT-4",
+   "doc": "22",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 8089,
+     "images": 4,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "REVIOUS CC2A",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "REVISED AS PER CONSULTANT COMMENTS "
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 4,
+   "ref": "BBY006-GME-SDW-FP-FA-BSM-B03-010026",
+   "floor": "BASEMENT-3",
+   "doc": "24",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 7375,
+     "images": 4,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "REVIOUS FLOOR CC2A",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "REVISED AS PER CONSULTANT COMMENTS"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 6,
+   "ref": "BBY006-GME-SDW-FP-FA-BSM-B02-010027",
+   "floor": "BASEMENT-2",
+   "doc": "26",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 7484,
+     "images": 4,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "REVIOUS FLOOR CC2A",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "REVISED AS PER CONSULTANT COMMENTS"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 8,
+   "ref": "BBY006-GME-SDW-FP-FA-BSM-B01-010001",
+   "floor": "BASEMENT-1",
+   "doc": "28",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 7596,
+     "images": 4,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "REVIOUS FLOOR CC2A",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "REVISED AS PER CONSULTANT COMMENTS"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 10,
+   "ref": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+   "floor": "GROUND FLOOR",
+   "doc": "120",
+   "pages": 2,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2000,
+     "images": 10,
+     "annots": [
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 11132,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "REVIOUS FLOOR CC2A & ",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "Approved MEP Services Wall and Slab",
+      "approved Material Submittal and",
+      "Approved materials shall be used.",
+      "approved builders work"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 12,
+   "ref": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+   "floor": "PODIUM-1",
+   "doc": "122",
+   "pages": 2,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2004,
+     "images": 11,
+     "annots": [
+      "Stamp",
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 9397,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "REVIOUS FLOOR CC2A",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "Approved MEP Services Wall and Slab co",
+      "approved Material Submittal and sample",
+      "Approved materials shall be used.",
+      "approved builders work"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 14,
+   "ref": "BBY006-GME-SDW-FP-FA-POD-P02-010004",
+   "floor": "PODIUM-2",
+   "doc": "124",
+   "pages": 2,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2004,
+     "images": 10,
+     "annots": [
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 9432,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "REVIOUS FLOOR CC2A",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "Approved MEP Services Wall and Slab",
+      "approved Material",
+      "Approved materials shall be used.",
+      "approved builders work"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 16,
+   "ref": "BBY006-GME-SDW-FP-FA-POD-P03-010005",
+   "floor": "PODIUM-3",
+   "doc": "127",
+   "pages": 2,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2004,
+     "images": 10,
+     "annots": [
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 9707,
+     "images": 7,
+     "annots": [],
+     "rev_tokens": [
+      "REVIOUS FLOOR CC2A",
+      "REVIOUS CC1",
+      "Rev",
+      "REV. NO."
+     ],
+     "stamp_words": [
+      "Approved MEP Services Wall and Slab",
+      "approved Material Submittal and",
+      "Approved materials shall be used.",
+      "approved builders work"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 18,
+   "ref": "BBY006-GME-SDW-FP-FA-ZZZ-L01-010006",
+   "floor": "L01",
+   "doc": "130",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 7768,
+     "images": 6,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "REVIOUS APS",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "REVISED AS PER NEW ARCH"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 20,
+   "ref": "BBY006-GME-SDW-FP-FA-ZZZ-L02-010007",
+   "floor": "L02",
+   "doc": "166",
+   "pages": 4,
+   "stored": [
+    [
+     "R1",
+     "ANN",
+     1,
+     "document"
+    ],
+    [
+     "R0",
+     "UR",
+     2,
+     "document"
+    ],
+    [
+     "R0",
+     "rejected",
+     3,
+     "document"
+    ],
+    [
+     "R0",
+     "UR",
+     4,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2135,
+     "images": 10,
+     "annots": [
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval ",
+      "revious revision"
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 6760,
+     "images": 7,
+     "annots": [],
+     "rev_tokens": [
+      "REVIOUS CC2A",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "REVISED AS PER NEW ARCH"
+     ]
+    },
+    {
+     "page": 3,
+     "text_len": 2025,
+     "images": 10,
+     "annots": [],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 22,
+   "ref": "BBY006-GME-SDW-FP-FA-ZZZ-ZZZ-010008",
+   "floor": "L03 To L21",
+   "doc": "169",
+   "pages": 4,
+   "stored": [
+    [
+     "R1",
+     "ANN",
+     1,
+     "document"
+    ],
+    [
+     "R0",
+     "UR",
+     2,
+     "reply"
+    ],
+    [
+     "R0",
+     "UR",
+     3,
+     "document"
+    ],
+    [
+     "R0",
+     "rejected",
+     4,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 3498,
+     "images": 10,
+     "annots": [
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval ",
+      "revious revision."
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) ",
+      "approved materials submittal."
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 814,
+     "images": 1,
+     "annots": [],
+     "rev_tokens": [
+      "revised drawings. ",
+      "revised drawings. "
+     ],
+     "stamp_words": [
+      "approved builders work drawings for ri",
+      "revised drawings. ",
+      "approved wall coordination layout (Typ",
+      "approved "
+     ]
+    },
+    {
+     "page": 3,
+     "text_len": 10571,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "REVIOUS CC2A",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "REVISED AS PER NEW ARCH"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 24,
+   "ref": "BBY006-GME-SDW-FP-FA-ZZZ-ZZZ-010009",
+   "floor": "L22",
+   "doc": "139",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 5588,
+     "images": 5,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "REVIOUS CC2A",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "REVISED AS PER NEW ARCH"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 26,
+   "ref": "BBY006-GME-SDW-FP-FA-ZZZ-ZZZ-010010",
+   "floor": "L23 TO L40",
+   "doc": "141",
+   "pages": 2,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2424,
+     "images": 11,
+     "annots": [
+      "Stamp",
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) ",
+      "approved builders work for riser tray "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 11712,
+     "images": 5,
+     "annots": [],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "Approved MEP Services Wall and Slab co",
+      "approved Material Submittal and sample",
+      "Approved materials shall be used.",
+      "approved RCP."
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 28,
+   "ref": "BBY006-GME-SDW-FP-FA-ZZZ-L41-010024",
+   "floor": "L41",
+   "doc": "143",
+   "pages": 2,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2019,
+     "images": 11,
+     "annots": [
+      "Stamp",
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 9157,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "REVIOUS CC2A",
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "Approved MEP Services Wall and Slab co",
+      "approved Material Submittal and",
+      "Approved materials shall be used.",
+      "approved wall coordination layout"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 43,
+   "ref": "BBY006-GME-SDW-EL-LI-BSM-ZZZ-010001",
+   "floor": "Basement 4, Basement 3, Basement 2",
+   "doc": "170",
+   "pages": 24,
+   "stored": [
+    [
+     "R2",
+     "ANN",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "rejected",
+     2,
+     "document"
+    ],
+    [
+     "R0",
+     "rejected",
+     3,
+     "document"
+    ],
+    [
+     "R0",
+     "UR",
+     4,
+     "reply"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 3465,
+     "images": 12,
+     "annots": [
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) ",
+      "approved drawings prior to installatio"
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 2173,
+     "images": 12,
+     "annots": [],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval ",
+      "revious revision commen"
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 3,
+     "text_len": 2735,
+     "images": 12,
+     "annots": [],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) ",
+      "approved builders work drawings, the c"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 46,
+   "ref": "BBY006-GME-SDW-EL-LI-BSM-B01-010027",
+   "floor": "BASEMENT-1",
+   "doc": "290",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 6821,
+     "images": 5,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV",
+      "REVISED AS PER COMMENTS"
+     ],
+     "stamp_words": [
+      "REVISED AS PER COMMENTS"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 48,
+   "ref": "BBY006-GME-SDW-EL-LI-POD-BGF-010028",
+   "floor": "GROUND FLOOR",
+   "doc": "268",
+   "pages": 27,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2041,
+     "images": 11,
+     "annots": [
+      "Stamp",
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 9174,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "approved",
+      "Approved MEP Services Wall & HL",
+      "approved Material",
+      "approved RCP (Typ)."
+     ]
+    },
+    {
+     "page": 3,
+     "text_len": 100,
+     "images": 0,
+     "annots": [],
+     "rev_tokens": [],
+     "stamp_words": []
+    }
+   ]
+  },
+  {
+   "revision_row": 50,
+   "ref": "BBY006-GME-SDW-EL-LI-POD-P01-010029",
+   "floor": "PODIUM-1",
+   "doc": "313",
+   "pages": 20,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2045,
+     "images": 11,
+     "annots": [
+      "Stamp",
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 8151,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "approved",
+      "Approved MEP Services Wall & HL",
+      "approved",
+      "approved RCP (Typ)."
+     ]
+    },
+    {
+     "page": 3,
+     "text_len": 94,
+     "images": 0,
+     "annots": [],
+     "rev_tokens": [],
+     "stamp_words": []
+    }
+   ]
+  },
+  {
+   "revision_row": 52,
+   "ref": "BBY006-GME-SDW-EL-LI-POD-P02-010030",
+   "floor": "PODIUM-2",
+   "doc": "316",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 6052,
+     "images": 4,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV",
+      "REVISED AS PER NEW ARCH"
+     ],
+     "stamp_words": [
+      "REVISED AS PER NEW ARCH"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 54,
+   "ref": "BBY006-GME-SDW-EL-LI-POD-P03-010031",
+   "floor": "PODIUM-3",
+   "doc": "320",
+   "pages": 16,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2045,
+     "images": 11,
+     "annots": [
+      "Stamp",
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 8208,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "approved drawings.",
+      "Approved MEP Services Wall &",
+      "approved Material Submittal and",
+      "approved RCP (Typ)."
+     ]
+    },
+    {
+     "page": 3,
+     "text_len": 94,
+     "images": 0,
+     "annots": [],
+     "rev_tokens": [],
+     "stamp_words": []
+    }
+   ]
+  },
+  {
+   "revision_row": 56,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-L01-010032",
+   "floor": "1ST FLOOR",
+   "doc": "304",
+   "pages": 2,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2027,
+     "images": 11,
+     "annots": [
+      "Stamp",
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 7643,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "approved",
+      "Approved MEP Services Wall & HL",
+      "approved",
+      "approved RCP"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 59,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-ZZZ-010034",
+   "floor": "L03 TO L21",
+   "doc": "273",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 3974,
+     "images": 3,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV",
+      "REVISED AS PER NEW ARCH"
+     ],
+     "stamp_words": [
+      "REVISED AS PER NEW ARCH"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 62,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-ZZZ-010036",
+   "floor": "L23 TO L40",
+   "doc": "277",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 3959,
+     "images": 3,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV",
+      "REVISED AS PER NEW ARCH"
+     ],
+     "stamp_words": [
+      "REVISED AS PER NEW ARCH"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 65,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-ZZZ-010051",
+   "floor": "L42",
+   "doc": "308",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 5465,
+     "images": 5,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": []
+    }
+   ]
+  },
+  {
+   "revision_row": 67,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-ZZZ-010037",
+   "floor": "L43 TO 51",
+   "doc": "279",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 5589,
+     "images": 4,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": []
+    }
+   ]
+  },
+  {
+   "revision_row": 69,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-ZZZ-010038",
+   "floor": "L52 & 53",
+   "doc": "280",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 5459,
+     "images": 4,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": []
+    }
+   ]
+  },
+  {
+   "revision_row": 71,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-L54-010039",
+   "floor": "L54",
+   "doc": "281",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 5312,
+     "images": 4,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": []
+    }
+   ]
+  },
+  {
+   "revision_row": 73,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-ZZZ-010040",
+   "floor": "L55 & 56",
+   "doc": "282",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 5491,
+     "images": 4,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": []
+    }
+   ]
+  },
+  {
+   "revision_row": 76,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-L58-010042",
+   "floor": "L58",
+   "doc": "309",
+   "pages": 2,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2047,
+     "images": 11,
+     "annots": [
+      "Stamp",
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 7226,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "approved RCP (Typ).",
+      "approved drawings.",
+      "Approved MEP Services Wall & HL Coordi",
+      "approved"
+     ]
+    }
+   ]
+  },
+  {
+   "revision_row": 78,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-L59-010043",
+   "floor": "L59",
+   "doc": "284",
+   "pages": 1,
+   "stored": [
+    [
+     "R1",
+     "UR",
+     1,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 5117,
+     "images": 4,
+     "annots": [
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square",
+      "Square"
+     ],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": []
+    }
+   ]
+  },
+  {
+   "revision_row": 80,
+   "ref": "BBY006-GME-SDW-EL-LI-ZZZ-L60-010044",
+   "floor": "L60",
+   "doc": "311",
+   "pages": 2,
+   "stored": [
+    [
+     "R0",
+     "rejected",
+     1,
+     "document"
+    ],
+    [
+     "R1",
+     "UR",
+     2,
+     "document"
+    ]
+   ],
+   "page_info": [
+    {
+     "page": 1,
+     "text_len": 2047,
+     "images": 11,
+     "annots": [
+      "Stamp",
+      "Stamp",
+      "Stamp"
+     ],
+     "rev_tokens": [
+      "Rev.: ",
+      "Review/ Approval "
+     ],
+     "stamp_words": [
+      "approved specifications from the engin",
+      "Approved (A) ",
+      "Approved as Noted (B) "
+     ]
+    },
+    {
+     "page": 2,
+     "text_len": 7234,
+     "images": 6,
+     "annots": [],
+     "rev_tokens": [
+      "Rev",
+      "REV. NO.",
+      "REV"
+     ],
+     "stamp_words": [
+      "approved drawings.",
+      "Approved MEP Services Wall & HL Coordi",
+      "approved Material Submittal and sample",
+      "approved RCP (Typ)."
+     ]
+    }
+   ]
+  }
+ ],
+ "frames": {
+  "409": {
+   "drawings": 14,
+   "option_rects": [
+    [
+     287,
+     625,
+     353,
+     633
+    ],
+    [
+     287,
+     600,
+     353,
+     607
+    ]
+   ],
+   "near_option": [
+    {
+     "type": "f",
+     "rect": [
+      21,
+      18,
+      523,
+      642
+     ],
+     "color": null,
+     "fill": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "width": null
+    },
+    {
+     "type": "f",
+     "rect": [
+      20,
+      17,
+      591,
+      744
+     ],
+     "color": null,
+     "fill": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "width": null
+    },
+    {
+     "type": "f",
+     "rect": [
+      21,
+      17,
+      591,
+      744
+     ],
+     "color": null,
+     "fill": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "width": null
+    },
+    {
+     "type": "s",
+     "rect": [
+      280,
+      592,
+      364,
+      613
+     ],
+     "color": [
+      0.02352900058031082,
+      0.5411829948425293,
+      0.1098020002245903
+     ],
+     "fill": null,
+     "width": 3.0
+    }
+   ],
+   "annots": []
+  },
+  "434": {
+   "drawings": 5,
+   "option_rects": [
+    [
+     283,
+     628,
+     347,
+     635
+    ],
+    [
+     283,
+     603,
+     347,
+     610
+    ]
+   ],
+   "near_option": [
+    {
+     "type": "f",
+     "rect": [
+      28,
+      18,
+      527,
+      644
+     ],
+     "color": null,
+     "fill": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "width": null
+    },
+    {
+     "type": "f",
+     "rect": [
+      27,
+      17,
+      584,
+      742
+     ],
+     "color": null,
+     "fill": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "width": null
+    },
+    {
+     "type": "f",
+     "rect": [
+      28,
+      17,
+      584,
+      742
+     ],
+     "color": null,
+     "fill": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "width": null
+    }
+   ],
+   "annots": [
+    [
+     "Stamp",
+     [
+      54,
+      393,
+      1495,
+      477
+     ]
+    ],
+    [
+     "Stamp",
+     [
+      438,
+      425,
+      552,
+      490
+     ]
+    ],
+    [
+     "Stamp",
+     [
+      275,
+      594,
+      370,
+      615
+     ]
+    ]
+   ]
+  },
+  "440": {
+   "drawings": 6,
+   "option_rects": [
+    [
+     283,
+     628,
+     347,
+     635
+    ],
+    [
+     283,
+     603,
+     347,
+     610
+    ]
+   ],
+   "near_option": [
+    {
+     "type": "f",
+     "rect": [
+      28,
+      18,
+      527,
+      644
+     ],
+     "color": null,
+     "fill": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "width": null
+    },
+    {
+     "type": "f",
+     "rect": [
+      27,
+      17,
+      584,
+      742
+     ],
+     "color": null,
+     "fill": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "width": null
+    },
+    {
+     "type": "f",
+     "rect": [
+      28,
+      17,
+      584,
+      742
+     ],
+     "color": null,
+     "fill": [
+      0.0,
+      0.0,
+      0.0
+     ],
+     "width": null
+    },
+    {
+     "type": "f",
+     "rect": [
+      283,
+      603,
+      347,
+      610
+     ],
+     "color": null,
+     "fill": [
+      1.0,
+      0.38430801033973694,
+      0.0
+     ],
+     "width": null
+    }
+   ],
+   "annots": []
+  }
+ }
+}

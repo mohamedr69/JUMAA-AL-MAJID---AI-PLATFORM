@@ -107,6 +107,27 @@ def _project(client, folder: Path, ep="30811") -> int:
                                           "design_sheets": []}).json()["id"]
 
 
+PROCESSING_COUNTS = ("failed", "read_by_ai", "processed", "unchanged_after_hash")
+
+
+def _result(client, response) -> dict:
+    """What a sync did, as one dict: the file sync's own counts (files, new,
+    changed, unchanged, removed) and, from the processing job it queued
+    (run inline in the tests), how the reading went (failed, read_by_ai).
+    Since File Sync v2 the two are two jobs; these tests read them as one."""
+    job = response if isinstance(response, dict) else response.json()
+    result = dict(job.get("result") or {})
+    for key in PROCESSING_COUNTS:
+        result.setdefault(key, 0)
+    processing_id = result.get("processing_job_id")
+    if processing_id:
+        processing = client.get(f"/jobs/{processing_id}").json()
+        result["processing_status"] = processing["status"]
+        for key in PROCESSING_COUNTS:
+            result[key] = (processing.get("result") or {}).get(key, 0)
+    return result
+
+
 
 
 
@@ -140,7 +161,7 @@ def test_the_folder_is_read_once_and_only_changes_after(client, db_session, tmp_
 
     assert started.status_code == 202, started.text
 
-    result = started.json()["result"]
+    result = _result(client, started)
 
     assert (result["files"], result["new"], result["unchanged"], result["read_by_ai"]) == (3, 3, 0, 1)
 
@@ -180,7 +201,7 @@ def test_the_folder_is_read_once_and_only_changes_after(client, db_session, tmp_
 
     # Synced again with nothing changed: nothing is read, nothing is asked.
 
-    again = client.post(f"/projects/{project_id}/jobs/sync-documents").json()["result"]
+    again = _result(client, client.post(f"/projects/{project_id}/jobs/sync-documents"))
 
     assert (again["new"], again["changed"], again["unchanged"], again["read_by_ai"]) == (0, 0, 3, 0)
 
@@ -194,7 +215,7 @@ def test_the_folder_is_read_once_and_only_changes_after(client, db_session, tmp_
 
     ai.answers = [_reading("BBY006-GME-MAS-EL-FA-0001", 0, "approved", code="A")]
 
-    third = client.post(f"/projects/{project_id}/jobs/sync-documents").json()["result"]
+    third = _result(client, client.post(f"/projects/{project_id}/jobs/sync-documents"))
 
     assert (third["changed"], third["unchanged"], third["read_by_ai"]) == (1, 2, 1)
 
@@ -218,7 +239,7 @@ def test_the_folder_is_read_once_and_only_changes_after(client, db_session, tmp_
 
     (folder / "09- Other" / "catalogue.pdf").unlink()
 
-    fourth = client.post(f"/projects/{project_id}/jobs/sync-documents").json()["result"]
+    fourth = _result(client, client.post(f"/projects/{project_id}/jobs/sync-documents"))
 
     assert fourth["removed"] == 1
 
@@ -374,7 +395,7 @@ def test_a_changed_design_sheet_marks_the_boq_stale_and_a_new_specification_the_
 
     _pdf(sheet, "Design sheet, revised")
 
-    result = client.post(f"/projects/{project_id}/jobs/sync-documents").json()["result"]
+    result = _result(client, client.post(f"/projects/{project_id}/jobs/sync-documents"))
 
     assert result["changed"] == 1 and result["read_by_ai"] == 0 and ai.calls == 0
 
@@ -434,9 +455,9 @@ def test_a_read_that_fails_keeps_the_previous_result_and_is_marked(client, db_se
 
 
 
-    monkeypatch.setattr(document_sync.document_control, "_read_pdf", broken)
+    monkeypatch.setattr(document_sync.document_control, "read_open_pdf", broken)
 
-    result = client.post(f"/projects/{project_id}/jobs/sync-documents").json()["result"]
+    result = _result(client, client.post(f"/projects/{project_id}/jobs/sync-documents"))
 
     assert result["failed"] == 1 and result["changed"] == 1
 
@@ -772,7 +793,7 @@ def test_reader_processes_change_when_files_are_read_not_what_is_read(client, db
 
         assert job["status"] == "succeeded", job
 
-        results[workers] = job["result"]
+        results[workers] = _result(client, job)
 
     assert results[2]["new"] == results[0]["new"] == len(_DRAWINGS) and results[2]["failed"] == 0
 
@@ -812,7 +833,7 @@ def test_a_document_left_processing_by_a_stopped_sync_is_read_again(client, db_s
 
 
 
-    result = client.post(f"/projects/{project_id}/jobs/sync-documents").json()["result"]
+    result = _result(client, client.post(f"/projects/{project_id}/jobs/sync-documents"))
 
     assert result["changed"] == 1 and result["unchanged"] == 0
 
@@ -853,7 +874,7 @@ def test_file_sync_puts_each_file_in_one_status_with_its_reason(client, db_sessi
     db_session.commit()
 
     summary = client.get(f"/projects/{project_id}/documents/sync-summary").json()
-    assert summary["counts"] == {"processed": 1, "unchanged": 1, "partial": 1, "unavailable": 1, "failed": 1}
+    assert summary["counts"] == {"processed": 1, "unchanged": 1, "pending": 0, "partial": 1, "unavailable": 1, "failed": 1}
     assert summary["total"] == 5 and summary["removed"] == 1
     assert summary["duration_s"] == 125 and summary["automatic"] is False and summary["started_by"]
     assert summary["source"] == "OneDrive" and summary["job"] is None
@@ -884,7 +905,7 @@ def test_a_file_onedrive_had_not_brought_down_is_read_on_the_next_sync(client, d
     db_session.commit()
     assert client.get(f"/projects/{project_id}/documents/sync-summary").json()["counts"]["unavailable"] == 1
 
-    result = client.post(f"/projects/{project_id}/jobs/sync-documents").json()["result"]
+    result = _result(client, client.post(f"/projects/{project_id}/jobs/sync-documents"))
     assert result["changed"] == 1
     db_session.refresh(row)
     assert row.extracted["notes"] == [] and row.extracted["records"][0]["reference"] == "BBY006-GME-SDW-EL-FA-0001"

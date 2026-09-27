@@ -1,0 +1,881 @@
+{
+ "parser_version": "parse-2026-09-28.1",
+ "box_version": "box-2",
+ "run_at": "2026-09-27T18:24:44+00:00",
+ "docs": {
+  "434": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0054-01-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "6-Mar-2026",
+    "revision": "R1",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "6-Mar-2026",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "6-Mar-2026",
+      "reply_text": null
+     },
+     {
+      "category": "reply",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 2,
+      "source": "reply",
+      "listed": null,
+      "floor": null,
+      "name": "Reply to consultant comments",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+      "revision": "R1",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "TYPICAL 2ND T0 14TH FLOOR",
+      "name": "TYPICAL 2ND T0 14TH FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-104 A~104 M"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 4.7
+  },
+  "436": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0055-01-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "6-Mar-2026",
+    "revision": "R1",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "6-Mar-2026",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "6-Mar-2026",
+      "reply_text": null
+     },
+     {
+      "category": "reply",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 2,
+      "source": "reply",
+      "listed": null,
+      "floor": null,
+      "name": "Reply to consultant comments",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+      "revision": "R1",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "ROOF FLOOR",
+      "name": "ROOF FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-105"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 1.9
+  },
+  "437": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "7-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "7-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "7-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "name": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-110"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.4
+  },
+  "687": {
+   "relative_path": "06. MS/FA/Revised/PDF/Previous Approval.pdf",
+   "role": "submittal_form",
+   "stored": {
+    "reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-ZZZ-1004",
+    "revision": "R2",
+    "status": "ANN",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "Fire Alarm & Voice Evacuation System EST4. _\u2014",
+      "reply_text": null
+     },
+     {
+      "category": "submittals",
+      "reference": "B07-ECC-MAS-ELE-0016",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 6,
+      "source": "document",
+      "listed": null,
+      "floor": "B07",
+      "name": "B07-ECC-MAS-ELE-0016",
+      "reply_text": null
+     },
+     {
+      "category": "submittals",
+      "reference": "24-Mar-22",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 9,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "24-Mar-22",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "Fire Alarm & Voice Evacuation System EST4. _\u2014",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     },
+     {
+      "category": "submittals",
+      "reference": "B07-ECC-MAS-ELE-0016",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "B07",
+      "name": "B07-ECC-MAS-ELE-0016",
+      "page": 6,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": [
+     "Previous Approval.pdf: only the first 12 pages were checked for submission replies."
+    ]
+   },
+   "seconds": 10.3
+  },
+  "868": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Submitted/R01/CRS/CRS-ICC-DLRC-SPM-SD-MEP-FA-100,101,102,104&105.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "reply",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "reply",
+      "listed": null,
+      "floor": null,
+      "name": "Reply to consultant comments",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "reply",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FA-100,101,102,104&105",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "floor": null,
+      "name": "Reply to consultant comments",
+      "page": 1,
+      "source": "reply",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "729": {
+   "relative_path": "09. Scan Document/EP-30088 CBS Sam B ack 13.08.26.pdf",
+   "role": "document",
+   "stored": {
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "records": []
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 1.7
+  },
+  "730": {
+   "relative_path": "09. Scan Document/EP-30088 FA Sam B Ack 24.07.26.pdf",
+   "role": "document",
+   "stored": {
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "records": []
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 1.5
+  },
+  "620": {
+   "relative_path": "06. MS/EML/COMPLIANCE STATEMENT.pdf",
+   "role": "document",
+   "stored": {
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "records": []
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "440": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "444": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "578": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "7-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "7-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "7-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "name": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-110"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "783": {
+   "relative_path": "10. SD/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "7-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "7-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "7-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "name": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-110"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.2
+  },
+  "848": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "7-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "7-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "7-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "name": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-110"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "409": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "BASEMENT-02",
+      "name": "BASEMENT-02 FLOOR PLAN EMERGENCY LIGHT LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-101"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.4
+  },
+  "415": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0077-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0077",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "3RD FLOOR",
+      "name": "3RD FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 B"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.3
+  },
+  "771": {
+   "relative_path": "10. SD/FA/1 TO 14 (TYP)/ICC-DLRC-SPM-SD-MEP-FA-005.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-005",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-005",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-005",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 1.2
+  },
+  "784": {
+   "relative_path": "10. SD/FA/RF/ICC-DLRC-SPM-SD-MEP-FA-006.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-006",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-006",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-006",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.2
+  },
+  "343": {
+   "relative_path": "06- Transmittal/EM Sam B 06.8.26.doc",
+   "role": "transmittal",
+   "stored": {
+    "reference": "TR/197/26",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/197/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/197/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "889": {
+   "relative_path": "12. Transmittal/EP-30058 CBS Sam B -EATON.doc",
+   "role": "transmittal",
+   "stored": {
+    "reference": "TR/204/26",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/204/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/204/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "890": {
+   "relative_path": "12. Transmittal/EP-30058 FA 24.07.26.doc",
+   "role": "transmittal",
+   "stored": {
+    "reference": "TR/187/26",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/187/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "VES",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     },
+     {
+      "category": "samples",
+      "reference": "TR/187/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/187/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "VES",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     },
+     {
+      "category": "samples",
+      "reference": "TR/187/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  }
+ }
+}

@@ -165,6 +165,58 @@ def read_transmittal(text: str, relative: str, modified: datetime) -> list[Contr
     ) for kind, code in found]
 
 
+_OCR_HEADING = re.compile(r"\bDOCUMENTS?\s+TRANSMIT+AL\b|\bTRANSMITTAL\s+(?:NOTE|SHEET|FORM)\b", re.I)
+_OCR_REF = re.compile(r"\bTR\s*/\s*(\d{1,5})\s*/\s*(\d{2,4})\b", re.I)
+_OCR_DATE = re.compile(r"\b(\d{1,2})\s*/\s*(\d{1,2})\s*/\s*(\d{4})\b")
+_OCR_SUBJECT = re.compile(r"\bSubject\b[\s_:.|-]*([^\n|]+)", re.I)
+
+
+_OCR_FORM_CUES = (re.compile(r"\bAASS\s*Ref", re.I), re.compile(r"\bSubject\b", re.I), re.compile(r"\bDear\s+Sir", re.I),
+                  re.compile(r"\bProject\s+ID\b", re.I), re.compile(r"\bAttn\b", re.I))
+
+
+def looks_like_transmittal(text: str) -> bool:
+    """Whether OCR text is a document transmittal: a TR number with either
+    the heading or, where OCR lost the heading (730: the banner came back
+    as "~ T"), at least three of the form's own field labels. A page that
+    merely mentions a transmittal number is not."""
+    text = text or ""
+    if not _OCR_REF.search(text):
+        return False
+    return bool(_OCR_HEADING.search(text)) or sum(1 for cue in _OCR_FORM_CUES if cue.search(text)) >= 3
+
+
+def from_ocr(text: str, relative: str, modified: datetime, *, page: int = 1) -> list[ControlledDocument]:
+    """The sample submissions a scanned transmittal names, read off its
+    OCR. OCR keeps the form's cells on one line with the label and the
+    value run together ("Date |: | 13/08/2026", "AASS Ref. iE TR/187/26"),
+    so the header is taken by pattern -- the TR number, the first date, the
+    subject line -- and handed to `read_transmittal` as the cells it
+    expects; the items are the lines that name a sample. The receipt
+    signature on such a copy is a receipt: the status stays UR."""
+    reference = _OCR_REF.search(text or "")
+    if reference is None:
+        return []
+    date = None
+    after_label = re.search(r"\bDate\b", text or "", re.I)
+    for found in _OCR_DATE.finditer(text or "", after_label.end() if after_label else 0):
+        date = f"{found.group(1)}/{found.group(2)}/{found.group(3)}"
+        break
+    subject = _OCR_SUBJECT.search(text or "")
+    lines = [line.strip(" |_") for line in (text or "").splitlines()]
+    items = [line for line in lines if kind_of(line) and not re.match(r"^subject\b", line, re.I)]
+    # As the Word reader sees a form: the label and its value are cells of
+    # their own (word_text.cells splits on "|" and line breaks).
+    synthetic = "\n".join(filter(None, [
+        f"Subject | {' '.join(subject.group(1).split())}" if subject else None,
+        f"Date | {date}" if date else None,
+        f"AASS Ref. | TR/{reference.group(1)}/{reference.group(2)}",
+        "Dear Sir/ Madam,",
+        *items,
+    ]))
+    return [replace(row, page=page) for row in read_transmittal(synthetic, relative, modified)]
+
+
 def number(records: list[ControlledDocument]) -> list[ControlledDocument]:
     """The transmittal submissions as the log shows them: one per system,
     kind and transmittal (the same transmittal filed twice -- a OneDrive

@@ -1,0 +1,108 @@
+{
+ "label": "phase2-read",
+ "project": "30784",
+ "source": "read",
+ "systems": {
+  "EML": {
+   "golden_rows": 12,
+   "lines": 12,
+   "review_rows": 0,
+   "row_detection_recall": 1.0,
+   "row_detection_precision": 1.0,
+   "part_number_accuracy": 1.0,
+   "quantity_accuracy": 1.0,
+   "pair_accuracy": 1.0,
+   "group_accuracy": 1.0,
+   "review_rate": 0.0,
+   "false_auto_accept_rate": 0.0,
+   "false_auto_accepts": [],
+   "false_removal_rate": 0.0,
+   "missing_rows": [],
+   "extra_review_rows": [],
+   "wrong_quantity": [],
+   "wrong_group": [],
+   "state": "completed",
+   "budget_exhausted": null,
+   "wall_s": 1.6,
+   "ai_calls": 0,
+   "ai_calls_per_page": 0.0,
+   "cache_hits": 0,
+   "ai_timeouts": 0,
+   "ai_timeout_rate": 0.0,
+   "ai_verification_rate": 0.0,
+   "calls_by_task": {},
+   "latency_s_by_task": {},
+   "review_reasons": {},
+   "evidence_levels": {
+    "high": 7,
+    "low": 5
+   },
+   "evidence_components": {
+    "part_number_exact": 8,
+    "quantity_inside_expected_column": 11,
+    "same_row_alignment": 12,
+    "description_alignment": 12,
+    "single_quantity_candidate": 11,
+    "part_number_disagreement": 4,
+    "neighbor_conflict": 1
+   },
+   "notes": [
+    "AI read 12 lines: 12 agreed by two readings, 0 settled by a close-up, 0 found by the second reading; 0 to review (0 pending a resumed read); 0 calls, 1 stored reading reused, 0 rows settled before"
+   ]
+  },
+  "FAS": {
+   "golden_rows": 74,
+   "lines": 74,
+   "review_rows": 0,
+   "row_detection_recall": 1.0,
+   "row_detection_precision": 1.0,
+   "part_number_accuracy": 1.0,
+   "quantity_accuracy": 1.0,
+   "pair_accuracy": 1.0,
+   "group_accuracy": 0.9865,
+   "review_rate": 0.0,
+   "false_auto_accept_rate": 0.0,
+   "false_auto_accepts": [],
+   "false_removal_rate": 0.0,
+   "missing_rows": [],
+   "extra_review_rows": [],
+   "wrong_quantity": [],
+   "wrong_group": [
+    {
+     "part_number": "6538-G5",
+     "golden": null,
+     "read": "Booster Power Supply"
+    }
+   ],
+   "state": "completed",
+   "budget_exhausted": null,
+   "wall_s": 4.0,
+   "ai_calls": 0,
+   "ai_calls_per_page": 0.0,
+   "cache_hits": 0,
+   "ai_timeouts": 0,
+   "ai_timeout_rate": 0.0,
+   "ai_verification_rate": 0.0,
+   "calls_by_task": {},
+   "latency_s_by_task": {},
+   "review_reasons": {},
+   "evidence_levels": {
+    "high": 68,
+    "low": 6
+   },
+   "evidence_components": {
+    "no_part_number_confirmed": 5,
+    "quantity_inside_expected_column": 73,
+    "same_row_alignment": 74,
+    "description_alignment": 74,
+    "single_quantity_candidate": 74,
+    "part_number_exact": 64,
+    "part_number_disagreement": 5,
+    "quantity_disagreement": 1
+   },
+   "notes": [
+    "AI read 74 lines: 74 agreed by two readings, 0 settled by a close-up, 0 found by the second reading; 0 to review (0 pending a resumed read); 0 calls, 1 stored reading reused, 0 rows settled before"
+   ]
+  }
+ }
+}

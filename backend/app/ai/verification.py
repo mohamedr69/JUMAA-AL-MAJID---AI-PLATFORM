@@ -342,6 +342,9 @@ class _Run:
     reused: int = 0
     notes: list[str] = dataclasses.field(default_factory=list)
     exhausted: str | None = None
+    # Why the last call gave no reading ("budget: ...", "timeout: ...",
+    # "transport: ..."), None after one that answered.
+    last_error: str | None = None
 
     def call(self, *, document_sha: str, task: str, system: str, parts: list, schema: dict, max_output: int,
              tier: str = "small") -> dict | None:
@@ -355,7 +358,9 @@ class _Run:
             self.models.add(result.model)
         if session.exhausted:
             self.exhausted = session.exhausted
+        self.last_error = None
         if result.data is None and result.error:
+            self.last_error = result.error[:300]
             self.notes.append(f"{task}: {result.error[:200]}")
         return result.data if isinstance(result.data, dict) else None
 
@@ -622,9 +627,47 @@ def _outcome(row: _Row, decisions: dict, final: dict) -> str:
     return "corrected" if changed else "confirmed"
 
 
+# What a call that gave no answer means for the lines it was about. What
+# the model said cannot be told from what it never got to say: only an
+# explicit "not found" from an answered call counts against a line.
+def call_outcome(error: str | None) -> str:
+    kind = (error or "").split(":", 1)[0].strip().lower()
+    if kind == "budget":
+        return "budget_exhausted"
+    if kind == "timeout":
+        return "timeout"
+    if kind in ("transport", "rate_limit", "auth", "quota", "refused"):
+        return "provider_error"
+    return "invalid_response"
+
+
+# A found row stands over everything; a call that failed stands over a
+# not-found (the line may be on the pages that call was shown); a not-found
+# stands only over never having been asked.
+_FIND_RANK = {"not_asked": 0, "not_found": 1, "invalid_response": 2, "provider_error": 2, "timeout": 2,
+              "budget_exhausted": 2, "found": 3}
+
+
+def _note_find(verdicts: dict[str, dict], key: str, verdict: dict) -> None:
+    current = verdicts[key]
+    if current["outcome"] == "found":
+        return
+    if _FIND_RANK[verdict["outcome"]] >= _FIND_RANK[current["outcome"]]:
+        verdicts[key] = verdict
+
+
 def _find_lines(run: _Run, pages: _Pages, lines: list[dict], sheet_runs: list[ExtractionRun], *, tier: str) -> dict[str, dict]:
-    """Look for held lines on the sheet pages: {line id: {"found", "quantity", "catalog_no", "page"}}."""
-    found: dict[str, dict] = {}
+    """Look for held lines on the sheet pages: {line key: {"outcome", ...}}.
+
+    The outcome is explicit for every line: "found" (with the row's
+    quantity, catalog number and page); "not_found" only when every page
+    group was shown and the model answered found false for the line on each
+    of them; "timeout", "provider_error", "invalid_response" or
+    "budget_exhausted" when a call gave no answer (the line may be on the
+    pages that call covered -- the model did not say it is not); "not_asked"
+    when there were no pages to show. A removal needs two explicit
+    not-founds: nothing a failed call leaves behind can remove a line."""
+    verdicts: dict[str, dict] = {line["key"]: {"outcome": "not_asked"} for line in lines}
     listing = "\n".join(f"[{line['key']}] qty {line['quantity'] or '-'} | {line['catalog_no'] or '(no catalog no.)'} | "
                         f"{(line['description'] or '')[:120]}" for line in lines)
     for sheet_run in sheet_runs:
@@ -633,19 +676,38 @@ def _find_lines(run: _Run, pages: _Pages, lines: list[dict], sheet_runs: list[Ex
         if not count:
             continue
         for start in range(1, count + 1, PAGES_PER_FIND_CALL):
+            if run.exhausted:
+                for key in verdicts:
+                    _note_find(verdicts, key, {"outcome": "budget_exhausted"})
+                return verdicts
             parts: list = [TextPart("lines", listing)]
             for page in range(start, min(count, start + PAGES_PER_FIND_CALL - 1) + 1):
                 parts.extend(page_parts(pages, path, page, sheet_run, second=tier != "small"))
             data = run.call(document_sha=sheet_run.document_sha256 or "", task="verify_boq_find", system=SYSTEM_FIND,
                             parts=parts, schema=FIND_SCHEMA, max_output=min(8000, 200 + 60 * len(lines)), tier=tier)
-            for answer in (data or {}).get("lines", []):
+            if data is None:
+                outcome = call_outcome(run.last_error)
+                for key in verdicts:
+                    _note_find(verdicts, key, {"outcome": outcome, "error": run.last_error})
+                continue
+            answered: dict[str, dict] = {}
+            for answer in data.get("lines", []) or []:
+                if not isinstance(answer, dict):
+                    continue
                 key = str(answer.get("id", "")).strip().strip("[]")
-                if key and answer.get("found") and key not in found:
-                    found[key] = {"found": True, "quantity": str(answer.get("quantity", "")).strip(),
-                                  "catalog_no": str(answer.get("catalog_no", "")).strip(), "page": answer.get("page")}
-            if run.exhausted:
-                return found
-    return found
+                if key in verdicts and key not in answered:
+                    answered[key] = answer
+            for key in verdicts:
+                answer = answered.get(key)
+                if answer is None:
+                    # The model did not answer for this line: not a word on it.
+                    _note_find(verdicts, key, {"outcome": "invalid_response", "error": "no answer for this line"})
+                elif answer.get("found"):
+                    _note_find(verdicts, key, {"outcome": "found", "quantity": str(answer.get("quantity", "")).strip(),
+                                               "catalog_no": str(answer.get("catalog_no", "")).strip(), "page": answer.get("page")})
+                else:
+                    _note_find(verdicts, key, {"outcome": "not_found"})
+    return verdicts
 
 
 def page_count(path: str) -> int:
@@ -748,6 +810,10 @@ def _verify_boq(db: Session, project: Project, user: User, record: AiVerificatio
     to_find: list[dict] = []
     not_checked: list[dict] = []
     changes = [dict(c) for c in candidate.changes]
+    # Rows the fresh read detected but has not settled (a read cut short,
+    # a close-up that failed): a held line that is one of them is on the
+    # sheet, unverified -- it is kept, not looked for and never removed.
+    unverified = _unverified_rows(runs.values())
     for change in changes:
         after, before = change.get("after"), change.get("before")
         if change["kind"] == "removed":
@@ -756,6 +822,9 @@ def _verify_boq(db: Session, project: Project, user: User, record: AiVerificatio
                 not_checked.append({"change": change, "reason": "typed in by an engineer; not on the sheet"})
             elif system not in checkable_systems:
                 not_checked.append({"change": change, "reason": "no readable Design Sheet for this system"})
+            elif _is_unverified(before, unverified):
+                not_checked.append({"change": change, "reason": "the sheet read found this row but has not verified it "
+                                                                "yet (VERIFICATION_NOT_COMPLETED); kept"})
             else:
                 to_find.append({"key": change["id"], "change": change, "system_code": system,
                                 "quantity": before.get("quantity"), "catalog_no": before.get("catalog_no"),
@@ -832,7 +901,10 @@ def _verify_boq(db: Session, project: Project, user: User, record: AiVerificatio
         for system, lines in _group(to_find, "system_code").items():
             sheet_runs = runs_by_system.get(system, [])
             found1.update(_find_lines(run, pages, lines, sheet_runs, tier="small"))
-            unsure = [line for line in lines if line["key"] not in found1
+            # Looked for again: a line not found, one a call could not look
+            # for, and one found with another quantity.
+            unsure = [line for line in lines
+                      if found1.get(line["key"], {}).get("outcome") != "found"
                       or not agree_quantity(found1[line["key"]]["quantity"], line["quantity"])]
             if unsure and not run.exhausted:
                 found2.update(_find_lines(run, pages, unsure, sheet_runs, tier="standard"))
@@ -906,24 +978,40 @@ def _verify_boq(db: Session, project: Project, user: User, record: AiVerificatio
     for line in to_find:
         change = line["change"]
         key = line["key"]
-        a1, a2 = found1.get(key), found2.get(key)
+        v1 = found1.get(key) or {"outcome": "not_asked"}
+        v2 = found2.get(key)
+        a1 = v1 if v1["outcome"] == "found" else None
+        a2 = v2 if v2 is not None and v2["outcome"] == "found" else None
         held_qty = line["quantity"] or ""
         item = {"id": key, "kind": change["kind"], "system_code": line["system_code"], "document": None, "page": None,
-                "held": _fields(change.get("before")), "ai": a1, "ai2": a2}
+                "held": _fields(change.get("before")), "ai": a1, "ai2": a2,
+                "find": {"first": v1["outcome"], "second": v2["outcome"] if v2 is not None else None}}
+        reason_code = None
         if a1 and agree_quantity(a1["quantity"], held_qty):
             outcome, reason = "confirmed", f"found on page {a1.get('page')} with the same quantity"
         elif a1 and a2 and agree_quantity(a1["quantity"], a2["quantity"]):
             outcome, reason = "corrected", f"found on page {a2.get('page')}; two AI readings agree the quantity is {a2['quantity']}"
         elif a2 and agree_quantity(a2["quantity"], held_qty):
             outcome, reason = "confirmed", f"found on page {a2.get('page')} by the second reading with the same quantity"
-        elif not a1 and not a2 and not run.exhausted:
+        elif v1["outcome"] == "not_found" and v2 is not None and v2["outcome"] == "not_found":
+            # Two answered readings, each explicitly not finding the line.
             outcome, reason = "removed", "neither AI reading finds this line on the sheet"
-        else:
+        elif a1 or a2:
             outcome, reason = "unresolved", "the AI readings do not agree whether or how this line is on the sheet"
+            reason_code = "QUANTITY_CONFLICT"
+        else:
+            # A reading that never answered (a timeout, the provider, the
+            # budget) says nothing about the line: it is kept.
+            failed = v2 if v2 is not None and v2["outcome"] != "not_found" else v1
+            reason_code = {"timeout": "AI_TIMEOUT", "budget_exhausted": "TIME_BUDGET_EXHAUSTED",
+                           "provider_error": "AI_PROVIDER_ERROR"}.get(failed["outcome"], "VERIFICATION_NOT_COMPLETED")
+            outcome = "unresolved"
+            reason = (f"the AI could not look for this line ({failed['outcome'].replace('_', ' ')}"
+                      f"{': ' + str(failed.get('error'))[:120] if failed.get('error') else ''}); kept")
         if change["kind"] != "removed" and outcome == "removed":
             # Paired with a fresh row but not found by the AI: kept, not removed.
             outcome = "unresolved"
-        item.update({"outcome": outcome, "reason": reason})
+        item.update({"outcome": outcome, "reason": reason, "reason_code": reason_code})
         items.append(item)
         if change["kind"] == "removed":
             if outcome == "removed":
@@ -985,6 +1073,48 @@ def _group(entries: list[dict], key: str) -> dict:
     for entry in entries:
         grouped.setdefault(entry[key], []).append(entry)
     return grouped
+
+
+def _unverified_rows(sheet_runs) -> list[dict]:
+    """The rows the fresh reads detected but left for review still pending
+    (their sheet read was cut short or a close-up failed): each as
+    {"part", "description"}."""
+    from app.extraction import identity
+    from app.extraction.issues import PROCESS_REASONS, ReviewReason
+
+    rows = []
+    for sheet_run in sheet_runs:
+        for issue in sheet_run.issues:
+            detail = issue.detail or {}
+            if issue.state != "open" or not issue.target.startswith("boq_line:"):
+                continue
+            code = detail.get("reason_code")
+            try:
+                process = ReviewReason(code) in PROCESS_REASONS if code else False
+            except ValueError:
+                process = False
+            if not process:
+                continue
+            catalog = detail.get("catalog_no") or ""
+            rows.append({"part": identity.part_key(catalog) if catalog else "",
+                         "description": re.sub(r"[^a-z0-9]", "", (detail.get("description") or "").lower())})
+    return rows
+
+
+def _is_unverified(held: dict, unverified: list[dict]) -> bool:
+    from app.extraction import identity
+
+    catalog = held.get("catalog_no") or ""
+    part = identity.part_key(catalog) if catalog else ""
+    description = re.sub(r"[^a-z0-9]", "", (held.get("description") or "").lower())
+    for row in unverified:
+        if part and row["part"]:
+            if part == row["part"]:
+                return True
+            continue
+        if description and row["description"] and agree_text(description, row["description"]):
+            return True
+    return False
 
 
 def _dropped_change(project: Project, row: _Row, final: dict, record: AiVerification, reason: str) -> dict:

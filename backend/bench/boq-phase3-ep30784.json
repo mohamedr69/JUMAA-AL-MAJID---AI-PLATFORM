@@ -1,0 +1,73 @@
+{
+ "EP-30784 EML Design.pdf": {
+  "state": "completed",
+  "lines": 12,
+  "review": 0,
+  "wall_s": 23.3,
+  "calls": 2,
+  "cache_hits": 0,
+  "settled_by": {
+   "geometry": 11,
+   "tier2": 1
+  },
+  "reasons": {},
+  "calls_by_task": {
+   "verify_boq_row_crops|claude-sonnet-5|ok": 1,
+   "read_sheet_row_close_up|claude-opus-5|ok": 1
+  },
+  "wrong_lines": [
+   [
+    "SL2-42D3D-CGL-M+SL2PPLR+SL2RB",
+    "119"
+   ],
+   [
+    "SL2-65D3D-CGL-M+SL2CD +SL2DC3I",
+    "111"
+   ],
+   [
+    "SL2MNM65D3C-M+SL23I",
+    "1"
+   ]
+  ],
+  "missing": [
+   [
+    "SL2-42D3D-CGL-M +SL2PPLR+SL2RB",
+    "119"
+   ],
+   [
+    "SL2-65D3D-CGL-M +SL2CD +SL2DC3I",
+    "111"
+   ],
+   [
+    "SL2MNM65D3C-M +SL23I",
+    "1"
+   ]
+  ]
+ },
+ "EP-30784 FAS Design.pdf": {
+  "state": "completed",
+  "lines": 73,
+  "review": 1,
+  "wall_s": 30.5,
+  "calls": 1,
+  "cache_hits": 1,
+  "settled_by": {
+   "geometry": 70,
+   "tier1": 2,
+   "tier2": 1
+  },
+  "reasons": {
+   "GROUP_UNRESOLVED": 1
+  },
+  "calls_by_task": {
+   "verify_boq_row_crops|claude-sonnet-5|ok": 1
+  },
+  "wrong_lines": [],
+  "missing": [
+   [
+    "6538-G5",
+    "4"
+   ]
+  ]
+ }
+}

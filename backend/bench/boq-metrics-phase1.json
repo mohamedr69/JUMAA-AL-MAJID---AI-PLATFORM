@@ -1,0 +1,100 @@
+{
+ "label": "phase1-read",
+ "project": "30784",
+ "source": "read",
+ "systems": {
+  "EML": {
+   "golden_rows": 12,
+   "lines": 12,
+   "review_rows": 0,
+   "row_detection_recall": 1.0,
+   "row_detection_precision": 1.0,
+   "part_number_accuracy": 1.0,
+   "quantity_accuracy": 1.0,
+   "pair_accuracy": 1.0,
+   "group_accuracy": 1.0,
+   "review_rate": 0.0,
+   "false_auto_accept_rate": 0.0,
+   "false_auto_accepts": [],
+   "false_removal_rate": 0.0,
+   "missing_rows": [],
+   "extra_review_rows": [],
+   "wrong_quantity": [],
+   "wrong_group": [],
+   "state": "completed",
+   "budget_exhausted": null,
+   "wall_s": 0.3,
+   "ai_calls": 0,
+   "ai_calls_per_page": 0.0,
+   "cache_hits": 0,
+   "ai_timeouts": 0,
+   "ai_timeout_rate": 0.0,
+   "ai_verification_rate": 0.0,
+   "calls_by_task": {},
+   "latency_s_by_task": {},
+   "review_reasons": {},
+   "notes": [
+    "AI read 12 lines: 0 agreed by two readings, 0 settled by a close-up, 0 found by the second reading; 0 to review (0 pending a resumed read); 0 calls, 1 stored reading reused, 12 rows settled before"
+   ]
+  },
+  "FAS": {
+   "golden_rows": 74,
+   "lines": 76,
+   "review_rows": 0,
+   "row_detection_recall": 1.0,
+   "row_detection_precision": 0.9737,
+   "part_number_accuracy": 1.0,
+   "quantity_accuracy": 1.0,
+   "pair_accuracy": 1.0,
+   "group_accuracy": 0.9865,
+   "review_rate": 0.0,
+   "false_auto_accept_rate": 0.0263,
+   "false_auto_accepts": [
+    {
+     "golden": null,
+     "line": {
+      "part_number": "4-COMREL",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "description": "Common Relay Module"
+     }
+    },
+    {
+     "golden": null,
+     "line": {
+      "part_number": "3-SDDC2",
+      "quantity": "8",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "description": "Dual loop SIGA Data Controller"
+     }
+    }
+   ],
+   "false_removal_rate": 0.0,
+   "missing_rows": [],
+   "extra_review_rows": [],
+   "wrong_quantity": [],
+   "wrong_group": [
+    {
+     "part_number": "6538-G5",
+     "golden": null,
+     "read": "Booster Power Supply"
+    }
+   ],
+   "state": "completed",
+   "budget_exhausted": null,
+   "wall_s": 0.0,
+   "ai_calls": 0,
+   "ai_calls_per_page": 0.0,
+   "cache_hits": 0,
+   "ai_timeouts": 0,
+   "ai_timeout_rate": 0.0,
+   "ai_verification_rate": 0.0,
+   "calls_by_task": {},
+   "latency_s_by_task": {},
+   "review_reasons": {},
+   "notes": [
+    "AI read 76 lines: 0 agreed by two readings, 0 settled by a close-up, 0 found by the second reading; 0 to review (0 pending a resumed read); 0 calls, 1 stored reading reused, 76 rows settled before"
+   ]
+  }
+ }
+}

@@ -1,0 +1,5311 @@
+{
+ "parser_version": "parse-2026-09-28.1",
+ "box_version": "box-2",
+ "run_at": "2026-09-27T18:26:15+00:00",
+ "docs": {
+  "343": {
+   "relative_path": "06- Transmittal/EM Sam B 06.8.26.doc",
+   "role": "transmittal",
+   "stored": {
+    "reference": "TR/197/26",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/197/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/197/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "344": {
+   "relative_path": "06- Transmittal/EP-30784 Optical detector Sam B.doc",
+   "role": "transmittal",
+   "stored": {
+    "reference": "TR/238/26",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/238/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/238/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "345": {
+   "relative_path": "06- Transmittal/EP-30784 Sam B FA 18.09.26.doc",
+   "role": "transmittal",
+   "stored": {
+    "reference": "TR/246/26",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/246/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/246/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "346": {
+   "relative_path": "06- Transmittal/FA EM Sam B.doc",
+   "role": "transmittal",
+   "stored": {
+    "reference": "TR/081/26",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/081/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "VES",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     },
+     {
+      "category": "samples",
+      "reference": "TR/081/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     },
+     {
+      "category": "samples",
+      "reference": "TR/081/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/081/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "VES",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     },
+     {
+      "category": "samples",
+      "reference": "TR/081/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     },
+     {
+      "category": "samples",
+      "reference": "TR/081/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "409": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "BASEMENT-02",
+      "name": "BASEMENT-02 FLOOR PLAN EMERGENCY LIGHT LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-101"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "415": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0077-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0077",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "3RD FLOOR",
+      "name": "3RD FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 B"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "416": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0078-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0078",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "4TH FLOOR",
+      "name": "4TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 C"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.3
+  },
+  "417": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0079-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0079",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "5TH FLOOR",
+      "name": "5TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 D"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.8
+  },
+  "418": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0080-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0080",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "6TH FLOOR",
+      "name": "6TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 E"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.3
+  },
+  "419": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0081-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0081",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "7TH FLOOR",
+      "name": "7TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 F"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.4
+  },
+  "420": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0082-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0082",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "8TH FLOOR",
+      "name": "8TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 G"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.4
+  },
+  "421": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0083-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0083",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "9TH FLOOR",
+      "name": "9TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 H"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.3
+  },
+  "422": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0084-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0084",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "10TH FLOOR",
+      "name": "10TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 I"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.3
+  },
+  "423": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0085-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0085",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "11TH FLOOR",
+      "name": "11TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 J"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.4
+  },
+  "424": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "12TH FLOOR",
+      "name": "12TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 K"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 4.8
+  },
+  "425": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0087-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0087",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "13TH FLOOR",
+      "name": "13TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 L"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.3
+  },
+  "426": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0088-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0088",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "14TH FLOOR",
+      "name": "14TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 M"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.4
+  },
+  "429": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "BASEMENT-01",
+      "name": "BASEMENT-01 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-100"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.4
+  },
+  "430": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "BASEMENT-02",
+      "name": "BASEMENT-02 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-101"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.4
+  },
+  "433": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "name": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-104-M",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-A",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-B",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-C",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-D",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-E",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-F",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-G",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-H",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-I",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-J",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-K",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-L"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": [
+     "OCR limit reached in ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf; some replies may need verification."
+    ]
+   },
+   "seconds": 19.8
+  },
+  "434": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0054-01-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "6-Mar-2026",
+    "revision": "R1",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "6-Mar-2026",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "6-Mar-2026",
+      "reply_text": null
+     },
+     {
+      "category": "reply",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 2,
+      "source": "reply",
+      "listed": null,
+      "floor": null,
+      "name": "Reply to consultant comments",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+      "revision": "R1",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "TYPICAL 2ND T0 14TH FLOOR",
+      "name": "TYPICAL 2ND T0 14TH FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-104 A~104 M"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.2
+  },
+  "435": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "ROOF FLOOR",
+      "name": "ROOF FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-105"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.0
+  },
+  "436": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0055-01-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "6-Mar-2026",
+    "revision": "R1",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "6-Mar-2026",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "6-Mar-2026",
+      "reply_text": null
+     },
+     {
+      "category": "reply",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 2,
+      "source": "reply",
+      "listed": null,
+      "floor": null,
+      "name": "Reply to consultant comments",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+      "revision": "R1",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "ROOF FLOOR",
+      "name": "ROOF FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-105"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.2
+  },
+  "437": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "7-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "7-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "7-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "name": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-110"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "440": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "444": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "448": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0049-02-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "452": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0050-02-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "454": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0052-02-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "457": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0120-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "458": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0121-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "459": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0122-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "460": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0123-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "461": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0124-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "463": {
+   "relative_path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0125-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "3-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "516": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "BASEMENT-02",
+      "name": "BASEMENT-02 FLOOR PLAN EMERGENCY LIGHT LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-101"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 4.2
+  },
+  "520": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0077-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0077",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "3RD FLOOR",
+      "name": "3RD FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 B"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "521": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0078-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0078",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "4TH FLOOR",
+      "name": "4TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 C"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "522": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0079-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0079",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "5TH FLOOR",
+      "name": "5TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 D"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "523": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0080-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0080",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "6TH FLOOR",
+      "name": "6TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 E"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.4
+  },
+  "524": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0082-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0082",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "8TH FLOOR",
+      "name": "8TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 G"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.4
+  },
+  "525": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0083-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0083",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "9TH FLOOR",
+      "name": "9TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 H"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.4
+  },
+  "526": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0084-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0084",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "10TH FLOOR",
+      "name": "10TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 I"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.4
+  },
+  "527": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0085-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0085",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "11TH FLOOR",
+      "name": "11TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 J"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "528": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "12TH FLOOR",
+      "name": "12TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 K"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.4
+  },
+  "529": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0087-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0087",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "13TH FLOOR",
+      "name": "13TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 L"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "530": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0088-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0088",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "14TH FLOOR",
+      "name": "14TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 M"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "538": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0077-00-3RD FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0077-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "3RD FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0077",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "3RD FLOOR",
+      "name": "3RD FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 B"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.8
+  },
+  "539": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0078-00-4TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0078-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "4TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0078",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "4TH FLOOR",
+      "name": "4TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 C"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.3
+  },
+  "540": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0084-00-10TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0084-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "10TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0084",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "10TH FLOOR",
+      "name": "10TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 I"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.3
+  },
+  "541": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0085-00-11TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0085-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "11TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0085",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "11TH FLOOR",
+      "name": "11TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 J"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.6
+  },
+  "542": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0086-00-12TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0086-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "12TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "12TH FLOOR",
+      "name": "12TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 K"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.5
+  },
+  "543": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0087-00-13TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0087-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "13TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0087",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "13TH FLOOR",
+      "name": "13TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 L"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.3
+  },
+  "566": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R0/R0/ICC-DLRC-SPM-SD-MEP-0039-00-BASEMENT-01 FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-0039-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "BASEMENT-01",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "BASEMENT-01",
+      "name": "BASEMENT-01 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-100"
+      ],
+      "reply_text": "D- Rejected",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.6
+  },
+  "567": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R0/R0/ICC-DLRC-SPM-SD-MEP-0040-00-BASEMENT-02 FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-0040-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "BASEMENT-02",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "BASEMENT-02",
+      "name": "BASEMENT-02 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-101"
+      ],
+      "reply_text": "D- Rejected",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.3
+  },
+  "570": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R0/R0/ICC-DLRC-SPM-SD-MEP-FA-0054-00-TYPICAL 2ND TO 14TH FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0054-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "TYPICAL 2ND TO 14TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "name": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-104-M",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-A",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-B",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-C",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-D",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-E",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-F",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-G",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-H",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-I",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-J",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-K",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-L"
+      ],
+      "reply_text": "D- Rejected",
+      "group_reference": null
+     }
+    ],
+    "notes": [
+     "OCR limit reached in ICC-DLRC-SPM-SD-MEP-FA-0054-00-TYPICAL 2ND TO 14TH FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0054-00.pdf; some replies may need verification."
+    ]
+   },
+   "seconds": 21.0
+  },
+  "571": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R0/R0/ICC-DLRC-SPM-SD-MEP-FA-0055-00-ROOF FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0055-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "ICC-DLRC-SPM-SD-MEP-FA-0055-00-ROOF FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "ROOF FLOOR",
+      "name": "ROOF FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-105"
+      ],
+      "reply_text": "D- Rejected",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.0
+  },
+  "572": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "BASEMENT-01",
+      "name": "BASEMENT-01 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-100"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.5
+  },
+  "573": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "BASEMENT-02",
+      "name": "BASEMENT-02 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-101"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "575": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R1",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+      "revision": "R1",
+      "status": "approved",
+      "system_code": "FAS",
+      "floor": "HC FLOOR FIRE ALARM LAYOUT",
+      "name": "HC FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-103"
+      ],
+      "reply_text": "B - Approved With Comments C -",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 4.6
+  },
+  "576": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "name": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-104-M",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-A",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-B",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-C",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-D",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-E",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-F",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-G",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-H",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-I",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-J",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-K",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-L"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": [
+     "OCR limit reached in ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf; some replies may need verification."
+    ]
+   },
+   "seconds": 5.1
+  },
+  "577": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "ROOF FLOOR",
+      "name": "ROOF FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-105"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.2
+  },
+  "578": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "7-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "7-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "7-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "name": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-110"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "597": {
+   "relative_path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Submitted/R01/CRS/CRS-ICC-DLRC-SPM-SD-MEP-FA-100,101,102,104&105.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "reply",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "reply",
+      "listed": null,
+      "floor": null,
+      "name": "Reply to consultant comments",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "reply",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FA-100,101,102,104&105",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "floor": null,
+      "name": "Reply to consultant comments",
+      "page": 1,
+      "source": "reply",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "687": {
+   "relative_path": "06. MS/FA/Revised/PDF/Previous Approval.pdf",
+   "role": "submittal_form",
+   "stored": {
+    "reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-ZZZ-1004",
+    "revision": "R2",
+    "status": "ANN",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "Fire Alarm & Voice Evacuation System EST4. _\u2014",
+      "reply_text": null
+     },
+     {
+      "category": "submittals",
+      "reference": "B07-ECC-MAS-ELE-0016",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 6,
+      "source": "document",
+      "listed": null,
+      "floor": "B07",
+      "name": "B07-ECC-MAS-ELE-0016",
+      "reply_text": null
+     },
+     {
+      "category": "submittals",
+      "reference": "24-Mar-22",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 9,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "24-Mar-22",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ",
+      "revision": "R2",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "Fire Alarm & Voice Evacuation System EST4. _\u2014",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     },
+     {
+      "category": "submittals",
+      "reference": "B07-ECC-MAS-ELE-0016",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "B07",
+      "name": "B07-ECC-MAS-ELE-0016",
+      "page": 6,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": [
+     "Previous Approval.pdf: only the first 12 pages were checked for submission replies."
+    ]
+   },
+   "seconds": 0.8
+  },
+  "764": {
+   "relative_path": "10. SD/CBS/recieved 14-09/R01/ICC-DLRC-SPM-SD-MEP-0077-00-3RD FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0077-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "3RD FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0077",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "3RD FLOOR",
+      "name": "3RD FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 B"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.4
+  },
+  "765": {
+   "relative_path": "10. SD/CBS/recieved 14-09/R01/ICC-DLRC-SPM-SD-MEP-0078-00-4TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0078-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "4TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0078",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "4TH FLOOR",
+      "name": "4TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 C"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "766": {
+   "relative_path": "10. SD/CBS/recieved 14-09/R01/ICC-DLRC-SPM-SD-MEP-0084-00-10TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0084-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "10TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0084",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "10TH FLOOR",
+      "name": "10TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 I"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "767": {
+   "relative_path": "10. SD/CBS/recieved 14-09/R01/ICC-DLRC-SPM-SD-MEP-0085-00-11TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0085-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "11TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0085",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "11TH FLOOR",
+      "name": "11TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 J"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "768": {
+   "relative_path": "10. SD/CBS/recieved 14-09/R01/ICC-DLRC-SPM-SD-MEP-0086-00-12TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0086-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "12TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "12TH FLOOR",
+      "name": "12TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 K"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "769": {
+   "relative_path": "10. SD/CBS/recieved 14-09/R01/ICC-DLRC-SPM-SD-MEP-0087-00-13TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0087-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "13TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0087",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "13TH FLOOR",
+      "name": "13TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 L"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "771": {
+   "relative_path": "10. SD/FA/1 TO 14 (TYP)/ICC-DLRC-SPM-SD-MEP-FA-005.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-005",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-005",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-005",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.2
+  },
+  "772": {
+   "relative_path": "10. SD/FA/B1/ICC-DLRC-SPM-SD-MEP-FA-002.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-002",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-002",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-002",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.1
+  },
+  "773": {
+   "relative_path": "10. SD/FA/B2/ICC-DLRC-SPM-SD-MEP-FA-001.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-001",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-001",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-001",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.1
+  },
+  "774": {
+   "relative_path": "10. SD/FA/GF/ICC-DLRC-SPM-SD-MEP-FA-003.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-003",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-003",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-003",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 3.3
+  },
+  "775": {
+   "relative_path": "10. SD/FA/HC FLOOR/revised/ICC-DLRC-SPM-SD-MEP-FA-004.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-004",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-004",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-004",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 2.9
+  },
+  "776": {
+   "relative_path": "10. SD/FA/old/ICC-DLRC-SPM-SD-MEP-FA-004.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-004",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-004",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-004",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 1.4
+  },
+  "777": {
+   "relative_path": "10. SD/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "BASEMENT-01",
+      "name": "BASEMENT-01 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-100"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "778": {
+   "relative_path": "10. SD/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "BASEMENT-02",
+      "name": "BASEMENT-02 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-101"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.2
+  },
+  "780": {
+   "relative_path": "10. SD/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R1",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+      "revision": "R1",
+      "status": "approved",
+      "system_code": "FAS",
+      "floor": "HC FLOOR FIRE ALARM LAYOUT",
+      "name": "HC FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-103"
+      ],
+      "reply_text": "B - Approved With Comments C -",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.6
+  },
+  "781": {
+   "relative_path": "10. SD/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "name": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-104-M",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-A",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-B",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-C",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-D",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-E",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-F",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-G",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-H",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-I",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-J",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-K",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-L"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": [
+     "OCR limit reached in ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf; some replies may need verification."
+    ]
+   },
+   "seconds": 5.1
+  },
+  "782": {
+   "relative_path": "10. SD/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "ROOF FLOOR",
+      "name": "ROOF FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-105"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.2
+  },
+  "783": {
+   "relative_path": "10. SD/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "7-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "7-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "7-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "name": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-110"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "784": {
+   "relative_path": "10. SD/FA/RF/ICC-DLRC-SPM-SD-MEP-FA-006.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-006",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-006",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-006",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "PROJECT NAME AND LOCATION:",
+      "page": 1,
+      "source": "document",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.1
+  },
+  "786": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "BASEMENT-02",
+      "name": "BASEMENT-02 FLOOR PLAN EMERGENCY LIGHT LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-101"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.2
+  },
+  "790": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0077-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0077",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "3RD FLOOR",
+      "name": "3RD FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 B"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "791": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0078-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0078",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "4TH FLOOR",
+      "name": "4TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 C"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "792": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0079-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0079",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "5TH FLOOR",
+      "name": "5TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 D"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "793": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0080-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0080",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "6TH FLOOR",
+      "name": "6TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 E"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "794": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0082-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0082",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "8TH FLOOR",
+      "name": "8TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 G"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "795": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0083-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0083",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "9TH FLOOR",
+      "name": "9TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 H"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "796": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0084-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0084",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "10TH FLOOR",
+      "name": "10TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 I"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "797": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0085-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0085",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "11TH FLOOR",
+      "name": "11TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 J"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "798": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "12TH FLOOR",
+      "name": "12TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 K"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.4
+  },
+  "799": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0087-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0087",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "13TH FLOOR",
+      "name": "13TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 L"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "800": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/ICC-DLRC-SPM-SD-MEP-0088-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0088",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "14TH FLOOR",
+      "name": "14TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 M"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "808": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0077-00-3RD FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0077-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "3RD FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0077",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "3RD FLOOR",
+      "name": "3RD FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 B"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "809": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0078-00-4TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0078-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "4TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0078",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "ELS",
+      "floor": "4TH FLOOR",
+      "name": "4TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 C"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "810": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0084-00-10TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0084-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "10TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0084",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "10TH FLOOR",
+      "name": "10TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 I"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "811": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0085-00-11TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0085-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "11TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0085",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "11TH FLOOR",
+      "name": "11TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 J"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "812": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0086-00-12TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0086-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "12TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "12TH FLOOR",
+      "name": "12TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 K"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "813": {
+   "relative_path": "10. SD/recieved/Emergency Lighting Layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0087-00-13TH FLOOR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0087-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "13TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0087",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": "13TH FLOOR",
+      "name": "13TH FLOOR EMERGENCY LIGHTING LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/EM-104 L"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "836": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R0/R0/ICC-DLRC-SPM-SD-MEP-0039-00-BASEMENT-01 FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-0039-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "BASEMENT-01",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "BASEMENT-01",
+      "name": "BASEMENT-01 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-100"
+      ],
+      "reply_text": "D- Rejected",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "837": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R0/R0/ICC-DLRC-SPM-SD-MEP-0040-00-BASEMENT-02 FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-0040-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "BASEMENT-02",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "BASEMENT-02",
+      "name": "BASEMENT-02 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-101"
+      ],
+      "reply_text": "D- Rejected",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.5
+  },
+  "840": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R0/R0/ICC-DLRC-SPM-SD-MEP-FA-0054-00-TYPICAL 2ND TO 14TH FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0054-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "TYPICAL 2ND TO 14TH FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "name": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-104-M",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-A",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-B",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-C",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-D",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-E",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-F",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-G",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-H",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-I",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-J",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-K",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-L"
+      ],
+      "reply_text": "D- Rejected",
+      "group_reference": null
+     }
+    ],
+    "notes": [
+     "OCR limit reached in ICC-DLRC-SPM-SD-MEP-FA-0054-00-TYPICAL 2ND TO 14TH FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0054-00.pdf; some replies may need verification."
+    ]
+   },
+   "seconds": 4.9
+  },
+  "841": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R0/R0/ICC-DLRC-SPM-SD-MEP-FA-0055-00-ROOF FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0055-00.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": "ICC-DLRC-SPM-SD-MEP-FA-0055-00-ROOF FLOOR",
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "ROOF FLOOR",
+      "name": "ROOF FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-105"
+      ],
+      "reply_text": "D- Rejected",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.2
+  },
+  "842": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "BASEMENT-01",
+      "name": "BASEMENT-01 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-100"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "843": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "BASEMENT-02",
+      "name": "BASEMENT-02 FLOOR PLAN FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-101"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "845": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R1",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R1",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+      "revision": "R1",
+      "status": "approved",
+      "system_code": "FAS",
+      "floor": "HC FLOOR FIRE ALARM LAYOUT",
+      "name": "HC FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-103"
+      ],
+      "reply_text": "B - Approved With Comments C -",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.5
+  },
+  "846": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "name": "TYP(3RD) FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-104-M",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-A",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-B",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-C",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-D",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-E",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-F",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-G",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-H",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-I",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-J",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-K",
+       "ICC-DLRC-SPM-SD-MEP/FA-104-L"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": [
+     "OCR limit reached in ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf; some replies may need verification."
+    ]
+   },
+   "seconds": 4.8
+  },
+  "847": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "ICC-DLRC-SPM-SD-MEP",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": "ROOF FLOOR",
+      "name": "ROOF FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-105"
+      ],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.2
+  },
+  "848": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "7-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "7-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": null,
+      "floor": null,
+      "name": "7-Mar-2026",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+      "revision": "R0",
+      "status": "rejected",
+      "system_code": "FAS",
+      "floor": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "name": "FIRST FLOOR FIRE ALARM LAYOUT",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-110"
+      ],
+      "reply_text": "C - Revise & Re-Submit",
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.3
+  },
+  "868": {
+   "relative_path": "10. SD/recieved/Fire alarm layout/Submitted/R01/CRS/CRS-ICC-DLRC-SPM-SD-MEP-FA-100,101,102,104&105.pdf",
+   "role": "document",
+   "stored": {
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "reply",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "page": 1,
+      "source": "reply",
+      "listed": null,
+      "floor": null,
+      "name": "Reply to consultant comments",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "reply",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FA-100,101,102,104&105",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": null,
+      "floor": null,
+      "name": "Reply to consultant comments",
+      "page": 1,
+      "source": "reply",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": null
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "889": {
+   "relative_path": "12. Transmittal/EP-30058 CBS Sam B -EATON.doc",
+   "role": "transmittal",
+   "stored": {
+    "reference": "TR/204/26",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/204/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/204/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "ELS",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  },
+  "890": {
+   "relative_path": "12. Transmittal/EP-30058 FA 24.07.26.doc",
+   "role": "transmittal",
+   "stored": {
+    "reference": "TR/187/26",
+    "revision": "R0",
+    "status": "UR",
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/187/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "VES",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     },
+     {
+      "category": "samples",
+      "reference": "TR/187/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "page": 1,
+      "source": "transmittal",
+      "listed": null,
+      "floor": null,
+      "name": "Sample Board",
+      "reply_text": null
+     }
+    ]
+   },
+   "actual": {
+    "records": [
+     {
+      "category": "samples",
+      "reference": "TR/187/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "VES",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     },
+     {
+      "category": "samples",
+      "reference": "TR/187/26",
+      "revision": "R0",
+      "status": "UR",
+      "system_code": "FAS",
+      "floor": null,
+      "name": "Sample Board",
+      "page": 1,
+      "source": "transmittal",
+      "listed": [],
+      "reply_text": null,
+      "group_reference": "SAMPLE BOARD"
+     }
+    ],
+    "notes": []
+   },
+   "seconds": 0.0
+  }
+ }
+}

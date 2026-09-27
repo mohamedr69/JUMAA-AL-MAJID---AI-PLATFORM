@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import threading
 import time
 from dataclasses import dataclass, field
@@ -26,6 +27,8 @@ from typing import Any, Protocol
 
 from app.ai import guard
 from app.core.config import get_settings
+
+log = logging.getLogger(__name__)
 
 # Bumped when the wording of a system prompt changes in a way that could
 # change answers; part of every cache key.
@@ -76,7 +79,9 @@ class AiResponse:
     usage: Usage = field(default_factory=Usage)
     model: str = ""
     latency_ms: int = 0
-    # "transport" | "rate_limit" | "quota" | "invalid_response" | "refused" | "auth" | None
+    # "transport" | "timeout" | "rate_limit" | "quota" | "invalid_response" | "refused" | "auth" | None.
+    # A timeout is the provider not answering in time: what the model would
+    # have said is unknown, which is not the same as any answer.
     error: str | None = None
     error_detail: str | None = None
     raw_text: str | None = None
@@ -89,7 +94,7 @@ class AiResponse:
     def retryable(self) -> bool:
         # A spent balance and a bad credential are not worth retrying: they
         # answer the same on the next call and only cost latency.
-        return self.error in ("transport", "rate_limit")
+        return self.error in ("transport", "timeout", "rate_limit")
 
 
 class AiProvider(Protocol):
@@ -266,7 +271,9 @@ class ClaudeProvider:
         except anthropic.APIStatusError as exc:
             kind = "transport" if exc.status_code >= 500 else "invalid_response"
             return AiResponse(data=None, error=kind, error_detail=str(exc), model=model)
-        except (anthropic.APIConnectionError, anthropic.APITimeoutError) as exc:
+        except anthropic.APITimeoutError as exc:
+            return AiResponse(data=None, error="timeout", error_detail=str(exc), model=model)
+        except anthropic.APIConnectionError as exc:
             return AiResponse(data=None, error="transport", error_detail=str(exc), model=model)
         except Exception as exc:  # noqa: BLE001 -- an unreadable request must not take a page down
             return AiResponse(data=None, error="invalid_response", error_detail=str(exc), model=model)
@@ -410,7 +417,9 @@ class OpenAiProvider:
             detail = ("the account has no credits left; add billing at platform.openai.com and try again"
                       if spent else str(exc))
             return AiResponse(data=None, error="quota" if spent else "rate_limit", error_detail=detail, model=model)
-        except (openai.APIConnectionError, openai.APITimeoutError) as exc:
+        except openai.APITimeoutError as exc:
+            return AiResponse(data=None, error="timeout", error_detail=str(exc), model=model)
+        except openai.APIConnectionError as exc:
             return AiResponse(data=None, error="transport", error_detail=str(exc), model=model)
         except openai.APIStatusError as exc:
             kind = "transport" if exc.status_code >= 500 else "invalid_response"
@@ -448,6 +457,56 @@ class OpenAiProvider:
             return AiResponse(data=None, usage=usage, model=model, latency_ms=latency, error="invalid_response",
                               error_detail=f"reply is not JSON: {exc}", raw_text=text)
         return AiResponse(data=data, usage=usage, model=model, latency_ms=latency, raw_text=text)
+
+
+# A call's temporary folder that could not be removed when the call ended,
+# to be removed by a later call. On Windows the CLI can still hold an image
+# file for a moment after it exits (PermissionError, WinError 32); the
+# removal is retried, then deferred -- and never fails the call whose
+# result is already in hand (EP-30784, 2026-09-26: a whole sheet "not
+# read" and an AI check failed for a folder that could not be deleted).
+_deferred_folders: list[str] = []
+_deferred_lock = threading.Lock()
+FOLDER_RELEASE_ATTEMPTS = 5
+
+
+def release_folder(folder: str, *, attempts: int = FOLDER_RELEASE_ATTEMPTS) -> bool:
+    """Remove a call's temporary folder: retried briefly, then deferred.
+    True when it is gone."""
+    import shutil
+
+    for attempt in range(attempts):
+        try:
+            shutil.rmtree(folder)
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError:
+            time.sleep(0.2 * (attempt + 1))
+    log.warning("The temporary folder %s is still in use; it will be removed by a later call", folder)
+    with _deferred_lock:
+        _deferred_folders.append(folder)
+    return False
+
+
+def sweep_deferred_folders() -> int:
+    """Remove the folders earlier calls could not. Returns how many remain."""
+    import shutil
+
+    with _deferred_lock:
+        pending = list(_deferred_folders)
+        _deferred_folders.clear()
+    left = []
+    for folder in pending:
+        try:
+            shutil.rmtree(folder)
+        except FileNotFoundError:
+            continue
+        except OSError:
+            left.append(folder)
+    with _deferred_lock:
+        _deferred_folders.extend(left)
+        return len(_deferred_folders)
 
 
 class ClaudeCodeProvider:
@@ -529,7 +588,9 @@ class ClaudeCodeProvider:
         if not self._cli:
             return AiResponse(data=None, error="auth", error_detail=self.status, model=model)
         started = time.perf_counter()
-        with tempfile.TemporaryDirectory(prefix="ep-ai-") as folder:
+        sweep_deferred_folders()
+        folder = tempfile.mkdtemp(prefix="ep-ai-")
+        try:
             images = []
             for index, part in enumerate(p for p in request.parts if isinstance(p, ImagePart)):
                 filename = f"image-{index + 1}.png"
@@ -547,10 +608,14 @@ class ClaudeCodeProvider:
                         errors="replace", cwd=folder, env=env, timeout=request.timeout_s or self._timeout,
                     )
             except subprocess.TimeoutExpired:
-                return AiResponse(data=None, error="transport", model=model,
+                return AiResponse(data=None, error="timeout", model=model,
                                   error_detail=f"Claude Code did not answer within {request.timeout_s or self._timeout:.0f} s")
             except OSError as exc:
                 return AiResponse(data=None, error="transport", error_detail=f"Claude Code could not be started: {exc}", model=model)
+        finally:
+            # The call's result (or its failure) is in hand: removing the
+            # folder can neither change it nor fail it.
+            release_folder(folder)
         latency = int((time.perf_counter() - started) * 1000)
 
         try:

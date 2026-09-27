@@ -1,0 +1,62 @@
+{
+ "p4": {
+  "document_dependencies": {
+   "rows_before": 164,
+   "rows_after": 335,
+   "rows_changed": 203,
+   "fields": {
+    "updated_at": 203,
+    "last_validated_sha256": 171,
+    "project_id": 171,
+    "dependent_id": 171,
+    "reason": 171,
+    "id": 171,
+    "source_document_id": 171,
+    "stale": 171,
+    "dependent_type": 171
+   }
+  },
+  "project_documents": {
+   "rows_before": 525,
+   "rows_after": 525,
+   "rows_changed": 520,
+   "fields": {
+    "extracted": 520,
+    "last_processed_at": 520,
+    "reference": 171,
+    "revision": 70,
+    "status": 173
+   }
+  }
+ },
+ "p1": {
+  "document_dependencies": {
+   "rows_before": 383,
+   "rows_after": 386,
+   "rows_changed": 224,
+   "fields": {
+    "updated_at": 224,
+    "last_validated_sha256": 3,
+    "project_id": 3,
+    "dependent_id": 3,
+    "reason": 3,
+    "id": 3,
+    "source_document_id": 3,
+    "stale": 3,
+    "dependent_type": 3
+   }
+  },
+  "project_documents": {
+   "rows_before": 359,
+   "rows_after": 359,
+   "rows_changed": 352,
+   "fields": {
+    "extracted": 352,
+    "reference": 3,
+    "revision": 3,
+    "last_processed_at": 352,
+    "status": 3
+   }
+  }
+ }
+}

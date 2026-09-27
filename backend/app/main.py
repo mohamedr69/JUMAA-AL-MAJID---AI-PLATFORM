@@ -40,7 +40,12 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.database import adopt_local_database
+    from app.workers import runtime
 
+    # What this process runs: the same fingerprint the workers log at start
+    # (app.workers.runtime). The API reloads on a code change; the workers
+    # do not, and a mismatch between the two shows here and in /health.
+    runtime.announce("api")
     adopted = adopt_local_database()
     if adopted:
         print(adopted)
@@ -241,4 +246,15 @@ app.include_router(archive_router.router)
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "app": settings.app_name}
+    """Alive, and what this process is running: its runtime fingerprint
+    (app.workers.runtime -- no secrets: paths of the code, the interpreter,
+    the revision) and the feature flags as it sees them, so a stale or
+    misconfigured process can be told apart from the code on disk."""
+    from app.workers import runtime
+
+    fp = runtime.fingerprint("api")
+    return {"status": "ok", "app": settings.app_name,
+            "runtime": {key: fp[key] for key in ("process", "pid", "python", "python_version", "root", "models", "revision",
+                                                  "started_at", "classification_v2", "classification_rules")},
+            "flags": {"document_classification_v2": bool(settings.document_classification_v2),
+                      "ai_read_full_second_pass": bool(settings.ai_read_full_second_pass)}}

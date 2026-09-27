@@ -1,0 +1,207 @@
+{
+ "discovery_seconds": 0.36,
+ "hashing_seconds": 0.0,
+ "document_processing_seconds": 0.0,
+ "ai_seconds": 0.0,
+ "reconcile_seconds": 0.0,
+ "total_seconds": 1881.78,
+ "processed_count": 354,
+ "failed_count": 0,
+ "unavailable_count": 0,
+ "partial_count": 5,
+ "unchanged_after_hash_count": 0,
+ "slowest_files": [
+  {
+   "path": "03- MS/03- FRC/02- FIREGUARD/BBY006_2.PDF",
+   "seconds": 73.9,
+   "role": "submittal_form",
+   "result": "partial"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/1.FAVE/recieved/BBY006-GME-SDW-FP-FA-ZZZ-L02-010007-01 Shop Drawing for L02 1st Mechanical Floor Plan - Fire Alarm Layout.pdf",
+   "seconds": 64.7,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "08- approval/samples/EML/R1/BBY006-GME-SAR-EL-LI-0001 Sample Approval Request for Monitored Self-Contained Emergency Lighting System.pdf",
+   "seconds": 59.0,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "03- MS/03- FRC/01- FRONTIER/R01/BBY006-GME-MAS-EL-FA-0003  Material Submittal for Fire Alarm & Monitored Emergency Lighting System Cables (Frontier) (1).pdf",
+   "seconds": 57.9,
+   "role": "submittal_form",
+   "result": "partial"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/1.FAVE/recieved/BBY006-GME-SDW-FP-FA-ZZZ-ZZZ-010008-01 Shop Drawing for L03 To L21 RES 01 to 19 (TYP 1) Floor Plan - Fire Alarm Layout.pdf",
+   "seconds": 56.7,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/2.EML/approved/BBY006-GME-SDW-EL-LI-BSM-ZZZ-010001 Shop Drawing for Basement 4, 3, 2 Floor Plan Emergency Lighting_13-May-26_BBY006-GME-SDW-EL-LI-BSM-ZZZ-010001-R2_BBY006-GME-SDW-EL-LI-BSM-ZZZ-010001-R2.pdf",
+   "seconds": 50.8,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "08- approval/samples/FA/R1/BBY006-GME-SAR-EL-FA-0001 Sample Approval Request for Fire Alarm & Voice Evacuation System.pdf",
+   "seconds": 49.5,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "08- approval/samples/FA/BBY006-GME-SAR-EL-FA-0001 Sample Approval Request for Fire Alarm & Voice Evacuation System.pdf",
+   "seconds": 49.3,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/1.FAVE/R1/05. Ground Floor/BBY006-GME-SDW-FP-FA-POD-BGF-010002 Shop Drawing for Ground Floor Plan - Fire Alarm Layout.pdf",
+   "seconds": 41.6,
+   "role": "document",
+   "result": "processed"
+  },
+  {
+   "path": "04- Drawings/08-Shop Drawing/1.FAVE/R1/rejected/BBY006-GME-SDW-FP-FA-ZZZ-L01-010006 Shop Drawing for L01 Amenities Floor Plan - Fire Alarm Layout.pdf",
+   "seconds": 39.9,
+   "role": "document",
+   "result": "processed"
+  }
+ ],
+ "documents": 359,
+ "documents_per_minute": 11.4,
+ "percentiles_ms": {
+  "median": 488,
+  "p90": 27050,
+  "p95": 34022,
+  "p99": 56748,
+  "max": 73943
+ },
+ "stage_ms": {
+  "boxes": 265729,
+  "classification": 91224,
+  "deterministic_extract": 2265,
+  "hash": 6295,
+  "ocr_engine": 2784778,
+  "ocr_render": 227254,
+  "pdf_open": 1580,
+  "pdf_text_extract": 81176,
+  "storage_wait": 535
+ },
+ "stage_share_pct": {
+  "boxes": 7.7,
+  "classification": 2.6,
+  "deterministic_extract": 0.1,
+  "hash": 0.2,
+  "ocr_engine": 80.5,
+  "ocr_render": 6.6,
+  "pdf_open": 0.0,
+  "pdf_text_extract": 2.3,
+  "storage_wait": 0.0
+ },
+ "events": {
+  "box_cache_hits": 91,
+  "ocr_cache_hits": 95,
+  "ocr_pages_attempted": 322,
+  "ocr_pages_used": 170,
+  "page_text_extractions": 795,
+  "page_text_reused": 355,
+  "pages_scanned": 795,
+  "pdf_opens": 355,
+  "read_pdf": 355
+ },
+ "largest_files": [
+  {
+   "path": "03- MS/01- FA/04- Technical Catalogues, Manual and Procedures/Data Sheet.pdf",
+   "mb": 102.8,
+   "seconds": 0.9,
+   "role": "submittal_form"
+  },
+  {
+   "path": "03- MS/01- FA/FA MS R0.pdf",
+   "mb": 80.0,
+   "seconds": 0.3,
+   "role": "submittal_form"
+  },
+  {
+   "path": "03- MS/03- FRC/02- FIREGUARD/R2/BBY006_2.PDF",
+   "mb": 75.8,
+   "seconds": 0.9,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045LPGSYSTEMREVISEDPART01.pdf",
+   "mb": 42.2,
+   "seconds": 2.7,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045FIREPROTECTIONSYSTEMREVISEDPART02.pdf",
+   "mb": 41.5,
+   "seconds": 0.6,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045LIFESAFETYREVISEDPART01.pdf",
+   "mb": 41.0,
+   "seconds": 0.2,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/LIFESAFETYASREVISEDPART01.pdf",
+   "mb": 39.7,
+   "seconds": 0.3,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045SMOKECONTROLSYSTEMREVISEDPART01.pdf",
+   "mb": 38.4,
+   "seconds": 0.3,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045LPGSYSTEMREVISEDPART02.pdf",
+   "mb": 37.3,
+   "seconds": 1.4,
+   "role": "document"
+  },
+  {
+   "path": "04- Drawings/06- DCD approved/PDF/785045FIREPROTECTIONSYSTEMREVISEDPART01.pdf",
+   "mb": 36.4,
+   "seconds": 0.4,
+   "role": "document"
+  }
+ ],
+ "roles": {
+  "document": 197,
+  "spec": 144,
+  "submittal_form": 14,
+  "transmittal": 4
+ },
+ "ocr_documents": 199,
+ "ai_documents": 0,
+ "processor_version": "2.0-phase0",
+ "workers": 3,
+ "planned": 359,
+ "duration_seconds": 1871.8,
+ "failed": 0,
+ "unavailable": 0,
+ "ocr_enabled": true,
+ "fresh_cache": true,
+ "label": "phase1-onepass-w3-fresh",
+ "resources": {
+  "available": true,
+  "cpu_avg_pct": 6.3,
+  "cpu_peak_pct": 38.6,
+  "rss_avg_mb": 720,
+  "rss_peak_mb": 1775,
+  "reader_rss_peak_mb": 917,
+  "logical_cpus": 8
+ },
+ "folder": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Granada Europe\\EP-30784 - Binghatti Skyblade",
+ "ai_candidates": 14
+}

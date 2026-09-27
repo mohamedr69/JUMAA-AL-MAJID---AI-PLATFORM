@@ -1,0 +1,136 @@
+{
+ "label": "before-held-boq",
+ "project": "30784",
+ "source": "boq",
+ "systems": {
+  "EML": {
+   "golden_rows": 12,
+   "lines": 12,
+   "review_rows": 0,
+   "row_detection_recall": 1.0,
+   "row_detection_precision": 1.0,
+   "part_number_accuracy": 1.0,
+   "quantity_accuracy": 1.0,
+   "pair_accuracy": 1.0,
+   "group_accuracy": 1.0,
+   "review_rate": 0.0,
+   "false_auto_accept_rate": 0.0,
+   "false_auto_accepts": [],
+   "false_removal_rate": 0.0,
+   "missing_rows": [],
+   "extra_review_rows": [],
+   "wrong_quantity": [],
+   "wrong_group": []
+  },
+  "FAS": {
+   "golden_rows": 74,
+   "lines": 76,
+   "review_rows": 0,
+   "row_detection_recall": 0.9595,
+   "row_detection_precision": 0.9342,
+   "part_number_accuracy": 1.0,
+   "quantity_accuracy": 0.9859,
+   "pair_accuracy": 0.9859,
+   "group_accuracy": 0.9859,
+   "review_rate": 0.0,
+   "false_auto_accept_rate": 0.0789,
+   "false_auto_accepts": [
+    {
+     "golden": {
+      "part_number": "SIGA-SD",
+      "quantity": "1",
+      "group": "Super Duct"
+     },
+     "line": {
+      "part_number": "SIGA-SD",
+      "quantity": "4",
+      "group": "Super Duct",
+      "description": "SuperDuct"
+     }
+    },
+    {
+     "golden": null,
+     "line": {
+      "part_number": "4-COMREL",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "description": "Common Relay Module"
+     }
+    },
+    {
+     "golden": null,
+     "line": {
+      "part_number": "3-SDDC2",
+      "quantity": "8",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "description": "Dual loop SIGA Data Controller"
+     }
+    },
+    {
+     "golden": null,
+     "line": {
+      "part_number": "SIGA-CC1",
+      "quantity": "6",
+      "group": "Field Devices",
+      "description": "Dual Input (Riser) Module-Class A"
+     }
+    },
+    {
+     "golden": null,
+     "line": {
+      "part_number": "TP606",
+      "quantity": "491",
+      "group": "Field Devices",
+      "description": "4\"x4\" GI Concealed Back Box Double Gange"
+     }
+    },
+    {
+     "golden": null,
+     "line": {
+      "part_number": "27193-11",
+      "quantity": "565",
+      "group": "Field Devices",
+      "description": "Weatherproof Box, Cast - RED"
+     }
+    }
+   ],
+   "false_removal_rate": 0.0405,
+   "missing_rows": [
+    {
+     "page": 2,
+     "part_number": "SIGA-CC2A",
+     "quantity": "80",
+     "description": "Dual Input (Riser) Module-Class A"
+    },
+    {
+     "page": 2,
+     "part_number": "757A-WB",
+     "quantity": "60",
+     "description": "Weatherproof Box, Cast - RED"
+    },
+    {
+     "page": 2,
+     "part_number": "GRSW-10",
+     "quantity": "15",
+     "description": "Universal Wiring Plate - 10Packs"
+    }
+   ],
+   "extra_review_rows": [],
+   "wrong_quantity": [
+    {
+     "part_number": "SIGA-SD",
+     "golden": "1",
+     "read": "4",
+     "kind": "line"
+    }
+   ],
+   "wrong_group": [
+    {
+     "part_number": "6538-G5",
+     "golden": null,
+     "read": "Booster Power Supply"
+    }
+   ]
+  }
+ }
+}

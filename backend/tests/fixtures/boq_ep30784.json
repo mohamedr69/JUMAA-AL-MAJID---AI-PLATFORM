@@ -1,7 +1,9 @@
 {
  "source": {
   "project": "EP-30784 Binghatti Skyblade",
-  "note": "BOQ lines as extracted from the FAS and EML Design Sheets (OCR text kept as read); generated from the dev database, do not edit by hand."
+  "note": "BOQ lines as extracted from the FAS and EML Design Sheets (OCR text kept as read); generated from the dev database, do not edit by hand.",
+  "role": "regression",
+  "not_golden": "A regression fixture, not a truth set: generated from the dev database's OCR read, it carries the read's errors (TP606 = 49 where the sheet shows 491, OCR marks in descriptions). The manually verified Golden Truth is boq_ep30784_golden_v1.json."
  },
  "lines": [
   {

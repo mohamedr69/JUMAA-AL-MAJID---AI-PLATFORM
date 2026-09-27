@@ -32,7 +32,7 @@ def run_project_sync(session: Session, job: BackgroundJob, ctx: JobContext) -> d
     result = document_sync.sync(session, project, user=actor, ctx=ctx)
     summary = (f"Synced the project folder: {result['files']} file{'s' if result['files'] != 1 else ''}, "
                f"{result['new']} new, {result['changed']} changed, {result['unchanged']} unchanged, "
-               f"{result['removed']} removed; {result['read_by_ai']} read by the AI")
+               f"{result['removed']} removed; {result['pending']} queued for document processing")
     if actor is not None:
         activity.record(session, actor, "documents.synced", summary, project=project, entity_type="project",
                         entity_id=project.id, detail={k: v for k, v in result.items() if isinstance(v, (int, bool))})

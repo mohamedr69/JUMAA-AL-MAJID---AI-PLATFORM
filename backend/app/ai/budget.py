@@ -102,6 +102,18 @@ class JobBudget:
                 self.escalations += 1
             return estimate
 
+    def remaining_s(self) -> float:
+        """Seconds left before the elapsed-time limit trips."""
+        return max(0.0, self.limits.max_elapsed_s_per_job - (time.monotonic() - self.started))
+
+    def has_time_for(self, seconds: float) -> bool:
+        """Whether a call expected to take `seconds` fits before the
+        elapsed-time limit. Checked before expensive work is started, so a
+        batch is not begun that the limit would cut off half-way -- the
+        progress of a call that trips the limit at its end is not thrown
+        away, it is never made."""
+        return self.remaining_s() >= seconds
+
     def reconcile(self, reservation: float, input_tokens: int | None, output_tokens: int | None, cached: int | None) -> float:
         """Replace the reservation with the provider's reported usage."""
         with self._lock:

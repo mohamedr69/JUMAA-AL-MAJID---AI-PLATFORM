@@ -30,3 +30,6 @@ openai==3.13.0
 # import is optional: without it the warranty falls back to a drawn page.
 pywin32==312; sys_platform == "win32"
 
+# Process CPU and memory sampling for the document processing benchmark and
+# worker telemetry (scripts/benchmark_processing.py). Optional at runtime.
+psutil==7.1.3

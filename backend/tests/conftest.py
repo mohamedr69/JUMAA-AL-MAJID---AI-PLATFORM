@@ -2,6 +2,10 @@ import os
 import tempfile
 
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+# Document Classification V2 is off for the suite whatever the local .env
+# says: the tests that need it on set the flag themselves, so on/off
+# comparisons do not depend on this PC or on test order.
+os.environ["DOCUMENT_CLASSIFICATION_V2"] = "false"
 os.environ["MAX_FAILED_LOGIN_ATTEMPTS"] = "3"
 os.environ["LOCKOUT_MINUTES"] = "15"
 os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "30"

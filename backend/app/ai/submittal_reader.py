@@ -588,11 +588,13 @@ def latest_map(db: Session, project: Project) -> dict | None:
 
 
 def check(db: Session, project: Project, user: User | None, *, ctx=None, provider: AiProvider | None = None,
-          files: list[Path] | None = None) -> dict:
+          files: list[Path] | None = None, known_shas: dict[str, str] | None = None) -> dict:
     """Read the folder's submittals (the new ones by the model, the rest from
     the database), draw the map, store it, and bring the register up to it.
     `files`: the forms as the document index knows them, so the folder is
-    not walked and no first page is opened to find them."""
+    not walked and no first page is opened to find them. `known_shas` (path
+    -> content hash, from the index) spares hashing a form the index has
+    already hashed: a project's forms run to a hundred megabytes."""
     provider = provider or get_provider()
     why_not = available(project, provider)
     if why_not:
@@ -621,7 +623,7 @@ def check(db: Session, project: Project, user: User | None, *, ctx=None, provide
             warnings.append(f"{path.name} is no longer in the project folder; it is left off the map.")
             continue
         fingerprint.update(f"{path}|{stat.st_size}|{int(stat.st_mtime)}".encode())
-        sha = pipeline.sha256_of(path) or ""
+        sha = (known_shas or {}).get(str(path)) or pipeline.sha256_of(path) or ""
         reading = read_form(db, run, path, document_sha=sha, user_id=user.id if user else None)
         if reading is None:
             if run.exhausted:

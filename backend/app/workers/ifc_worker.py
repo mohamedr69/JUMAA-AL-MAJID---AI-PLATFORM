@@ -86,6 +86,9 @@ def main() -> None:
         if hasattr(signal, name):
             signal.signal(getattr(signal, name), ask_to_stop)
 
+    from app.workers import runtime
+
+    runtime.start("ifc-worker")   # the fingerprint, and the import check; exit 2 on a mismatch
     settings = get_settings()
     if settings.worker_below_normal_priority and set_below_normal_priority():
         log.info("Running below normal priority")

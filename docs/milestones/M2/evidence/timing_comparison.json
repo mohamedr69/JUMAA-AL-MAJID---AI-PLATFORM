@@ -1,0 +1,24 @@
+{
+ "common": 115,
+ "fair_cold_both": {
+  "docs": 98,
+  "before_s": 169.2,
+  "after_s": 193.2
+ },
+ "fair_minus_ff_covers": {
+  "docs": 89,
+  "before_s": 169.2,
+  "after_s": 163.5
+ },
+ "ff_covers": {
+  "docs": 9,
+  "before_s": 0.0,
+  "after_s": 29.7
+ },
+ "warm_before_docs": {
+  "docs": 17,
+  "before_warm_s": 6.3,
+  "after_cold_s": 38.0
+ },
+ "note": "before = parse-2026-09-28.1 run with cache dir 'cache' (20 named documents had been read once before in that cache: warm OCR); after = parse-2026-09-28.2, cache_final, empty, machine otherwise idle"
+}

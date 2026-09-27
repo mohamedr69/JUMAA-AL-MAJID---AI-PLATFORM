@@ -449,8 +449,10 @@ def test_a_consultants_stamp_overrides_the_ticked_box(tmp_path, monkeypatch):
     from app.services import document_control as dc
 
     ocred = []
-    monkeypatch.setattr(dc, "_ocr_page", lambda page: ocred.append(page.number) or
-                        "(C) Revise & Resubmit\nReviewed By : Eng. Muhana")
+    # `image`: the page's render, or the region of it being read (the stamp
+    # pasted on the sheet is an image, and its region is what is OCRed).
+    monkeypatch.setattr(dc, "_ocr_images", lambda page, images: ocred.append(page.number) or
+                        ["(C) Revise & Resubmit\nReviewed By : Eng. Muhana"] * len(images))
     path = _approval_sheet(tmp_path / "stamped.pdf", chosen="Approved as Noted (B)")
     stat = os.stat(path)
     dc._read_pdf.cache_clear()
@@ -469,7 +471,7 @@ def test_the_same_content_is_not_ocred_or_box_read_twice(tmp_path, monkeypatch):
 
     ocred, boxed = [], []
     real_boxed = dc.boxed_decision
-    monkeypatch.setattr(dc, "_ocr_page", lambda page: ocred.append(page.number) or "Consultant stamp: none")
+    monkeypatch.setattr(dc, "_ocr_images", lambda page, images: ocred.append(page.number) or ["Consultant stamp: none"] * len(images))
     monkeypatch.setattr(dc, "boxed_decision", lambda page, text=None: boxed.append(page.number) or real_boxed(page, text))
     path = _approval_sheet(tmp_path / "sheet.pdf", chosen=None)
     stat = os.stat(path)

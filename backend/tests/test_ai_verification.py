@@ -158,9 +158,11 @@ def test_the_boq_is_settled_against_the_sheet_and_can_be_undone(client, db_sessi
               ("41", "SIGA-CT1", "Single input module"), ("6", "SIGA-CC1", "Synchronised output module")),
         # Second reading, by the larger model, of the one row that did not agree.
         _rows(("14", "SIGA-CT1", "Single input module")),
-        # SIGA-HFS is looked for on the pages: not found, twice.
-        {"lines": [{"id": "x", "found": False, "quantity": "", "catalog_no": "", "page": 1}]},
-        {"lines": []},
+        # SIGA-HFS (change c5) is looked for on the pages: explicitly not
+        # found, twice. Only two answered not-founds remove a line; a reply
+        # with no word on it, or a call that failed, keeps it.
+        {"lines": [{"id": "c5", "found": False, "quantity": "", "catalog_no": "", "page": 1}]},
+        {"lines": [{"id": "c5", "found": False, "quantity": "", "catalog_no": "", "page": 1}]},
     ]
     job = client.post(f"/projects/{pid}/jobs/ai-verify?scope=boq")
     assert job.status_code == 202, job.text

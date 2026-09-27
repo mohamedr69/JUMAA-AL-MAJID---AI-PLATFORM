@@ -217,6 +217,13 @@ class ExtractedBoqLine:
     # {"quantity", "catalog_no", "description"}, so a later check can take
     # the AI's reading from here instead of asking again.
     ai_reading: dict | None = None
+    # The row's identity within its document's stored reading ("p2r13": page
+    # 2, 13th item of the first reading; "p2s4": 4th item the second reading
+    # alone found), by which its settling is checkpointed and resumed.
+    row_id: str | None = None
+    # What the page's geometry said of the row (app.extraction.row_geometry):
+    # {"score", "level", "components", ...}; None when it was not asked.
+    evidence: dict | None = None
 
     def region(self) -> tuple[int, int, int, int] | None:
         """The row's box on the rendered page: from the first column rule to
@@ -504,6 +511,12 @@ class DesignSheetExtraction:
     reader: str = "ocr"
     reading_id: int | None = None
     notes: list[str] = field(default_factory=list)
+    # Whether the read finished (app.ai.sheet_reader): "completed",
+    # "partial", "timed_out" or "failed"; and the budget limit that stopped
+    # it, when one did. A partial read's lines are what was settled; its
+    # rows still pending are review rows that a resumed read settles.
+    state: str = "completed"
+    budget_exhausted: str | None = None
 
     @property
     def outcome(self) -> Outcome:
