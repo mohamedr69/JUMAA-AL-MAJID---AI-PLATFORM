@@ -1,0 +1,4 @@
+[submodule "ep-platform"]
+	path = ep-platform
+	url = https://github.com/mohamedr69/JUMAA-AL-MAJID---AI-PLATFORM.git
+	branch = main
