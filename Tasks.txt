@@ -1,0 +1,1879 @@
+Task1:
+
+-----------------------------
+TASK:
+IMPLEMENT DOCUMENT CLASSIFICATION & ROUTING V2
+— BACKWARD-COMPATIBLE FOUNDATION
+
+Project path:
+C:\Users\moham\Desktop\dev\dev\ep-platform
+
+========================================================
+0. PRIMARY OBJECTIVE
+========================================================
+
+Add an explainable document-classification layer alongside the existing
+platform WITHOUT changing current routing, extraction results, business
+statuses, domain records, stale-dependency logic, or user workflows.
+
+The current LOCAL code is authoritative.
+
+Before implementing anything:
+
+- Read the actual current code.
+- Read applicable AGENTS.md instructions.
+- Verify every observation in this instruction against the current branch.
+- Do not assume older GitHub snapshots or previous reports are fully current.
+
+THIS TASK DOES NOT AUTHORIZE:
+
+- migrating existing consumers to the new classification
+- deleting or replacing legacy role/category logic
+- changing business rules
+- changing approval/submission/revision state
+- changing BOQ logic
+- changing Shop Drawing logic
+- changing Material Submittal logic
+- changing Consultant Reply/Decision logic
+- changing File Sync V2 architecture
+- changing Document Processing V2 architecture
+- changing IFC behavior
+- introducing new AI calls during normal sync
+- fixing unrelated defects unless explicitly required for compatibility
+
+MANDATORY PRINCIPLE:
+
+"Do not replace or delete existing routing or business logic.
+Add classification alongside the current implementation,
+prove equivalent legacy behavior,
+and leave consumer migration for a separately authorized task."
+
+========================================================
+1. REVIEW THE EXISTING ARCHITECTURE FIRST
+========================================================
+
+Trace the current flow end-to-end:
+
+File Sync
+    ↓
+ProjectDocument
+    ↓
+existing role classification
+    ↓
+Document Processing
+    ↓
+extracted records
+    ↓
+record categories
+    ↓
+domain reconciliation
+    ↓
+Material Submittal / Drawings / Logs / BOQ / dependencies
+
+Inspect at minimum:
+
+backend/app/models.py
+
+backend/app/services/document_sync.py
+backend/app/services/document_processing.py
+backend/app/services/document_intake.py
+backend/app/services/document_control.py
+
+backend/app/services/submittal_replies.py
+backend/app/services/submittal_scanner.py
+backend/app/services/submittal_filing.py
+
+backend/app/services/shop_drawings.py
+backend/app/services/project_state.py
+
+backend/app/ai/submittal_reader.py
+backend/app/ai/sheet_reader.py
+
+backend/app/routers/projects.py
+backend/app/routers/submittal.py
+backend/app/routers/ifc_boq.py
+
+Also inspect:
+
+workers
+schemas
+API response models
+frontend consumers
+document caches
+dependency tracking
+classification/path helpers
+tests
+migrations
+feature configuration
+
+Identify all relevant callers.
+
+========================================================
+2. PRODUCE AN AS-IS OWNERSHIP MAP BEFORE CODING
+========================================================
+
+Before modifying source, document:
+
+1. Who creates ProjectDocument rows.
+
+2. Who assigns ProjectDocument.role.
+
+3. Who assigns or changes processing state.
+
+4. Who produces extracted["records"].
+
+5. Which record categories currently exist.
+
+6. Who determines:
+   - revision
+   - reference
+   - system
+   - floor
+   - submission state
+   - consultant status
+   - approval state
+
+7. Which consumers depend on:
+   - path
+   - filename
+   - role
+   - extracted record category
+   - AI output
+   - document-control records
+   - revision
+   - hash
+   - folder context
+
+8. Which similarly named implementations are intentional fallbacks.
+
+9. Which existing tests protect each behavior.
+
+Do NOT assume similarly named functions are redundant.
+
+Deliver a short AS-IS diagram before implementation.
+
+========================================================
+3. PRESERVE FILE SYNC V2 CONTRACTS
+========================================================
+
+Ordinary File Sync must remain lightweight.
+
+Preserve:
+
+- discovery
+- metadata comparison
+- change detection
+- ProjectDocument indexing
+- current DRF / Design Sheet intake exceptions
+- processing-job creation
+- job deduplication
+- progress reporting
+- cancellation
+- retry behavior
+
+DO NOT add to ordinary sync:
+
+- PDF opening
+- OCR
+- AI
+- additional content hashing
+- semantic text extraction
+- expensive document inspection
+
+The new FAST classification hint may use ONLY metadata already available
+during discovery.
+
+Examples:
+
+filename
+extension
+relative path
+known intake association
+existing role
+existing project/system context already in memory
+
+The classification feature must not materially slow File Sync.
+
+Acceptance:
+
+- zero new AI calls during normal sync
+- zero new PDF/OCR work during normal sync
+- zero additional source-file reads solely for classification
+
+========================================================
+4. PRESERVE DOCUMENT PROCESSING V2 CONTRACTS
+========================================================
+
+Do not damage current Document Processing V2.
+
+Preserve:
+
+- role assignment
+- processing priority
+- processing states
+- extraction
+- page-text reuse
+- OCR caching
+- AI budgets
+- checkpoint/resume behavior
+- recovery
+- changed-file handling
+- duplicate-content handling
+- failed/unavailable handling
+- reconciliation
+
+Do not reopen a source document solely to populate classification metadata
+when existing extracted/stored information is sufficient.
+
+New classification assessment should preferably reuse:
+
+- existing text
+- extracted records
+- existing AI readings
+- current document-control evidence
+- cached metadata
+
+Classification failure must NOT fail an otherwise successful document-processing job.
+
+========================================================
+5. PRESERVE BOQ WORKFLOWS
+========================================================
+
+Design Sheet processing is special.
+
+Preserve:
+
+- dedicated Design Sheet intake
+- dedicated BOQ extraction
+- extraction provenance
+- verification
+- resumability
+- engineer corrections
+- BOQ stale-dependency behavior
+
+Do NOT route Design Sheets into general document processing.
+
+Do NOT change:
+
+- Design Sheet BOQ extraction
+- Floor-wise BOQ
+- IFC BOQ
+- BOQ review
+- quantity extraction
+- current BOQ business state
+
+Keep completely separate:
+
+IFC BOQ
+vs
+Shop Drawings
+
+Classification metadata must not merge these workflows.
+
+========================================================
+6. PRESERVE BUSINESS DATA
+========================================================
+
+New classification metadata must NEVER directly change:
+
+approval status
+submission state
+revision identity
+register membership
+current/latest revision
+consultant status
+system mapping
+engineer override
+BOQ record
+Shop Drawing record
+Material Submittal record
+Log record
+stale dependency
+domain membership
+
+Do NOT change existing role/category values in this phase.
+
+Do NOT change existing uniqueness constraints or identity rules
+unless strictly required for additive persistence.
+
+Do NOT create, remove, merge, or reconcile domain records
+because of the new classification.
+
+========================================================
+7. KEEP FOUR CONCEPTS SEPARATE
+========================================================
+
+Treat these as different concepts:
+
+A. PROCESSING ROLE
+
+Which existing reader/workflow handles the file.
+
+Examples:
+
+drf
+design_sheet
+submittal_form
+spec
+transmittal
+document
+
+
+B. DOCUMENT CLASSIFICATION
+
+What the file appears to contain.
+
+Examples:
+
+DRF
+DESIGN_SHEET
+SHOP_DRAWING
+IFC_DRAWING
+MATERIAL_SUBMITTAL
+SPECIFICATION
+DATASHEET
+TRANSMITTAL
+UNKNOWN
+
+
+C. EXTRACTED RECORD CATEGORY
+
+What an individual record inside a file represents.
+
+Examples may include:
+
+drawings
+submittals
+samples
+reply
+other current categories
+
+
+D. BUSINESS STATUS
+
+Validated workflow state.
+
+Examples:
+
+submitted
+under review
+approved
+not approved
+superseded
+
+These concepts must NOT replace each other.
+
+========================================================
+8. FILE MAY CONTAIN MULTIPLE COMPONENTS
+========================================================
+
+A file may contain:
+
+multiple logical document components
+
+and/or
+
+multiple extracted records.
+
+Therefore:
+
+A single primary document_type must NOT replace:
+
+extracted["records"]
+
+Support:
+
+primary suggested type
+
+plus:
+
+additional component types
+
+when evidence supports them.
+
+Example:
+
+A Material Submittal PDF may contain:
+
+- material submittal form
+- contractor response page
+- consultant stamp
+- datasheets
+- certificates
+
+Do NOT force every component into one mutually exclusive enum.
+
+========================================================
+9. CONSULTANT COMMENT / CONTRACTOR REPLY / DECISION SAFETY
+========================================================
+
+Preserve strict separation between:
+
+CONSULTANT COMMENT
+
+CONTRACTOR / SPECIALIST REPLY
+
+CONSULTANT DECISION
+
+Detecting:
+
+"Reply to Consultant Comments"
+
+must NOT imply:
+
+consultant approval
+consultant decision
+new submission
+approved revision
+
+A consultant decision may exist:
+
+- as a stamp
+- marked status box
+- review page
+- attached page
+- separate reply document
+
+Do not make document classification authoritative for consultant status.
+
+Even if classification says:
+
+primary_type = CONSULTANT_DECISION
+
+this MUST NOT directly set:
+
+consultant_status = APPROVED
+
+Existing validated business logic remains authoritative.
+
+========================================================
+10. DRAWING SAFETY
+========================================================
+
+Preserve existing drawing interpretation.
+
+Inspect and retain current logic involving:
+
+document_control.is_shop_drawing()
+
+Project drawing scope
+
+Enquiry context
+
+Tender context
+
+IFC context
+
+Submitted context
+
+Received/Approved folders where currently used
+
+drawing schedules
+
+actual drawing submissions
+
+reference matching
+
+revision matching
+
+system matching
+
+engineer confirmations
+
+A record with:
+
+category = drawings
+
+is drawing evidence only.
+
+It must NOT automatically become:
+
+SHOP_DRAWING
+
+A drawing schedule must NOT become:
+
+submitted Shop Drawing
+
+An IFC drawing must NOT become:
+
+Shop Drawing
+
+========================================================
+11. REPLY-SPECIFIC REVIEW
+========================================================
+
+Inspect:
+
+submittal_replies.on_file()
+
+submittal_replies.for_revision()
+
+submittal_replies.apply_to()
+
+submittal_replies.answers_another_revision()
+
+submittal_replies.vetted()
+
+and all callers.
+
+Document current dependencies involving:
+
+Received folders
+Approved folders
+filename codes
+reference
+revision
+previous revision
+commented revision
+
+Do NOT silently remove, strengthen, or reinterpret this logic.
+
+If a defect is discovered:
+
+REPORT IT SEPARATELY.
+
+Do not fold behavior-changing fixes into this foundation task.
+
+========================================================
+12. ADD AN EXPLAINABLE CLASSIFICATION MODULE
+========================================================
+
+Add a classification layer using repository naming/architecture conventions.
+
+It must have NO business side effects.
+
+Separate two stages:
+
+========================================================
+12A. FAST METADATA HINT
+========================================================
+
+Runs using information already available during discovery.
+
+May use:
+
+filename
+extension
+relative path
+existing intake association
+existing role
+project/system context already known
+
+Must NOT:
+
+open file
+read PDF
+OCR
+call AI
+hash file again
+change routing
+change priority
+create business records
+change status
+
+Output is only a HINT.
+
+Examples:
+
+possible DESIGN_SHEET
+possible SHOP_DRAWING
+possible SPECIFICATION
+
+Hint is non-authoritative.
+
+========================================================
+12B. CLASSIFICATION ASSESSMENT
+========================================================
+
+Runs alongside or after existing document processing.
+
+Use already available:
+
+extracted text
+extracted records
+document-control result
+stored AI reading
+stored metadata
+stored hash
+
+Do NOT introduce an extra AI call solely for classification.
+
+Do NOT overwrite extraction results.
+
+Assessment should represent at minimum:
+
+suggested_primary_type
+
+additional_component_types
+
+classification_stage:
+- hint
+- supported
+- ambiguous
+- unknown
+
+evidence_strength
+
+evidence_sources
+
+reason
+
+rules_version
+
+content_hash if available
+
+context_fingerprint
+
+assessment_time
+
+document identity/reference
+
+Do not expose absolute local Windows paths through public API fields.
+
+========================================================
+13. AVOID FAKE NUMERIC CONFIDENCE
+========================================================
+
+Do not invent arbitrary confidence percentages such as:
+
+0.91
+0.97
+
+unless the repository already has a justified calibrated confidence contract.
+
+Prefer explicit evidence strength:
+
+STRONG
+MODERATE
+WEAK
+CONFLICTING
+UNKNOWN
+
+or equivalent repository conventions.
+
+Classification must remain explainable.
+
+========================================================
+14. DEFINE "CONFIRMED" CAREFULLY
+========================================================
+
+If adding a field named:
+
+confirmed_document_type
+
+define "confirmed" explicitly.
+
+These are NOT enough by themselves:
+
+folder name
+filename
+processing success
+role=document
+role=submittal_form
+AI guess
+hash match
+
+Confirmed should require evidence defined by the classification rules.
+
+Otherwise use:
+
+suggested
+supported
+ambiguous
+unknown
+
+instead.
+
+========================================================
+15. INITIAL TAXONOMY
+========================================================
+
+The final taxonomy must be grounded in actual code and existing workflows.
+
+At minimum evaluate support for:
+
+DRF
+
+DESIGN_SHEET
+
+IFC_DRAWING
+
+SHOP_DRAWING
+
+MATERIAL_SUBMITTAL
+
+SPECIFICATION
+
+DATASHEET
+
+TRANSMITTAL
+
+SAMPLE_APPROVAL
+
+CERTIFICATE
+
+COMMENT_RESPONSE
+
+CONSULTANT_DECISION
+
+OTHER
+
+UNKNOWN
+
+Do NOT create unnecessary types if the current code cannot support them reliably.
+
+Document additions.
+
+========================================================
+16. SYSTEM / DISCIPLINE / TYPE MUST REMAIN SEPARATE
+========================================================
+
+Do not encode system inside type.
+
+Correct:
+
+document_type = SHOP_DRAWING
+system = FAS
+
+document_type = SHOP_DRAWING
+system = ELS
+
+Not:
+
+FAS_SHOP_DRAWING
+ELS_SHOP_DRAWING
+
+Likewise keep discipline distinct where relevant.
+
+Examples:
+
+discipline = MECHANICAL
+system = SMOKE_MANAGEMENT
+
+discipline = ELECTRICAL
+system = ACS
+
+Only populate when evidence supports it.
+
+========================================================
+17. CONSERVATIVE COMPATIBILITY MATRIX
+========================================================
+
+Existing:
+
+role=drf
+
+Classification guidance:
+DRF from existing intake association
+
+Preserve:
+Project Info / intake behavior
+
+
+Existing:
+
+role=design_sheet
+
+Classification guidance:
+DESIGN_SHEET from existing association
+
+Preserve:
+Dedicated BOQ workflow
+
+
+Existing:
+
+role=submittal_form
+
+Classification guidance:
+Material Submittal candidate
+
+Stronger classification should use existing extraction evidence.
+
+Preserve:
+current submittal AI reader and register logic
+
+
+Existing:
+
+role=spec
+
+Classification guidance:
+Specification candidate
+
+Preserve:
+compliance discovery and dependencies
+
+
+Existing:
+
+role=transmittal
+
+Classification guidance:
+Transmittal
+
+Preserve:
+current Word/sample behavior
+
+
+Existing:
+
+category=submittals
+
+Classification guidance:
+submittal-related evidence
+
+Preserve:
+identity/revision/reply logic
+
+
+Existing:
+
+category=samples
+
+Classification guidance:
+sample-related evidence
+
+Preserve:
+samples / sample-board behavior
+
+
+Existing:
+
+category=drawings
+
+Classification guidance:
+drawing evidence only
+
+DO NOT automatically create SHOP_DRAWING
+
+
+Existing:
+
+drawing schedule source
+
+Classification guidance:
+drawing-schedule component
+
+DO NOT treat as submitted/approved drawing
+
+
+Existing:
+
+category=reply
+
+Classification guidance:
+reply-related evidence
+
+Authorship must remain separate.
+
+DO NOT infer approval.
+
+
+Existing:
+
+IFC domain records
+
+Classification guidance:
+IFC context
+
+DO NOT create Shop Drawing records
+
+
+Existing:
+
+conflicting/mixed evidence
+
+Classification:
+UNKNOWN or AMBIGUOUS
+
+Preserve existing routing.
+
+========================================================
+18. CONTEXT-AWARE CLASSIFICATION
+========================================================
+
+CONTENT IDENTITY and CLASSIFICATION CONTEXT are different.
+
+The same bytes may appear in different folders.
+
+Example:
+
+same PDF content
+
+Folder A:
+Tender
+
+Folder B:
+Submitted
+
+The existing processing layer may reuse role/readings from matching content hashes.
+
+Preserve that legacy behavior in this task.
+
+BUT:
+
+new classification metadata must evaluate the DESTINATION document context.
+
+Never blindly copy path-derived classification between duplicate files.
+
+========================================================
+19. CONTEXT FINGERPRINT
+========================================================
+
+Persist enough context to know whether an assessment is still applicable.
+
+Conceptually:
+
+document_id
+
+content_hash
+
+context_fingerprint
+
+rules_version
+
+assessment
+
+Context fingerprint may be derived from normalized:
+
+relative path
+existing intake association
+existing role
+project context
+system context
+
+Do not expose or persist absolute local paths unnecessarily.
+
+If relevant context changes:
+
+previous assessment must not silently be presented as current.
+
+========================================================
+20. CLASSIFICATION HISTORY
+========================================================
+
+Prefer classification assessment/history over destructive overwrite
+when repository conventions allow it.
+
+Need to support cases such as:
+
+Assessment v1:
+Path = A
+Result = SHOP_DRAWING candidate
+
+Document moved
+
+Assessment v2:
+Path = B
+Result = UNKNOWN / different supported type
+
+Preserve prior assessment/history where practical.
+
+At minimum retain:
+
+current assessment
+rules version
+source content hash
+context fingerprint
+assessment time
+
+Do not silently treat stale assessment as current.
+
+========================================================
+21. CLASSIFICATION MUST NEVER AUTO-PROMOTE AUTHORITY
+========================================================
+
+This is mandatory.
+
+Classification metadata is INFORMATIONAL ONLY in this phase.
+
+Even STRONG/SUPPORTED classification must NOT directly change:
+
+approval
+submission
+consultant status
+revision status
+current revision
+domain membership
+stale dependencies
+BOQ
+Logs
+Drawings register
+Material Submittal register
+
+Existing domain/business logic remains authoritative.
+
+========================================================
+22. PERSISTENCE MUST BE ADDITIVE AND OPTIONAL
+========================================================
+
+Choose the smallest persistence change compatible with current repository patterns.
+
+Possible:
+
+new nullable fields
+
+or:
+
+separate classification assessment table
+
+Decide after inspecting actual models.
+
+Requirements:
+
+existing rows must work without backfill
+
+classification may be null
+
+old API responses must remain valid
+
+do not change required fields for existing clients
+
+do not change current response values
+
+classification failure must not fail existing processing
+
+legacy behavior must work when feature disabled
+
+Add migrations using existing migration patterns.
+
+========================================================
+23. FEATURE FLAG
+========================================================
+
+Use repository feature configuration if already available.
+
+Otherwise add a minimal:
+
+default OFF
+
+feature flag.
+
+Example concept:
+
+DOCUMENT_CLASSIFICATION_V2=false
+
+When disabled:
+
+existing execution path must behave exactly as before.
+
+Existing classification metadata may remain stored.
+
+Disabling feature must not require deleting metadata.
+
+========================================================
+24. NO STARTUP REPROCESSING
+========================================================
+
+Do not trigger expensive automatic reprocessing of existing projects at startup.
+
+Do not:
+
+reopen all PDFs
+re-OCR
+re-run AI
+invalidate extraction caches
+invalidate OCR cache
+invalidate AI cache
+
+Do not bump:
+
+INDEX_VERSION
+
+solely because classification metadata was introduced.
+
+Use a separate:
+
+classification_rules_version
+
+========================================================
+25. OPTIONAL BACKFILL
+========================================================
+
+If backfill is required, provide an EXPLICIT operation.
+
+Backfill must be:
+
+bounded
+resumable
+cancellable
+observable
+
+It should use STORED DATA only where possible.
+
+Backfill must NOT:
+
+read source files
+call AI
+OCR
+trigger domain reconciliation
+change business status
+mark dependencies stale
+
+Backfill populates metadata only.
+
+========================================================
+26. CLASSIFICATION FAILURE IS NON-FATAL
+========================================================
+
+If classification raises an error:
+
+log it separately
+
+leave classification absent/unknown
+
+preserve successful processing result
+
+preserve existing domain behavior
+
+DO NOT:
+
+fail document processing
+rollback successful extraction
+change status
+change routing
+
+========================================================
+27. EXPLAINABILITY
+========================================================
+
+Classification result should explain WHY.
+
+Conceptual example:
+
+{
+  "primary_type": "SHOP_DRAWING",
+  "stage": "supported",
+  "evidence_strength": "strong",
+  "evidence": [
+    "relative path contains Drawings/SD",
+    "document-control record category=drawings",
+    "reference matches drawing pattern",
+    "revision extracted"
+  ],
+  "rules_version": "v1"
+}
+
+Do not store huge raw text inside classification metadata.
+
+========================================================
+28. ENGINEER OVERRIDE PREPARATION
+========================================================
+
+Prepare the data model so a future engineer override can exist.
+
+Do not necessarily implement override UI in this task.
+
+Future precedence should be capable of:
+
+ENGINEER
+>
+validated deterministic evidence
+>
+content assessment
+>
+metadata hint
+
+If an override mechanism already exists:
+
+do not break it.
+
+Do not allow new automatic classification to silently overwrite engineer-confirmed information.
+
+========================================================
+29. CLASSIFICATION UPDATES MUST NOT MARK DOMAINS STALE
+========================================================
+
+Updating only classification metadata must NOT:
+
+mark BOQ stale
+
+mark Material Submittal stale
+
+mark Drawings stale
+
+change Logs
+
+settle/reopen dependencies
+
+trigger domain reconciliation
+
+change project progress
+
+Do not alter existing dependency validation.
+
+========================================================
+30. PERFORMANCE ACCEPTANCE
+========================================================
+
+Measure before/after.
+
+FILE SYNC:
+
+zero extra AI calls
+
+zero extra OCR
+
+zero extra PDF reads
+
+negligible metadata-classification overhead
+
+DOCUMENT PROCESSING:
+
+reuse existing extracted data
+
+no extra AI call for classification
+
+no source reopen solely for classification
+
+Report:
+
+before/after discovery duration
+
+before/after processing duration
+
+new classification overhead
+
+If overhead is material:
+
+report it before expanding scope.
+
+========================================================
+31. TEST EXISTING CONTRACTS
+========================================================
+
+Inspect and run relevant existing tests, including:
+
+test_file_sync_v2.py
+
+test_file_sync_v2_processing.py
+
+test_document_processing_v2.py
+
+test_document_sync.py
+
+test_document_intake.py
+
+test_document_control.py
+
+test_submittal_ai.py
+
+test_submittal_one_per_system.py
+
+test_drawings_module.py
+
+test_boq_extraction_v2.py
+
+And any newer relevant tests in the current repo.
+
+Use:
+
+isolated test DBs
+temporary files
+scripted/mock providers
+
+Do NOT use:
+
+production DB
+production project folders
+paid AI calls
+live OneDrive content
+
+========================================================
+32. ADD CLASSIFICATION-SPECIFIC TESTS
+========================================================
+
+Required tests:
+
+TEST 1
+
+Feature disabled.
+
+Assert all legacy outputs/domain records remain identical.
+
+
+TEST 2
+
+Feature enabled.
+
+Legacy outputs/domain records remain identical except new classification metadata.
+
+
+TEST 3
+
+Fast sync classification hint adds:
+
+zero PDF reads
+zero OCR
+zero AI calls.
+
+
+TEST 4
+
+Contractor reply file.
+
+Classification may indicate reply-related component.
+
+Must NOT create:
+
+submission
+approval
+consultant decision
+
+
+TEST 5
+
+Previous revision consultant decision.
+
+Must NOT become current revision consultant decision.
+
+
+TEST 6
+
+IFC drawing.
+
+Must NOT become Shop Drawing submission.
+
+
+TEST 7
+
+Drawing schedule.
+
+May classify as drawing-related component.
+
+Must NOT become Shop Drawing submission.
+
+
+TEST 8
+
+Mixed document containing multiple extracted records.
+
+All records remain preserved.
+
+Primary classification must not replace extracted records.
+
+
+TEST 9
+
+Same content hash copied to different folders.
+
+Legacy extraction reuse preserved.
+
+New classification metadata uses destination context.
+
+
+TEST 10
+
+Unknown/conflicting evidence.
+
+classification = UNKNOWN/AMBIGUOUS
+
+legacy behavior unchanged.
+
+
+TEST 11
+
+Classification raises exception.
+
+Document processing still succeeds.
+
+
+TEST 12
+
+Classification metadata changes only.
+
+No dependency becomes stale.
+
+
+TEST 13
+
+Design Sheet.
+
+Keeps dedicated BOQ workflow.
+
+
+TEST 14
+
+DRF.
+
+Keeps existing intake / Project Info workflow.
+
+
+TEST 15
+
+category=drawings.
+
+Does not automatically create SHOP_DRAWING domain record.
+
+
+TEST 16
+
+category=reply.
+
+Does not infer approval.
+
+
+TEST 17
+
+Feature disabled after metadata exists.
+
+Legacy path still works.
+
+
+TEST 18
+
+Backfill uses stored data only.
+
+No source reads / AI / OCR.
+
+========================================================
+33. LEGACY EQUIVALENCE CHECK
+========================================================
+
+Compare BEFORE vs AFTER for the same fixtures.
+
+Verify no unexpected change in:
+
+ProjectDocument.role
+
+processing states
+
+extracted records
+
+record categories
+
+Material Submittal identities
+
+Material Submittal revisions
+
+consultant statuses
+
+Shop Drawing records
+
+drawing revisions
+
+Logs
+
+BOQ outputs
+
+dependency states
+
+project progress
+
+Exclude only:
+
+explicit new classification metadata
+
+and unavoidable timing fields.
+
+Do not weaken old assertions merely to make tests pass.
+
+========================================================
+34. CONSUMER MIGRATION READINESS MATRIX
+========================================================
+
+Produce a REPORT ONLY.
+
+DO NOT migrate any consumer.
+
+For each consumer identify:
+
+current source of truth
+
+what classification could provide later
+
+whether migration is safe
+
+what must remain domain-derived
+
+Example:
+
+Documents Tab
+
+Current:
+Project/intake + ProjectDocument
+
+Future:
+classification may filter source documents
+
+Migration readiness:
+likely good after evaluation
+
+
+Drawings Tab
+
+Current:
+shop_drawings + extracted drawing records
+
+Future:
+classification can assist candidate routing only
+
+Migration readiness:
+do NOT replace domain logic
+
+
+Material Submittal
+
+Current:
+submittal/reply/revision logic
+
+Future:
+classification can help candidate routing
+
+Migration readiness:
+do NOT replace revision/status logic
+
+
+Logs
+
+Current:
+domain records
+
+Future:
+classification should not become source of truth
+
+Migration readiness:
+none required
+
+
+Home
+
+Current:
+project/domain state
+
+Future:
+classification should not directly drive status
+
+Migration readiness:
+none required
+
+========================================================
+35. REAL-PROJECT EVALUATION PREPARATION
+========================================================
+
+Do not turn classification authoritative yet.
+
+Prepare metrics for future evaluation across several projects.
+
+Track:
+
+document count
+
+UNKNOWN count
+
+AMBIGUOUS count
+
+type agreement with existing known roles
+
+conflicts
+
+mixed-component files
+
+classification failures
+
+path-only classifications
+
+content-supported classifications
+
+classification latency
+
+Do NOT report an "accuracy %" until engineer-verified Golden Truth exists.
+
+========================================================
+36. DO NOT FIX DOCUMENTS TAB IN THIS TASK
+========================================================
+
+Do not migrate Documents tab yet.
+
+The current known issue where general ProjectDocuments may appear
+in the intake/Documents UI should be handled in a separate consumer-migration phase.
+
+This foundation task must first prove:
+
+classification works
+
+classification is explainable
+
+classification has no business side effects
+
+legacy behavior is unchanged
+
+Afterwards a separate task may migrate:
+
+Documents Tab first
+
+then other consumers selectively.
+
+========================================================
+37. DO NOT MIGRATE DRAWINGS IN THIS TASK
+========================================================
+
+Do not change Drawings tab to query:
+
+document_type=SHOP_DRAWING
+
+in this phase.
+
+Current Shop Drawing domain logic remains authoritative.
+
+Classification may later assist:
+
+candidate discovery
+
+routing
+
+debugging
+
+evaluation
+
+But not business status.
+
+========================================================
+38. DO NOT MIGRATE MATERIAL SUBMITTAL IN THIS TASK
+========================================================
+
+Do not replace:
+
+submittal_scanner
+
+submittal_replies
+
+submittal_filing
+
+revision logic
+
+consultant decision logic
+
+with classification.
+
+Classification is metadata only.
+
+========================================================
+39. DO NOT MIGRATE LOGS OR HOME
+========================================================
+
+Logs and Home must remain derived from domain/business records.
+
+They must not start querying raw classification results as authoritative state.
+
+========================================================
+40. DELIVERABLES
+========================================================
+
+Deliver:
+
+1. AS-IS ownership/dependency map.
+
+2. Classification architecture.
+
+3. Exact taxonomy actually supported by code.
+
+4. Compatibility matrix.
+
+5. Persistence design.
+
+6. Migration(s), if required.
+
+7. Exact files/functions changed.
+
+8. Tests added.
+
+9. Test commands.
+
+10. Actual test results:
+    - passed
+    - failed
+    - unrun
+
+11. Feature-enable instructions.
+
+12. Feature-disable instructions.
+
+13. Optional backfill instructions.
+
+14. Performance comparison.
+
+15. Consumer Migration Readiness Matrix.
+
+16. Known limitations.
+
+17. Separately identified defects.
+
+Do not silently fix unrelated defects.
+
+========================================================
+41. IMPLEMENTATION PHASES
+========================================================
+
+PHASE 0
+AS-IS AUDIT
+
+No code changes.
+
+Produce:
+ownership map
+dependency map
+consumer map
+compatibility risks
+
+
+PHASE 1
+CLASSIFICATION DOMAIN MODEL
+
+Add:
+taxonomy
+evidence model
+context model
+rules version
+persistence
+
+No consumer migration.
+
+
+PHASE 2
+FAST METADATA HINT
+
+Add discovery-time metadata hint.
+
+No source reads.
+No AI.
+No OCR.
+No routing changes.
+
+
+PHASE 3
+POST-PROCESSING ASSESSMENT
+
+Use already stored/extracted data.
+
+No extra AI call.
+
+Classification failure is non-fatal.
+
+
+PHASE 4
+BACKFILL + OBSERVABILITY
+
+Optional bounded stored-data backfill.
+
+Add metrics/logging.
+
+
+PHASE 5
+COMPATIBILITY VALIDATION
+
+Run all relevant tests.
+
+Compare legacy behavior.
+
+
+PHASE 6
+REAL-PROJECT EVALUATION PREPARATION
+
+Produce classification metrics.
+
+DO NOT migrate consumers.
+
+========================================================
+42. STOP CONDITIONS
+========================================================
+
+Stop implementation and report before proceeding if:
+
+classification requires changing business status
+
+classification requires rearchitecting current domain records
+
+classification requires new AI calls during sync
+
+classification materially increases File Sync time
+
+classification breaks Document Processing V2
+
+classification requires changing Design Sheet BOQ workflow
+
+classification would overwrite engineer-confirmed data
+
+classification causes stale dependencies
+
+legacy test behavior unexpectedly changes
+
+Do not workaround these by weakening existing logic.
+
+========================================================
+43. ACCEPTANCE CRITERIA
+========================================================
+
+This task is complete only when:
+
+A. Existing business behavior remains equivalent.
+
+B. File Sync remains lightweight.
+
+C. No new AI/OCR/PDF work occurs during normal sync.
+
+D. Classification is explainable.
+
+E. Classification supports UNKNOWN/AMBIGUOUS.
+
+F. Mixed files can retain multiple components.
+
+G. Classification does not replace extracted records.
+
+H. Classification does not alter status/revision/submission/approval.
+
+I. IFC and Shop Drawing remain separate.
+
+J. Contractor reply and consultant decision remain separate.
+
+K. Duplicate content in different folder contexts can receive different assessments.
+
+L. Stale classification cannot silently appear current.
+
+M. Feature can be disabled cleanly.
+
+N. Backfill does not require source-file reprocessing.
+
+O. Legacy tests remain intact.
+
+P. No consumer is migrated in this phase.
+
+Q. Consumer Migration Readiness Matrix is produced.
+
+========================================================
+44. FUTURE PHASE — DO NOT IMPLEMENT NOW
+========================================================
+
+After this foundation is proven on real projects,
+a separately authorized task may implement:
+
+Document Classification & Routing V2 — Consumer Migration
+
+Potential order:
+
+1. Documents Tab
+2. Document search/filtering
+3. candidate routing for Drawings
+4. candidate routing for Material Submittal
+5. Compliance document discovery
+6. legacy-classification cleanup only after all consumers migrate
+
+Do NOT perform any of these now.
+
+========================================================
+45. FINAL MANDATORY RULE
+========================================================
+
+Do not replace or delete existing routing or business logic.
+
+Add classification alongside the current implementation.
+
+Prove equivalent legacy behavior.
+
+Use classification as explainable metadata only.
+
+Leave all consumer migration and business-rule changes
+for separately authorized tasks.
+
+
