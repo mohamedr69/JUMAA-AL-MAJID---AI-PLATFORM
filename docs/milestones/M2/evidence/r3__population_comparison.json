@@ -1,0 +1,3814 @@
+{
+ "before": {
+  "label": "parse-2026-09-28.2 cold (M2 submission, evidence/parser_population_after.json)",
+  "parser_version": "parse-2026-09-28.2",
+  "mode": null,
+  "docs": 124,
+  "records": 136,
+  "errors": [],
+  "seconds_total": 263.8,
+  "coverage_outcomes": {
+   "n/a": 124
+  },
+  "stop_reasons": {
+   "n/a": 124
+  },
+  "pages_skipped_docs": 0,
+  "pages_skipped_total": 0,
+  "pages_failed_total": 0,
+  "pages_visited_total": 0,
+  "observations_by_kind": {},
+  "docs_with_observations": 0,
+  "flags": {},
+  "records_with_candidates": 0,
+  "status_counts": {
+   "UR": 44,
+   "rejected": 67,
+   "ANN": 25
+  },
+  "category_counts": {
+   "drawings": 118,
+   "samples": 12,
+   "reply": 4,
+   "submittals": 2
+  }
+ },
+ "after_default": {
+  "label": "parse-2026-09-28.3 cold, default settings (promotion off)",
+  "parser_version": "parse-2026-09-28.3",
+  "mode": "default",
+  "docs": 124,
+  "records": 119,
+  "errors": [],
+  "seconds_total": 243.7,
+  "coverage_outcomes": {
+   "complete": 116,
+   "bounded": 8
+  },
+  "stop_reasons": {
+   "null": 116,
+   "n/a": 6,
+   "page_scan_limit": 1,
+   "reply_search_limit": 1
+  },
+  "pages_skipped_docs": 8,
+  "pages_skipped_total": 35,
+  "pages_failed_total": 0,
+  "pages_visited_total": 351,
+  "observations_by_kind": {
+   "decision_unpromoted": 33,
+   "consultant_comments": 162,
+   "cover_untracked": 14,
+   "drawing_sheet": 14,
+   "transmittal": 2
+  },
+  "docs_with_observations": 100,
+  "flags": {
+   "decision_revision_unvalidated": 2,
+   "decision_method_unpromoted": 22,
+   "reference_incomplete": 1
+  },
+  "records_with_candidates": 24,
+  "status_counts": {
+   "UR": 62,
+   "rejected": 54,
+   "ANN": 3
+  },
+  "category_counts": {
+   "drawings": 104,
+   "samples": 9,
+   "reply": 4,
+   "submittals": 2
+  }
+ },
+ "after_promoted": {
+  "label": "parse-2026-09-28.3 warm cache, promote=True",
+  "parser_version": "parse-2026-09-28.3",
+  "mode": "promoted",
+  "docs": 124,
+  "records": 136,
+  "errors": [],
+  "seconds_total": 361.7,
+  "coverage_outcomes": {
+   "complete": 116,
+   "bounded": 8
+  },
+  "stop_reasons": {
+   "null": 116,
+   "n/a": 6,
+   "page_scan_limit": 1,
+   "reply_search_limit": 1
+  },
+  "pages_skipped_docs": 8,
+  "pages_skipped_total": 35,
+  "pages_failed_total": 0,
+  "pages_visited_total": 351,
+  "observations_by_kind": {
+   "consultant_comments": 166,
+   "drawing_sheet": 6
+  },
+  "docs_with_observations": 94,
+  "flags": {
+   "decision_revision_unvalidated": 2,
+   "reference_incomplete": 1
+  },
+  "records_with_candidates": 2,
+  "status_counts": {
+   "UR": 46,
+   "rejected": 65,
+   "ANN": 25
+  },
+  "category_counts": {
+   "drawings": 118,
+   "samples": 12,
+   "reply": 4,
+   "submittals": 2
+  }
+ },
+ "default_vs_m2": {
+  "common_docs": 124,
+  "classes": {
+   "identical": 84,
+   "changed:status": 24,
+   "records_removed": 16
+  },
+  "examples": {
+   "changed:status": [
+    {
+     "doc": 120,
+     "path": "2 Shop Drawing for Ground Floor Plan - Fire Alarm Layout.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+       "revision": "R1",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+       "revision": "R1",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      [],
+      [
+       "decision_revision_unvalidated"
+      ]
+     ],
+     "candidates_after": [
+      [],
+      [
+       [
+        "rejected",
+        "(C) Revise & Resubmit",
+        "sheet_mark"
+       ]
+      ]
+     ],
+     "observations_after": []
+    },
+    {
+     "doc": 122,
+     "path": "Shop Drawing for Podium-1 Floor Plan - Fire Alarm Layout.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+       "revision": "R1",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+       "revision": "R1",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      [],
+      [
+       "decision_revision_unvalidated"
+      ]
+     ],
+     "candidates_after": [
+      [],
+      [
+       [
+        "rejected",
+        "(C) revise & Resubmit",
+        "sheet_mark"
+       ]
+      ]
+     ],
+     "observations_after": []
+    },
+    {
+     "doc": 409,
+     "path": "SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "flags_after": [
+      [
+       "decision_method_unpromoted"
+      ]
+     ],
+     "candidates_after": [
+      [
+       [
+        "rejected",
+        "C - Revise & Re-Submit",
+        "drawn_frame"
+       ]
+      ]
+     ],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          280.4,
+          591.5,
+          363.6,
+          613.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 424,
+     "path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "flags_after": [
+      [
+       "decision_method_unpromoted"
+      ]
+     ],
+     "candidates_after": [
+      [
+       [
+        "rejected",
+        "C - Revise & Re-Submit",
+        "drawn_frame"
+       ]
+      ]
+     ],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          279.7,
+          592.2,
+          360.1,
+          618.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 429,
+     "path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      [
+       "decision_method_unpromoted"
+      ]
+     ],
+     "candidates_after": [
+      [
+       [
+        "ANN",
+        "B - Approved With Comments",
+        "drawn_frame"
+       ]
+      ]
+     ],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          214.9,
+          588.0,
+          279.7,
+          616.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 430,
+     "path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      [
+       "decision_method_unpromoted"
+      ]
+     ],
+     "candidates_after": [
+      [
+       [
+        "ANN",
+        "B - Approved With Comments",
+        "drawn_frame"
+       ]
+      ]
+     ],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          204.4,
+          590.6,
+          280.2,
+          616.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 433,
+     "path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      [
+       "decision_method_unpromoted"
+      ]
+     ],
+     "candidates_after": [
+      [
+       [
+        "ANN",
+        "B - Approved With Comments",
+        "drawn_frame"
+       ]
+      ]
+     ],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          230.9,
+          637.4,
+          283.9,
+          653.6
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 3,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 4,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 5,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 6,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 7,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 8,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 9,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 10,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 11,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 12,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 13,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 14,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 435,
+     "path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      [
+       "decision_method_unpromoted"
+      ]
+     ],
+     "candidates_after": [
+      [
+       [
+        "ANN",
+        "B - Approved With Comments",
+        "drawn_frame"
+       ]
+      ]
+     ],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          203.8,
+          582.8,
+          276.0,
+          605.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 516,
+     "path": "SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "flags_after": [
+      [
+       "decision_method_unpromoted"
+      ]
+     ],
+     "candidates_after": [
+      [
+       [
+        "rejected",
+        "C - Revise & Re-Submit",
+        "drawn_frame"
+       ]
+      ]
+     ],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          280.4,
+          591.5,
+          363.6,
+          613.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 528,
+     "path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "flags_after": [
+      [
+       "decision_method_unpromoted"
+      ]
+     ],
+     "candidates_after": [
+      [
+       [
+        "rejected",
+        "C - Revise & Re-Submit",
+        "drawn_frame"
+       ]
+      ]
+     ],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          279.7,
+          592.2,
+          360.1,
+          618.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 572,
+     "path": "out/Received/R01/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      [
+       "decision_method_unpromoted"
+      ]
+     ],
+     "candidates_after": [
+      [
+       [
+        "ANN",
+        "B - Approved With Comments",
+        "drawn_frame"
+       ]
+      ]
+     ],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          214.9,
+          588.0,
+          279.7,
+          616.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 573,
+     "path": "out/Received/R01/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      [
+       "decision_method_unpromoted"
+      ]
+     ],
+     "candidates_after": [
+      [
+       [
+        "ANN",
+        "B - Approved With Comments",
+        "drawn_frame"
+       ]
+      ]
+     ],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          204.4,
+          590.6,
+          280.2,
+          616.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    }
+   ],
+   "records_removed": [
+    {
+     "doc": 440,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          283.3,
+          603.1,
+          346.6,
+          610.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "BASEMENT-01 FLOOR PLAN FIREFIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+        "modified": "2026-07-10 05:22:17+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+        "revision": "R2",
+        "status": "UR",
+        "floor": "BASEMENT-01",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-100"
+        ],
+        "superseded": [],
+        "raw_system": "FIREFIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "rejected",
+          "C - Revise & Re-Submit",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 444,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          283.3,
+          603.1,
+          346.6,
+          610.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "BASEMENT-02 FLOOR PLAN FIREFIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+        "modified": "2026-07-10 05:22:18+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+        "revision": "R2",
+        "status": "UR",
+        "floor": "BASEMENT-02",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-101"
+        ],
+        "superseded": [],
+        "raw_system": "FIREFIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "rejected",
+          "C - Revise & Re-Submit",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "raw_system": "FF"
+      },
+      {
+       "page": 2,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP/FF-101",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 448,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0049-02-COMMENTED-C.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          283.3,
+          603.1,
+          346.6,
+          610.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "GROUND FLOOR PLAN FIREFIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0049-02-COMMENTED-C.pdf",
+        "modified": "2026-07-10 05:22:18+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+        "revision": "R2",
+        "status": "UR",
+        "floor": "GROUND FLOOR",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-102"
+        ],
+        "superseded": [],
+        "raw_system": "FIREFIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "rejected",
+          "C - Revise & Re-Submit",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 452,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0050-02-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+       "revision": "R2",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        },
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "HEALTH CLUB LEVEL FIREFIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0050-02-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:18+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+        "revision": "R2",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-103"
+        ],
+        "superseded": [],
+        "raw_system": "FIREFIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 454,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0052-02-COMMENTED-C.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          283.3,
+          603.1,
+          346.6,
+          610.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "ROOF FLOOR PLAN FIREFIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0052-02-COMMENTED-C.pdf",
+        "modified": "2026-07-10 05:22:18+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+        "revision": "R2",
+        "status": "UR",
+        "floor": "ROOF FLOOR",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-105"
+        ],
+        "superseded": [],
+        "raw_system": "FIREFIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "rejected",
+          "C - Revise & Re-Submit",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 457,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0120-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0120",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "TYPICAL 2ND TO 8TH FLOORS FIRE FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0120-00-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0120",
+        "revision": "R0",
+        "status": "UR",
+        "floor": "TYPICAL 2ND TO 8TH FLOOR",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-106"
+        ],
+        "superseded": [],
+        "raw_system": "FIRE FIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0120",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 458,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0121-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0121",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "9TH FLOOR PLAN FIRE FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0121-00-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0121",
+        "revision": "R0",
+        "status": "UR",
+        "floor": "9TH FLOOR",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-107"
+        ],
+        "superseded": [],
+        "raw_system": "FIRE FIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0121",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 459,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0122-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0122",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "TYPICAL 10TH TO 14TH FLOORS FIRE FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0122-00-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0122",
+        "revision": "R0",
+        "status": "UR",
+        "floor": "TYPICAL 10TH TO 14TH FLOOR",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-108"
+        ],
+        "superseded": [],
+        "raw_system": "FIRE FIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0122",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 460,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0123-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0123",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "FIRST FLOOR FIRE FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0123-00-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0123",
+        "revision": "R0",
+        "status": "UR",
+        "floor": "FIRST FLOOR FIRE FIGHTING LAYOUT",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-104"
+        ],
+        "superseded": [],
+        "raw_system": "FIRE FIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0123",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 461,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0124-00-COMMENTED-C.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          283.3,
+          603.1,
+          346.6,
+          610.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "SCHEMATIC RISER DIAGRAM FIRE FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0124-00-COMMENTED-C.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-109"
+        ],
+        "superseded": [],
+        "raw_system": "FIRE FIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "rejected",
+          "C - Revise & Re-Submit",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+       "raw_system": "FF"
+      },
+      {
+       "page": 2,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP/FF-109",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 463,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0125-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FF",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0125",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "after": [],
+     "flags_after": [],
+     "candidates_after": [],
+     "observations_after": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "GENERAL DETAILS-1 FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0125-00-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0125",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-110"
+        ],
+        "superseded": [],
+        "raw_system": "FF",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0125",
+       "raw_system": "FF"
+      },
+      {
+       "page": 2,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP/FF-110",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 575,
+     "path": "C FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+       "revision": "R1",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": "MEP",
+       "reference": "ICC-DLRC-SPM-SD-MEP-0042",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": null
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+       "revision": "R1",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ],
+     "observations_after": [
+      {
+       "page": 2,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "ICC-DLRC-SPM-SD-MEP-0042",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\04. Drawings\\SD\\recieved\\TransferNow-20260908BGEp3fee\\Fire alarm layout\\Received\\R01\\ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+        "modified": "2026-09-08 07:22:46+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-0042",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 2,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [],
+        "superseded": [],
+        "raw_system": "MEP",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [],
+        "flags": []
+       }
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": 0
+      },
+      {
+       "page": 3,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "timing_identical_work": {
+  "documents": 124,
+  "before_parse_2_cold_s": 263.8,
+  "after_parse_3_cold_s": 243.7,
+  "largest_increases": [
+   {
+    "delta_s": 3.8,
+    "doc": 433,
+    "path": "ARM/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf"
+   },
+   {
+    "delta_s": 1.2,
+    "doc": 420,
+    "path": "GHTING/ICC-DLRC-SPM-SD-MEP-0082-00-COMMENTED-C.pdf"
+   },
+   {
+    "delta_s": 1.2,
+    "doc": 570,
+    "path": "RE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0054-00.pdf"
+   },
+   {
+    "delta_s": 0.7,
+    "doc": 120,
+    "path": "wing for Ground Floor Plan - Fire Alarm Layout.pdf"
+   },
+   {
+    "delta_s": 0.6,
+    "doc": 846,
+    "path": "R01/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf"
+   },
+   {
+    "delta_s": 0.5,
+    "doc": 781,
+    "path": "R01/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf"
+   },
+   {
+    "delta_s": 0.5,
+    "doc": 687,
+    "path": "06. MS/FA/Revised/PDF/Previous Approval.pdf"
+   },
+   {
+    "delta_s": 0.5,
+    "doc": 572,
+    "path": "ed/R01/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf"
+   }
+  ],
+  "note": "both cold scratch caches, same files, same machine; the .3 run overlapped with nothing but the 687 region script (~10 s of OCR); not a latency claim beyond this workload"
+ },
+ "promoted_vs_default": {
+  "common_docs": 124,
+  "classes": {
+   "identical": 86,
+   "changed:status": 22,
+   "records_added": 16
+  },
+  "examples": {
+   "changed:status": [
+    {
+     "doc": 409,
+     "path": "SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          280.4,
+          591.5,
+          363.6,
+          613.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 424,
+     "path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          279.7,
+          592.2,
+          360.1,
+          618.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 429,
+     "path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          214.9,
+          588.0,
+          279.7,
+          616.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 430,
+     "path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          204.4,
+          590.6,
+          280.2,
+          616.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 433,
+     "path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          230.9,
+          637.4,
+          283.9,
+          653.6
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 3,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 4,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 5,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 6,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 7,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 8,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 9,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 10,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 11,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 12,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 13,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 14,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 435,
+     "path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          203.8,
+          582.8,
+          276.0,
+          605.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 516,
+     "path": "SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          280.4,
+          591.5,
+          363.6,
+          613.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 528,
+     "path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          279.7,
+          592.2,
+          360.1,
+          618.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 572,
+     "path": "out/Received/R01/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          214.9,
+          588.0,
+          279.7,
+          616.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 573,
+     "path": "out/Received/R01/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          204.4,
+          590.6,
+          280.2,
+          616.0
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 576,
+     "path": "/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          230.9,
+          637.4,
+          283.9,
+          653.6
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 3,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 4,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 5,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 6,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 7,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 8,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 9,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 10,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 11,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 12,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 13,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      },
+      {
+       "page": 14,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    },
+    {
+     "doc": 577,
+     "path": "/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With Comments",
+         "method": "drawn_frame",
+         "rect": [
+          203.8,
+          582.8,
+          276.0,
+          605.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    }
+   ],
+   "records_added": [
+    {
+     "doc": 440,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          283.3,
+          603.1,
+          346.6,
+          610.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "BASEMENT-01 FLOOR PLAN FIREFIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+        "modified": "2026-07-10 05:22:17+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+        "revision": "R2",
+        "status": "UR",
+        "floor": "BASEMENT-01",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-100"
+        ],
+        "superseded": [],
+        "raw_system": "FIREFIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "rejected",
+          "C - Revise & Re-Submit",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 444,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          283.3,
+          603.1,
+          346.6,
+          610.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "BASEMENT-02 FLOOR PLAN FIREFIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+        "modified": "2026-07-10 05:22:18+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+        "revision": "R2",
+        "status": "UR",
+        "floor": "BASEMENT-02",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-101"
+        ],
+        "superseded": [],
+        "raw_system": "FIREFIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "rejected",
+          "C - Revise & Re-Submit",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "raw_system": "FF"
+      },
+      {
+       "page": 2,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP/FF-101",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 448,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0049-02-COMMENTED-C.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          283.3,
+          603.1,
+          346.6,
+          610.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "GROUND FLOOR PLAN FIREFIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0049-02-COMMENTED-C.pdf",
+        "modified": "2026-07-10 05:22:18+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+        "revision": "R2",
+        "status": "UR",
+        "floor": "GROUND FLOOR",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-102"
+        ],
+        "superseded": [],
+        "raw_system": "FIREFIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "rejected",
+          "C - Revise & Re-Submit",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 452,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0050-02-COMMENTED-B.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+       "revision": "R2",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        },
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "HEALTH CLUB LEVEL FIREFIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0050-02-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:18+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+        "revision": "R2",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-103"
+        ],
+        "superseded": [],
+        "raw_system": "FIREFIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 454,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0052-02-COMMENTED-C.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          283.3,
+          603.1,
+          346.6,
+          610.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "ROOF FLOOR PLAN FIREFIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0052-02-COMMENTED-C.pdf",
+        "modified": "2026-07-10 05:22:18+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+        "revision": "R2",
+        "status": "UR",
+        "floor": "ROOF FLOOR",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-105"
+        ],
+        "superseded": [],
+        "raw_system": "FIREFIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "rejected",
+          "C - Revise & Re-Submit",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 457,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0120-00-COMMENTED-B.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0120",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "TYPICAL 2ND TO 8TH FLOORS FIRE FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0120-00-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0120",
+        "revision": "R0",
+        "status": "UR",
+        "floor": "TYPICAL 2ND TO 8TH FLOOR",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-106"
+        ],
+        "superseded": [],
+        "raw_system": "FIRE FIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0120",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 458,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0121-00-COMMENTED-B.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0121",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "9TH FLOOR PLAN FIRE FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0121-00-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0121",
+        "revision": "R0",
+        "status": "UR",
+        "floor": "9TH FLOOR",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-107"
+        ],
+        "superseded": [],
+        "raw_system": "FIRE FIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0121",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 459,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0122-00-COMMENTED-B.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0122",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "TYPICAL 10TH TO 14TH FLOORS FIRE FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0122-00-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0122",
+        "revision": "R0",
+        "status": "UR",
+        "floor": "TYPICAL 10TH TO 14TH FLOOR",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-108"
+        ],
+        "superseded": [],
+        "raw_system": "FIRE FIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0122",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 460,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0123-00-COMMENTED-B.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0123",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "FIRST FLOOR FIRE FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0123-00-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0123",
+        "revision": "R0",
+        "status": "UR",
+        "floor": "FIRST FLOOR FIRE FIGHTING LAYOUT",
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-104"
+        ],
+        "superseded": [],
+        "raw_system": "FIRE FIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0123",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 461,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0124-00-COMMENTED-C.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "rejected",
+         "label": "C - Revise & Re-Submit",
+         "method": "drawn_frame",
+         "rect": [
+          283.3,
+          603.1,
+          346.6,
+          610.5
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "SCHEMATIC RISER DIAGRAM FIRE FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0124-00-COMMENTED-C.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-109"
+        ],
+        "superseded": [],
+        "raw_system": "FIRE FIGHTING",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "rejected",
+          "C - Revise & Re-Submit",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+       "raw_system": "FF"
+      },
+      {
+       "page": 2,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP/FF-109",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 463,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0125-00-COMMENTED-B.pdf",
+     "default": [],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FF",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0125",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 1,
+       "kind": "decision_unpromoted",
+       "marks": [
+        {
+         "status": "ANN",
+         "label": "B - Approved With",
+         "method": "drawn_frame",
+         "rect": [
+          217.2,
+          599.1,
+          266.7,
+          606.4
+         ]
+        }
+       ]
+      },
+      {
+       "page": 1,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "GENERAL DETAILS-1 FIGHTING LAYOUT",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0125-00-COMMENTED-B.pdf",
+        "modified": "2026-07-10 05:22:19+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-FF-0125",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [
+         "ICC-DLRC-SPM-SD-MEP/FF-110"
+        ],
+        "superseded": [],
+        "raw_system": "FF",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [
+         [
+          "ANN",
+          "B - Approved With",
+          "drawn_frame"
+         ]
+        ],
+        "flags": [
+         "decision_method_unpromoted"
+        ]
+       }
+      },
+      {
+       "page": 1,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0125",
+       "raw_system": "FF"
+      },
+      {
+       "page": 2,
+       "kind": "drawing_sheet",
+       "reference": "ICC-DLRC-SPM-SD-MEP/FF-110",
+       "raw_system": "FF"
+      }
+     ]
+    },
+    {
+     "doc": 575,
+     "path": "C FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+     "default": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+       "revision": "R1",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "promoted": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+       "revision": "R1",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": "MEP",
+       "reference": "ICC-DLRC-SPM-SD-MEP-0042",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": null
+      }
+     ],
+     "observations_default": [
+      {
+       "page": 2,
+       "kind": "cover_untracked",
+       "record": {
+        "system_code": null,
+        "name": "ICC-DLRC-SPM-SD-MEP-0042",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\04. Drawings\\SD\\recieved\\TransferNow-20260908BGEp3fee\\Fire alarm layout\\Received\\R01\\ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+        "modified": "2026-09-08 07:22:46+00:00",
+        "reference": "ICC-DLRC-SPM-SD-MEP-0042",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 2,
+        "source": "document",
+        "category": "drawings",
+        "group_reference": null,
+        "listed": [],
+        "superseded": [],
+        "raw_system": "MEP",
+        "printed_revision": null,
+        "revision_source": "cover",
+        "decision_candidates": [],
+        "flags": []
+       }
+      },
+      {
+       "page": 2,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": 0
+      },
+      {
+       "page": 3,
+       "kind": "consultant_comments",
+       "decision": "UR",
+       "answers_revision": null
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

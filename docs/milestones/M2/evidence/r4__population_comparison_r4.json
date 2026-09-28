@@ -1,0 +1,720 @@
+{
+ "review01_default": {
+  "parser_version": "parse-2026-09-28.3",
+  "mode": "default",
+  "docs": 124,
+  "records": 119,
+  "errors": [],
+  "seconds_total": 243.7,
+  "document_outcomes": {
+   "complete": 116,
+   "bounded": 8,
+   "NON_EXCLUSIVE": 6,
+   "PAGES_DO_NOT_SUM": 6
+  },
+  "pages": {
+   "visited": 351,
+   "skipped": 35,
+   "failed": 0,
+   "total": 374
+  },
+  "ocr": {
+   "attempted": 0,
+   "failed": 0,
+   "skipped_budget": 0
+  },
+  "flags": {
+   "decision_revision_unvalidated": 2,
+   "decision_method_unpromoted": 22,
+   "reference_incomplete": 1
+  },
+  "observations": {
+   "decision_unpromoted": 33,
+   "consultant_comments": 162,
+   "cover_untracked": 14,
+   "drawing_sheet": 14,
+   "transmittal": 2
+  },
+  "status_counts": {
+   "UR": 62,
+   "rejected": 54,
+   "ANN": 3
+  },
+  "records_with_candidates": 24
+ },
+ "review02_default": {
+  "parser_version": "parse-2026-09-28.4",
+  "mode": "default",
+  "docs": 124,
+  "records": 119,
+  "errors": [],
+  "seconds_total": 267.5,
+  "document_outcomes": {
+   "complete": 116,
+   "bounded": 8
+  },
+  "pages": {
+   "visited": 351,
+   "skipped": 23,
+   "failed": 0,
+   "total": 374
+  },
+  "ocr": {
+   "attempted": 269,
+   "failed": 0,
+   "skipped_budget": 12
+  },
+  "flags": {
+   "decision_revision_unvalidated": 2,
+   "decision_method_unpromoted": 22,
+   "reference_incomplete": 1
+  },
+  "observations": {
+   "decision_unpromoted": 33,
+   "consultant_comments": 162,
+   "cover_untracked": 14,
+   "drawing_sheet": 14,
+   "transmittal": 2
+  },
+  "status_counts": {
+   "UR": 62,
+   "rejected": 54,
+   "ANN": 3
+  },
+  "records_with_candidates": 24
+ },
+ "review02_promoted": {
+  "parser_version": "parse-2026-09-28.4",
+  "mode": "promoted",
+  "docs": 124,
+  "records": 136,
+  "errors": [],
+  "seconds_total": 262.4,
+  "document_outcomes": {
+   "complete": 116,
+   "bounded": 8
+  },
+  "pages": {
+   "visited": 351,
+   "skipped": 23,
+   "failed": 0,
+   "total": 374
+  },
+  "ocr": {
+   "attempted": 280,
+   "failed": 0,
+   "skipped_budget": 12
+  },
+  "flags": {
+   "decision_revision_unvalidated": 2,
+   "reference_incomplete": 1
+  },
+  "observations": {
+   "consultant_comments": 166,
+   "drawing_sheet": 6
+  },
+  "status_counts": {
+   "UR": 46,
+   "rejected": 65,
+   "ANN": 25
+  },
+  "records_with_candidates": 2
+ },
+ "review02_default_vs_review01_default": {
+  "common_docs": 124,
+  "classes": {
+   "identical": 124
+  },
+  "examples": {}
+ },
+ "review02_promoted_vs_review02_default": {
+  "common_docs": 124,
+  "classes": {
+   "identical": 86,
+   "changed:status": 22,
+   "records_added": 16
+  },
+  "examples": {
+   "changed:status": [
+    {
+     "doc": 409,
+     "path": "SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 424,
+     "path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 429,
+     "path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 430,
+     "path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 433,
+     "path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 435,
+     "path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 516,
+     "path": "SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 528,
+     "path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 572,
+     "path": "out/Received/R01/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 573,
+     "path": "out/Received/R01/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+     "before": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    }
+   ],
+   "records_added": [
+    {
+     "doc": 440,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+     "before": [],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 444,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+     "before": [],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 448,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0049-02-COMMENTED-C.pdf",
+     "before": [],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 452,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0050-02-COMMENTED-B.pdf",
+     "before": [],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+       "revision": "R2",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 454,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0052-02-COMMENTED-C.pdf",
+     "before": [],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 457,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0120-00-COMMENTED-B.pdf",
+     "before": [],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0120",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 458,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0121-00-COMMENTED-B.pdf",
+     "before": [],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0121",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 459,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0122-00-COMMENTED-B.pdf",
+     "before": [],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0122",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 460,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0123-00-COMMENTED-B.pdf",
+     "before": [],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0123",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": null
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    },
+    {
+     "doc": 461,
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0124-00-COMMENTED-C.pdf",
+     "before": [],
+     "after": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIRE FIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "flags_after": [
+      []
+     ],
+     "candidates_after": [
+      []
+     ]
+    }
+   ]
+  }
+ },
+ "timing_identical_work": {
+  "documents": 124,
+  "review01_parse_3_cold_s": 243.7,
+  "review02_parse_4_cold_s": 267.5,
+  "note": "both cold scratch caches, same files, same machine; the .4 run overlapped with the BOQ suites and the deterministic BOQ run for part of its time; not a latency claim beyond this workload"
+ }
+}

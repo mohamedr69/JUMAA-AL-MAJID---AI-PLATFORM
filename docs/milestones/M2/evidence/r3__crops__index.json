@@ -1,0 +1,1580 @@
+[
+ {
+  "doc_id": 22,
+  "expected_reference": "BBY006-GME-SDW-FP-FA-BSM-B04-010025",
+  "relative_path": "ement-4/R1/Submitted/BBY006-GME-SDW-FP-FA-BSM-B04-010025.pdf",
+  "header": "h-22.png",
+  "row": "r-22.png",
+  "stored_after": [
+   [
+    "BBY006-GME-SDW-FP-FA-BSM-B04-010025",
+    "R1",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 120,
+  "expected_reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+  "relative_path": "2 Shop Drawing for Ground Floor Plan - Fire Alarm Layout.pdf",
+  "header": "h-120.png",
+  "row": "r-120.png",
+  "stored_after": [
+   [
+    "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+    "R0",
+    "rejected"
+   ],
+   [
+    "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+    "R1",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 409,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0011",
+  "relative_path": "SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+  "header": "h-409.png",
+  "row": "r-409.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0011",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 415,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0077",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0077-00-COMMENTED-C.pdf",
+  "header": "h-415.png",
+  "row": "r-415.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0077",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 416,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0078",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0078-00-COMMENTED-C.pdf",
+  "header": "h-416.png",
+  "row": "r-416.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0078",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 417,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0079",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0079-00-COMMENTED-C.pdf",
+  "header": "h-417.png",
+  "row": "r-417.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0079",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 418,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0080",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0080-00-COMMENTED-C.pdf",
+  "header": "h-418.png",
+  "row": "r-418.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0080",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 419,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0081",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0081-00-COMMENTED-C.pdf",
+  "header": "h-419.png",
+  "row": "r-419.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0081",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 420,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0082",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0082-00-COMMENTED-C.pdf",
+  "header": "h-420.png",
+  "row": "r-420.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0082",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 421,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0083",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0083-00-COMMENTED-C.pdf",
+  "header": "h-421.png",
+  "row": "r-421.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0083",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 422,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0084",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0084-00-COMMENTED-C.pdf",
+  "header": "h-422.png",
+  "row": "r-422.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0084",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 423,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0085",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0085-00-COMMENTED-C.pdf",
+  "header": "h-423.png",
+  "row": "r-423.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0085",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 424,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0086",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+  "header": "h-424.png",
+  "row": "r-424.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0086",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 425,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0087",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0087-00-COMMENTED-C.pdf",
+  "header": "h-425.png",
+  "row": "r-425.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0087",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 426,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0088",
+  "relative_path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0088-00-COMMENTED-C.pdf",
+  "header": "h-426.png",
+  "row": "r-426.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0088",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 429,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0039",
+  "relative_path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+  "header": "h-429.png",
+  "row": "r-429.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0039",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 430,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0040",
+  "relative_path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+  "header": "h-430.png",
+  "row": "r-430.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0040",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 433,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+  "relative_path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+  "header": "h-433.png",
+  "row": "r-433.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0054",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 434,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+  "relative_path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0054-01-COMMENTED-C.pdf",
+  "header": "h-434.png",
+  "row": "r-434.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0054",
+    "R1",
+    "rejected"
+   ],
+   [
+    "ICC-DLRC-SPM-SD-MEP/FA-100,101,102,104&105",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 435,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+  "relative_path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+  "header": "h-435.png",
+  "row": "r-435.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0055",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 436,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+  "relative_path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0055-01-COMMENTED-C.pdf",
+  "header": "h-436.png",
+  "row": "r-436.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0055",
+    "R1",
+    "rejected"
+   ],
+   [
+    "ICC-DLRC-SPM-SD-MEP/FA-100,101,102,104&105",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 437,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+  "relative_path": "NG/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+  "header": "h-437.png",
+  "row": "r-437.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0128",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 440,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+  "header": "h-440.png",
+  "row": "r-440.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0047",
+    "R2",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 444,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+  "header": "h-444.png",
+  "row": "r-444.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0048",
+    "R2",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 448,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0049-02-COMMENTED-C.pdf",
+  "header": "h-448.png",
+  "row": "r-448.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0049",
+    "R2",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 452,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0050-02-COMMENTED-B.pdf",
+  "header": "h-452.png",
+  "row": "r-452.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0050",
+    "R2",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 454,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0052-02-COMMENTED-C.pdf",
+  "header": "h-454.png",
+  "row": "r-454.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0052",
+    "R2",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 457,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0120",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0120-00-COMMENTED-B.pdf",
+  "header": "h-457.png",
+  "row": "r-457.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0120",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 458,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0121",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0121-00-COMMENTED-B.pdf",
+  "header": "h-458.png",
+  "row": "r-458.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0121",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 459,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0122",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0122-00-COMMENTED-B.pdf",
+  "header": "h-459.png",
+  "row": "r-459.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0122",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 460,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0123",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0123-00-COMMENTED-B.pdf",
+  "header": "h-460.png",
+  "row": "r-460.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0123",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 461,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0124-00-COMMENTED-C.pdf",
+  "header": "h-461.png",
+  "row": "r-461.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0124",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 463,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FF-0125",
+  "relative_path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0125-00-COMMENTED-B.pdf",
+  "header": "h-463.png",
+  "row": "r-463.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FF-0125",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 516,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0011",
+  "relative_path": "SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+  "header": "h-516.png",
+  "row": "r-516.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0011",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 520,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0077",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0077-00-COMMENTED-C.pdf",
+  "header": "h-520.png",
+  "row": "r-520.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0077",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 521,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0078",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0078-00-COMMENTED-C.pdf",
+  "header": "h-521.png",
+  "row": "r-521.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0078",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 522,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0079",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0079-00-COMMENTED-C.pdf",
+  "header": "h-522.png",
+  "row": "r-522.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0079",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 523,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0080",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0080-00-COMMENTED-C.pdf",
+  "header": "h-523.png",
+  "row": "r-523.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0080",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 524,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0082",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0082-00-COMMENTED-C.pdf",
+  "header": "h-524.png",
+  "row": "r-524.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0082",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 525,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0083",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0083-00-COMMENTED-C.pdf",
+  "header": "h-525.png",
+  "row": "r-525.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0083",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 526,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0084",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0084-00-COMMENTED-C.pdf",
+  "header": "h-526.png",
+  "row": "r-526.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0084",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 527,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0085",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0085-00-COMMENTED-C.pdf",
+  "header": "h-527.png",
+  "row": "r-527.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0085",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 528,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0086",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+  "header": "h-528.png",
+  "row": "r-528.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0086",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 529,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0087",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0087-00-COMMENTED-C.pdf",
+  "header": "h-529.png",
+  "row": "r-529.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0087",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 530,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0088",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0088-00-COMMENTED-C.pdf",
+  "header": "h-530.png",
+  "row": "r-530.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0088",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 538,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0077",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0077-00.pdf",
+  "header": "h-538.png",
+  "row": "r-538.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0077",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 539,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0078",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0078-00.pdf",
+  "header": "h-539.png",
+  "row": "r-539.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0078",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 540,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0084",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0084-00.pdf",
+  "header": "h-540.png",
+  "row": "r-540.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0084",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 541,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0085",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0085-00.pdf",
+  "header": "h-541.png",
+  "row": "r-541.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0085",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 542,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0086",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0086-00.pdf",
+  "header": "h-542.png",
+  "row": "r-542.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0086",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 543,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0087",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0087-00.pdf",
+  "header": "h-543.png",
+  "row": "r-543.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0087",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 566,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0039",
+  "relative_path": "FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-0039-00.pdf",
+  "header": "h-566.png",
+  "row": "r-566.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0039",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 567,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0040",
+  "relative_path": "FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-0040-00.pdf",
+  "header": "h-567.png",
+  "row": "r-567.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0040",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 570,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+  "relative_path": "OR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0054-00.pdf",
+  "header": "h-570.png",
+  "row": "r-570.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0054",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 571,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+  "relative_path": "F FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0055-00.pdf",
+  "header": "h-571.png",
+  "row": "r-571.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0055",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 572,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0039",
+  "relative_path": "out/Received/R01/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+  "header": "h-572.png",
+  "row": "r-572.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0039",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 573,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0040",
+  "relative_path": "out/Received/R01/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+  "header": "h-573.png",
+  "row": "r-573.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0040",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 575,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+  "relative_path": "C FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+  "header": "h-575.png",
+  "row": "r-575.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0042",
+    "R1",
+    "ANN"
+   ],
+   [
+    "ICC-DLRC-SPM-SD-MEP-0042",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 576,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+  "relative_path": "/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+  "header": "h-576.png",
+  "row": "r-576.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0054",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 577,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+  "relative_path": "/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+  "header": "h-577.png",
+  "row": "r-577.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0055",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 578,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+  "relative_path": "/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+  "header": "h-578.png",
+  "row": "r-578.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0128",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 597,
+  "expected_reference": null,
+  "relative_path": "d/R01/CRS/CRS-ICC-DLRC-SPM-SD-MEP-FA-100,101,102,104&105.pdf",
+  "header": "h-597.png",
+  "row": "r-597.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP/FA-100,101,102,104&105",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 620,
+  "expected_reference": null,
+  "relative_path": "06. MS/EML/COMPLIANCE STATEMENT.pdf",
+  "header": "h-620.png",
+  "row": "r-620.png",
+  "stored_after": []
+ },
+ {
+  "doc_id": 764,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0077",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0077-00.pdf",
+  "header": "h-764.png",
+  "row": "r-764.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0077",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 765,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0078",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0078-00.pdf",
+  "header": "h-765.png",
+  "row": "r-765.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0078",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 766,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0084",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0084-00.pdf",
+  "header": "h-766.png",
+  "row": "r-766.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0084",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 767,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0085",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0085-00.pdf",
+  "header": "h-767.png",
+  "row": "r-767.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0085",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 768,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0086",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0086-00.pdf",
+  "header": "h-768.png",
+  "row": "r-768.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0086",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 769,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0087",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0087-00.pdf",
+  "header": "h-769.png",
+  "row": "r-769.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0087",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 771,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-005",
+  "relative_path": "10. SD/FA/1 TO 14 (TYP)/ICC-DLRC-SPM-SD-MEP-FA-005.pdf",
+  "header": "h-771.png",
+  "row": "r-771.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-005",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 772,
+  "expected_reference": null,
+  "relative_path": "10. SD/FA/B1/ICC-DLRC-SPM-SD-MEP-FA-002.pdf",
+  "header": "h-772.png",
+  "row": "r-772.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-002",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 773,
+  "expected_reference": null,
+  "relative_path": "10. SD/FA/B2/ICC-DLRC-SPM-SD-MEP-FA-001.pdf",
+  "header": "h-773.png",
+  "row": "r-773.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-001",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 774,
+  "expected_reference": null,
+  "relative_path": "10. SD/FA/GF/ICC-DLRC-SPM-SD-MEP-FA-003.pdf",
+  "header": "h-774.png",
+  "row": "r-774.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-003",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 775,
+  "expected_reference": null,
+  "relative_path": "10. SD/FA/HC FLOOR/revised/ICC-DLRC-SPM-SD-MEP-FA-004.pdf",
+  "header": "h-775.png",
+  "row": "r-775.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-004",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 776,
+  "expected_reference": null,
+  "relative_path": "10. SD/FA/old/ICC-DLRC-SPM-SD-MEP-FA-004.pdf",
+  "header": "h-776.png",
+  "row": "r-776.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-004",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 777,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0039",
+  "relative_path": "/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+  "header": "h-777.png",
+  "row": "r-777.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0039",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 778,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0040",
+  "relative_path": "/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+  "header": "h-778.png",
+  "row": "r-778.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0040",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 780,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+  "relative_path": "C FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+  "header": "h-780.png",
+  "row": "r-780.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0042",
+    "R1",
+    "ANN"
+   ],
+   [
+    "ICC-DLRC-SPM-SD-MEP-0042",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 781,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+  "relative_path": "/recieved/R01/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+  "header": "h-781.png",
+  "row": "r-781.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0054",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 782,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+  "relative_path": "/recieved/R01/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+  "header": "h-782.png",
+  "row": "r-782.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0055",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 783,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+  "relative_path": "/recieved/R01/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+  "header": "h-783.png",
+  "row": "r-783.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0128",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 784,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-006",
+  "relative_path": "10. SD/FA/RF/ICC-DLRC-SPM-SD-MEP-FA-006.pdf",
+  "header": "h-784.png",
+  "row": "r-784.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-006",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 786,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0011",
+  "relative_path": "SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+  "header": "h-786.png",
+  "row": "r-786.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0011",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 790,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0077",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0077-00-COMMENTED-C.pdf",
+  "header": "h-790.png",
+  "row": "r-790.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0077",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 791,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0078",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0078-00-COMMENTED-C.pdf",
+  "header": "h-791.png",
+  "row": "r-791.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0078",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 792,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0079",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0079-00-COMMENTED-C.pdf",
+  "header": "h-792.png",
+  "row": "r-792.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0079",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 793,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0080",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0080-00-COMMENTED-C.pdf",
+  "header": "h-793.png",
+  "row": "r-793.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0080",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 794,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0082",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0082-00-COMMENTED-C.pdf",
+  "header": "h-794.png",
+  "row": "r-794.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0082",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 795,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0083",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0083-00-COMMENTED-C.pdf",
+  "header": "h-795.png",
+  "row": "r-795.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0083",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 796,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0084",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0084-00-COMMENTED-C.pdf",
+  "header": "h-796.png",
+  "row": "r-796.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0084",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 797,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0085",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0085-00-COMMENTED-C.pdf",
+  "header": "h-797.png",
+  "row": "r-797.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0085",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 798,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0086",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+  "header": "h-798.png",
+  "row": "r-798.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0086",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 799,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0087",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0087-00-COMMENTED-C.pdf",
+  "header": "h-799.png",
+  "row": "r-799.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0087",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 800,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0088",
+  "relative_path": " Layout/Received/ICC-DLRC-SPM-SD-MEP-0088-00-COMMENTED-C.pdf",
+  "header": "h-800.png",
+  "row": "r-800.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0088",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 808,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0077",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0077-00.pdf",
+  "header": "h-808.png",
+  "row": "r-808.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0077",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 809,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0078",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0078-00.pdf",
+  "header": "h-809.png",
+  "row": "r-809.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0078",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 810,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0084",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0084-00.pdf",
+  "header": "h-810.png",
+  "row": "r-810.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0084",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 811,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0085",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0085-00.pdf",
+  "header": "h-811.png",
+  "row": "r-811.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0085",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 812,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0086",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0086-00.pdf",
+  "header": "h-812.png",
+  "row": "r-812.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0086",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 813,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0087",
+  "relative_path": "OR EMERGENCY LIGHTING LAYOUT_ICC-DLRC-SPM-SD-MEP-0087-00.pdf",
+  "header": "h-813.png",
+  "row": "r-813.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0087",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 836,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0039",
+  "relative_path": "FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-0039-00.pdf",
+  "header": "h-836.png",
+  "row": "r-836.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0039",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 837,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0040",
+  "relative_path": "FLOOR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-0040-00.pdf",
+  "header": "h-837.png",
+  "row": "r-837.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0040",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 840,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+  "relative_path": "OR PLAN FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0054-00.pdf",
+  "header": "h-840.png",
+  "row": "r-840.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0054",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 841,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+  "relative_path": "F FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0055-00.pdf",
+  "header": "h-841.png",
+  "row": "r-841.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0055",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 842,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0039",
+  "relative_path": "out/Received/R01/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+  "header": "h-842.png",
+  "row": "r-842.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0039",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 843,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-0040",
+  "relative_path": "out/Received/R01/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+  "header": "h-843.png",
+  "row": "r-843.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-0040",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 845,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+  "relative_path": "C FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+  "header": "h-845.png",
+  "row": "r-845.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0042",
+    "R1",
+    "ANN"
+   ],
+   [
+    "ICC-DLRC-SPM-SD-MEP-0042",
+    "R0",
+    "UR"
+   ]
+  ]
+ },
+ {
+  "doc_id": 846,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0054",
+  "relative_path": "/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0054-00-COMMENTED-B.pdf",
+  "header": "h-846.png",
+  "row": "r-846.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0054",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 847,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0055",
+  "relative_path": "/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0055-00-COMMENTED-B.pdf",
+  "header": "h-847.png",
+  "row": "r-847.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0055",
+    "R0",
+    "ANN"
+   ]
+  ]
+ },
+ {
+  "doc_id": 848,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP-FA-0128",
+  "relative_path": "/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0128-00-COMMENTED-C.pdf",
+  "header": "h-848.png",
+  "row": "r-848.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP-FA-0128",
+    "R0",
+    "rejected"
+   ]
+  ]
+ },
+ {
+  "doc_id": 868,
+  "expected_reference": "ICC-DLRC-SPM-SD-MEP/FA-100,101,102,104&105",
+  "relative_path": "d/R01/CRS/CRS-ICC-DLRC-SPM-SD-MEP-FA-100,101,102,104&105.pdf",
+  "header": "h-868.png",
+  "row": "r-868.png",
+  "stored_after": [
+   [
+    "ICC-DLRC-SPM-SD-MEP/FA-100,101,102,104&105",
+    "R0",
+    "UR"
+   ]
+  ]
+ }
+]

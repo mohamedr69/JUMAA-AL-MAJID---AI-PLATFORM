@@ -1,5 +1,7 @@
 # M2 - Compatibility report
 
+> **Correction 2026-09-28 (Review 01, R5).** Sections 1-6 are the submission as reviewed. Section 7 adds the promotion gate, the normal-path fixtures, the clone repair with the corrected reader (form-reading records included) and the downstream deltas. The claim in section 1 that G-01 is "not reachable from the changed code" is withdrawn: G-01 exists on the ordinary path; what the correction establishes is that the default path feeds it no new decision method.
+
 What the M2 extraction changes do and do not touch, shown on a disposable clone. Nothing here was run against the live database, the live cache or the live workers. Evidence files are under `evidence/` (hashes in `evidence/M2-EVIDENCE-MANIFEST.json`).
 
 ## 1. Preserved contracts
@@ -101,3 +103,78 @@ Register-level effect (what Logs / Drawings would build from the records): not e
 - **Engineer confirmation still required before any live re-read of EP-30784** (F8 / G-M2-2): the page-2 C stamps now read as decisions on the folder-derived R1 while the sheet prints 00; the raw facts are complete, the association is not an extraction decision.
 - **Second covers read by OCR** (G-M2-6) can carry a mangled number; the relationship layer (M4) must pair them with the text cover by page adjacency, not by string equality.
 - **Golden countersignature pending**: 17 of 120 cases visually checked; 103 labelled from the text layer only; 687's reference and decision remain unresolved; the BOQ fixture rows re-checked but not countersigned.
+
+
+## 7. Correction 2026-09-28: promotion gate, normal path, downstream deltas
+
+### 7.1 The boundary
+
+`Settings.extraction_promote_observations` (env `EXTRACTION_PROMOTE_OBSERVATIONS`), default **false**, read by `document_control.read_open_pdf(promote=None)` and so by every caller (`document_sync.extract`, `read_pdf_full`, the repair tool, the reader processes).
+
+| Observation | Default path (off) | Promoted path (on) |
+|---|---|---|
+| Decision read from a drawn frame or a highlight (M2 method) | candidate in `decision_candidates`, flag `decision_method_unpromoted`, observation `decision_unpromoted`; status stays as the accepted methods read it (UR when none) | record status |
+| Decision read from a filled box or a stamp annotation (accepted reader) | record status (unchanged behaviour) | record status |
+| Conflicting marks (any methods) | UR + both candidates + `decision_conflict` | same |
+| Mark on a sheet whose revision is the folder's while it prints another | UR + candidate + `decision_revision_unvalidated` | same (the association is not an extraction fact) |
+| Untracked-discipline cover / sheet | observation `cover_untracked` / `drawing_sheet` (no record) | cover record with `system_code None`, `raw_system` (M2 behaviour) |
+| Scanned transmittal | observation `transmittal` (the sample records inside it) | `samples` records (M2 behaviour) |
+| Reply page folded into a submission | record (as accepted in M2's D-EXT-6; a reply row is never a register row) | same |
+| Page ledger, attempt, stale, flags, observations | always written inside `extracted` | same |
+
+Tests: `test_a_drawn_frame_decision_is_held_as_a_candidate_unless_promoted`, `test_the_default_settings_do_not_promote`, `test_an_untracked_cover_is_an_observation_by_default_and_a_record_when_promoted`, `test_a_mark_on_a_folder_revision_sheet_that_prints_another_revision_is_held_not_assigned`, `test_extraction_m2::test_a_scanned_transmittal_is_read_off_its_ocr_and_a_receipt_is_not_an_approval` (default -> observation, promoted -> record).
+
+### 7.2 The normal route, traced and exercised
+
+`document_processing.run` -> `read_task`/`read_pdf_full` -> `document_sync.process` (writes `project_documents.extracted`, mirrors, dependencies) -> `submittal_reader.check` (`run@480`, only when a submittal form changed) -> `project_state.reconcile_actions` (`@488`) -> `shop_drawings.reconcile` (`@496`). Isolated fixtures through this route (`tests/test_extraction_m2_review.py`, R5 block):
+
+| Fixture | What normal processing wrote | What stayed |
+|---|---|---|
+| Manual submittal status `approved` + corrected BOQ line, then a re-read of a cover with a drawn frame (default path) | the reading (frame as candidate, status UR) | the submittal's manual status and revision (the map is not redrawn when no form changed: G-01 not triggered), the BOQ line's quantity and `origin = corrected` |
+| Engineer-confirmed drawing revision, then a reading that says otherwise | the reading | the confirmed revision, its `confirmed_by_id` and `source = engineer` (`test_drawings_module` guards the same) |
+| Folder R1 vs printed 00 with a consultant mark | record R1 (folder), `printed_revision 00`, status UR, candidate held | no status assigned to R1 |
+| Mangled second cover (`-0042` vs `-FA-0042`) | two records kept apart (G-M2-6 unchanged) | no merge by guess |
+
+**G-01 still exists**: `submittal_reader.check` -> `sync_register` overwrites an engineer status when it runs. Not changed here (M4). On the default path the decision inputs that reach it come from the same methods the accepted reader used; the M2 methods are candidates only.
+
+### 7.3 Downstream deltas, population (124 documents, isolated, `evidence/r3__population_comparison.json`)
+
+| Comparison | Identical | Status changed | Records added/removed | Explanation |
+|---|---|---|---|---|
+| default `.3` vs M2 submission `.2` | 84 | 24 (22 drawn-frame/highlight decisions held as candidates; 2 folder-revision holds: 120, 122 page 2) | 16 removed from `records` (11 fire-fighting covers, 3 OCR-mangled second covers of FA-0042 - 575/780/845, G-M2-6 - and 2 scanned transmittals 729/730) - all present as observations | the gate, off |
+| promoted `.3` vs default `.3` | 86 | 22 restored | 16 restored | the gate, on |
+| promoted `.3` vs M2 `.2` | all but 120/122 page 2 (held on both paths) | 2 | 0 | D-REV-2 only |
+
+Status totals: M2 `.2` {UR 44, rejected 67, ANN 25}; `.3` default {UR 62, rejected 54, ANN 3} on 106 documents with records; `.3` promoted {UR 46, rejected 65, ANN 25}. Flags in the default run: `decision_method_unpromoted` 22, `decision_revision_unvalidated` 2, `reference_incomplete` 1 (687); no `decision_conflict` in the population.
+
+### 7.4 Downstream deltas, clone repair with the corrected reader (default path)
+
+| Project | Repair manifest | Tables changed (snapshot) | Documents with changed records, all sources | Roles changed | States / attempts / coverage after | Stored records vs the M2 submission's repair (`repair2`, `.2`) |
+|---|---|---|---|---|---|---|
+| EP-30088 (project 4) | run 1: 522 selected, 484 repaired, 6 skipped, 32 failed (D-EXT-10), 677.3 s; run 2 on the 32 failed rows: 32 repaired, 0 failed, 13.8 s | `document_dependencies` (174 of 306 rows), `project_documents` (516 of 525 rows); project fields changed: False | 165 of 525 (records 151 -> 201; form-reading records 9 -> 5, 4 documents with changed form-reading records) | 0 | {'fresh': 525}; attempts 0, stale 0; coverage {'null': 9, 'complete': 429, 'bounded': 87} | {'identical': 447, 'changed:status': 39, 'records_removed': 32, 'records_added': 4} |
+| EP-30784 (project 1) | run 1: 356 selected, 349 repaired, 4 skipped, 3 failed (D-EXT-10), 707.6 s; run 2 on the 3 failed rows: 3 repaired, 0 failed, 0.3 s | `document_dependencies` (222 of 384 rows), `project_documents` (352 of 359 rows); project fields changed: False | 21 of 359 (records 393 -> 400; form-reading records 2 -> 2, 0 documents with changed form-reading records) | 0 | {'fresh': 359}; attempts 0, stale 0; coverage {'null': 7, 'complete': 295, 'bounded': 57} | {'records_removed': 3, 'identical': 329, 'records_added': 1, 'changed:status': 23} |
+
+Snapshots: `scripts/business_snapshot.py` before/after (every business table; hash), `scripts/golden_records.py --from-db` before/after (form-reading records excluded, as the tool does) **and** a direct dump of every `project_documents.extracted` of both projects before/after (`repair_r3__records_before/after.json`: records of every source, form-reading records apart, attempt, stale, coverage, observations, flags). Flags after: project 4 {'decision_method_unpromoted': 44, 'reference_incomplete': 1}, project 1 {'decision_revision_unvalidated': 23}; observation kinds after: project 4 {'decision_unpromoted': 66, 'consultant_comments': 209, 'cover_untracked': 36, 'drawing_sheet': 47, 'decision_conflict': 1, 'transmittal': 2}, project 1 {'transmittal': 3, 'consultant_comments': 4, 'drawing_sheet': 50}. Status counts (all sources): project 4 {'UR': 143, 'rejected': 4, 'RR': 3, 'ANN': 1} -> {'UR': 95, 'rejected': 101, 'ANN': 5}; project 1 {'UR': 281, 'ANN': 35, 'rejected': 77} -> {'UR': 265, 'ANN': 43, 'rejected': 92}.
+
+**Form-reading records.** Four EP-30088 material submittal forms (634, 639, 670, 674) held the AI form reading's own record in `records` (status RR on three, UR on one) because the page reader had read nothing off their pages. With bounded page discovery (D-EXT-9) the reader now reads the form's own submittal record on page 2 and the reply pages behind it, so by the existing stand-in rule (`document_sync.record_for_the_log`: the model's record stands for the form only when nothing was read off the page) the form-reading record leaves `records`; the row's mirrored reference / revision / status keep the form reading's values (`kept_form_reading`) and `extracted.form` is unchanged. For a consumer building the log from `records`, three forms move from RR to the page's UR. This is the existing rule applied to pages that are now visited, not a new rule; it is a business-visible delta and is flagged for the owner (option not taken here: keep the model's record beside the page's when the page record carries no decision). The five other forms keep their form-reading record. **Conflicts on real data**: one document of the clone (441, `FF-0047-03-COMMENTED-B.pdf`) carries a filled box on C and a drawn frame on B; it is stored as a `decision_conflict` observation with both marks and no decision, as R2 requires.
+
+Reading the last column: `identical` = the same stored records as the M2 submission's repair; `changed:status` = a decision the gate holds back (candidate kept) or a folder-revision hold; `records_removed` = an untracked-discipline cover, an OCR-mangled second cover or a scanned transmittal held as an observation; `records_added` would be new records, none expected. Form-reading records (`source = submittal form`, written by the AI form reader, never by the parser) must not change under an extract-only repair with the model off.
+
+### 7.5 What is and is not established
+
+Established: the default path adds no decision method, cover kind or transmittal kind to `records` beyond the accepted reader's; every M2 observation is present, inspectable and gated; manual values and confirmed identities survive normal processing in the fixtures; the extract-only repair on the clone writes `project_documents` and `document_dependencies` only. Not established: behavioural equivalence of the promoted path with any consumer (that is the promotion decision, with this evidence); register-level before/after (Logs, Drawings) was again not executed on the clone; G-01 remains.
+
+
+## 8. Correction 2 (Review 02): identity, precedence, clone
+
+- **Reading identity** is (content sha256, `PARSER_VERSION`, `profile`). `document_processing.parser_current` checks all three; `_previous_sha`, the known-content map, `read_task`'s unchanged shortcut and `_copy_reading` depend on it; the repair tool's `parser-outdated` selection includes a profile mismatch and `apply_row` writes the profile. A reading without a profile (every live reading) is not current under either profile: it is re-read when its file next changes or when the repair tool is run, never reused as a current reading. Engineer-confirmed values are not touched by a profile switch.
+- **Withdrawn precedence** (a downstream delta): the reader no longer lets an OCR-read stamp override a ticked box or a printed status; the two are a conflict (status UR, both candidates). EP-30784's emergency lighting sample (BBY006-GME-SAR-EL-LI-0001: "Approved as Noted (B)" ticked, "(C) Revise & Resubmit" stamped) reads UR with `decision_conflict` where it read `rejected` before. Restoring the stamp's precedence needs an explicit owner policy.
+- **Population deltas** (124 documents): Review 02 default vs Review 01 default {'identical': 124}; promoted vs default {'identical': 86, 'changed:status': 22, 'records_added': 16} (`evidence/r4__population_comparison_r4.json`, examples inside).
+- **Clone repair** (fresh copy of the read-only clone, default profile, `evidence/r4__repair_r4_comparison.json`): tables changed are `project_documents` and `document_dependencies` only; roles changed 0; form-reading records and the top-level mirrors as in the table in `M2-REVIEW-RESPONSE.md` (Review 02); every observation stored as JSON (no serialisation failure).
+
+
+## 9. Correction 3 (Review 03): retained records, mixed readings, the SAR case
+
+- A bounded reading's carried records are **retained evidence**, not current observations: each keeps its source hash, parser, profile and time (or None), flagged `carried_unvisited` and, as its provenance says, `carried_unverified` / `carried_other_profile`; its decision is a candidate (method `retained`) until its bytes and profile are the current ones. `extracted.retained` summarises them. A reading with other-profile retained records is a mixed reading: `parser_current` is False, it is not reused for its hash nor copied to a duplicate file, the repair tool selects it; it is replaced when the row is next processed or repaired with a reader that visits the page or under the profile that read it.
+- **SAR case (stamp over tick)**: old result `rejected` (the OCR stamp won implicitly), new result UR with `decision_conflict` and both candidates; the raw conflict is kept apart from any domain resolution, of which none is authorised; the owner decision needed is stated in the response. Affected consumer: the samples register built from records (UR instead of rejected for the R0 sample once re-read).
+- Clone repair under the Review 03 writer: `evidence/r5__repair_r5_comparison.json` (the table in the response).

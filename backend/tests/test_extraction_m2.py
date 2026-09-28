@@ -198,8 +198,15 @@ def test_a_scanned_transmittal_page_reaches_the_reader_through_ocr(tmp_path, mon
         document.new_page()      # a scan: no text layer at all
         document.save(path)
     monkeypatch.setattr(dc, "_ocr_text", lambda page, sha256, index, renders=None: OCR_729)
+    # The ordinary path (nothing promoted): the transmittal is an observation beside the records.
     with pymupdf.open(path) as pdf:
-        records, notes = dc.read_open_pdf(pdf, str(path), NOW, True, "sha-729")
+        reading = dc.read_open_pdf(pdf, str(path), NOW, True, "sha-729", full=True, promote=False)
+    assert reading.records == () and reading.notes == ()
+    assert [(o["kind"], o["page"], o["records"][0]["reference"]) for o in reading.observations] == [("transmittal", 1, "TR/204/26")]
+    assert reading.coverage["outcome"] == "complete" and reading.coverage["pages_visited"] == [1]
+    # The evaluation path: promoted to a record.
+    with pymupdf.open(path) as pdf:
+        records, notes = dc.read_open_pdf(pdf, str(path), NOW, True, "sha-729", promote=True)
     assert [(r.category, r.reference, r.page) for r in records] == [("samples", "TR/204/26", 1)]
     assert notes == ()
 
@@ -247,10 +254,15 @@ def test_a_reader_defect_raises_instead_of_standing_as_an_empty_reading(tmp_path
         raise RuntimeError("the reader fell over")
 
     monkeypatch.setattr(dc, "parse_page", broken)
-    with pytest.raises(RuntimeError, match="fell over"):
-        dc._read_pdf(str(path), stat.st_mtime_ns + 1, stat.st_size, False, "sha-b")
-    with pytest.raises(RuntimeError, match="fell over"):
-        document_sync.extract(str(path), "form.pdf", "sha-b", False)
+    # A page the reader fell over on is a failed page in the ledger, not an
+    # "unreadable" note that stands as a reading: the outcome is partial, so
+    # document_sync.process keeps the previous complete reading (M2 review 01, R1).
+    reading = dc.read_pdf_full(str(path), stat.st_mtime_ns + 1, stat.st_size, False, "sha-b")
+    assert reading.records == () and reading.coverage["outcome"] == "partial"
+    assert reading.coverage["pages_failed"][0]["page"] == 1 and "fell over" in reading.coverage["pages_failed"][0]["reason"]
+    assert any(note.startswith("Page 1 of") and note.endswith("could not be read.") for note in reading.notes)
+    role, records, notes, timing = document_sync.extract(str(path), "form.pdf", "sha-b", False)
+    assert records == () and timing["coverage"]["outcome"] == "partial"
 
 
 def test_an_unopenable_file_is_still_a_document_with_the_note_it_always_got(tmp_path):

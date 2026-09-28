@@ -1,0 +1,230 @@
+{
+ "doc_id": 687,
+ "relative_path": "06. MS/FA/Revised/PDF/Previous Approval.pdf",
+ "sha256": "4daf4a411b80d86c644e0482ae8a7bee925efce9474cc3ae2d5553ebe790ad69",
+ "page": 1,
+ "dpi": 300,
+ "expected_reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-ZZZ-1004",
+ "run_at": "2026-09-28T03:52:28+00:00",
+ "reference": {
+  "method": "bounded OCR of the reference cell (right of 'MATERIAL SUBMITTAL', left of 'Rev.'), psm 6, lines joined at a trailing hyphen",
+  "cell_px": [
+   1014,
+   490,
+   1935,
+   659
+  ],
+  "rules_px": [
+   1002,
+   1947,
+   2176
+  ],
+  "right_edge": "second vertical rule",
+  "attempts": [
+   {
+    "scale": 1,
+    "lines": [
+     "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZz-",
+     "Z2ZZ-1004"
+    ],
+    "joined": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZz-Z2ZZ-1004",
+    "reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZz-Z2ZZ-1004"
+   },
+   {
+    "scale": 2,
+    "lines": [
+     "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-",
+     "ZZZ-1004"
+    ],
+    "joined": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-ZZZ-1004",
+    "reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-ZZZ-1004"
+   }
+  ],
+  "recovered": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-ZZZ-1004",
+  "matches_expected": true,
+  "representation": "complete: the cell's own OCR yields the full number"
+ },
+ "marks": {
+  "method": "interior dark-pixel fraction of each Status checkbox (box found left of the option label, borders shaved)",
+  "quadrant_words": [
+   "=",
+   "Adi",
+   "|Status",
+   "jel",
+   "Approved",
+   "-",
+   "(A)",
+   "Approved",
+   "as",
+   "Noted",
+   "-",
+   "(B",
+   "Revise",
+   "&",
+   "Resubmit",
+   "-",
+   "(C",
+   "OC]",
+   "Rejected",
+   "/",
+   "Not",
+   "Approved",
+   "-",
+   "(D",
+   "For",
+   "Information",
+   "-",
+   "Fl",
+   "Date:",
+   "Jo,",
+   "5-2",
+   "ra",
+   "Sheet",
+   "No.",
+   "1",
+   "Sheet",
+   "obligation",
+   "and",
+   "responsibilities."
+  ],
+  "boxes": [
+   {
+    "option": "A",
+    "label_word": "Approved",
+    "box_px": [
+     1654,
+     2263,
+     1799,
+     2362
+    ],
+    "border_px": [
+     32,
+     8,
+     131,
+     98
+    ],
+    "interior_dark_fraction": 0.1504,
+    "core_dark_fraction": 0.0212
+   },
+   {
+    "option": "B",
+    "label_word": "Approved",
+    "box_px": [
+     1654,
+     2323,
+     1799,
+     2422
+    ],
+    "border_px": [
+     32,
+     4,
+     130,
+     88
+    ],
+    "interior_dark_fraction": 0.2206,
+    "core_dark_fraction": 0.3083
+   },
+   {
+    "option": "C",
+    "label_word": "Revise",
+    "box_px": [
+     1656,
+     2418,
+     1801,
+     2510
+    ],
+    "border_px": [
+     29,
+     19,
+     128,
+     87
+    ],
+    "interior_dark_fraction": 0.142,
+    "core_dark_fraction": 0.0068
+   },
+   {
+    "option": "D",
+    "label_word": "Rejected",
+    "box_px": [
+     1656,
+     2500,
+     1801,
+     2616
+    ],
+    "border_px": [
+     28,
+     3,
+     127,
+     101
+    ],
+    "interior_dark_fraction": 0.128,
+    "core_dark_fraction": 0.1881
+   },
+   {
+    "option": "FI",
+    "label_word": "For",
+    "box_px": [
+     1655,
+     2610,
+     1800,
+     2701
+    ],
+    "border_px": [
+     29,
+     18,
+     128,
+     89
+    ],
+    "interior_dark_fraction": 0.1817,
+    "core_dark_fraction": 0.019
+   }
+  ],
+  "rule": "marked = the box whose core (central 20 %) dark fraction is at least 0.3 and at least three times every other box's; otherwise unresolved",
+  "marked": null,
+  "resolved_status": null,
+  "highest": [
+   0.3083,
+   "B"
+  ],
+  "second": [
+   0.1881,
+   "D"
+  ],
+  "representation": "unresolved: no single box stands out under the rule; the decision stays UR with the candidates recorded as evidence"
+ },
+ "parser": {
+  "parser_version": "parse-2026-09-28.3",
+  "box_version": "box-4",
+  "notes": [
+   "Previous Approval.pdf: only the first 12 pages were checked for submission replies."
+  ],
+  "records": [
+   {
+    "category": "submittals",
+    "reference": "R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ",
+    "revision": "R2",
+    "printed_revision": null,
+    "revision_source": "printed",
+    "status": "UR",
+    "page": 1,
+    "source": "document",
+    "flags": [
+     "reference_incomplete"
+    ],
+    "decision_candidates": []
+   },
+   {
+    "category": "submittals",
+    "reference": "B07-ECC-MAS-ELE-0016",
+    "revision": "R0",
+    "printed_revision": null,
+    "revision_source": "default",
+    "status": "UR",
+    "page": 6,
+    "source": "document",
+    "flags": [],
+    "decision_candidates": []
+   }
+  ]
+ }
+}

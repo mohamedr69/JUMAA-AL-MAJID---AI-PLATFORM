@@ -1,0 +1,385 @@
+{
+ "tool": "repair_extraction",
+ "parser_version": "parse-2026-09-28.3",
+ "mode": "apply",
+ "database": "C:/Users/moham/AppData/Local/Temp/claude/c--Users-moham-Desktop-dev-dev/be7878a4-f3f7-49c7-8971-5873084fd122/scratchpad/m2r/clone_r3.db",
+ "project_id": 1,
+ "selection": "ids",
+ "started_at": "2026-09-28T04:25:12+00:00",
+ "entries": [
+  {
+   "document_id": 4,
+   "project_id": 1,
+   "path": "01- EP-30784 Scan/EP-30784 EML Sam B Ack 06.08.26.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "18b790edf26e063749a4a8f23c052fac98f602e5cf72d1d108fa7a75ac9eae09",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "18b790edf26e063749a4a8f23c052fac98f602e5cf72d1d108fa7a75ac9eae09",
+    "size": 76434,
+    "mtime": 1786770528.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 1,
+     "pages_visited": [
+      1
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "transmittal",
+      "records": [
+       {
+        "system_code": "ELS",
+        "name": "Sample Board",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Granada Europe\\EP-30784 - Binghatti Skyblade\\01- EP-30784 Scan\\EP-30784 EML Sam B Ack 06.08.26.pdf",
+        "modified": "2026-08-06T00:00:00+00:00",
+        "reference": "TR/197/26",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "transmittal",
+        "category": "samples",
+        "group_reference": "SAMPLE BOARD",
+        "listed": [],
+        "superseded": [],
+        "raw_system": null,
+        "printed_revision": null,
+        "revision_source": null,
+        "decision_candidates": [],
+        "flags": []
+       }
+      ]
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "project_code",
+     "sample_submittal",
+     "transmittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:12.201095"
+  },
+  {
+   "document_id": 5,
+   "project_id": 1,
+   "path": "01- EP-30784 Scan/EP-30784 FA & EM Sam B Ack 03.04.26.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "42330bd8ff727e6cd19b010f7e40433b912da8206ec6570b9e7f09c7537c95d8",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "42330bd8ff727e6cd19b010f7e40433b912da8206ec6570b9e7f09c7537c95d8",
+    "size": 78562,
+    "mtime": 1784544298.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 1,
+     "pages_visited": [
+      1
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "transmittal",
+      "records": [
+       {
+        "system_code": "VES",
+        "name": "Sample Board",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Granada Europe\\EP-30784 - Binghatti Skyblade\\01- EP-30784 Scan\\EP-30784 FA & EM Sam B Ack 03.04.26.pdf",
+        "modified": "2026-04-03T00:00:00+00:00",
+        "reference": "TR/081/26",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "transmittal",
+        "category": "samples",
+        "group_reference": "SAMPLE BOARD",
+        "listed": [],
+        "superseded": [],
+        "raw_system": null,
+        "printed_revision": null,
+        "revision_source": null,
+        "decision_candidates": [],
+        "flags": []
+       },
+       {
+        "system_code": "FAS",
+        "name": "Sample Board",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Granada Europe\\EP-30784 - Binghatti Skyblade\\01- EP-30784 Scan\\EP-30784 FA & EM Sam B Ack 03.04.26.pdf",
+        "modified": "2026-04-03T00:00:00+00:00",
+        "reference": "TR/081/26",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "transmittal",
+        "category": "samples",
+        "group_reference": "SAMPLE BOARD",
+        "listed": [],
+        "superseded": [],
+        "raw_system": null,
+        "printed_revision": null,
+        "revision_source": null,
+        "decision_candidates": [],
+        "flags": []
+       },
+       {
+        "system_code": "ELS",
+        "name": "Sample Board",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Granada Europe\\EP-30784 - Binghatti Skyblade\\01- EP-30784 Scan\\EP-30784 FA & EM Sam B Ack 03.04.26.pdf",
+        "modified": "2026-04-03T00:00:00+00:00",
+        "reference": "TR/081/26",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "transmittal",
+        "category": "samples",
+        "group_reference": "SAMPLE BOARD",
+        "listed": [],
+        "superseded": [],
+        "raw_system": null,
+        "printed_revision": null,
+        "revision_source": null,
+        "decision_candidates": [],
+        "flags": []
+       }
+      ]
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "project_code",
+     "receipt",
+     "sample_submittal",
+     "transmittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:12.231696"
+  },
+  {
+   "document_id": 6,
+   "project_id": 1,
+   "path": "01- EP-30784 Scan/EP-30784 FA EML Sam B ack 03.04.26.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "489ab57bb866176b5493062bd7009c84c627f5af7a70216c500a7e4e3de07731",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "489ab57bb866176b5493062bd7009c84c627f5af7a70216c500a7e4e3de07731",
+    "size": 79372,
+    "mtime": 1786771240.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 1,
+     "pages_visited": [
+      1
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "transmittal",
+      "records": [
+       {
+        "system_code": "VES",
+        "name": "Sample Board",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Granada Europe\\EP-30784 - Binghatti Skyblade\\01- EP-30784 Scan\\EP-30784 FA EML Sam B ack 03.04.26.pdf",
+        "modified": "2026-04-03T00:00:00+00:00",
+        "reference": "TR/081/26",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "transmittal",
+        "category": "samples",
+        "group_reference": "SAMPLE BOARD",
+        "listed": [],
+        "superseded": [],
+        "raw_system": null,
+        "printed_revision": null,
+        "revision_source": null,
+        "decision_candidates": [],
+        "flags": []
+       },
+       {
+        "system_code": "FAS",
+        "name": "Sample Board",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Granada Europe\\EP-30784 - Binghatti Skyblade\\01- EP-30784 Scan\\EP-30784 FA EML Sam B ack 03.04.26.pdf",
+        "modified": "2026-04-03T00:00:00+00:00",
+        "reference": "TR/081/26",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "transmittal",
+        "category": "samples",
+        "group_reference": "SAMPLE BOARD",
+        "listed": [],
+        "superseded": [],
+        "raw_system": null,
+        "printed_revision": null,
+        "revision_source": null,
+        "decision_candidates": [],
+        "flags": []
+       },
+       {
+        "system_code": "ELS",
+        "name": "Sample Board",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Granada Europe\\EP-30784 - Binghatti Skyblade\\01- EP-30784 Scan\\EP-30784 FA EML Sam B ack 03.04.26.pdf",
+        "modified": "2026-04-03T00:00:00+00:00",
+        "reference": "TR/081/26",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "transmittal",
+        "category": "samples",
+        "group_reference": "SAMPLE BOARD",
+        "listed": [],
+        "superseded": [],
+        "raw_system": null,
+        "printed_revision": null,
+        "revision_source": null,
+        "decision_candidates": [],
+        "flags": []
+       }
+      ]
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "project_code",
+     "sample_submittal",
+     "transmittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:12.245171"
+  }
+ ],
+ "counts": {
+  "repaired": 3
+ },
+ "selected": 3,
+ "seconds": 0.3,
+ "finished_at": "2026-09-28T04:25:12+00:00"
+}

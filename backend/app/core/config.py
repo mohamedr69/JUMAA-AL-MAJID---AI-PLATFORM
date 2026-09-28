@@ -119,6 +119,13 @@ class Settings(BaseSettings):
     # a routing, a status or a record. Stored assessments stay when it is
     # turned off again.
     document_classification_v2: bool = False
+    # M2 extraction: whether observations the current reader makes but the
+    # accepted reader did not (a decision framed or highlighted into the
+    # page, a cover of an untracked discipline, a scanned transmittal) are
+    # promoted to records and statuses. Off: they are kept beside the
+    # records as observations and candidates, and the registers see what
+    # they saw before. On: the isolated evaluation path.
+    extraction_promote_observations: bool = False
 
     # The background worker (app.workers.sync_worker), a process of its own
     # that runs the document syncs so they never slow the pages down.

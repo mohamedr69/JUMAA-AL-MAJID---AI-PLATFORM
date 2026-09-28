@@ -1,0 +1,21 @@
+{
+ "at": "2026-09-28T03:12:21+00:00",
+ "head": "ed7d221df24dbdeac3ababed5de3e128fed0c588",
+ "status": [],
+ "hashes": {
+  "backend/app/services/document_control.py": "15068b3e77a7e185b46beccb825860ce475f6e27653177af34404616ec2a6ed5",
+  "backend/app/services/document_sync.py": "694bf9fdefc23521d5ed7795d2854ab827118a6f98e84bb42adea0bcef09982f",
+  "backend/app/services/document_processing.py": "895b5e7ca09b9843162df82e0f4781a514a4ac97c72b6688f1c1cef63cb76649",
+  "backend/app/services/transmittals.py": "b354e4ea639282c2408960499736f9a29199e572085453314cf37647e3f51097",
+  "backend/app/ai/sheet_reader.py": "08f75a10709b15c31a4cee5870dc8a56b78f4be236e81e11eafb17bc23c42d73",
+  "backend/app/ai/submittal_reader.py": "f96233c2c1fa813190c1d06fd9b2da7078fd1488bd63a7a99857f2d1276a47fc",
+  "backend/app/services/shop_drawings.py": "00d27f8aece1c142bf63563906c5ba3b07477f9ed6bca97ce44f114a16ee6729",
+  "backend/app/services/project_state.py": "2a0e008a2fd2280be7839ab330d3b1588392682f96914a7ece4a220675febad2",
+  "backend/scripts/repair_extraction.py": "cbc843aad3702f7bf95525ac2f1e603d647263444db31b745a5783c55a6e7aa8",
+  "backend/tests/test_extraction_m2.py": "d58b5baaacf0d1f4fcfa4b9ddc39439e690ad64e62e8e877531a1691f4804654",
+  "backend/tests/test_document_sync.py": "bb6839c446b1a18c59b630b936a136cf978e7d9522f34156a8304962bf091676",
+  "backend/tests/test_document_processing_v2.py": "3f66cdda429ab0a41a1a76e80f8d49c2bafd0f66f7120bfdac0465023f69fafb",
+  "backend/app/models.py": "96ebae9171b89b8095b42afa0dbb1b51e05249e869aa678f247d39878bac9ecf",
+  "backend/app/routers/documents.py": "c37a18d817b20e875c41d237d7f7e56c9d89abc53d7fc90a3c14137ed22e8627"
+ }
+}

@@ -1,7 +1,7 @@
 """Content-based document control. File/folder names never establish approval."""
 from collections import defaultdict
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -350,7 +350,15 @@ def _ocr_regions_text(page, regions, sha256: str | None, index: int, renders: di
 # transmittal is read through its OCR; the printed revision and where the
 # revision came from are kept beside the revision; a reader defect raises
 # instead of standing as an empty "unreadable" reading.
-PARSER_VERSION = "parse-2026-09-28.2"
+# parse-2026-09-28.3 (M2 review 01): every page of a file is visited or
+# listed as skipped/failed (page ledger); marks of every method are
+# validated alike and collected before a decision, disagreement is a
+# conflict; a mark on a folder-revision sheet that prints another revision
+# is held as a candidate; drawn/highlighted frames, untracked-discipline
+# covers and scanned transmittals are promoted to records only on the
+# evaluation path (EXTRACTION_PROMOTE_OBSERVATIONS), else kept as
+# observations; a reference cut at a hyphen is flagged incomplete.
+PARSER_VERSION = "parse-2026-09-28.4"
 
 # The codes a controlled document's reference carries. Contractors number
 # them their own way: MAS and MAR are both a material submittal (material
@@ -397,6 +405,11 @@ class ReferenceCandidate:
     # "sheets": lists sheets past a slash (what a submission covers, or a
     # reply answers); "other": anything else.
     kind: str
+    # The reference ended at a hyphen with nothing joinable after it
+    # ("…-PJW-ZZZ- Rev.02" then "2ZZZ-1004" on the next OCR line): what
+    # was read is the start of it, not the whole, and is marked so rather
+    # than guessed at.
+    incomplete: bool = False
 
     @property
     def category(self) -> str:
@@ -412,12 +425,14 @@ def reference_candidates(text: str) -> list[ReferenceCandidate]:
     not thereby the document's: `submission_cover` and `parse_page` choose."""
     out = []
     for match in REF.finditer(text):
-        reference = match.group().replace("-\n", "-").rstrip("-.")
+        raw = match.group()
+        reference = raw.replace("-\n", "-").rstrip("-.")
         if is_date_shaped(reference):
             continue
         base = reference.split("/", 1)[0]
         kind = "sheets" if "/" in reference else "serial" if re.search(r"-\d{2,}[A-Z]?$", base, re.I) else "other"
-        out.append(ReferenceCandidate(reference, match.group(1).upper(), match.start(), match.end(), kind))
+        out.append(ReferenceCandidate(reference, match.group(1).upper(), match.start(), match.end(), kind,
+                                      incomplete=raw.rstrip(".").endswith("-")))
     return out
 
 
@@ -538,6 +553,22 @@ class ControlledDocument:
     raw_system: str | None = None
     printed_revision: str | None = None
     revision_source: str | None = None
+    # Marks that name an option but were not made the status: marks that
+    # disagree with each other, a mark on a sheet whose revision came from
+    # its folder while the sheet prints another (the association is not
+    # the reader's to make), a method not yet promoted (see
+    # `read_open_pdf`). Each: (status, label, method).
+    decision_candidates: tuple = ()
+    # What the reader could not settle about this record, by name:
+    # "reference_incomplete", "decision_conflict", "decision_revision_unvalidated",
+    # and the carry flags "carried_unvisited", "carried_unverified",
+    # "carried_other_profile" (document_sync.carry_unvisited).
+    flags: tuple = ()
+    # For a record a bounded reading carried from an earlier reading of
+    # the same file: where that earlier reading was made -- source content
+    # hash, parser version, profile and time, None where unknown (M2 review
+    # 03). Never restamped by a later envelope.
+    retained: dict | None = None
 
 
 # A submission's cover: the contractor's own form in front of the sheets
@@ -640,6 +671,14 @@ _OPTIONS: tuple[tuple[str, str], ...] = (
     # The boxed reader's clip stops short of the label's end ("B - Approved
     # With"): still the B option, not the A.
     ("approved with", "ANN"),
+    # "C - Revise & Re-Submit", "REVISION & RESUBMIT", "Revise and Resubmit":
+    # one answer, whatever the form calls it.
+    ("revise re submit", "rejected"),
+    ("revise resubmit", "rejected"),
+    ("revise and resubmit", "rejected"),
+    ("revision resubmit", "rejected"),
+    ("revision and resubmit", "rejected"),
+    ("revise", "rejected"),
     ("re submit", "rejected"),
     ("resubmit", "rejected"),
     ("not approved", "rejected"),
@@ -677,7 +716,10 @@ def _is_mark(shape) -> bool:
 #   box-2  a framed option -- an annotation drawn round the choice -- is read
 #   box-3  a frame drawn into the page itself (a stroked rectangle round the
 #          option, a highlight-sized fill over it) is read too
-BOX_VERSION = "box-3"
+#   box-4  every mark (filled box, annotation, drawn frame) is validated alike
+#          and collected before anything is decided; the cache holds the
+#          marks, and disagreeing marks are a conflict, not a choice
+BOX_VERSION = "box-4"
 # Annotation types a reviewer draws round or over an option: a stamp, a
 # square, an ink stroke, a highlight. Not a note, not a link.
 _FRAME_ANNOTS = {12, 13, 15, 8, 4}   # Ink, Stamp, Ink-like FreeText... see pymupdf PDF_ANNOT_*: Square=4, Highlight=8, Ink=12? kept broad below by name
@@ -694,44 +736,189 @@ def _option_in(label: str) -> tuple[str, str] | None:
     return next(iter(found.items())) if len(found) == 1 else None
 
 
-def annotated_decision(page, text: str | None = None) -> tuple[str, str] | None:
-    """The consultant's decision where it is a frame drawn round the option
-    -- a stamp, square, ink or highlight annotation the reviewer laid over
-    the choice -- rather than a filled box or a word. Reads the words under
-    each label-sized annotation; exactly one option under exactly one frame
-    is the answer. A frame over the whole comments block, or over nothing
-    that names an option, says nothing. Two frames over different answers
-    say no more than none."""
-    if text is not None and not _may_hold_an_option(text):
-        return None
+def _annotation_frames(page) -> list:
+    """Label-sized annotations a reviewer laid over an option: a stamp, a
+    square, an ink stroke, a highlight. Not a note, not a link."""
     try:
         annots = list(page.annots())
     except Exception:  # noqa: BLE001 -- a page whose annotations MuPDF cannot list
-        return None
-    if not annots:
-        return None
-    words = page.get_text("words")
-    found: dict[str, str] = {}
+        return []
+    out = []
     for annot in annots:
         kind = (annot.type[1] if isinstance(annot.type, tuple) and len(annot.type) > 1 else str(annot.type)).lower()
         if kind not in ("stamp", "square", "ink", "highlight", "freetext", "polygon", "rectangle"):
             continue
         rect = annot.rect
-        if not (20 <= rect.width <= 320 and 6 <= rect.height <= 48):
-            continue
-        inside = " ".join(w[4] for w in words if w[0] >= rect.x0 - 2 and w[2] <= rect.x1 + 2 and w[1] >= rect.y0 - 3 and w[3] <= rect.y1 + 3)
+        if 20 <= rect.width <= 320 and 6 <= rect.height <= 48:
+            out.append((rect, "annotation"))
+    return out
+
+
+def _words_inside(words, rect) -> str:
+    return " ".join(w[4] for w in words if w[0] >= rect.x0 - 2 and w[2] <= rect.x1 + 2 and w[1] >= rect.y0 - 3 and w[3] <= rect.y1 + 3)
+
+
+def _frame_marks(page, frames, words) -> list[dict]:
+    """The option each frame *is* (one option and little else under it,
+    `_label_is_one_option`), whatever drew the frame. A frame over a row
+    of options, over a comment that mentions one, or over nothing names
+    no option and is not a mark."""
+    marks = []
+    for rect, method in frames:
+        inside = _words_inside(words, rect)
         if not inside or len(inside) > 80:
             continue
-        # The one option named under the frame (longest phrase first, as
-        # the boxed reader reads a label): a frame over a row of options
-        # names several and is skipped by `_options_named`.
-        named = _options_named(inside)
-        if len(named) != 1:
+        status = _label_is_one_option(inside)
+        if status is None:
             continue
-        found.setdefault(next(iter(named)), inside.strip())
-    if len(found) != 1:
+        marks.append({"status": status, "label": inside.strip(), "method": method,
+                      "rect": [round(v, 1) for v in (rect.x0, rect.y0, rect.x1, rect.y1)]})
+    return marks
+
+
+def _filled_box_marks(page, shapes, words) -> list[dict]:
+    """The option beside each filled box (`_is_mark`), read from the page's
+    text to the right of the box and validated like every other mark."""
+    marks = []
+    for shape in shapes:
+        if not _is_mark(shape):
+            continue
+        rect = shape["rect"]
+        middle = (rect.y0 + rect.y1) / 2
+        # The words on the box's own line, to its right: a page's text
+        # clipped to a rectangle bleeds the lines above and below into the
+        # label ("Consultant Recommendation A - Approved B - Approved With
+        # Comments"), which names two answers and settles nothing.
+        line = sorted((w for w in words if rect.x1 - 2 <= w[0] <= rect.x1 + 150 and w[1] - 1 <= middle <= w[3] + 1), key=lambda w: w[0])
+        near = " ".join(w[4] for w in line)
+        if not _may_hold_an_option(near):
+            continue
+        # Only as far as this option's own letter: the next option's box
+        # sits a little further along the same line.
+        label = " ".join(near.split())
+        cut = re.search(r"\([ABCD]\)", label)
+        if cut:
+            label = label[: cut.end()]
+        # The next option's letter may still be in the clip ("B - Approved
+        # With Comments C -"): the label is read up to it.
+        label = re.sub(r"\s+[ABCD]\s*-\s*$", "", label)
+        status = _label_is_one_option(label)
+        if status is None:
+            continue
+        marks.append({"status": status, "label": label.strip(), "method": "filled_box",
+                      "rect": [round(v, 1) for v in (rect.x0, rect.y0, rect.x1, rect.y1)]})
+    return marks
+
+
+def decision_marks(page, text: str | None = None, shapes=None) -> list[dict]:
+    """Every mark on the page that selects one option, whatever made it:
+    a filled box, a PDF annotation over the label, a rectangle stroked or
+    filled into the page. All of them validated the same way
+    (`_label_is_one_option`) and all collected before anything is decided,
+    so one method cannot hide another's answer. Each mark: status, the
+    label under it, the method and its rectangle."""
+    if text is not None and not _may_hold_an_option(text):
+        return []
+    if shapes is None:
+        try:
+            shapes = page.get_drawings()
+        except Exception:  # noqa: BLE001 -- a page whose drawings MuPDF cannot list
+            shapes = []
+    annotated = _annotation_frames(page)
+    # An annotation's appearance is among the page's drawings too: a shape
+    # that sits where an annotation sits is that annotation, not a second
+    # frame drawn into the page.
+    def is_annotation(rect) -> bool:
+        return any(abs(rect.x0 - a.x0) <= 3 and abs(rect.y0 - a.y0) <= 3 and abs(rect.x1 - a.x1) <= 3 and abs(rect.y1 - a.y1) <= 3
+                   for a, _method in annotated)
+    frames = annotated + [(shape["rect"], "drawn_frame") for shape in shapes if _is_label_frame(shape) and not is_annotation(shape["rect"])]
+    if not frames and not any(_is_mark(s) for s in shapes):
+        return []
+    words = page.get_text("words")
+    return _filled_box_marks(page, shapes, words) + _frame_marks(page, frames, words)
+
+
+def resolve_marks(marks: list[dict]) -> tuple[str, str | None, str | None]:
+    """What the marks settle, as (outcome, status, evidence): "none" for no
+    mark; "resolved" when every mark names the same answer (the evidence is
+    the first label); "conflict" when marks name different answers -- both
+    kept in the evidence text, nothing chosen. Two marks on one answer are
+    one answer; two on different answers say no more than none."""
+    if not marks:
+        return "none", None, None
+    statuses = {m["status"] for m in marks}
+    if len(statuses) == 1:
+        return "resolved", marks[0]["status"], marks[0]["label"]
+    evidence = "Conflicting marks: " + "; ".join(f"{m['label']} [{m['method']}]" for m in marks)
+    return "conflict", None, evidence
+
+
+def boxed_decision(page, text: str | None = None) -> tuple[str, str] | None:
+    """The consultant's decision on the page as (status, evidence), or None
+    when no mark selects an option -- or when marks disagree (a conflict is
+    not a decision; `decision_marks` keeps the evidence). Marks are filled
+    boxes, annotations over an option and rectangles drawn into the page,
+    read and validated alike (see `decision_marks`)."""
+    outcome, status, evidence = resolve_marks(decision_marks(page, text))
+    return (status, evidence) if outcome == "resolved" else None
+
+
+def annotated_decision(page, text: str | None = None) -> tuple[str, str] | None:
+    """The decision the page's annotations alone select (see `decision_marks`)."""
+    marks = [m for m in decision_marks(page, text) if m["method"] == "annotation"]
+    outcome, status, evidence = resolve_marks(marks)
+    return (status, evidence) if outcome == "resolved" else None
+
+
+def _is_label_frame(shape) -> bool:
+    """Whether a drawn shape is a frame the size of one option's label: a
+    stroked rectangle round it (a coloured outline, not the form's own
+    black rules) or a highlight-sized fill over it (a colour, not the
+    white of the form). Sized to one label, so a table border or a frame
+    round the whole comments block is not one."""
+    rect = shape["rect"]
+    if not (20 <= rect.width <= 320 and 6 <= rect.height <= 48):
+        return False
+    kind = shape.get("type") or ""
+    colour = shape.get("color")
+    fill = shape.get("fill")
+    if "s" in kind and colour and len(colour) >= 3 and (shape.get("width") or 0) >= 0.8 and max(colour[:3]) > 0.15:
+        return True
+    if fill and len(fill) >= 3 and min(fill[:3]) <= 0.85 and max(fill[:3]) > 0.15 and (rect.width / max(rect.height, 0.01)) > 2:
+        return True
+    return False
+
+
+def drawn_frame_decision(page, words=None, shapes=None) -> tuple[str, str] | None:
+    """The decision the rectangles drawn into the page alone select (see
+    `decision_marks`): a green rectangle stroked round "C - Revise &
+    Re-Submit", an orange highlight laid over it."""
+    marks = [m for m in decision_marks(page, None, shapes) if m["method"] == "drawn_frame"]
+    outcome, status, evidence = resolve_marks(marks)
+    return (status, evidence) if outcome == "resolved" else None
+
+
+def _label_is_one_option(inside: str) -> str | None:
+    """The option a framed label *is*, or None: the words under the frame
+    must be one option and little else -- its letter, a dash. A comment
+    box on a drawing ("Follow the approved builders work drawings for
+    riser location") is a coloured rectangle round words that mention an
+    option; it is not the option, and reading it as one called EP-30784's
+    QA/QC comments an approval. The same rule for every method: an
+    annotation round that comment is no more an approval than a rectangle."""
+    named = _options_named(inside)
+    if len(named) != 1:
         return None
-    return next(iter(found.items()))
+    plain = " ".join(re.sub(r"[^a-z0-9]+", " ", inside.lower()).split())
+    for words, _status in _OPTIONS:
+        plain = plain.replace(words, " ")
+    # Nothing may remain but the option's letter and the form's own words:
+    # "Approved supplier", "Noted & Complied", a comment, a receipt label
+    # are not the option however they are framed.
+    residue = [w for w in plain.split() if w not in ("a", "b", "c", "d", "ur", "re", "review", "under", "recommendation", "consultant", "and", "status")]
+    if residue:
+        return None
+    return next(iter(named))
 
 
 def _options_named(label: str) -> set[str]:
@@ -766,140 +953,6 @@ def _may_hold_an_option(text: str) -> bool:
     reading would have answered -- it only saves asking."""
     compact = _compact(text)
     return any(all(piece in compact for piece in pieces) for pieces in _OPTION_PIECES)
-
-
-def boxed_decision(page, text: str | None = None) -> tuple[str, str] | None:
-    """The consultant's decision where it is a filled box beside the
-    option rather than a word or a tick, as (status, evidence).
-
-    The engineering consultant's approval block lists every option --
-    Approved (A), Approved as Noted (B), Re-Submit (C) -- and marks one by
-    filling its box. Read as text that is a list of choices and settles
-    nothing, which is right: `read_decision` refuses to guess from it. The
-    decision is in the drawing, so it is read from there.
-
-    None when no box is filled, or when more than one is against a
-    different answer -- two marks say no more than none.
-
-    Asking the page for the text in a rectangle re-reads the whole page each
-    time -- about 0.1 s on a CAD sheet -- and a CAD sheet has dozens of small
-    coloured squares: 58 on one EP-30784 floor plan, 5.5 s of its 6.5. So
-    it is asked only where it could matter. `text`, the page's text when the
-    caller has it, rules out a page that names no option at all; and a box
-    whose surrounding words (every word touching its label's rectangle,
-    taken whole) cannot spell an option is skipped. Both screens can only
-    pass over a box whose label would have matched nothing
-    (`_may_hold_an_option`); every box that gets past them is read exactly
-    as before.
-    """
-    if text is not None and not _may_hold_an_option(text):
-        return None
-    found: dict[str, str] = {}
-    page_words = None
-    shapes = page.get_drawings()
-    for shape in shapes:
-        if not _is_mark(shape):
-            continue
-        rect = shape["rect"]
-        clip = pymupdf.Rect(rect.x1, rect.y0 - 3, rect.x1 + 150, rect.y1 + 3)
-        if page_words is None:
-            page_words = page.get_text("words")
-        # Every word touching the rectangle, whole, with a margin: a superset
-        # of the characters the clipped reading below can return.
-        near = " ".join(w[4] for w in page_words
-                        if w[0] <= clip.x1 + 2 and w[2] >= clip.x0 - 2 and w[1] <= clip.y1 + 2 and w[3] >= clip.y0 - 2)
-        if not _may_hold_an_option(near):
-            continue
-        beside = page.get_text("text", clip=clip)
-        # Only as far as this option's own letter: the next option's box
-        # sits a little further along the same line.
-        label = " ".join(beside.split())
-        cut = re.search(r"\([ABCD]\)", label)
-        if cut:
-            label = label[: cut.end()]
-        # "Re- Submit (C)" and "Re-Submit (C)" are the same answer.
-        plain = " ".join(re.sub(r"[^a-z0-9]+", " ", label.lower()).split())
-        for words, status in _OPTIONS:
-            if words in plain:
-                found[status] = label.strip()
-                break
-    if len(found) != 1:
-        # No filled box, or two: the reviewer may have framed the option
-        # instead -- as an annotation, or as a rectangle drawn into the page.
-        if found:
-            return None
-        return annotated_decision(page, text) or drawn_frame_decision(page, page_words, shapes)
-    status, evidence = next(iter(found.items()))
-    return status, evidence
-
-
-def _is_label_frame(shape) -> bool:
-    """Whether a drawn shape is a frame the size of one option's label: a
-    stroked rectangle round it (a coloured outline, not the form's own
-    black rules) or a highlight-sized fill over it (a colour, not the
-    white of the form). Sized to one label, so a table border or a frame
-    round the whole comments block is not one."""
-    rect = shape["rect"]
-    if not (20 <= rect.width <= 320 and 6 <= rect.height <= 48):
-        return False
-    kind = shape.get("type") or ""
-    colour = shape.get("color")
-    fill = shape.get("fill")
-    if "s" in kind and colour and len(colour) >= 3 and (shape.get("width") or 0) >= 0.8 and max(colour[:3]) > 0.15:
-        return True
-    if fill and len(fill) >= 3 and min(fill[:3]) <= 0.85 and max(fill[:3]) > 0.15 and (rect.width / max(rect.height, 0.01)) > 2:
-        return True
-    return False
-
-
-def drawn_frame_decision(page, words=None, shapes=None) -> tuple[str, str] | None:
-    """The consultant's decision where it is a frame drawn into the page --
-    a green rectangle stroked round "C - Revise & Re-Submit", an orange
-    highlight laid over it -- rather than an annotation or a filled box.
-    The words inside exactly one label-sized frame name exactly one
-    option; a frame over several options, or two frames over different
-    answers, say nothing."""
-    if shapes is None:
-        try:
-            shapes = page.get_drawings()
-        except Exception:  # noqa: BLE001 -- a page whose drawings MuPDF cannot list
-            return None
-    frames = [shape["rect"] for shape in shapes if _is_label_frame(shape)]
-    if not frames:
-        return None
-    if words is None:
-        words = page.get_text("words")
-    found: dict[str, str] = {}
-    for rect in frames:
-        inside = " ".join(w[4] for w in words if w[0] >= rect.x0 - 2 and w[2] <= rect.x1 + 2 and w[1] >= rect.y0 - 3 and w[3] <= rect.y1 + 3)
-        if not inside or len(inside) > 80:
-            continue
-        status = _label_is_one_option(inside)
-        if status is None:
-            continue
-        found.setdefault(status, inside.strip())
-    if len(found) != 1:
-        return None
-    return next(iter(found.items()))
-
-
-def _label_is_one_option(inside: str) -> str | None:
-    """The option a framed label *is*, or None: the words under the frame
-    must be one option and little else -- its letter, a dash. A comment
-    box on a drawing ("Follow the approved builders work drawings for
-    riser location") is a coloured rectangle round words that mention an
-    option; it is not the option, and reading it as one called EP-30784's
-    QA/QC comments an approval."""
-    named = _options_named(inside)
-    if len(named) != 1:
-        return None
-    plain = " ".join(re.sub(r"[^a-z0-9]+", " ", inside.lower()).split())
-    for words, _status in _OPTIONS:
-        plain = plain.replace(words, " ")
-    residue = [w for w in plain.split() if w not in ("a", "b", "c", "d", "ur", "re", "review", "under")]
-    if len(residue) > 1:
-        return None
-    return next(iter(named))
 
 
 def read_decision(text: str) -> tuple[str, str | None]:
@@ -1114,8 +1167,9 @@ def parse_page(text: str, path: str, modified: datetime, page: int) -> list[Cont
     # Floor Plan" -- so without this it reached the log as a drawing of no
     # floor at all, and those basements looked undrawn.
     floor = floor_name(title) or floor_name(Path(path).stem, whole=False)
+    flags = ("reference_incomplete",) if candidate is not None and candidate.incomplete else ()
     return [ControlledDocument(code, title, path, modified, reference, revision, decision, floor, evidence, page, category=category,
-                               printed_revision=printed, revision_source=revision_source)]
+                               printed_revision=printed, revision_source=revision_source, flags=flags)]
 
 
 def normalize_floor(value: str) -> str:
@@ -1131,21 +1185,27 @@ def normalize_floor(value: str) -> str:
     return re.sub(r"\b([BPL])0+(\d)", r"\1\2", value)
 
 
-def _boxed(page, text: str, sha256: str | None, index: int) -> tuple[str, str] | None:
-    """`boxed_decision`, from the page cache when this file's content has
+def _marks(page, text: str, sha256: str | None, index: int) -> list[dict]:
+    """`decision_marks`, from the page cache when this file's content has
     been looked at under the same box rules (`BOX_VERSION`)."""
     if not _may_hold_an_option(text):
-        return None          # nothing to look for, and nothing worth keeping
+        return []            # nothing to look for, and nothing worth keeping
     from app.services import page_cache
 
     cached = page_cache.get_box(sha256, index, BOX_VERSION)
     if cached is not page_cache.MISSING:
         counted("box_cache_hits")
-        return cached
+        return list(cached or [])
     with timed("boxes"):
-        found = boxed_decision(page, text)
-    page_cache.put_box(sha256, index, BOX_VERSION, list(found) if found else None)
-    return found
+        marks = decision_marks(page, text)
+    page_cache.put_box(sha256, index, BOX_VERSION, marks or None)
+    return marks
+
+
+def _boxed(page, text: str, sha256: str | None, index: int) -> tuple[str, str] | None:
+    """The resolved decision of `_marks`, or None (no mark, or a conflict)."""
+    outcome, status, evidence = resolve_marks(_marks(page, text, sha256, index))
+    return (status, evidence) if outcome == "resolved" else None
 
 
 def _ocr_text(page, sha256: str | None, index: int, renders: dict | None = None) -> str:
@@ -1211,144 +1271,422 @@ def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool,
         return read_open_pdf(pdf, filename, modified, use_ocr, sha256)
 
 
+def read_pdf_full(filename: str, stamp: int, size: int, use_ocr: bool, sha256: str | None = None,
+                  promote: bool | None = None) -> "Reading":
+    """`_read_pdf` with the page ledger and the observations (`Reading`), not
+    cached: what `document_sync.process` reads when no reader process handed
+    it the reading. An unopenable or online-only file is a Reading with no
+    records, the note it always got and an "unavailable"/"failed" ledger."""
+    path = Path(filename)
+    modified = datetime.fromtimestamp(stamp / 1e9, timezone.utc)
+    counted("read_pdf")
+    try:
+        pdf = _open_pdf(path)
+    except Exception as exc:  # noqa: BLE001 -- an unreadable or online-only file is a note, not a failure
+        notes = open_failure_notes(path, exc)
+        return Reading((), notes, {"outcome": "unavailable" if NOT_DOWNLOADED in notes[0] else "failed", "pages_total": None,
+                                   "pages_visited": [], "pages_skipped": [], "pages_failed": [], "ocr_failed_pages": [],
+                                   "stop_reason": "open_failed", "error": f"{type(exc).__name__}: {exc}"[:300],
+                                   "parser_version": PARSER_VERSION}, [])
+    with pdf:
+        return read_open_pdf(pdf, filename, modified, use_ocr, sha256, full=True, promote=promote)
+
+
+# How far the reader looks into a file that has shown it nothing yet: a
+# catalogue or a specification is not a register, and reading every product
+# page of one looking for a form is not worth it -- but a separator sheet,
+# a blank page or a transmittal in front of the cover must not hide it
+# either. The first PAGE_SCAN_LIMIT pages are read (text layer, no OCR
+# beyond the scanned-page rule); pages past it are recorded as skipped,
+# by number and reason, never silently counted as checked.
+PAGE_SCAN_LIMIT = 12
+# Pages checked for the consultant's reply behind a form or a cover.
+REPLY_SEARCH_LIMIT = 12
+# Pages OCRed per document.
+OCR_PAGE_LIMIT = 12
+
+
+@dataclass
+class Reading:
+    """A document as read: the records, the notes, the page ledger and the
+    observations that are not records (see `read_open_pdf`)."""
+
+    records: tuple = ()
+    notes: tuple = ()
+    coverage: dict = field(default_factory=dict)
+    observations: list = field(default_factory=list)
+
+
+def extraction_profile(promote: bool | None = None) -> str:
+    """The extraction policy a reading was, or would be, made under: "promoted"
+    (the evaluation path: every method and component becomes a record) or
+    "default" (the compatibility path). Part of a reading's identity beside
+    the parser version and the content hash (M2 review 02, C): a reading made
+    under one profile is not the reading of the other, whatever the bytes."""
+    if promote is None:
+        promote = _promote_default()
+    return "promoted" if promote else "default"
+
+
+def _promote_default() -> bool:
+    """Whether observations the M2 reader can make but earlier readers did
+    not are promoted to records and statuses (`EXTRACTION_PROMOTE_OBSERVATIONS`).
+    Off by default: the ordinary path reads as the accepted reader did and
+    keeps the new observations beside the records, for evaluation; the
+    isolated evaluation path turns it on."""
+    try:
+        from app.core.config import get_settings
+
+        return bool(get_settings().extraction_promote_observations)
+    except Exception:  # noqa: BLE001 -- no settings (a script, a test without the app): keep the accepted behaviour
+        return False
+
+
+def observed_record(row: "ControlledDocument") -> dict:
+    """A record held as an observation, as JSON stores it: the stored-record
+    shape (document_sync._record_dict) with the datetime and the path as
+    text. `asdict` alone left `modified` a datetime and the row's JSON column
+    refused it -- 35 of 878 rows of the M2 review-01 clone repair failed on
+    exactly that (every untracked-discipline cover and scanned transmittal),
+    and the ordinary writer would have failed the same rows."""
+    data = asdict(row)
+    modified = data.get("modified")
+    if hasattr(modified, "isoformat"):
+        data["modified"] = modified.isoformat()
+    if data.get("path") is not None:
+        data["path"] = str(data["path"])
+    return data
+
+
+def untracked_sheet_observation(text: str) -> dict | None:
+    """A drawing sheet of a discipline the platform does not track, as an
+    observation: the sheet number and the discipline it names. Read the
+    way `parse_page` reads a sheet, kept apart from the records so no
+    register row is made of it."""
+    candidate = first_reference(text)
+    if candidate is None or candidate.category != "drawings":
+        return None
+    if not re.search(r"drawing\s*(?:title|no|number|submittal)|shop\s*drawing", text, re.I):
+        return None
+    if SUBMISSION_FORM.search(text) or REPLY_SHEET.search(text):
+        return None
+    reference = re.sub(r"-R\d+$", "", candidate.reference, flags=re.I)
+    named = f"{reference} " + " ".join(text.split()[:80])
+    if any(re.search(pattern, named, re.I) for _code, pattern in SYSTEMS) or _reference_system(reference):
+        return None   # a tracked system's sheet: parse_page reads it as a record
+    return {"kind": "drawing_sheet", "reference": reference, "raw_system": raw_system_of(reference, text[:400])}
+
+
+def _candidates_of(marks: list[dict]) -> tuple:
+    return tuple((m["status"], m["label"], m["method"]) for m in marks)
+
+
+def _revision_unvalidated(row: ControlledDocument) -> bool:
+    """A decision read off a drawing sheet whose revision was taken from its
+    folder while the sheet prints another: which revision the mark answers
+    is not the reader's to decide (M2 -> M4)."""
+    if row.category != "drawings" or row.revision_source != "folder" or not row.printed_revision:
+        return False
+    return _revision_number(row.printed_revision) != _revision_number(row.revision)
+
+
+# Methods the accepted reader did not read: promoted only on the evaluation
+# path. A rectangle drawn or highlighted into the page (`drawn_frame`).
+UNPROMOTED_METHODS = frozenset({"drawn_frame"})
+
+
+def settle_decision(rows: list, marks: list[dict], ocr_candidates: list[dict], promote: bool) -> tuple[list, list[dict]]:
+    """The page's decision settled from every candidate at once (M2 review
+    02, B): the status its text carries (method "text"), the marks on it
+    (filled boxes, annotations, drawn frames and highlights, `decision_marks`)
+    and what OCR read (method "ocr"). Candidates that name different answers
+    are a conflict: status UR, every candidate kept, flag `decision_conflict`
+    -- no method wins by running later. Candidates that agree settle the
+    status when at least one of them is a promoted method (text, filled box,
+    annotation, OCR) or the evaluation path is on; agreement among held
+    methods alone is a candidate, not a status (`decision_method_unpromoted`).
+    No precedence between sources is applied: the stamp-over-tick rule the
+    reader once applied implicitly is withdrawn until an explicit policy is
+    authorised. Returns (rows, page observations without their page number)."""
+    settled: list = []
+    conflict: list[dict] | None = None
+    held: list[dict] | None = None
+    for row in rows:
+        own = ([{"status": row.status, "label": row.reply_text or "status read from the page text", "method": "text", "rect": None}]
+               if row.status != "UR" else [])
+        candidates = own + list(marks) + list(ocr_candidates)
+        if not candidates:
+            settled.append(row)
+            continue
+        unpromoted = [c for c in candidates if c["method"] in UNPROMOTED_METHODS and not promote]
+        usable = [c for c in candidates if c["method"] not in UNPROMOTED_METHODS or promote]
+        if len({c["status"] for c in candidates}) > 1:
+            evidence = "Conflicting evidence: " + "; ".join(f"{c['label']} [{c['method']}]" for c in candidates)
+            flags = (*row.flags, "decision_conflict", *(("decision_method_unpromoted",) if unpromoted else ()))
+            settled.append(replace(row, status="UR", reply_text=evidence, decision_candidates=_candidates_of(candidates),
+                                   flags=tuple(dict.fromkeys(flags))))
+            conflict = candidates
+        elif usable:
+            label = next((c["label"] for c in usable if c["method"] != "text"), usable[0]["label"])
+            changes = {"status": usable[0]["status"]}
+            if row.status == "UR":
+                changes["reply_text"] = label
+            if len({c["method"] for c in candidates}) > 1 or unpromoted:
+                changes["decision_candidates"] = _candidates_of(candidates)
+            settled.append(replace(row, **changes))
+        else:
+            kept = replace(row, status="UR")
+            for c in unpromoted:
+                kept = _hold_decision(kept, c["status"], c["label"], c["method"], "decision_method_unpromoted")
+            settled.append(kept)
+            held = unpromoted
+    observations = []
+    if conflict:
+        observations.append({"kind": "decision_conflict", "marks": conflict})
+    if held:
+        observations.append({"kind": "decision_unpromoted", "marks": held})
+    return settled, observations
+
+
+def _hold_decision(row: ControlledDocument, status: str, evidence: str | None, method: str, flag: str) -> ControlledDocument:
+    """The mark kept beside the record, not made its status."""
+    return replace(row, decision_candidates=(*row.decision_candidates, (status, evidence or "", method)),
+                   flags=tuple(dict.fromkeys((*row.flags, flag))))
+
+
 def read_open_pdf(pdf, filename: str, modified: datetime, use_ocr: bool, sha256: str | None = None,
-                  page_texts: dict | None = None) -> tuple[tuple[ControlledDocument, ...], tuple[str, ...]]:
+                  page_texts: dict | None = None, *, full: bool = False, promote: bool | None = None):
     """`_read_pdf` over a document already open: the one pass over its pages
-    -- text, the parse, filled boxes, OCR where the evidence calls for it,
-    the reply attached to a form. `page_texts` is the document's page text
-    cache (`page_text`), so a page the caller has read is not read again."""
-    records, warnings = [], []
+    -- text, the parse, marks, OCR where the evidence calls for it, the
+    reply attached to a form. `page_texts` is the document's page text
+    cache (`page_text`), so a page the caller has read is not read again.
+
+    Returns (records, notes); with `full=True` a `Reading`, whose `coverage`
+    is the page ledger -- every page of the file is visited, skipped (by
+    reason) or failed (by reason), exclusively, and the outcome says whether
+    the reading is "complete", "bounded" (complete within the reader's page
+    scope, the rest listed as skipped), "partial" (a page or its OCR
+    failed) or "unavailable" (the file itself could not be read) -- and
+    whose `observations` are what the reader saw but did not make a record
+    of: a sheet of an untracked discipline, a scanned transmittal or a
+    decision method not promoted (`promote`), the marks it held back.
+    """
+    records, warnings, observations = [], [], []
     path = Path(filename)
     clock = stage_clock()
     if page_texts is None:
         page_texts = {}
+    if promote is None:
+        promote = _promote_default()
+    total = pdf.page_count
+    visited: list[int] = []
+    skipped: list[dict] = []
+    failed: list[dict] = []
+    ocr_failed: list[int] = []
+    ocr_failures: list[dict] = []
+    ocr_skipped: list[int] = []
+    stop_reason = None
     try:
         if clock is not None:
-            clock.set("page_count", pdf.page_count)
+            clock.set("page_count", total)
         pending = None
         ocr_count = 0
         for index, page in enumerate(pdf):
-            # A catalogue/specification is not a register. Inspect its cover,
-            # but do not OCR or read every product page looking for approvals.
-            if index > 0 and not records and pending is None:
+            number = index + 1
+            # A catalogue/specification is not a register: a file that has
+            # shown nothing in PAGE_SCAN_LIMIT pages is not read further --
+            # but every page up to there is, so a separator in front of the
+            # cover hides nothing, and the pages left are recorded.
+            if index >= PAGE_SCAN_LIMIT and not records and pending is None:
+                stop_reason = "page_scan_limit"
+                skipped.extend({"page": n, "reason": "page scan limit: nothing read in the first pages"} for n in range(number, total + 1))
                 break
-            if index >= 12 and records and all(row.category != "drawings" for row in records):
-                warnings.append(f"{path.name}: only the first 12 pages were checked for submission replies.")
+            if index >= REPLY_SEARCH_LIMIT and records and all(row.category != "drawings" for row in records):
+                warnings.append(f"{path.name}: only the first {REPLY_SEARCH_LIMIT} pages were checked for submission replies.")
+                stop_reason = "reply_search_limit"
+                skipped.extend({"page": n, "reason": "reply search limit"} for n in range(number, total + 1))
                 break
             counted("pages_scanned")
-            text = page_text(page, index, page_texts)
-            with timed("deterministic_extract"):
-                found = parse_page(text, filename, modified, index + 1)
-            # The approval block lists every option and fills the box
-            # beside the one chosen. As text that is a list of choices
-            # and settles nothing -- rightly, since a list is not an
-            # answer -- so where nothing was decided the drawing is
-            # asked, before any OCR is attempted.
-            if found and all(row.status == "UR" for row in found):
-                boxed = _boxed(page, text, sha256, index)
-                if boxed is not None:
-                    decision, evidence = boxed
-                    found = [replace(row, status=decision, reply_text=evidence) for row in found]
-            # OCR title blocks of scanned pages and image stamps on forms.
-            # Also a page whose own text or ticked box already gave a
-            # decision: the consultant's stamp, pasted on as an image, is
-            # the verdict that stands, and it can say otherwise -- EP-30784's
-            # emergency lighting sample (BBY006-GME-SAR-EL-LI-0001) has
-            # "Approved as Noted (B)" ticked and a "(C) Revise & Resubmit"
-            # stamp beside it. What OCR finds is cached by content
-            # (`_ocr_text`), so a page is OCRed once, not on every re-read.
-            # A scanned first or second page is read whatever the file is
-            # called: a transmittal, a certificate or a stamped cover filed
-            # under a plain name was otherwise never looked at (bounded: two
-            # pages, cached by content).
-            scan = len(text.strip()) < 80
-            candidate = bool(found) or pending is not None or (scan and index < 2) \
-                or (scan and bool(re.search(r"approval|submittal|drawing|[/\\]MS[/\\]", filename, re.I)))
-            regions = _image_regions(page) if (use_ocr and candidate and not scan) else []
-            # A text page whose images are all too small to hold a word (a
-            # logo, a rule) is not OCRed at all: nothing on it could be a stamp.
-            if use_ocr and candidate and (scan or regions):
-                if ocr_count < 12:
-                    try:
-                        ocr_count += 1
-                        counted("ocr_pages_attempted")
-                        renders: dict = {}
-                        if scan or _prefer_full_page(page, regions):
-                            # A scanned page, or one its images cover or
-                            # crowd: the whole of it, as always.
-                            ocr_text = _ocr_text(page, sha256, index, renders)
-                        else:
-                            # A text page with a few images: the images
-                            # (tier 1), in one run; the whole page where
-                            # they would cost more than it.
-                            ocr_text = _ocr_regions_text(page, regions, sha256, index, renders)
-                            if ocr_text is None:
+            visited.append(number)
+            try:
+                text = page_text(page, index, page_texts)
+                with timed("deterministic_extract"):
+                    found = parse_page(text, filename, modified, number)
+                # The approval block lists every option and fills the box
+                # beside the one chosen. As text that is a list of choices
+                # and settles nothing -- rightly, since a list is not an
+                # answer -- so where nothing was decided the drawing is
+                # asked, before any OCR is attempted. Every mark on the page
+                # is collected first; marks that disagree are a conflict.
+                # The page's marks are collected whatever its text says (M2
+                # review 02, B): a status printed in the text and a frame drawn
+                # round another option are two candidates, settled together
+                # with what OCR adds, below -- never the first one found.
+                marks = _marks(page, text, sha256, index) if found else []
+                ocr_candidates: list[dict] = []
+                # OCR title blocks of scanned pages and image stamps on forms.
+                # Also a page whose own text or ticked box already gave a
+                # decision: the consultant's stamp, pasted on as an image, can
+                # say otherwise -- EP-30784's emergency lighting sample
+                # (BBY006-GME-SAR-EL-LI-0001) has "Approved as Noted (B)"
+                # ticked and a "(C) Revise & Resubmit" stamp beside it. The
+                # stamp used to override the tick implicitly; since M2 review
+                # 02 (B) the two are a conflict the record shows, until an
+                # explicit precedence policy is authorised (none is). What OCR
+                # finds is cached by content
+                # (`_ocr_text`), so a page is OCRed once, not on every re-read.
+                # A scanned first or second page is read whatever the file is
+                # called: a transmittal, a certificate or a stamped cover filed
+                # under a plain name was otherwise never looked at (bounded: two
+                # pages, cached by content).
+                scan = len(text.strip()) < 80
+                candidate = bool(found) or pending is not None or (scan and index < 2) \
+                    or (scan and bool(re.search(r"approval|submittal|drawing|[/\\]MS[/\\]", filename, re.I)))
+                regions = _image_regions(page) if (use_ocr and candidate and not scan) else []
+                # A text page whose images are all too small to hold a word (a
+                # logo, a rule) is not OCRed at all: nothing on it could be a stamp.
+                if use_ocr and candidate and (scan or regions):
+                    if ocr_count < OCR_PAGE_LIMIT:
+                        try:
+                            ocr_count += 1
+                            counted("ocr_pages_attempted")
+                            renders: dict = {}
+                            if scan or _prefer_full_page(page, regions):
+                                # A scanned page, or one its images cover or
+                                # crowd: the whole of it, as always.
                                 ocr_text = _ocr_text(page, sha256, index, renders)
-                        renders.clear()
-                        with timed("deterministic_extract"):
-                            ocr_found = parse_page(ocr_text, filename, modified, index + 1)
-                            decision, evidence = read_decision(ocr_text)
-                            if not found and not ocr_found and scan and index < 2:
-                                # A scanned copy of a document transmittal
-                                # (the signed acknowledgement filed as a
-                                # PDF): the same sample submissions the
-                                # Word original gives, read off its OCR.
-                                from app.services import transmittals
+                            else:
+                                # A text page with a few images: the images
+                                # (tier 1), in one run; the whole page where
+                                # they would cost more than it.
+                                ocr_text = _ocr_regions_text(page, regions, sha256, index, renders)
+                                if ocr_text is None:
+                                    ocr_text = _ocr_text(page, sha256, index, renders)
+                            renders.clear()
+                            with timed("deterministic_extract"):
+                                ocr_found = parse_page(ocr_text, filename, modified, number)
+                                decision, evidence = read_decision(ocr_text)
+                                if not found and not ocr_found and scan and index < 2:
+                                    # A scanned copy of a document transmittal
+                                    # (the signed acknowledgement filed as a
+                                    # PDF): the same sample submissions the
+                                    # Word original gives, read off its OCR.
+                                    from app.services import transmittals
 
-                                if transmittals.looks_like_transmittal(ocr_text):
-                                    ocr_found = transmittals.from_ocr(ocr_text, filename, modified, page=index + 1)
-                        if not found: found = ocr_found
-                        if ocr_found or decision != "UR":
-                            counted("ocr_pages_used")   # the OCR text changed what was read
-                        if decision != "UR": found = [replace(row, status=decision, reply_text=evidence) for row in found]
-                        text += "\n" + ocr_text
-                    except Exception:
-                        warnings.append(f"Could not OCR {path.name}, page {index + 1}.")
+                                    if transmittals.looks_like_transmittal(ocr_text):
+                                        sent = transmittals.from_ocr(ocr_text, filename, modified, page=number)
+                                        if promote:
+                                            ocr_found = sent
+                                        elif sent:
+                                            observations.append({"page": number, "kind": "transmittal", "records": [observed_record(r) for r in sent]})
+                            if not found: found = ocr_found
+                            if ocr_found or decision != "UR":
+                                counted("ocr_pages_used")   # the OCR text changed what was read
+                            if decision != "UR":
+                                ocr_candidates.append({"status": decision, "label": evidence or "", "method": "ocr", "rect": None})
+                            text += "\n" + ocr_text
+                        except Exception as exc:  # noqa: BLE001 -- OCR failed on this page: noted, the page's text stands
+                            warnings.append(f"Could not OCR {path.name}, page {number}.")
+                            ocr_failed.append(number)
+                            ocr_failures.append({"page": number, "reason": f"OCR failed: {type(exc).__name__}: {exc}"[:200]})
+                    else:
+                        warnings.append(f"OCR limit reached in {path.name}; some replies may need verification.")
+                        ocr_skipped.append(number)
+                # Every decision candidate the page gave -- its text, its marks,
+                # its OCR -- settled together, once (M2 review 02, B).
+                if found:
+                    found, page_observations = settle_decision(found, marks, ocr_candidates, promote)
+                    observations.extend({"page": number, **o} for o in page_observations)
+                # A decision read off a sheet whose revision came from the
+                # folder while the sheet prints another is a mark, not yet
+                # that revision's status: kept beside the record.
+                found = [_hold_decision(replace(row, status="UR"), row.status, row.reply_text, "sheet_mark", "decision_revision_unvalidated")
+                         if row.status != "UR" and _revision_unvalidated(row) else row for row in found]
+                # A cover of a discipline the platform does not track is a
+                # record only on the evaluation path; otherwise an observation.
+                if not promote:
+                    held = [row for row in found if row.category == "drawings" and row.system_code is None]
+                    if held:
+                        observations.extend({"page": number, "kind": "cover_untracked", "record": observed_record(row)} for row in held)
+                        found = [row for row in found if row not in held]
+                if not found and not scan:
+                    sheet = untracked_sheet_observation(text)
+                    if sheet is not None:
+                        observations.append({"page": number, **sheet})
+                if found and pending is not None and all(r.category == "reply" for r in found) \
+                        and _answers(records[pending], found[0]):
+                    # The reply behind a submission, naming the sheets it covers:
+                    # the consultant's word on that submission, folded into it.
+                    reply = found[0]
+                    if reply.status != "UR":
+                        records[pending] = replace(records[pending], status=reply.status, reply_text=reply.reply_text,
+                                                   page=number)
+                    counted("replies_folded")
+                    # The reply page stays a record of its own as well (M2): a
+                    # contractor's reply sheet is a component of the file, and
+                    # a page that answered nothing must not vanish from the
+                    # reading. The register never lists a reply (combine drops
+                    # them after using their decision), so nothing is displaced.
+                    records.extend(found)
+                elif found:
+                    records.extend(found)
+                    pending = len(records) - 1 if len(found) == 1 and found[0].source == "document" else None
+                elif pending is not None and re.search(r"consultant.*(?:comment|reply|review)|review\s*status", text, re.I):
+                    # An attached reply without a different reference belongs to the preceding form.
+                    references = REF.findall(text)
+                    decision, evidence = read_decision(text)
+                    # A resubmission is filed with the comments it answers, so
+                    # the reply attached to an R1 form is usually the
+                    # consultant's word on R0. Where the comments name the
+                    # revision they are on, they settle that one, not this.
+                    from app.services.submittal_replies import commented_revision
+
+                    said = commented_revision(text)
+                    answers_this = said is None or said == _revision_number(records[pending].revision)
+                    if not references and decision != "UR" and answers_this:
+                        records[pending] = replace(records[pending], status=decision, reply_text=evidence, page=number)
+                    observations.append({"page": number, "kind": "consultant_comments", "decision": decision, "answers_revision": said})
+                elif not scan and records:
+                    # A page behind the records that is none of the above: a
+                    # datasheet, a certificate, a drawing sheet. Kept in the
+                    # ledger as visited; nothing is made of it here.
+                    pending = None
                 else:
-                    warnings.append(f"OCR limit reached in {path.name}; some replies may need verification.")
-            if found and pending is not None and all(r.category == "reply" for r in found) \
-                    and _answers(records[pending], found[0]):
-                # The reply behind a submission, naming the sheets it covers:
-                # the consultant's word on that submission, folded into it.
-                # Not a record of its own -- read as one, every reply of a
-                # project that quoted the same base number was one reply.
-                reply = found[0]
-                if reply.status != "UR":
-                    records[pending] = replace(records[pending], status=reply.status, reply_text=reply.reply_text,
-                                               page=index + 1)
-                counted("replies_folded")
-                # The reply page stays a record of its own as well (M2): a
-                # contractor's reply sheet is a component of the file, and
-                # a page that answered nothing must not vanish from the
-                # reading. The register never lists a reply (combine drops
-                # them after using their decision), so nothing is displaced.
-                records.extend(found)
-            elif found:
-                records.extend(found)
-                pending = len(records) - 1 if len(found) == 1 and found[0].source == "document" else None
-            elif pending is not None and re.search(r"consultant.*(?:comment|reply|review)|review\s*status", text, re.I):
-                # An attached reply without a different reference belongs to the preceding form.
-                references = REF.findall(text)
-                decision, evidence = read_decision(text)
-                # A resubmission is filed with the comments it answers, so
-                # the reply attached to an R1 form is usually the
-                # consultant's word on R0. Where the comments name the
-                # revision they are on, they settle that one, not this.
-                from app.services.submittal_replies import commented_revision
-
-                said = commented_revision(text)
-                answers_this = said is None or said == _revision_number(records[pending].revision)
-                if not references and decision != "UR" and answers_this:
-                    records[pending] = replace(records[pending], status=decision, reply_text=evidence, page=index + 1)
-            else:
+                    pending = None
+            except OSError:
+                raise
+            except Exception as exc:  # noqa: BLE001 -- this page failed the reader: recorded; the pages before it stand
+                if number in visited:
+                    visited.remove(number)   # visited, skipped and failed are exclusive: this page failed
+                failed.append({"page": number, "reason": f"{type(exc).__name__}: {exc}"[:200]})
+                warnings.append(f"Page {number} of {path.name} could not be read.")
                 pending = None
     except OSError as exc:
         # The file itself could not be read (online-only, gone): the note it
-        # always left. Any other failure is the reader's own and is raised:
-        # an empty reading standing as "unreadable" over a good earlier one
-        # was how a reader defect erased records (M2).
+        # always left, and every page not yet visited is unavailable.
         warnings.extend(open_failure_notes(path, exc))
-    return tuple(records), tuple(dict.fromkeys(warnings))
+        skipped.extend({"page": n, "reason": "file unavailable"} for n in range(len(visited) + 1, total + 1) if n not in visited)
+        stop_reason = "unavailable"
+    if stop_reason == "unavailable":
+        outcome = "unavailable"
+    elif failed or ocr_failed:
+        outcome = "partial"
+    elif skipped or stop_reason or ocr_skipped:
+        outcome = "bounded"
+    else:
+        outcome = "complete"
+    # Two dimensions, each exclusive within itself (M2 review 02, D): a page
+    # was visited, skipped (by reason) or failed (by reason), and never two
+    # of these; OCR, attempted on some of the visited pages, either ran,
+    # failed or was left out by the OCR budget -- listed under "ocr", not
+    # among the pages' own outcomes (a page whose OCR failed was visited).
+    coverage = {"outcome": outcome, "pages_total": total, "pages_visited": visited, "pages_skipped": skipped,
+                "pages_failed": failed, "ocr_failed_pages": ocr_failed,
+                "ocr": {"attempted": ocr_count, "failed": ocr_failures, "skipped_budget": ocr_skipped},
+                "stop_reason": stop_reason, "parser_version": PARSER_VERSION, "promoted": bool(promote),
+                "profile": extraction_profile(promote)}
+    reading = Reading(tuple(records), tuple(dict.fromkeys(warnings)), coverage, observations)
+    return reading if full else (reading.records, reading.notes)
 
 
 def _sheet_numbers(reference: str) -> set[str]:
@@ -1392,6 +1730,9 @@ def describe_note(note: str) -> tuple[str, str]:
     page = re.match(r"Could not OCR .*, page (\d+)\.$", note)
     if page:
         return "partial", f"Page {page[1]} could not be OCRed; a stamp on it may be unread."
+    page = re.match(r"Page (\d+) of .* could not be read\.$", note)
+    if page:
+        return "partial", f"Page {page[1]} could not be read; the reading is partial and will be retried."
     if "only the first 12 pages were checked" in note:
         return "partial", "Only the first 12 pages were checked for consultant replies."
     if note.startswith("OCR limit reached"):

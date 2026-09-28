@@ -1,0 +1,1153 @@
+{
+ "repair_dir": "repair_r3",
+ "clone_source": "m2_clone_20260927T181957Z.db (fresh copy: clone_r3.db)",
+ "snapshot_p4": {
+  "before_hash": "31db7c6b406b4aea8f680ea15adf7e97114c2b2822983a5a012a9eeed79b6549",
+  "after_hash": "e8e3c7f43ae8e83df526959f46e8e16a602ac7544eb48277c45b2e81a6a10535",
+  "changed_leaf_counts_by_table": {
+   "project_documents": 1372,
+   "document_dependencies": 1310,
+   "hash": 1
+  },
+  "tables_with_changed_rows": {
+   "document_dependencies": {
+    "before": 164,
+    "after": 306,
+    "rows_changed": 174
+   },
+   "project_documents": {
+    "before": 525,
+    "after": 525,
+    "rows_changed": 516
+   }
+  },
+  "project_fields_changed": false
+ },
+ "manifest_p4_run2": {
+  "mode": "apply",
+  "parser_version": "parse-2026-09-28.3",
+  "selected": 32,
+  "counts": {
+   "repaired": 32
+  },
+  "seconds": 13.8,
+  "errors": []
+ },
+ "manifest_p4": {
+  "mode": "apply",
+  "parser_version": "parse-2026-09-28.3",
+  "selected": 522,
+  "counts": {
+   "repaired": 484,
+   "skipped": 6,
+   "failed": 32
+  },
+  "seconds": 677.3,
+  "skip_reasons": {
+   "the re-read was partial: Page 5 of Architectural (1).pdf cou": 4,
+   "a transmittal is read by the transmittal reader, not the par": 2
+  },
+  "errors": [
+   [
+    428,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 3, 57, 56, 529472), 'extracted': {'records': []"
+   ],
+   [
+    438,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 3, 58, 16, 169100), 'extracted': {'records': []"
+   ],
+   [
+    439,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 3, 58, 17, 427378), 'extracted': {'records': []"
+   ],
+   [
+    440,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET reference=?, revision=?, status=?, extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'status': None, 'revision': None, 'reference': None, 'last_proce"
+   ],
+   [
+    441,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 3, 58, 21, 197319), 'extracted': {'records': []"
+   ],
+   [
+    442,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 3, 58, 22, 411713), 'extracted': {'records': []"
+   ],
+   [
+    443,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 3, 58, 23, 793966), 'extracted': {'records': []"
+   ],
+   [
+    444,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET reference=?, revision=?, status=?, extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'status': None, 'revision': None, 'reference': None, 'last_proce"
+   ],
+   [
+    445,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 3, 58, 28, 75020), 'extracted': {'records': [],"
+   ],
+   [
+    446,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 3, 58, 29, 358333), 'extracted': {'records': []"
+   ]
+  ]
+ },
+ "snapshot_p1": {
+  "before_hash": "c89a1d7ecb655b80289c19f8c977b587965d331f32d40cb3e0e255c2bc3686a0",
+  "after_hash": "29be8a7dd0839896ad0b80cd87506206475a405738e1d4e77e00a2bd68f3c22b",
+  "changed_leaf_counts_by_table": {
+   "project_documents": 707,
+   "document_dependencies": 230,
+   "hash": 1
+  },
+  "tables_with_changed_rows": {
+   "document_dependencies": {
+    "before": 383,
+    "after": 384,
+    "rows_changed": 222
+   },
+   "project_documents": {
+    "before": 359,
+    "after": 359,
+    "rows_changed": 352
+   }
+  },
+  "project_fields_changed": false
+ },
+ "manifest_p1_run2": {
+  "mode": "apply",
+  "parser_version": "parse-2026-09-28.3",
+  "selected": 3,
+  "counts": {
+   "repaired": 3
+  },
+  "seconds": 0.3,
+  "errors": []
+ },
+ "manifest_p1": {
+  "mode": "apply",
+  "parser_version": "parse-2026-09-28.3",
+  "selected": 356,
+  "counts": {
+   "failed": 3,
+   "repaired": 349,
+   "skipped": 4
+  },
+  "seconds": 707.6,
+  "skip_reasons": {
+   "a transmittal is read by the transmittal reader, not the par": 4
+  },
+  "errors": [
+   [
+    4,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 4, 7, 31, 136274), 'extracted': {'records': [],"
+   ],
+   [
+    5,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 4, 7, 33, 242251), 'extracted': {'records': [],"
+   ],
+   [
+    6,
+    "StatementError: (builtins.TypeError) Object of type datetime is not JSON serializable\n[SQL: UPDATE project_documents SET extracted=?, last_processed_at=? WHERE project_documents.id = ?]\n[parameters: [{'last_processed_at': datetime.datetime(2026, 9, 28, 4, 7, 35, 460841), 'extracted': {'records': [],"
+   ]
+  ]
+ },
+ "records_p4": {
+  "documents": 525,
+  "documents_with_changed_records_all_sources": 165,
+  "documents_with_changed_form_reading_records": 4,
+  "form_reading_records_before": 9,
+  "form_reading_records_after": 5,
+  "records_before": 151,
+  "records_after": 201,
+  "roles_changed": 0,
+  "top_level_mirrors_changed": 160,
+  "states_after": {
+   "fresh": 525
+  },
+  "attempt_markers_after": 0,
+  "stale_after": 0,
+  "coverage_outcomes_after": {
+   "null": 9,
+   "complete": 429,
+   "bounded": 87
+  },
+  "parser_versions_after": {
+   "null": 9,
+   "parse-2026-09-28.3": 516
+  },
+  "docs_with_observations_after": 171,
+  "observation_kinds_after": {
+   "decision_unpromoted": 66,
+   "consultant_comments": 209,
+   "cover_untracked": 36,
+   "drawing_sheet": 47,
+   "decision_conflict": 1,
+   "transmittal": 2
+  },
+  "flags_after": {
+   "decision_method_unpromoted": 44,
+   "reference_incomplete": 1
+  },
+  "status_counts_before": {
+   "UR": 143,
+   "rejected": 4,
+   "RR": 3,
+   "ANN": 1
+  },
+  "status_counts_after": {
+   "UR": 95,
+   "rejected": 101,
+   "ANN": 5
+  },
+  "form_record_examples": [
+   {
+    "doc": "634",
+    "path": "0109-00-COMMENTED_ICC-DLRC-SPM-MAR-MEP-0109-00.pdf",
+    "before": [
+     "{\"category\": \"submittals\", \"page\": 1, \"raw_system\": null, \"reference\": \"ICC-DLRC-SPM-MAR-MEP-0109\", \"revision\": \"R0\", \"source\": \"submittal form\", \"status\": \"RR\", \"system_code\": \"ELS\"}"
+    ],
+    "after": []
+   },
+   {
+    "doc": "639",
+    "path": "06. MS/EML/R1/MS R1.pdf",
+    "before": [
+     "{\"category\": \"submittals\", \"page\": 1, \"raw_system\": null, \"reference\": \"ICC-DLRC-SPM-MAR-MEP-0109\", \"revision\": \"R0\", \"source\": \"submittal form\", \"status\": \"RR\", \"system_code\": \"ELS\"}"
+    ],
+    "after": []
+   },
+   {
+    "doc": "670",
+    "path": "06. MS/FA/R1/MS FAVE R1.pdf",
+    "before": [
+     "{\"category\": \"submittals\", \"page\": 1, \"raw_system\": null, \"reference\": \"ICC-DLRC-SPM-MAR-MEP-0107\", \"revision\": \"R0\", \"source\": \"submittal form\", \"status\": \"RR\", \"system_code\": \"FAS\"}"
+    ],
+    "after": []
+   },
+   {
+    "doc": "674",
+    "path": "06. MS/FA/R2/MS R2 FAVE.pdf",
+    "before": [
+     "{\"category\": \"submittals\", \"page\": 1, \"raw_system\": null, \"reference\": \"ICC-DLRC-SPM-MAR-MEP-0107\", \"revision\": \"R2\", \"source\": \"submittal form\", \"status\": \"UR\", \"system_code\": \"FAS\"}"
+    ],
+    "after": []
+   }
+  ]
+ },
+ "records_p1": {
+  "documents": 359,
+  "documents_with_changed_records_all_sources": 21,
+  "documents_with_changed_form_reading_records": 0,
+  "form_reading_records_before": 2,
+  "form_reading_records_after": 2,
+  "records_before": 393,
+  "records_after": 400,
+  "roles_changed": 0,
+  "top_level_mirrors_changed": 1,
+  "states_after": {
+   "fresh": 359
+  },
+  "attempt_markers_after": 0,
+  "stale_after": 0,
+  "coverage_outcomes_after": {
+   "null": 7,
+   "complete": 295,
+   "bounded": 57
+  },
+  "parser_versions_after": {
+   "null": 7,
+   "parse-2026-09-28.3": 352
+  },
+  "docs_with_observations_after": 12,
+  "observation_kinds_after": {
+   "transmittal": 3,
+   "consultant_comments": 4,
+   "drawing_sheet": 50
+  },
+  "flags_after": {
+   "decision_revision_unvalidated": 23
+  },
+  "status_counts_before": {
+   "UR": 281,
+   "ANN": 35,
+   "rejected": 77
+  },
+  "status_counts_after": {
+   "UR": 265,
+   "ANN": 43,
+   "rejected": 92
+  },
+  "form_record_examples": []
+ },
+ "r3_vs_m2_repair_p4": {
+  "documents": 522,
+  "classes": {
+   "identical": 447,
+   "changed:status": 39,
+   "records_removed": 32,
+   "records_added": 4
+  },
+  "examples": {
+   "changed:status": [
+    {
+     "path": "SPM-SD-MEP-0010-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0010-00.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0010",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0010",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ]
+    },
+    {
+     "path": "SPM-SD-MEP-0011-00-COMMENTED_ICC-DLRC-SPM-SD-MEP-0011-00.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0011",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ]
+    },
+    {
+     "path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0086-00-COMMENTED-C.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "ELS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0086",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ]
+    },
+    {
+     "path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0039-00-COMMENTED-B.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0039",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ]
+    },
+    {
+     "path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0040-00-COMMENTED-B.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0040",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ]
+    },
+    {
+     "path": "AWING/FIRE ALARM/ICC-DLRC-SPM-SD-MEP-0041-00-COMMENTED-B.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0041",
+       "revision": "R0",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FAS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-SD-MEP-0041",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ]
+    }
+   ],
+   "records_removed": [
+    {
+     "path": "ERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0091-00-COMMENTED-C.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "MEP",
+       "reference": "ICC-DLRC-SPM-SD-MEP-0091",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "r3_repair": []
+    },
+    {
+     "path": "G/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-00-COMMENTED.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "r3_repair": []
+    },
+    {
+     "path": "G/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-01-COMMENTED.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R1",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "r3_repair": []
+    },
+    {
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R2",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "r3_repair": []
+    },
+    {
+     "path": "FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-03-COMMENTED-B.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R3",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": "FF",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R2",
+       "source": "document",
+       "status": "UR",
+       "system_code": null
+      }
+     ],
+     "r3_repair": []
+    },
+    {
+     "path": "G/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-00-COMMENTED.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": "FIREFIGHTING",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": null
+      }
+     ],
+     "r3_repair": []
+    }
+   ],
+   "records_added": [
+    {
+     "path": "M-MAR-MEP-0109-00-COMMENTED_ICC-DLRC-SPM-MAR-MEP-0109-00.pdf",
+     "m2_repair": [],
+     "r3_repair": [
+      {
+       "category": "reply",
+       "page": 4,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-MAR-MEP-0109",
+       "revision": "R0",
+       "source": "reply",
+       "status": "UR",
+       "system_code": null
+      },
+      {
+       "category": "submittals",
+       "page": 2,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-MAR-MEP-0109",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ]
+    },
+    {
+     "path": "06. MS/EML/R1/MS R1.pdf",
+     "m2_repair": [],
+     "r3_repair": [
+      {
+       "category": "reply",
+       "page": 4,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-MAR-MEP-0109",
+       "revision": "R0",
+       "source": "reply",
+       "status": "UR",
+       "system_code": null
+      },
+      {
+       "category": "submittals",
+       "page": 2,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-MAR-MEP-0109",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ]
+    },
+    {
+     "path": "06. MS/FA/R1/MS FAVE R1.pdf",
+     "m2_repair": [],
+     "r3_repair": [
+      {
+       "category": "reply",
+       "page": 4,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-MAR-MEP-0107",
+       "revision": "R0",
+       "source": "reply",
+       "status": "UR",
+       "system_code": null
+      },
+      {
+       "category": "submittals",
+       "page": 2,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-MAR-MEP-0107",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FRC"
+      }
+     ]
+    },
+    {
+     "path": "06. MS/FA/R2/MS R2 FAVE.pdf",
+     "m2_repair": [],
+     "r3_repair": [
+      {
+       "category": "reply",
+       "page": 6,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-MAR-MEP-0107",
+       "revision": "R0",
+       "source": "reply",
+       "status": "UR",
+       "system_code": null
+      },
+      {
+       "category": "submittals",
+       "page": 2,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-MAR-MEP-0107",
+       "revision": "R1",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      },
+      {
+       "category": "submittals",
+       "page": 3,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-MAR-MEP-0107-01",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "submittals",
+       "page": 4,
+       "raw_system": null,
+       "reference": "ICC-DLRC-SPM-MAR-MEP-0107-01",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "r3_vs_m2_repair_p1": {
+  "documents": 356,
+  "classes": {
+   "records_removed": 3,
+   "identical": 329,
+   "records_added": 1,
+   "changed:status": 23
+  },
+  "examples": {
+   "records_removed": [
+    {
+     "path": "01- EP-30784 Scan/EP-30784 EML Sam B Ack 06.08.26.pdf",
+     "m2_repair": [
+      {
+       "category": "samples",
+       "page": 1,
+       "raw_system": null,
+       "reference": "TR/197/26",
+       "revision": "R0",
+       "source": "transmittal",
+       "status": "UR",
+       "system_code": "ELS"
+      }
+     ],
+     "r3_repair": []
+    },
+    {
+     "path": "01- EP-30784 Scan/EP-30784 FA & EM Sam B Ack 03.04.26.pdf",
+     "m2_repair": [
+      {
+       "category": "samples",
+       "page": 1,
+       "raw_system": null,
+       "reference": "TR/081/26",
+       "revision": "R0",
+       "source": "transmittal",
+       "status": "UR",
+       "system_code": "ELS"
+      },
+      {
+       "category": "samples",
+       "page": 1,
+       "raw_system": null,
+       "reference": "TR/081/26",
+       "revision": "R0",
+       "source": "transmittal",
+       "status": "UR",
+       "system_code": "FAS"
+      },
+      {
+       "category": "samples",
+       "page": 1,
+       "raw_system": null,
+       "reference": "TR/081/26",
+       "revision": "R0",
+       "source": "transmittal",
+       "status": "UR",
+       "system_code": "VES"
+      }
+     ],
+     "r3_repair": []
+    },
+    {
+     "path": "01- EP-30784 Scan/EP-30784 FA EML Sam B ack 03.04.26.pdf",
+     "m2_repair": [
+      {
+       "category": "samples",
+       "page": 1,
+       "raw_system": null,
+       "reference": "TR/081/26",
+       "revision": "R0",
+       "source": "transmittal",
+       "status": "UR",
+       "system_code": "ELS"
+      },
+      {
+       "category": "samples",
+       "page": 1,
+       "raw_system": null,
+       "reference": "TR/081/26",
+       "revision": "R0",
+       "source": "transmittal",
+       "status": "UR",
+       "system_code": "FAS"
+      },
+      {
+       "category": "samples",
+       "page": 1,
+       "raw_system": null,
+       "reference": "TR/081/26",
+       "revision": "R0",
+       "source": "transmittal",
+       "status": "UR",
+       "system_code": "VES"
+      }
+     ],
+     "r3_repair": []
+    }
+   ],
+   "records_added": [
+    {
+     "path": "03- MS/03- FRC/02- FIREGUARD/R2/BBY006_2.PDF",
+     "m2_repair": [],
+     "r3_repair": [
+      {
+       "category": "reply",
+       "page": 11,
+       "raw_system": null,
+       "reference": "BBY006-GME-MAS-EL-FA-0002",
+       "revision": "R0",
+       "source": "reply",
+       "status": "UR",
+       "system_code": null
+      },
+      {
+       "category": "reply",
+       "page": 4,
+       "raw_system": null,
+       "reference": "BBY006-GME-MAS-EL-FA-0002",
+       "revision": "R1",
+       "source": "reply",
+       "status": "UR",
+       "system_code": null
+      },
+      {
+       "category": "reply",
+       "page": 9,
+       "raw_system": null,
+       "reference": "BBY006-GME-MAS-EL-FA-0002",
+       "revision": "R0",
+       "source": "reply",
+       "status": "UR",
+       "system_code": null
+      },
+      {
+       "category": "submittals",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-MAS-EL-FA-0002",
+       "revision": "R1",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FRC"
+      },
+      {
+       "category": "submittals",
+       "page": 5,
+       "raw_system": null,
+       "reference": "BBY006-GME-MAS-EL-FA-0002",
+       "revision": "R1",
+       "source": "document",
+       "status": "ANN",
+       "system_code": "FRC"
+      },
+      {
+       "category": "submittals",
+       "page": 6,
+       "raw_system": null,
+       "reference": "BBY006-GME-MAS-EL-FA-0002",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FRC"
+      },
+      {
+       "category": "submittals",
+       "page": 7,
+       "raw_system": null,
+       "reference": "BBY006-GME-MAS-EL-FA-0002",
+       "revision": "R0",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FRC"
+      }
+     ]
+    }
+   ],
+   "changed:status": [
+    {
+     "path": "op Drawing for Basement-1 Floor Plan - Fire Alarm Layout.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-BSM-B01-010001",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-BSM-B01-010001",
+       "revision": "R1",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-BSM-B01-010001",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-BSM-B01-010001",
+       "revision": "R1",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ]
+    },
+    {
+     "path": "2 Shop Drawing for Ground Floor Plan - Fire Alarm Layout.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+       "revision": "R1",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-BGF-010002",
+       "revision": "R1",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ]
+    },
+    {
+     "path": "Shop Drawing for Podium-1 Floor Plan - Fire Alarm Layout.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+       "revision": "R1",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P01-010003",
+       "revision": "R1",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ]
+    },
+    {
+     "path": "Shop Drawing for Podium-2 Floor Plan - Fire Alarm Layout.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P02-010004",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P02-010004",
+       "revision": "R1",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P02-010004",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P02-010004",
+       "revision": "R1",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ]
+    },
+    {
+     "path": "Shop Drawing for Podium-3 Floor Plan - Fire Alarm Layout.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P03-010005",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P03-010005",
+       "revision": "R1",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P03-010005",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-POD-P03-010005",
+       "revision": "R1",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ]
+    },
+    {
+     "path": "ng for L02 1st Mechanical Floor Plan - Fire Alarm Layout.pdf",
+     "m2_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-ZZZ-L02-010007",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-ZZZ-L02-010007",
+       "revision": "R1",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      }
+     ],
+     "r3_repair": [
+      {
+       "category": "drawings",
+       "page": 1,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-ZZZ-L02-010007",
+       "revision": "R0",
+       "source": "document",
+       "status": "rejected",
+       "system_code": "FAS"
+      },
+      {
+       "category": "drawings",
+       "page": 2,
+       "raw_system": null,
+       "reference": "BBY006-GME-SDW-FP-FA-ZZZ-L02-010007",
+       "revision": "R1",
+       "source": "document",
+       "status": "UR",
+       "system_code": "FAS"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

@@ -32,6 +32,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import asdict
 from datetime import datetime, timezone
@@ -323,14 +324,173 @@ def record_for_the_log(extracted: dict, reading: dict, *, relative: str, modifie
     return True
 
 
+COMPLETE_OUTCOMES = ("complete", "bounded")
+
+
+def reading_to_keep(previous) -> dict | None:
+    """The row's stored reading when it is one worth keeping in front of an
+    attempt that did not complete: any reading with records -- the 367 live
+    payloads read before parser versions existed included (M2 review 02, A1:
+    missing provenance is unknown provenance, not absence of evidence) -- or
+    a modern reading (a parser version or a content hash) even without
+    records (an empty successful reading is a reading). A row holding only
+    an earlier attempt and no reading is nothing to keep."""
+    if not isinstance(previous, dict) or not isinstance(previous.get("records"), list):
+        return None
+    if previous["records"] or previous.get("parser_version") or previous.get("read_sha256"):
+        return previous
+    return None
+
+
+def staleness(kept: dict, sha256: str | None):
+    """Whether a kept reading describes other bytes than the file's now:
+    True / False when the reading records the hash it was read from, None
+    when it does not (a legacy reading: its source identity is unknown, and
+    is said so rather than guessed)."""
+    read_sha = kept.get("read_sha256")
+    if not read_sha:
+        return None
+    return read_sha != sha256
+
+
+CARRIED_UNVISITED = "carried_unvisited"
+CARRIED_UNVERIFIED = "carried_unverified"
+CARRIED_OTHER_PROFILE = "carried_other_profile"
+CARRY_FLAGS = (CARRIED_UNVISITED, CARRIED_UNVERIFIED, CARRIED_OTHER_PROFILE)
+RETAINED_METHOD = "retained"
+
+
+def retained_provenance(record: dict, kept: dict) -> dict:
+    """Where a carried record was read: its own retained provenance when it
+    was carried before (it travels with the record and is never restamped
+    by a later envelope -- M2 review 03, R3-01), else the kept reading's
+    envelope, with None for what that reading did not record (a legacy
+    reading: unknown, never invented)."""
+    own = record.get("retained")
+    if isinstance(own, dict) and "source_sha256" in own:
+        return dict(own)
+    return {"source_sha256": kept.get("read_sha256"), "parser_version": kept.get("parser_version"),
+            "profile": kept.get("profile"), "read_at": kept.get("read_at")}
+
+
+def carry_unvisited(kept: dict | None, coverage: dict | None, sha256: str | None, profile: str | None = None) -> tuple[list[dict], str | None]:
+    """The records of the kept reading that sit on pages the new, bounded
+    reading did not visit -- carried into it, flagged, rather than dropped
+    (M2 review 02, A2: a run that stopped at its page budget has not seen
+    page 13 and cannot call its record absent). A record whose page is not
+    known is carried too.
+
+    Each carried record keeps its own provenance (`retained`: the content
+    hash, parser, profile and time it was read under, None where unknown)
+    and its flags follow that provenance, not the new envelope (M2 review
+    03): `carried_unverified` when its source bytes are not the file's now
+    (or unknown), `carried_other_profile` when it was read under another
+    profile than `profile` (or an unknown one). A retained record's decision
+    is projected as its status only when both its bytes and its profile are
+    the current ones; otherwise the status is UR and the decision is kept
+    as a candidate (method "retained"), so a consumer never takes an
+    unverified or an evaluation-profile decision for a current one. A
+    record carried again later under matching bytes and profile gets its
+    decision back. Returns (records, note)."""
+    if kept is None or not coverage:
+        return [], None
+    unvisited = {int(p.get("page")) for p in (coverage.get("pages_skipped") or []) if p.get("page") is not None}
+    if not unvisited:
+        return [], None
+    carried = []
+    for record in kept.get("records") or []:
+        if not isinstance(record, dict):
+            continue
+        page = record.get("page")
+        if page is not None and page not in unvisited:
+            continue
+        retained = retained_provenance(record, kept)
+        unverified = retained["source_sha256"] is None or retained["source_sha256"] != sha256
+        other_profile = profile is not None and (retained["profile"] is None or retained["profile"] != profile)
+        flags = [f for f in (record.get("flags") or []) if f not in CARRY_FLAGS] + [CARRIED_UNVISITED]
+        if unverified:
+            flags.append(CARRIED_UNVERIFIED)
+        if other_profile:
+            flags.append(CARRIED_OTHER_PROFILE)
+        new = {**record, "flags": flags, "retained": retained}
+        candidates = [list(c) for c in (record.get("decision_candidates") or [])]
+        held = next((c for c in candidates if len(c) == 3 and c[2] == RETAINED_METHOD), None)
+        if unverified or other_profile:
+            status = record.get("status")
+            if status not in (None, "UR") and held is None:
+                why = f"retained from a {retained['profile'] or 'unknown-profile'} reading of " + ("other bytes" if unverified else "these bytes")
+                candidates.append([status, why, RETAINED_METHOD])
+            new["status"] = "UR"
+            new["decision_candidates"] = candidates
+        elif held is not None:
+            # its bytes and profile are the current ones again: the decision it carried is its status
+            new["status"] = held[0]
+            new["decision_candidates"] = [c for c in candidates if c is not held]
+        carried.append(new)
+    if not carried:
+        return [], None
+    pages = sorted({r.get("page") for r in carried if r.get("page") is not None})
+    unverified_n = sum(1 for r in carried if CARRIED_UNVERIFIED in r["flags"]); other_n = sum(1 for r in carried if CARRIED_OTHER_PROFILE in r["flags"])
+    note = (f"{len(carried)} record{'s' if len(carried) != 1 else ''} on page{'s' if len(pages) != 1 else ''} "
+            f"{', '.join(str(p) for p in pages) if pages else 'unknown'} not visited by this reading "
+            f"{'were' if len(carried) != 1 else 'was'} kept from the previous reading"
+            + (f"; {unverified_n} read from other or unknown bytes (unverified)" if unverified_n else "")
+            + (f"; {other_n} read under another or unknown extraction profile (decision held)" if other_n else "") + ".")
+    return carried, note
+
+
+def retained_summary(records: list[dict]) -> dict | None:
+    """What a reading retains from earlier readings, for consumers: how
+    many records, from which sources, and whether any is unverified or of
+    another profile (a reading with such records is not a current reading
+    of its profile: document_processing.parser_current)."""
+    kept = [r for r in records if isinstance(r, dict) and CARRIED_UNVISITED in (r.get("flags") or [])]
+    if not kept:
+        return None
+    return {"records": len(kept), "pages": sorted({r.get("page") for r in kept if r.get("page") is not None}),
+            "unverified": sum(1 for r in kept if CARRIED_UNVERIFIED in r["flags"]),
+            "other_profile": sum(1 for r in kept if CARRIED_OTHER_PROFILE in r["flags"]),
+            "sources": sorted({json.dumps({k: (r.get("retained") or {}).get(k) for k in ("source_sha256", "parser_version", "profile")}, sort_keys=True) for r in kept})}
+
+
+def _outcome_of(coverage: dict | None, notes) -> str:
+    """The reading's outcome: the page ledger's, or, for a reading that came
+    without one (`_read_pdf` from a cache), what its notes say."""
+    if coverage and coverage.get("outcome"):
+        return coverage["outcome"]
+    kinds = {document_control.describe_note(note)[0] for note in (notes or ())}
+    if "unavailable" in kinds:
+        return "unavailable"
+    if "failed" in kinds:
+        return "failed"
+    if "partial" in kinds and any(re.match(r"Could not OCR .*, page \d+\.$|Page \d+ of .* could not be read\.$", note) for note in (notes or ())):
+        return "partial"
+    return "complete"
+
+
 def process(db: Session, project: Project, row: ProjectDocument, path: Path, root: Path, *, run=None,
-            user_id: int | None, ocr: bool, read: tuple | None = None, evidence: dict | None = None) -> None:
+            user_id: int | None, ocr: bool, read: tuple | None = None, evidence: dict | None = None,
+            coverage: dict | None = None, observations: list | None = None) -> str:
     """Read what this document holds and keep it on its row: the
     document-control records (reference, revision, decision, title block)
     for every document, and for a material submittal form the model's
     reading as well. `read` is the PDF's (records, notes) when a reader
-    process already has them (`extract`). Raises on failure; the caller
-    keeps the old result."""
+    process already has them (`extract`), `coverage` the page ledger of
+    that reading and `observations` what it saw but did not make a record
+    of. Returns the reading's outcome.
+
+    Only a complete reading (every page visited, or bounded by the
+    reader's own page scope) replaces the row's reading. A failed or
+    unavailable attempt, or a partial one (a page or its OCR failed),
+    leaves the last complete reading -- its records, its parser version,
+    the content hash it was read from, its time -- where it was, and is
+    recorded beside it as `extracted["attempt"]` with its own outcome,
+    notes, error, coverage and, for a partial reading, its records: what
+    the next processing run retries. An attempt over a changed file marks
+    the kept reading `stale`: it describes the bytes it was read from, not
+    the new ones. Raises on a reader failure the ledger did not catch; the
+    caller keeps the old result.
+    """
     stat = os.stat(document_control._os_path(path))
     if row.role == ROLE_TRANSMITTAL:
         from app.services.word_text import read_word_text
@@ -339,30 +499,115 @@ def process(db: Session, project: Project, row: ProjectDocument, path: Path, roo
         records = transmittals.read_transmittal(read_word_text(path), relative,
                                                 datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc))
         notes = ()
+        coverage = coverage or {"outcome": "complete", "pages_total": 1, "pages_visited": [1], "pages_skipped": [],
+                                "pages_failed": [], "ocr_failed_pages": [], "stop_reason": None,
+                                "parser_version": document_control.PARSER_VERSION}
+    elif read is not None:
+        records, notes = read
     else:
-        records, notes = read if read is not None else document_control._read_pdf(
-            str(path), stat.st_mtime_ns, stat.st_size, ocr, row.sha256)
-    extracted: dict = {
-        "records": [_record_dict(document_control.replace(r, path=path.relative_to(root).as_posix()), root) for r in records],
+        reading = document_control.read_pdf_full(str(path), stat.st_mtime_ns, stat.st_size, ocr, row.sha256)
+        records, notes, coverage, observations = reading.records, reading.notes, reading.coverage, reading.observations
+    outcome = _outcome_of(coverage, notes)
+    modified = datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc)
+    previous = row.extracted if isinstance(row.extracted, dict) else None
+    kept = reading_to_keep(previous)
+    profile = (document_control.extraction_profile(bool(coverage.get("promoted"))) if coverage and "promoted" in coverage
+               else document_control.extraction_profile())
+    stored_records = [_record_dict(document_control.replace(r, path=path.relative_to(root).as_posix()), root) for r in records]
+    if outcome not in COMPLETE_OUTCOMES:
+        attempt = {"at": utc_now().isoformat(), "outcome": outcome, "sha256": row.sha256, "notes": list(notes),
+                   "parser_version": document_control.PARSER_VERSION, "profile": profile, "coverage": coverage,
+                   "error": (coverage or {}).get("error"), "observations": list(observations or [])}
+        if outcome == "partial":
+            attempt["records"] = stored_records
+        # A reading to keep: the last complete one (modern or legacy), or the
+        # partial one that stands in for it -- with an earlier attempt
+        # already beside it or not. Its records, its form evidence, its
+        # provenance (or the absence of one) stay exactly as they were.
+        if kept is not None:
+            extracted = dict(kept)
+            extracted["attempt"] = attempt
+            extracted["notes"] = list(notes)
+            extracted["stale"] = staleness(kept, row.sha256)
+            if extracted["stale"] is None:
+                extracted["source_identity"] = "unknown"   # a legacy reading: no hash of what it was read from
+            else:
+                extracted.pop("source_identity", None)
+        elif outcome == "partial":
+            # No complete reading to keep: the partial one is what there is,
+            # shown as such (its ledger says which pages failed) and retried
+            # next run; never reused by hash as a complete reading.
+            extracted = {"records": stored_records, "notes": list(notes), "parser_version": document_control.PARSER_VERSION,
+                         "profile": profile, "read_sha256": row.sha256, "read_at": attempt["at"], "coverage": coverage,
+                         "observations": list(observations or []), "attempt": {k: v for k, v in attempt.items() if k != "records"}}
+            if previous is not None and "form" in previous:
+                extracted["form"] = previous["form"]
+            if evidence is not None:
+                extracted["evidence"] = evidence
+            if records:
+                first = records[0]
+                row.reference, row.revision, row.status = first.reference, first.revision, first.status
+                row.system_code = row.system_code or first.system_code
+            row.last_processed_at = utc_now()
+        else:
+            # No reading at all: the row shows the attempt and nothing
+            # stands in for a reading (no parser version: read again next time).
+            extracted = {"records": [], "notes": list(notes), "attempt": attempt, "read_sha256": None}
+            if evidence is not None:
+                extracted["evidence"] = evidence
+        row.extracted = extracted
+        row.index_version = INDEX_VERSION
+        return outcome
+    # A bounded reading (stopped at the reader's page budget) replaces the
+    # kept one only with what it saw: the kept reading's records on the
+    # pages it did not visit are carried, flagged, and said so in a note.
+    carried, carried_note = ([], None) if outcome != "bounded" else carry_unvisited(kept, coverage, row.sha256, profile)
+    if carried:
+        coverage = {**coverage, "carried_from_previous": sorted({r.get("page") for r in carried if r.get("page") is not None})}
+        notes = (*notes, carried_note)
+    extracted = {
+        "records": stored_records + carried,
         "notes": list(notes),
-        # The parser the records were read with (document_control.PARSER_VERSION):
-        # a reading under an earlier one is read again when the row is next
-        # processed, whatever the file's hash.
+        # The parser the records were read with (document_control.PARSER_VERSION)
+        # and the extraction profile (document_control.extraction_profile): a
+        # reading under an earlier parser, or under the other profile, is read
+        # again when the row is next processed, whatever the file's hash.
         "parser_version": document_control.PARSER_VERSION,
+        "profile": profile,
+        "read_sha256": row.sha256,
+        "read_at": utc_now().isoformat(),
+        "coverage": coverage,
+        "observations": list(observations or []),
     }
     if evidence is not None:
         extracted["evidence"] = evidence
+    retained = retained_summary(extracted["records"])
+    if retained is not None:
+        extracted["retained"] = retained
+    if previous is not None and "form" in previous:
+        # The model's reading of the form is evidence of its own (M2 review
+        # 02, A): it travels with the row until the model reads the form again.
+        extracted["form"] = previous["form"]
     if records:
         first = records[0]
         row.reference, row.revision, row.status = first.reference, first.revision, first.status
         row.system_code = row.system_code or first.system_code
+    elif carried:
+        first_carried = carried[0]
+        row.reference, row.revision, row.status = first_carried.get("reference"), first_carried.get("revision"), first_carried.get("status")
     if row.role == ROLE_SUBMITTAL and run is not None:
         reading = read_form_or_raise(db, run, path, row.sha256 or "", user_id=user_id)
-        apply_form_reading(db, project, row, path, root, reading, extracted=extracted,
-                           modified=datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc))
+        apply_form_reading(db, project, row, path, root, reading, extracted=extracted, modified=modified)
     row.extracted = extracted
     row.last_processed_at = utc_now()
     row.index_version = INDEX_VERSION
+    return outcome
+
+
+def incomplete_attempt(row: ProjectDocument) -> dict | None:
+    """The row's last attempt that did not complete, if the last attempt did not."""
+    attempt = (row.extracted or {}).get("attempt") if isinstance(row.extracted, dict) else None
+    return attempt if isinstance(attempt, dict) else None
 
 
 def read_form_or_raise(db: Session, run, path: Path, sha256: str, *, user_id: int | None) -> dict:
@@ -447,6 +692,8 @@ def extract(path: str, relative: str, sha256: str | None, ocr: bool) -> tuple[st
     modified = datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc)
     document_control.counted("read_pdf")
     page_texts: dict[int, str] = {}
+    coverage: dict | None = None
+    observations: list = []
     try:
         pdf = document_control._open_pdf(target)
     except Exception as exc:  # noqa: BLE001 -- unreadable or online-only: a document, with the note it always got
@@ -457,6 +704,10 @@ def extract(path: str, relative: str, sha256: str | None, ocr: bool) -> tuple[st
             role = classify_text(None, target, relative)
         records, notes = (), document_control.open_failure_notes(target, open_error)
         evidence = None
+        coverage = {"outcome": "unavailable" if document_control.NOT_DOWNLOADED in notes[0] else "failed",
+                    "pages_total": None, "pages_visited": [], "pages_skipped": [], "pages_failed": [], "ocr_failed_pages": [],
+                    "stop_reason": "open_failed", "error": f"{type(open_error).__name__}: {open_error}"[:300],
+                    "parser_version": document_control.PARSER_VERSION}
     else:
         # Opened. From here a failure is the reader's own -- a defect on a
         # page, a crash -- and it is raised, not written up as "unreadable":
@@ -470,10 +721,16 @@ def extract(path: str, relative: str, sha256: str | None, ocr: bool) -> tuple[st
             except OSError as exc:
                 with clock.stage("classification"):
                     role = classify_text(None, target, relative)
-                return role, (), document_control.open_failure_notes(target, exc), {**_timing(clock, started), "evidence": None}
+                notes = document_control.open_failure_notes(target, exc)
+                return role, (), notes, {**_timing(clock, started), "evidence": None, "observations": [],
+                                         "coverage": {"outcome": "unavailable" if document_control.NOT_DOWNLOADED in notes[0] else "failed",
+                                                      "pages_total": pdf.page_count, "pages_visited": [], "pages_skipped": [], "pages_failed": [],
+                                                      "ocr_failed_pages": [], "stop_reason": "open_failed", "error": f"{type(exc).__name__}: {exc}"[:300],
+                                                      "parser_version": document_control.PARSER_VERSION}}
             with clock.stage("classification"):
                 role = classify_text(first, target, relative)
-            records, notes = document_control.read_open_pdf(pdf, path, modified, ocr, sha256, page_texts=page_texts)
+            reading = document_control.read_open_pdf(pdf, path, modified, ocr, sha256, page_texts=page_texts, full=True)
+            records, notes, coverage, observations = reading.records, reading.notes, reading.coverage, reading.observations
             # What the first pages say the document is, beside the records
             # (app.services.content_evidence): text already extracted, OCR
             # already cached; nothing rendered here. Carried in the timing
@@ -487,6 +744,8 @@ def extract(path: str, relative: str, sha256: str | None, ocr: bool) -> tuple[st
                 evidence = None
     timing = _timing(clock, started)
     timing["evidence"] = evidence
+    timing["coverage"] = coverage
+    timing["observations"] = observations
     return role, records, notes, timing
 
 
@@ -682,9 +941,10 @@ def _file_result(row: ProjectDocument) -> str:
     """How one document's processing came out, as the telemetry counts it:
     failed, unavailable (online-only in OneDrive), partial (read, not all
     of it) or processed."""
+    attempt = incomplete_attempt(row)
     if row.state == FAILED:
-        return "failed"
-    kinds = {document_control.describe_note(note)[0] for note in (row.extracted or {}).get("notes") or []}
+        return "unavailable" if attempt and attempt.get("outcome") == "unavailable" else "failed"
+    kinds = {document_control.describe_note(note)[0] for note in ((attempt or {}).get("notes") or (row.extracted or {}).get("notes") or [])}
     if "unavailable" in kinds:
         return "unavailable"
     if "failed" in kinds:
@@ -1066,6 +1326,9 @@ FILE_STATUSES = ("processed", "unchanged", "pending", "partial", "unavailable", 
 
 
 def _was_unavailable(row: ProjectDocument) -> bool:
+    attempt = incomplete_attempt(row)
+    if attempt is not None:
+        return True     # the last attempt did not complete: nothing of it is reused as a reading
     return any(document_control.describe_note(note)[0] == "unavailable"
                for note in (row.extracted or {}).get("notes") or [])
 
@@ -1088,10 +1351,13 @@ def file_status(row: ProjectDocument, window: tuple | None) -> tuple[str, str | 
     if row.state in (PENDING, PROCESSING):
         return "pending", ("Being read now." if row.state == PROCESSING
                            else "Found by the file sync; waiting for document processing.")
+    attempt = incomplete_attempt(row)
     if row.state == FAILED:
-        return "failed", (row.error or "The file could not be processed.")[:500]
+        if attempt and attempt.get("outcome") == "unavailable":
+            return "unavailable", "File is online-only in OneDrive and could not be processed."
+        return "failed", (row.error or (attempt or {}).get("error") or "The file could not be processed.")[:500]
     found = {}
-    for note in (row.extracted or {}).get("notes") or []:
+    for note in ((attempt or {}).get("notes") or (row.extracted or {}).get("notes") or []):
         kind, reason = document_control.describe_note(note)
         found.setdefault(kind, reason)
     for kind in ("failed", "unavailable", "partial"):

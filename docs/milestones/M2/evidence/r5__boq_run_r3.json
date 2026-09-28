@@ -1,0 +1,3242 @@
+{
+ "run_at": "2026-09-28T08:16:31+00:00",
+ "reader": "app.services.design_sheet_extractor.extract_design_sheet (deterministic OCR path)",
+ "model": {
+  "ai_enabled": false,
+  "note": "no model; AI disabled by settings before import"
+ },
+ "tesseract_cmd": "C:\\Program Files\\Tesseract-OCR\\tesseract.exe",
+ "render_dpi": 300,
+ "golden_fixture": "backend/tests/fixtures/boq_ep30784_golden_v1.json",
+ "systems": {
+  "FAS": {
+   "doc_id": 3,
+   "relative_path": "01- EP-30784 Scan\\EP-30784 FAS Design.pdf",
+   "sha256": "1eb94a160ad34d65c662a9ec4fb7994d7b7d21d79db904990d5bf9a3d31a5899",
+   "seconds": 15.8,
+   "pages": [
+    {
+     "page": 1,
+     "of": 2,
+     "started_s": 0.0
+    },
+    {
+     "page": 2,
+     "of": 2,
+     "started_s": 7.72
+    }
+   ],
+   "coverage": [
+    {
+     "page": 1,
+     "detected": true,
+     "processed": true,
+     "regions": [
+      {
+       "kind": "table",
+       "top": 518,
+       "bottom": 3309,
+       "status": "processed",
+       "rows_accepted": 42,
+       "rows_dropped": 2,
+       "reason": null
+      }
+     ],
+     "reason": null
+    },
+    {
+     "page": 2,
+     "detected": true,
+     "processed": true,
+     "regions": [
+      {
+       "kind": "table",
+       "top": 124,
+       "bottom": 513,
+       "status": "processed",
+       "rows_accepted": 5,
+       "rows_dropped": 0,
+       "reason": null
+      },
+      {
+       "kind": "band",
+       "top": 513,
+       "bottom": 559,
+       "status": "processed",
+       "rows_accepted": 1,
+       "rows_dropped": 0,
+       "reason": "inked band between two tables where the column rules break: read as rows"
+      },
+      {
+       "kind": "table",
+       "top": 559,
+       "bottom": 1804,
+       "status": "processed",
+       "rows_accepted": 26,
+       "rows_dropped": 0,
+       "reason": null
+      }
+     ],
+     "reason": null
+    }
+   ],
+   "state": "completed",
+   "reader": "ocr",
+   "failure": null,
+   "notes": [
+    "page 2: a band of 46 px between two tables (y 513-559) was read as 1 row(s)"
+   ],
+   "buildings": [],
+   "accounting": {
+    "golden_rows": 74,
+    "lines_read": 69,
+    "matched": 69,
+    "missing": 5,
+    "extra": 0,
+    "issues": 6,
+    "issues_by_code": {
+     "QUANTITY_OR_UNIT_PARSE_FAILURE": 6
+    },
+    "outcome": "NEEDS_INTERPRETATION"
+   },
+   "lines": [
+    {
+     "part_number": null,
+     "description": "EST4 fire alarm control panel complete with power supply/charger, sealed lead acid maintenance-free rechargeable batteries to power the system for 24 hours standby and 30 minutes alarm condition. Includes:",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 92.8,
+     "quantity_confidence": 90.0,
+     "row_id": null,
+     "region": [
+      174,
+      698,
+      2330,
+      742
+     ]
+    },
+    {
+     "part_number": "4-CPU",
+     "description": "Central Processor Module",
+     "quantity": "2",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 74.3,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      882,
+      2330,
+      926
+     ]
+    },
+    {
+     "part_number": "4-PPS/M",
+     "description": "Primary Power Supply, 230 V",
+     "quantity": "2",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 85.9,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      926,
+      2330,
+      970
+     ]
+    },
+    {
+     "part_number": "4-LCDLE",
+     "description": "4-LCD w/ cable for 3-CABSB, 7B, 14B, 21B, 4-8ANN, 1",
+     "quantity": "2",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 90.2,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      972,
+      2330,
+      1016
+     ]
+    },
+    {
+     "part_number": "4-FWAL4",
+     "description": "Firewall W/DACT/ EMAIL/DIAG \u2014 Provides secure cont",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 84.6,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1019,
+      2330,
+      1063
+     ]
+    },
+    {
+     "part_number": "4-BRKT-CB",
+     "description": "Mounting Bracket provides space for mounting any one o}",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 86.0,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1065,
+      2330,
+      1109
+     ]
+    },
+    {
+     "part_number": "4-NET-TP",
+     "description": "SFP Network Controller, 2Mbps Shared TX/RX, Twisted",
+     "quantity": "2",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 81.9,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1111,
+      2330,
+      1155
+     ]
+    },
+    {
+     "part_number": "4-USBHUB",
+     "description": "The 4-USBHUB Multi-port USB Hub module mounts in",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 84.1,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1157,
+      2330,
+      1201
+     ]
+    },
+    {
+     "part_number": "4-COMREL",
+     "description": "Common Relay Module",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 77.9,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1203,
+      2330,
+      1247
+     ]
+    },
+    {
+     "part_number": "3-SDDC2",
+     "description": "Dual loop SIGA Data Controller",
+     "quantity": "8",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 91.3,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1249,
+      2330,
+      1293
+     ]
+    },
+    {
+     "part_number": "3-ZA20A",
+     "description": "Zoned Amplifier, 20 Watt, Class A/B. 20 Watt selectable",
+     "quantity": "2",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 91.8,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1294,
+      2330,
+      1338
+     ]
+    },
+    {
+     "part_number": "4-AUDTELS",
+     "description": "Audio and Telephone Interface/Riser Module",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 87.9,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1340,
+      2330,
+      1384
+     ]
+    },
+    {
+     "part_number": "4-MIC",
+     "description": "Paging Microphone",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 76.7,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1386,
+      2330,
+      1430
+     ]
+    },
+    {
+     "part_number": "4-FT",
+     "description": "Firefighter Master Handset",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 88.3,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1432,
+      2330,
+      1476
+     ]
+    },
+    {
+     "part_number": "3-CHAS7",
+     "description": "Seven Space Chassis with Rails",
+     "quantity": "3",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 87.4,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1479,
+      2330,
+      1523
+     ]
+    },
+    {
+     "part_number": "4-FIL",
+     "description": "Blank Filler Plate",
+     "quantity": "16",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 92.8,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1524,
+      2330,
+      1568
+     ]
+    },
+    {
+     "part_number": "3-CAB21B",
+     "description": "White Backbox with 21 x LRM spaces, no door",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 90.1,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1570,
+      2330,
+      1614
+     ]
+    },
+    {
+     "part_number": "4-CAB24DL",
+     "description": "Door Assembly \u2014 Bronze outer door and black inner door",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 90.6,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1617,
+      2330,
+      1661
+     ]
+    },
+    {
+     "part_number": "BC-1",
+     "description": "Battery cabinet",
+     "quantity": "1",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 57.7,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1662,
+      2330,
+      1706
+     ]
+    },
+    {
+     "part_number": "12V65A",
+     "description": "Battery, 12 V @ 65 AH",
+     "quantity": "2",
+     "group": "EST4 Main Fire Alarm Control Panel",
+     "page": 1,
+     "confidence": 71.1,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      1708,
+      2330,
+      1752
+     ]
+    },
+    {
+     "part_number": null,
+     "description": "EST4 fire alarm control panel complete with power supply/charger, sealed lead acid maintenance-free rechargeable batteries to power the system for 24 hours standby and 30 minutes alarm condition. Includes:",
+     "quantity": "2",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 95.8,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      174,
+      1846,
+      2330,
+      1890
+     ]
+    },
+    {
+     "part_number": "4-CPU",
+     "description": "Central Processor Module",
+     "quantity": "1",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 74.1,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2030,
+      2330,
+      2074
+     ]
+    },
+    {
+     "part_number": "4-PPS/M",
+     "description": "Primary Power Supply, 230 V",
+     "quantity": "1",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 87.8,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2077,
+      2330,
+      2121
+     ]
+    },
+    {
+     "part_number": "4-LCDLE",
+     "description": "4-LCD w/ cable for 3-CABS5B, 7B, 14B, 21B, 4-8ANN, 1",
+     "quantity": "1",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 89.8,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2121,
+      2330,
+      2165
+     ]
+    },
+    {
+     "part_number": "4-NET-TP",
+     "description": "SFP Network Controller, 2Mbps Shared TX/RX, Twisted",
+     "quantity": "2",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 84.4,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2167,
+      2330,
+      2211
+     ]
+    },
+    {
+     "part_number": "3-SDDC2",
+     "description": "Dual loop SIGA Data Controller",
+     "quantity": "4",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 90.3,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2213,
+      2330,
+      2257
+     ]
+    },
+    {
+     "part_number": "3-CHAS7",
+     "description": "Seven Space Chassis with Rails",
+     "quantity": "1",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 83.6,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2259,
+      2330,
+      2303
+     ]
+    },
+    {
+     "part_number": "4-FIL",
+     "description": "Blank Filler Plate",
+     "quantity": "14",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 93.3,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2305,
+      2330,
+      2349
+     ]
+    },
+    {
+     "part_number": "3-CAB7B",
+     "description": "Wallbox with 1 Chassis Space",
+     "quantity": "1",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 89.0,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2351,
+      2330,
+      2395
+     ]
+    },
+    {
+     "part_number": "BC-1",
+     "description": "Battery cabinet",
+     "quantity": "1",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 85.6,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2443,
+      2330,
+      2487
+     ]
+    },
+    {
+     "part_number": "12V65A",
+     "description": "Battery, 12 V @65 AH ;",
+     "quantity": "2",
+     "group": "EST4 Fire Alarm Panel",
+     "page": 1,
+     "confidence": 78.9,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2489,
+      2330,
+      2533
+     ]
+    },
+    {
+     "part_number": null,
+     "description": "Remote audio closet cabinet wallbox, red. Supports 2 x SIGA amplifiers, and one APS. Components are:",
+     "quantity": "18",
+     "group": "Amplifier (50 Watt)",
+     "page": 1,
+     "confidence": 95.5,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      174,
+      2626,
+      2330,
+      2670
+     ]
+    },
+    {
+     "part_number": "APS6A/230",
+     "description": "Auxiliary power supply, 6.5 Amp, 230V",
+     "quantity": "1",
+     "group": "Amplifier (50 Watt)",
+     "page": 1,
+     "confidence": 88.6,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2765,
+      2330,
+      2809
+     ]
+    },
+    {
+     "part_number": "SIGA-CT2",
+     "description": "Dual Input Module",
+     "quantity": "1",
+     "group": "Amplifier (50 Watt)",
+     "page": 1,
+     "confidence": 85.2,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2809,
+      2330,
+      2853
+     ]
+    },
+    {
+     "part_number": "12V10A",
+     "description": "10Ah Sealed Lead Acid Battery - 12 Vdc",
+     "quantity": "2",
+     "group": "Amplifier (50 Watt)",
+     "page": 1,
+     "confidence": 89.5,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      2854,
+      2330,
+      2898
+     ]
+    },
+    {
+     "part_number": null,
+     "description": "Remote power supply cabinet wallbox, red. Supports one BPS. Components are:",
+     "quantity": "8",
+     "group": "Booster Power Supply",
+     "page": 1,
+     "confidence": 94.5,
+     "quantity_confidence": 94.0,
+     "row_id": null,
+     "region": [
+      174,
+      2993,
+      2330,
+      3037
+     ]
+    },
+    {
+     "part_number": "BPS10A/230",
+     "description": "10 Amp Booster Power Supply, 220V",
+     "quantity": "1",
+     "group": "Booster Power Supply",
+     "page": 1,
+     "confidence": 90.4,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      3084,
+      2330,
+      3128
+     ]
+    },
+    {
+     "part_number": "SIGA-CT2",
+     "description": "Dual Input Module",
+     "quantity": "1",
+     "group": "Booster Power Supply",
+     "page": 1,
+     "confidence": 86.2,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      3130,
+      2330,
+      3174
+     ]
+    },
+    {
+     "part_number": "12V10A",
+     "description": "10Ah Sealed Lead Acid Battery - 12 Vde",
+     "quantity": "2",
+     "group": "Booster Power Supply",
+     "page": 1,
+     "confidence": 91.0,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      174,
+      3176,
+      2330,
+      3220
+     ]
+    },
+    {
+     "part_number": "6538-G5",
+     "description": "Call for Assistance Kit",
+     "quantity": "4",
+     "group": "Booster Power Supply",
+     "page": 1,
+     "confidence": 93.0,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      174,
+      3246,
+      2330,
+      3290
+     ]
+    },
+    {
+     "part_number": null,
+     "description": "Super Duct Detector",
+     "quantity": "4",
+     "group": "Super Duct",
+     "page": 2,
+     "confidence": 96.0,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      188,
+      2329,
+      232
+     ]
+    },
+    {
+     "part_number": "SIGA-SD",
+     "description": "SuperDuct",
+     "quantity": "1",
+     "group": "Super Duct",
+     "page": 2,
+     "confidence": 79.7,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      173,
+      227,
+      2329,
+      271
+     ]
+    },
+    {
+     "part_number": "SD-T42",
+     "description": "Duct Detector Accessory, 42 in. Sampling Tube",
+     "quantity": "1",
+     "group": "Super Duct",
+     "page": 2,
+     "confidence": 88.3,
+     "quantity_confidence": null,
+     "row_id": null,
+     "region": [
+      173,
+      267,
+      2329,
+      311
+     ]
+    },
+    {
+     "part_number": "SIGA-OSD-FCN",
+     "description": "Intelligent Photoelectric Smoke Detector",
+     "quantity": "2396",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 94.3,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      415,
+      2329,
+      459
+     ]
+    },
+    {
+     "part_number": "SIGA-HRD-FCN",
+     "description": "Intelligent Fixed Temperature / Rate-of-Rise Heat Detector",
+     "quantity": "281",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 92.7,
+     "quantity_confidence": 94.0,
+     "row_id": null,
+     "region": [
+      173,
+      467,
+      2329,
+      511
+     ]
+    },
+    {
+     "part_number": "SIGA-OSHD-FC",
+     "description": "\u2018Intelligent 3D Multisensor Detector - Photoelectric, Heat",
+     "quantity": "525",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 86.6,
+     "quantity_confidence": 91.0,
+     "row_id": null,
+     "region": [
+      173,
+      514,
+      2329,
+      558
+     ]
+    },
+    {
+     "part_number": "SIGA-SB",
+     "description": "Signature Detector Base",
+     "quantity": "2206",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 94.0,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      562,
+      2329,
+      606
+     ]
+    },
+    {
+     "part_number": "SIGA-IB",
+     "description": "Detector Base with Isolator",
+     "quantity": "250",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 93.7,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      608,
+      2329,
+      652
+     ]
+    },
+    {
+     "part_number": "SIGA-LPS",
+     "description": "Audible (Sounder) Base",
+     "quantity": "746",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 94.4,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      654,
+      2329,
+      698
+     ]
+    },
+    {
+     "part_number": "SIGA-278",
+     "description": "\u2018Manual Pull Station - Double Action, 1-stage",
+     "quantity": "150",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 83.1,
+     "quantity_confidence": 85.5,
+     "row_id": null,
+     "region": [
+      173,
+      701,
+      2329,
+      745
+     ]
+    },
+    {
+     "part_number": "STI-1230",
+     "description": "Stopper IT without Horn - for Surface Stations",
+     "quantity": "29",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 93.8,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      749,
+      2329,
+      793
+     ]
+    },
+    {
+     "part_number": "STI-3002",
+     "description": "Weatherresistant Gasket",
+     "quantity": "29",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 93.2,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      796,
+      2329,
+      840
+     ]
+    },
+    {
+     "part_number": "G4SRN",
+     "description": "Wall Speaker, Red, No Marking",
+     "quantity": "142",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 94.1,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      842,
+      2329,
+      886
+     ]
+    },
+    {
+     "part_number": "EST-S186C",
+     "description": "Ceiling speaker, ABS fire dome (diameter 17,5 cm)",
+     "quantity": "470",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 94.3,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      890,
+      2329,
+      934
+     ]
+    },
+    {
+     "part_number": "757-1A-T",
+     "description": "Temporal Horn, Self-synchronized - 24 Vdc, RED",
+     "quantity": "4",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 95.1,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      938,
+      2329,
+      982
+     ]
+    },
+    {
+     "part_number": "6833-4",
+     "description": "Four-state Portable Telephone Handset Receptacle",
+     "quantity": "220",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 95.7,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1077,
+      2329,
+      1121
+     ]
+    },
+    {
+     "part_number": "TCS-6",
+     "description": "Storage Enclosure for 6830 handsets (6)",
+     "quantity": "1",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 94.0,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1124,
+      2329,
+      1168
+     ]
+    },
+    {
+     "part_number": "6830-3",
+     "description": "Portabie (Plug-in) lelephone Handset - BLACK",
+     "quantity": "4",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 91.9,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1170,
+      2329,
+      1214
+     ]
+    },
+    {
+     "part_number": "SIGA-CT2",
+     "description": "Dual Input Module",
+     "quantity": "119",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 94.7,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1217,
+      2329,
+      1261
+     ]
+    },
+    {
+     "part_number": "SIGA-CR",
+     "description": "Control Relay Module",
+     "quantity": "26",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 94.3,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1264,
+      2329,
+      1308
+     ]
+    },
+    {
+     "part_number": "SIGA-IO",
+     "description": "Universal Input/Output Module - input with programmable outpu",
+     "quantity": "420",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 91.4,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1311,
+      2329,
+      1355
+     ]
+    },
+    {
+     "part_number": "SIGA-UM",
+     "description": "Universal Class A/B Module",
+     "quantity": "20",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 93.8,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1358,
+      2329,
+      1402
+     ]
+    },
+    {
+     "part_number": "SIGA-CC1",
+     "description": "Single Input (Riser) Module",
+     "quantity": "6",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 93.4,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1406,
+      2329,
+      1450
+     ]
+    },
+    {
+     "part_number": "SIGA-CC2A",
+     "description": "Dual Input (Riser) Module-Class A",
+     "quantity": "80",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 93.1,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1451,
+      2329,
+      1495
+     ]
+    },
+    {
+     "part_number": "TP434",
+     "description": "4\"x4\" GI Concealed Back Box Double Gange",
+     "quantity": "142",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 91.9,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1546,
+      2329,
+      1590
+     ]
+    },
+    {
+     "part_number": "27193-11",
+     "description": "Surface Mount Box - Indoor, RED, 1-gang",
+     "quantity": "565",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 92.9,
+     "quantity_confidence": 92.5,
+     "row_id": null,
+     "region": [
+      173,
+      1592,
+      2329,
+      1636
+     ]
+    },
+    {
+     "part_number": "27193-21",
+     "description": "Surface Mount Box - Indoor, RED, 2-gang",
+     "quantity": "106",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 93.7,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1639,
+      2329,
+      1683
+     ]
+    },
+    {
+     "part_number": "757A-WB",
+     "description": "Weatherproof Box, Cast - RED",
+     "quantity": "60",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 94.2,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1688,
+      2329,
+      1732
+     ]
+    },
+    {
+     "part_number": "GRSW-10",
+     "description": "Universal Wiring Plate - 10Packs",
+     "quantity": "15",
+     "group": "Field Devices",
+     "page": 2,
+     "confidence": 92.9,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      173,
+      1733,
+      2329,
+      1777
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "code": "QUANTITY_OR_UNIT_PARSE_FAILURE",
+     "page": 1,
+     "target": "boq_line:1:1",
+     "detail": {
+      "description": "plated Pire Alarm, VOICe Pvacuation and rire Lelepnone system",
+      "catalog_no": "KEOLAUON LOT LI",
+      "group_heading": null,
+      "raw_quantity": "| OUVDICLL",
+      "quantity_parse": {
+       "kind": "equipment_count",
+       "raw": "| OUVDICLL",
+       "value": null,
+       "status": "rejected",
+       "rule": "not a quantity",
+       "unit": null,
+       "rules_version": "values-2026-09-15.1"
+      },
+      "alternates": [
+       {
+        "pass": "binarised, single line, digits",
+        "text": "",
+        "value": null,
+        "status": "empty"
+       },
+       {
+        "pass": "binarised, single character",
+        "text": "Subject",
+        "value": null,
+        "status": "rejected"
+       },
+       {
+        "pass": "greyscale, single line, digits or words",
+        "text": "Set",
+        "value": "Set",
+        "status": "ok"
+       }
+      ],
+      "building": null
+     }
+    },
+    {
+     "code": "QUANTITY_OR_UNIT_PARSE_FAILURE",
+     "page": 1,
+     "target": "boq_line:1:3",
+     "detail": {
+      "description": "Door Assembly \u2014 Bronze, comes with 16 User Interface sr",
+      "catalog_no": "4-CABI6D",
+      "group_heading": "EST4 Fire Alarm Panel",
+      "raw_quantity": null,
+      "quantity_parse": {
+       "kind": "equipment_count",
+       "raw": "1",
+       "value": "1",
+       "status": "ok",
+       "rule": "digits",
+       "unit": null,
+       "rules_version": "values-2026-09-15.1"
+      },
+      "quantity": "1",
+      "alternates": null,
+      "building": null,
+      "reader": "ocr",
+      "reason_code": "PART_NUMBER_CONFLICT",
+      "reason": "the column read the part number '4-CABI6D' at 56%; independent passes on the cell read 4-CAB16D, 4-CABI6D (an independent pass read another part number (a near miss of the strip's))",
+      "catalog_alternates": [
+       {
+        "pass": "greyscale, single line, part characters",
+        "text": "4-CABI6D",
+        "value": "4-CABI6D"
+       },
+       {
+        "pass": "binarised, single line, part characters",
+        "text": "4-CAB16D",
+        "value": "4-CAB16D"
+       }
+      ],
+      "catalog_check": {
+       "confirmed": false,
+       "multiline": false,
+       "reason": "an independent pass read another part number (a near miss of the strip's)"
+      },
+      "catalog_cell": [
+       380,
+       2397,
+       690,
+       2441
+      ],
+      "bbox": [
+       174,
+       2397,
+       2330,
+       2441
+      ]
+     }
+    },
+    {
+     "code": "QUANTITY_OR_UNIT_PARSE_FAILURE",
+     "page": 1,
+     "target": "boq_line:1:4",
+     "detail": {
+      "description": "Intelligent Audio Amplifier - 50 Watt",
+      "catalog_no": "SIGA-AAS0",
+      "group_heading": "Amplifier (50 Watt)",
+      "raw_quantity": null,
+      "quantity_parse": {
+       "kind": "equipment_count",
+       "raw": "2",
+       "value": "2",
+       "status": "ok",
+       "rule": "digits",
+       "unit": null,
+       "rules_version": "values-2026-09-15.1"
+      },
+      "quantity": "2",
+      "alternates": null,
+      "building": null,
+      "reader": "ocr",
+      "reason_code": "PART_NUMBER_CONFLICT",
+      "reason": "the column read the part number 'SIGA-AAS0' at 65%; independent passes on the cell read SIGA-AASO (an independent pass read another part number (a near miss of the strip's))",
+      "catalog_alternates": [
+       {
+        "pass": "greyscale, single line, part characters",
+        "text": "SIGA-AASO-",
+        "value": "SIGA-AASO"
+       },
+       {
+        "pass": "binarised, single line, part characters",
+        "text": "SIGA-AASO",
+        "value": "SIGA-AASO"
+       }
+      ],
+      "catalog_check": {
+       "confirmed": false,
+       "multiline": false,
+       "reason": "an independent pass read another part number (a near miss of the strip's)"
+      },
+      "catalog_cell": [
+       380,
+       2718,
+       690,
+       2762
+      ],
+      "bbox": [
+       174,
+       2718,
+       2330,
+       2762
+      ]
+     }
+    },
+    {
+     "code": "QUANTITY_OR_UNIT_PARSE_FAILURE",
+     "page": 2,
+     "target": "boq_line:2:5",
+     "detail": {
+      "description": "15/75 cd Temporal Horn/Strobe - 24 Vdc, RED",
+      "catalog_no": "WSTIA-T",
+      "group_heading": "Field Devices",
+      "raw_quantity": "56",
+      "quantity_parse": {
+       "kind": "equipment_count",
+       "raw": "56",
+       "value": "56",
+       "status": "ok",
+       "rule": "digits",
+       "unit": null,
+       "rules_version": "values-2026-09-15.1"
+      },
+      "quantity": "56",
+      "alternates": null,
+      "building": null,
+      "reader": "ocr",
+      "reason_code": "PART_NUMBER_CONFLICT",
+      "reason": "the column read the part number 'WSTIA-T' at 27%; independent passes on the cell read 757-7A-T (an independent pass read another part number)",
+      "catalog_alternates": [
+       {
+        "pass": "greyscale, single line, part characters",
+        "text": "757-7A-T",
+        "value": "757-7A-T"
+       },
+       {
+        "pass": "binarised, single line, part characters",
+        "text": "757-7A-T",
+        "value": "757-7A-T"
+       }
+      ],
+      "catalog_check": {
+       "confirmed": false,
+       "multiline": false,
+       "reason": "an independent pass read another part number"
+      },
+      "catalog_cell": [
+       378,
+       982,
+       689,
+       1026
+      ],
+      "bbox": [
+       173,
+       982,
+       2329,
+       1026
+      ]
+     }
+    },
+    {
+     "code": "QUANTITY_OR_UNIT_PARSE_FAILURE",
+     "page": 2,
+     "target": "boq_line:2:6",
+     "detail": {
+      "description": "Compact Wall Horn, Red, No Marking",
+      "catalog_no": "G1IARN",
+      "group_heading": "Field Devices",
+      "raw_quantity": "121",
+      "quantity_parse": {
+       "kind": "equipment_count",
+       "raw": "121",
+       "value": "121",
+       "status": "ok",
+       "rule": "digits",
+       "unit": null,
+       "rules_version": "values-2026-09-15.1"
+      },
+      "quantity": "121",
+      "alternates": [
+       {
+        "pass": "binarised, single line, digits",
+        "text": "121",
+        "value": "121",
+        "status": "ok"
+       },
+       {
+        "pass": "binarised, single character",
+        "text": "12]",
+        "value": "12",
+        "status": "ok"
+       },
+       {
+        "pass": "greyscale, single line, digits or words",
+        "text": "121",
+        "value": "121",
+        "status": "ok"
+       }
+      ],
+      "building": null,
+      "reader": "ocr",
+      "reason_code": "PART_NUMBER_CONFLICT",
+      "reason": "the column read the part number 'G1IARN' at 40%; independent passes on the cell read GIARN (an independent pass read another part number)",
+      "catalog_alternates": [
+       {
+        "pass": "greyscale, single line, part characters",
+        "text": "GIARN",
+        "value": "GIARN"
+       },
+       {
+        "pass": "binarised, single line, part characters",
+        "text": "GIARN",
+        "value": "GIARN"
+       }
+      ],
+      "catalog_check": {
+       "confirmed": false,
+       "multiline": false,
+       "reason": "an independent pass read another part number"
+      },
+      "catalog_cell": [
+       378,
+       1030,
+       689,
+       1074
+      ],
+      "bbox": [
+       173,
+       1030,
+       2329,
+       1074
+      ]
+     }
+    },
+    {
+     "code": "QUANTITY_OR_UNIT_PARSE_FAILURE",
+     "page": 2,
+     "target": "boq_line:2:7",
+     "detail": {
+      "description": "2\"x4\" GI Concealed Back Box Single Gange |",
+      "catalog_no": "TP606",
+      "group_heading": "Field Devices",
+      "raw_quantity": "49]",
+      "quantity_parse": {
+       "kind": "equipment_count",
+       "raw": "49]",
+       "value": "49",
+       "status": "ambiguous",
+       "rule": "the column read '49' (86%) but an independent pass read 491: a digit may be cut at the cell's edge",
+       "unit": null,
+       "rules_version": "values-2026-09-15.1"
+      },
+      "alternates": [
+       {
+        "pass": "binarised, single line, digits",
+        "text": "491",
+        "value": "491",
+        "status": "ok"
+       },
+       {
+        "pass": "binarised, single character",
+        "text": "49]",
+        "value": "49",
+        "status": "ok"
+       },
+       {
+        "pass": "greyscale, single line, digits or words",
+        "text": "49",
+        "value": "49",
+        "status": "ok"
+       }
+      ],
+      "building": null
+     }
+    }
+   ],
+   "metrics": {
+    "golden_rows": 74,
+    "lines": 69,
+    "review_rows": 0,
+    "row_detection_recall": 0.9324,
+    "row_detection_precision": 1.0,
+    "part_number_accuracy": 1.0,
+    "quantity_accuracy": 1.0,
+    "pair_accuracy": 1.0,
+    "group_accuracy": 0.9855,
+    "review_rate": 0.0,
+    "false_auto_accept_rate": 0.0,
+    "false_auto_accepts": [],
+    "false_removal_rate": 0.0676,
+    "missing_rows": [
+     {
+      "page": 1,
+      "part_number": "4-CAB16D",
+      "quantity": "1",
+      "description": "Door Assembly - Bronze, comes with 16 User Interface spaces, mounts to 3-CAB7B wallbox."
+     },
+     {
+      "page": 1,
+      "part_number": "SIGA-AA50",
+      "quantity": "2",
+      "description": "Intelligent Audio Amplifier - 50 Watt"
+     },
+     {
+      "page": 2,
+      "part_number": "757-7A-T",
+      "quantity": "56",
+      "description": "15/75 cd Temporal Horn/Strobe - 24 Vdc, RED"
+     },
+     {
+      "page": 2,
+      "part_number": "G1ARN",
+      "quantity": "121",
+      "description": "Compact Wall Horn, Red, No Marking"
+     },
+     {
+      "page": 2,
+      "part_number": "TP606",
+      "quantity": "491",
+      "description": "2\"x4\" GI Concealed Back Box Single Gange"
+     }
+    ],
+    "extra_review_rows": [],
+    "wrong_quantity": [],
+    "wrong_group": [
+     {
+      "part_number": "6538-G5",
+      "golden": null,
+      "read": "Booster Power Supply"
+     }
+    ],
+    "state": "completed",
+    "reader": "ocr",
+    "failure": null,
+    "wall_s": 15.8
+   },
+   "pairs": [
+    {
+     "golden": {
+      "page": 1,
+      "part_number": null,
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": null,
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-CPU",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-CPU",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-PPS/M",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-PPS/M",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-LCDLE",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-LCDLE",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-FWAL4",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-FWAL4",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-BRKT-CB",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-BRKT-CB",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-NET-TP",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-NET-TP",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-USBHUB",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-USBHUB",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-COMREL",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-COMREL",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "3-SDDC2",
+      "quantity": "8",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "3-SDDC2",
+      "quantity": "8",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "3-ZA20A",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "3-ZA20A",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-AUDTELS",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-AUDTELS",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-MIC",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-MIC",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-FT",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-FT",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "3-CHAS7",
+      "quantity": "3",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "3-CHAS7",
+      "quantity": "3",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-FIL",
+      "quantity": "16",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-FIL",
+      "quantity": "16",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "3-CAB21B",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "3-CAB21B",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-CAB24DL",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-CAB24DL",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "BC-1",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "BC-1",
+      "quantity": "1",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "12V65A",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "12V65A",
+      "quantity": "2",
+      "group": "EST4 Main Fire Alarm Control Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": null,
+      "quantity": "2",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": null,
+      "quantity": "2",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-CPU",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-CPU",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-PPS/M",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-PPS/M",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-LCDLE",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-LCDLE",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-NET-TP",
+      "quantity": "2",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-NET-TP",
+      "quantity": "2",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "3-SDDC2",
+      "quantity": "4",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "3-SDDC2",
+      "quantity": "4",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "3-CHAS7",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "3-CHAS7",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-FIL",
+      "quantity": "14",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "4-FIL",
+      "quantity": "14",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "3-CAB7B",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "3-CAB7B",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "4-CAB16D",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": null
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "BC-1",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "BC-1",
+      "quantity": "1",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "12V65A",
+      "quantity": "2",
+      "group": "EST4 Fire Alarm Panel"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "12V65A",
+      "quantity": "2",
+      "group": "EST4 Fire Alarm Panel",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": null,
+      "quantity": "18",
+      "group": "Amplifier (50 Watt)"
+     },
+     "read": {
+      "page": 1,
+      "part_number": null,
+      "quantity": "18",
+      "group": "Amplifier (50 Watt)",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SIGA-AA50",
+      "quantity": "2",
+      "group": "Amplifier (50 Watt)"
+     },
+     "read": null
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "APS6A/230",
+      "quantity": "1",
+      "group": "Amplifier (50 Watt)"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "APS6A/230",
+      "quantity": "1",
+      "group": "Amplifier (50 Watt)",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SIGA-CT2",
+      "quantity": "1",
+      "group": "Amplifier (50 Watt)"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "SIGA-CT2",
+      "quantity": "1",
+      "group": "Amplifier (50 Watt)",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "12V10A",
+      "quantity": "2",
+      "group": "Amplifier (50 Watt)"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "12V10A",
+      "quantity": "2",
+      "group": "Amplifier (50 Watt)",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": null,
+      "quantity": "8",
+      "group": "Booster Power Supply"
+     },
+     "read": {
+      "page": 1,
+      "part_number": null,
+      "quantity": "8",
+      "group": "Booster Power Supply",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "BPS10A/230",
+      "quantity": "1",
+      "group": "Booster Power Supply"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "BPS10A/230",
+      "quantity": "1",
+      "group": "Booster Power Supply",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SIGA-CT2",
+      "quantity": "1",
+      "group": "Booster Power Supply"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "SIGA-CT2",
+      "quantity": "1",
+      "group": "Booster Power Supply",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "12V10A",
+      "quantity": "2",
+      "group": "Booster Power Supply"
+     },
+     "read": {
+      "page": 1,
+      "part_number": "12V10A",
+      "quantity": "2",
+      "group": "Booster Power Supply",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "6538-G5",
+      "quantity": "4",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "6538-G5",
+      "quantity": "4",
+      "group": "Booster Power Supply",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": null,
+      "quantity": "4",
+      "group": "Super Duct"
+     },
+     "read": {
+      "page": 2,
+      "part_number": null,
+      "quantity": "4",
+      "group": "Super Duct",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-SD",
+      "quantity": "1",
+      "group": "Super Duct"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-SD",
+      "quantity": "1",
+      "group": "Super Duct",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SD-T42",
+      "quantity": "1",
+      "group": "Super Duct"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SD-T42",
+      "quantity": "1",
+      "group": "Super Duct",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-OSD-FCN",
+      "quantity": "2396",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-OSD-FCN",
+      "quantity": "2396",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-HRD-FCN",
+      "quantity": "281",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-HRD-FCN",
+      "quantity": "281",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-OSHD-FCN",
+      "quantity": "525",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-OSHD-FC",
+      "quantity": "525",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-SB",
+      "quantity": "2206",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-SB",
+      "quantity": "2206",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-IB",
+      "quantity": "250",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-IB",
+      "quantity": "250",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-LPS",
+      "quantity": "746",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-LPS",
+      "quantity": "746",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-278",
+      "quantity": "150",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-278",
+      "quantity": "150",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "STI-1230",
+      "quantity": "29",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "STI-1230",
+      "quantity": "29",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "STI-3002",
+      "quantity": "29",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "STI-3002",
+      "quantity": "29",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "G4SRN",
+      "quantity": "142",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "G4SRN",
+      "quantity": "142",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "EST-S186C",
+      "quantity": "470",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "EST-S186C",
+      "quantity": "470",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "757-1A-T",
+      "quantity": "4",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "757-1A-T",
+      "quantity": "4",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "757-7A-T",
+      "quantity": "56",
+      "group": "Field Devices"
+     },
+     "read": null
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "G1ARN",
+      "quantity": "121",
+      "group": "Field Devices"
+     },
+     "read": null
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "6833-4",
+      "quantity": "220",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "6833-4",
+      "quantity": "220",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "TCS-6",
+      "quantity": "1",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "TCS-6",
+      "quantity": "1",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "6830-3",
+      "quantity": "4",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "6830-3",
+      "quantity": "4",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-CT2",
+      "quantity": "119",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-CT2",
+      "quantity": "119",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-CR",
+      "quantity": "26",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-CR",
+      "quantity": "26",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-IO",
+      "quantity": "420",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-IO",
+      "quantity": "420",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-UM",
+      "quantity": "20",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-UM",
+      "quantity": "20",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-CC1",
+      "quantity": "6",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-CC1",
+      "quantity": "6",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "SIGA-CC2A",
+      "quantity": "80",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "SIGA-CC2A",
+      "quantity": "80",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "TP606",
+      "quantity": "491",
+      "group": "Field Devices"
+     },
+     "read": null
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "TP434",
+      "quantity": "142",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "TP434",
+      "quantity": "142",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "27193-11",
+      "quantity": "565",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "27193-11",
+      "quantity": "565",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "27193-21",
+      "quantity": "106",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "27193-21",
+      "quantity": "106",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "757A-WB",
+      "quantity": "60",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "757A-WB",
+      "quantity": "60",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 2,
+      "part_number": "GRSW-10",
+      "quantity": "15",
+      "group": "Field Devices"
+     },
+     "read": {
+      "page": 2,
+      "part_number": "GRSW-10",
+      "quantity": "15",
+      "group": "Field Devices",
+      "row_id": null
+     }
+    }
+   ]
+  },
+  "EML": {
+   "doc_id": 2,
+   "relative_path": "01- EP-30784 Scan\\EP-30784 EML Design.pdf",
+   "sha256": "39a20e17215be7bde7d2da60e9124eac26482a72403d451003295d2f23d4189d",
+   "seconds": 11.1,
+   "pages": [
+    {
+     "page": 1,
+     "of": 1,
+     "started_s": 0.0
+    }
+   ],
+   "coverage": [
+    {
+     "page": 1,
+     "detected": true,
+     "processed": true,
+     "regions": [
+      {
+       "kind": "table",
+       "top": 582,
+       "bottom": 1630,
+       "status": "processed",
+       "rows_accepted": 11,
+       "rows_dropped": 1,
+       "reason": null
+      }
+     ],
+     "reason": null
+    }
+   ],
+   "state": "completed",
+   "reader": "ocr",
+   "failure": null,
+   "notes": [],
+   "buildings": [],
+   "accounting": {
+    "golden_rows": 12,
+    "lines_read": 10,
+    "matched": 10,
+    "missing": 2,
+    "extra": 0,
+    "issues": 2,
+    "issues_by_code": {
+     "QUANTITY_OR_UNIT_PARSE_FAILURE": 2
+    },
+    "outcome": "NEEDS_INTERPRETATION"
+   },
+   "lines": [
+    {
+     "part_number": "SL2-42D3D-CGL-M",
+     "description": "Surface Mounted Emergency Light |",
+     "quantity": "759",
+     "group": null,
+     "page": 1,
+     "confidence": 48.6,
+     "quantity_confidence": 25.0,
+     "row_id": null,
+     "region": [
+      159,
+      702,
+      2332,
+      784
+     ]
+    },
+    {
+     "part_number": "SL2-65D3D-CGL-M",
+     "description": "Surface Mounted Emergency Light |",
+     "quantity": "458",
+     "group": null,
+     "page": 1,
+     "confidence": 68.6,
+     "quantity_confidence": 51.0,
+     "row_id": null,
+     "region": [
+      159,
+      784,
+      2332,
+      842
+     ]
+    },
+    {
+     "part_number": "RT2RHEO200CGL3HIP ~ M",
+     "description": "RTECH MR HEO CGL+ 200 MNM 3H IP\u00a2",
+     "quantity": "458",
+     "group": null,
+     "page": 1,
+     "confidence": 80.1,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      159,
+      842,
+      2332,
+      945
+     ]
+    },
+    {
+     "part_number": "SL2-42D3D-CGL-M",
+     "description": "Wall Mounted Exit, 20 metre viewing",
+     "quantity": "327",
+     "group": null,
+     "page": 1,
+     "confidence": 51.3,
+     "quantity_confidence": 52.0,
+     "row_id": null,
+     "region": [
+      159,
+      945,
+      2332,
+      1003
+     ]
+    },
+    {
+     "part_number": "SL210DI",
+     "description": "Pictogram 7",
+     "quantity": "33",
+     "group": null,
+     "page": 1,
+     "confidence": 71.7,
+     "quantity_confidence": 58.0,
+     "row_id": null,
+     "region": [
+      159,
+      1003,
+      2332,
+      1061
+     ]
+    },
+    {
+     "part_number": "SL2-65D3D-CGL-M",
+     "description": "Wall Mounted Exit, 20 metre viewing",
+     "quantity": "169",
+     "group": null,
+     "page": 1,
+     "confidence": 65.6,
+     "quantity_confidence": 23.0,
+     "row_id": null,
+     "region": [
+      159,
+      1061,
+      2332,
+      1119
+     ]
+    },
+    {
+     "part_number": "SL2-42D3D-CGL-M +SL2PPLR+SL2RB",
+     "description": "Exit Directional, Corridor Recessed, 20 metre viewing distance",
+     "quantity": "119",
+     "group": null,
+     "page": 1,
+     "confidence": 93.8,
+     "quantity_confidence": 96.0,
+     "row_id": null,
+     "region": [
+      159,
+      1177,
+      2332,
+      1281
+     ]
+    },
+    {
+     "part_number": "SL2-65D3D-CGL-M +SL2CD +SL2DC3I",
+     "description": "Exit Directional, Hanging Driveway, , 30 metre viewing distance",
+     "quantity": "111",
+     "group": null,
+     "page": 1,
+     "confidence": 87.7,
+     "quantity_confidence": 87.0,
+     "row_id": null,
+     "region": [
+      159,
+      1281,
+      2332,
+      1385
+     ]
+    },
+    {
+     "part_number": "CTR400CGL2KS-M",
+     "description": "Menvier Brand CGLine+ Web Compact Cont",
+     "quantity": "8",
+     "group": null,
+     "page": 1,
+     "confidence": 60.5,
+     "quantity_confidence": 43.5,
+     "row_id": null,
+     "region": [
+      159,
+      1385,
+      2332,
+      1442
+     ]
+    },
+    {
+     "part_number": "SL2NM65D3-M",
+     "description": "Surface Emergency Light -SELF CONTAINE",
+     "quantity": "7",
+     "group": null,
+     "page": 1,
+     "confidence": 53.4,
+     "quantity_confidence": 24.0,
+     "row_id": null,
+     "region": [
+      159,
+      1442,
+      2332,
+      1500
+     ]
+    }
+   ],
+   "issues": [
+    {
+     "code": "QUANTITY_OR_UNIT_PARSE_FAILURE",
+     "page": 1,
+     "target": "boq_line:1:1",
+     "detail": {
+      "description": "Pictogram ;",
+      "catalog_no": "SL210DI",
+      "group_heading": null,
+      "raw_quantity": "17",
+      "quantity_parse": {
+       "kind": "equipment_count",
+       "raw": "17",
+       "value": "17",
+       "status": "ok",
+       "rule": "column read '17' (41%) confirmed by 3 independent passes",
+       "unit": null,
+       "rules_version": "values-2026-09-15.1"
+      },
+      "quantity": "17",
+      "alternates": [
+       {
+        "pass": "binarised, single line, digits",
+        "text": "17",
+        "value": "17",
+        "status": "ok"
+       },
+       {
+        "pass": "binarised, single character",
+        "text": "17",
+        "value": "17",
+        "status": "ok"
+       },
+       {
+        "pass": "greyscale, single line, digits or words",
+        "text": "17",
+        "value": "17",
+        "status": "ok"
+       }
+      ],
+      "building": null,
+      "reader": "ocr",
+      "reason_code": "PART_NUMBER_CONFLICT",
+      "reason": "the column read the part number 'SL210DI' at 7%; independent passes on the cell read L210DI (no independent pass read the whole part number)",
+      "catalog_alternates": [
+       {
+        "pass": "greyscale, single line, part characters",
+        "text": "-L210DI",
+        "value": "L210DI"
+       },
+       {
+        "pass": "binarised, single line, part characters",
+        "text": "-L210DI",
+        "value": "L210DI"
+       }
+      ],
+      "catalog_check": {
+       "confirmed": false,
+       "multiline": false,
+       "reason": "no independent pass read the whole part number"
+      },
+      "catalog_cell": [
+       379,
+       1119,
+       851,
+       1177
+      ],
+      "bbox": [
+       159,
+       1119,
+       2332,
+       1177
+      ]
+     }
+    },
+    {
+     "code": "QUANTITY_OR_UNIT_PARSE_FAILURE",
+     "page": 1,
+     "target": "boq_line:1:2",
+     "detail": {
+      "description": "Wall Mounted Exit, 20 metre viewing distance, IP65 7",
+      "catalog_no": "SL2MNM65D3C-M +SL231",
+      "group_heading": null,
+      "raw_quantity": "1",
+      "quantity_parse": {
+       "kind": "equipment_count",
+       "raw": "1",
+       "value": "1",
+       "status": "ok",
+       "rule": "digits",
+       "unit": null,
+       "rules_version": "values-2026-09-15.1"
+      },
+      "quantity": "1",
+      "alternates": [
+       {
+        "pass": "binarised, single line, digits",
+        "text": "",
+        "value": null,
+        "status": "empty"
+       },
+       {
+        "pass": "binarised, single character",
+        "text": "|",
+        "value": null,
+        "status": "empty"
+       },
+       {
+        "pass": "greyscale, single line, digits or words",
+        "text": "",
+        "value": null,
+        "status": "empty"
+       }
+      ],
+      "building": null,
+      "reader": "ocr",
+      "reason_code": "PART_NUMBER_CONFLICT",
+      "reason": "the column read the part number 'SL2MNM65D3C-M +SL231' at 67%; independent passes on the cell read SL2MNM65D3C-M +SL231, SL2MNM65D3C-M +SLZ31 (an independent pass read another part number (a near miss of the strip's))",
+      "catalog_alternates": [
+       {
+        "pass": "greyscale, block, part characters",
+        "text": "SL2MNM65D3C-M +SLZ31",
+        "value": "SL2MNM65D3C-M +SLZ31"
+       },
+       {
+        "pass": "binarised, block, part characters",
+        "text": "SL2MNM65D3C-M +SL231",
+        "value": "SL2MNM65D3C-M +SL231"
+       }
+      ],
+      "catalog_check": {
+       "confirmed": false,
+       "multiline": true,
+       "reason": "an independent pass read another part number (a near miss of the strip's)"
+      },
+      "catalog_cell": [
+       379,
+       1500,
+       851,
+       1604
+      ],
+      "bbox": [
+       159,
+       1500,
+       2332,
+       1604
+      ]
+     }
+    }
+   ],
+   "metrics": {
+    "golden_rows": 12,
+    "lines": 10,
+    "review_rows": 0,
+    "row_detection_recall": 0.8333,
+    "row_detection_precision": 1.0,
+    "part_number_accuracy": 1.0,
+    "quantity_accuracy": 1.0,
+    "pair_accuracy": 1.0,
+    "group_accuracy": 1.0,
+    "review_rate": 0.0,
+    "false_auto_accept_rate": 0.0,
+    "false_auto_accepts": [],
+    "false_removal_rate": 0.1667,
+    "missing_rows": [
+     {
+      "page": 1,
+      "part_number": "SL210DI",
+      "quantity": "17",
+      "description": "Pictogram"
+     },
+     {
+      "page": 1,
+      "part_number": "SL2MNM65D3C-M +SL23I",
+      "quantity": "1",
+      "description": "Wall Mounted Exit, 20 metre viewing distance, IP65"
+     }
+    ],
+    "extra_review_rows": [],
+    "wrong_quantity": [],
+    "wrong_group": [],
+    "state": "completed",
+    "reader": "ocr",
+    "failure": null,
+    "wall_s": 11.1
+   },
+   "pairs": [
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SL2-42D3D-CGL-M",
+      "quantity": "759",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "SL2-42D3D-CGL-M",
+      "quantity": "759",
+      "group": null,
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SL2-65D3D-CGL-M",
+      "quantity": "458",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "SL2-65D3D-CGL-M",
+      "quantity": "458",
+      "group": null,
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "RT2RHEO200CGL3HIPM",
+      "quantity": "458",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "RT2RHEO200CGL3HIP ~ M",
+      "quantity": "458",
+      "group": null,
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SL2-42D3D-CGL-M",
+      "quantity": "327",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "SL2-42D3D-CGL-M",
+      "quantity": "327",
+      "group": null,
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SL210DI",
+      "quantity": "33",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "SL210DI",
+      "quantity": "33",
+      "group": null,
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SL2-65D3D-CGL-M",
+      "quantity": "169",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "SL2-65D3D-CGL-M",
+      "quantity": "169",
+      "group": null,
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SL210DI",
+      "quantity": "17",
+      "group": null
+     },
+     "read": null
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SL2-42D3D-CGL-M +SL2PPLR+SL2RB",
+      "quantity": "119",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "SL2-42D3D-CGL-M +SL2PPLR+SL2RB",
+      "quantity": "119",
+      "group": null,
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SL2-65D3D-CGL-M +SL2CD +SL2DC3I",
+      "quantity": "111",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "SL2-65D3D-CGL-M +SL2CD +SL2DC3I",
+      "quantity": "111",
+      "group": null,
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "CTR400CGL2KS-M",
+      "quantity": "8",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "CTR400CGL2KS-M",
+      "quantity": "8",
+      "group": null,
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SL2NM65D3-M",
+      "quantity": "7",
+      "group": null
+     },
+     "read": {
+      "page": 1,
+      "part_number": "SL2NM65D3-M",
+      "quantity": "7",
+      "group": null,
+      "row_id": null
+     }
+    },
+    {
+     "golden": {
+      "page": 1,
+      "part_number": "SL2MNM65D3C-M +SL23I",
+      "quantity": "1",
+      "group": null
+     },
+     "read": null
+    }
+   ]
+  }
+ }
+}

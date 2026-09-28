@@ -46,6 +46,12 @@ def _norm(text) -> str:
     return re.sub(r"[^a-z0-9]", "", str(text or "").lower())
 
 
+def _gold_parts(gold: dict) -> set:
+    """The part keys a golden row accepts: its part number and, where the
+    sheet prints a cut part the transcriber completed, the printed form."""
+    return {k for k in (_part(gold.get("part_number")), _part(gold.get("printed_part_number"))) if k} or {""}
+
+
 def _part(text) -> str:
     return _norm(text)
 
@@ -65,7 +71,23 @@ def match_rows(golden: list[dict], extracted: list[dict]) -> list[tuple[dict, di
     the same page and group preferred."""
     free = list(range(len(extracted)))
     pairs: list[tuple[dict, dict | None]] = []
-    for gold in golden:
+    # A part quoted twice (EP-30784 EML: SL210DI 33 and SL210DI 17): the
+    # golden rows and the read rows are paired by their order among the rows
+    # of that part on the same page (M2 review 02, D), so the quantities are
+    # judged against the right occurrence, not crosswise.
+    gold_ordinal = {}
+    seen: dict = {}
+    for i, gold in enumerate(golden):
+        key = (_part(gold.get("part_number")) or _desc_key(gold.get("description")), gold.get("page"))
+        gold_ordinal[i] = seen.get(key, 0)
+        seen[key] = gold_ordinal[i] + 1
+    read_ordinal = {}
+    seen = {}
+    for i, row in enumerate(extracted):
+        key = (_part(row.get("part_number")) or _desc_key(row.get("description")), row.get("page"))
+        read_ordinal[i] = seen.get(key, 0)
+        seen[key] = read_ordinal[i] + 1
+    for gi, gold in enumerate(golden):
         gold_part = _part(gold.get("part_number"))
         gold_desc = _desc_key(gold.get("description"))
         best, best_score = None, -1
@@ -73,7 +95,7 @@ def match_rows(golden: list[dict], extracted: list[dict]) -> list[tuple[dict, di
             row = extracted[index]
             part = _part(row.get("part_number"))
             if gold_part:
-                if part != gold_part:
+                if part not in _gold_parts(gold):
                     continue
                 score = 10
             else:
@@ -82,6 +104,8 @@ def match_rows(golden: list[dict], extracted: list[dict]) -> list[tuple[dict, di
                 score = 10
             if row.get("page") == gold.get("page"):
                 score += 3
+                if read_ordinal[index] == gold_ordinal[gi]:
+                    score += 4      # the same occurrence of a repeated part
             if _norm(row.get("group")) == _norm(gold.get("group")):
                 score += 2
             if _desc_key(row.get("description")) == gold_desc:
@@ -109,13 +133,13 @@ def metrics(golden: list[dict], lines: list[dict], review: list[dict], *, run_in
     missing = [g for g, e in pairs if g is not None and e is None]
     extra = [e for g, e in pairs if g is None]
     lines_matched = [(g, e) for g, e in matched if e["_kind"] == "line"]
-    part_right = sum(1 for g, e in matched if _part(g.get("part_number")) == _part(e.get("part_number")))
+    part_right = sum(1 for g, e in matched if _part(e.get("part_number")) in _gold_parts(g))
     qty_right = sum(1 for g, e in matched if _quantity_key(g.get("quantity")) == _quantity_key(e.get("quantity")))
-    pair_right = sum(1 for g, e in matched if _part(g.get("part_number")) == _part(e.get("part_number"))
+    pair_right = sum(1 for g, e in matched if _part(e.get("part_number")) in _gold_parts(g)
                      and _quantity_key(g.get("quantity")) == _quantity_key(e.get("quantity")))
     group_right = sum(1 for g, e in matched if _norm(g.get("group")) == _norm(e.get("group")))
     false_accepts = [(g, e) for g, e in lines_matched
-                     if _part(g.get("part_number")) != _part(e.get("part_number"))
+                     if _part(e.get("part_number")) not in _gold_parts(g)
                      or _quantity_key(g.get("quantity")) != _quantity_key(e.get("quantity"))]
     extra_lines = [e for e in extra if e["_kind"] == "line"]
 

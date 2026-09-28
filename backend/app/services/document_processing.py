@@ -110,16 +110,26 @@ def pending_rows(db: Session, project: Project) -> list[ProjectDocument]:
     """The project's documents whose current content is not read yet, in
     processing order: by priority, then by path."""
     rows = (db.query(ProjectDocument)
-            .filter(ProjectDocument.project_id == project.id, ProjectDocument.state.in_(NEEDS_PROCESSING),
+            .filter(ProjectDocument.project_id == project.id, _needs_reading(),
                     ProjectDocument.role.notin_(INTAKE_ROLES)).all())
     rows.sort(key=lambda r: (priority(r.relative_path or r.filename, r.role, r.size),
                              (r.relative_path or r.filename).lower()))
     return rows
 
 
+def _needs_reading():
+    """Rows whose content is not read yet, or whose last attempt did not
+    complete (`extracted.attempt`: unopenable, OCR failed, a page failed):
+    the incomplete work is what the next run retries."""
+    from sqlalchemy import func, or_
+
+    return or_(ProjectDocument.state.in_(NEEDS_PROCESSING),
+               (ProjectDocument.state != REMOVED) & func.json_extract(ProjectDocument.extracted, "$.attempt").isnot(None))
+
+
 def pending_count(db: Session, project: Project) -> int:
     return (db.query(ProjectDocument)
-            .filter(ProjectDocument.project_id == project.id, ProjectDocument.state.in_(NEEDS_PROCESSING),
+            .filter(ProjectDocument.project_id == project.id, _needs_reading(),
                     ProjectDocument.role.notin_(INTAKE_ROLES)).count())
 
 
@@ -169,12 +179,16 @@ def read_task(path: str, relative: str, previous_sha: str | None, ocr: bool,
         return {"duplicate_of": sha, "sha": sha, "size": stat.st_size, "mtime": stat.st_mtime,
                 "hashing_seconds": hash_ms / 1000, "timing": timing, "seconds": time.perf_counter() - started}
     role, records, notes, read_timing = document_sync.extract(path, relative, sha, ocr)
-    evidence = None
+    evidence = coverage = None
+    observations: list = []
     if isinstance(read_timing, dict):
         evidence = read_timing.pop("evidence", None)
+        coverage = read_timing.pop("coverage", None)
+        observations = read_timing.pop("observations", None) or []
         timing.update(read_timing)
     return {"unchanged": False, "sha": sha, "size": stat.st_size, "mtime": stat.st_mtime, "role": role,
-            "records": records, "notes": notes, "evidence": evidence, "hashing_seconds": hash_ms / 1000,
+            "records": records, "notes": notes, "evidence": evidence, "coverage": coverage, "observations": observations,
+            "hashing_seconds": hash_ms / 1000,
             "read_seconds": document_sync.timing_seconds(read_timing), "timing": timing,
             "seconds": time.perf_counter() - started}
 
@@ -196,10 +210,24 @@ def _previous_sha(row: ProjectDocument) -> str | None:
 
 def parser_current(row: ProjectDocument) -> bool:
     """Whether the row's reading was made by the parser as it is now
-    (document_control.PARSER_VERSION). A reading that was not is not kept
-    for its hash: a known defect of the earlier parser would otherwise
-    stand for ever behind an unchanged file."""
-    return (row.extracted or {}).get("parser_version") == document_control.PARSER_VERSION
+    (document_control.PARSER_VERSION) and under the extraction profile in
+    force (document_control.extraction_profile). A reading that was not is
+    not kept for its hash: a known defect of the earlier parser, or the
+    other profile's observations, would otherwise stand for ever behind an
+    unchanged file."""
+    extracted = row.extracted or {}
+    retained = extracted.get("retained") or {}
+    return (extracted.get("parser_version") == document_control.PARSER_VERSION
+            # ... and under the extraction profile in force now (M2 review 02, C):
+            # an evaluation reading does not stand for the compatibility one,
+            # nor the reverse, and a reading whose profile is not recorded is
+            # not assumed to be either ...
+            and extracted.get("profile") == document_control.extraction_profile()
+            # ... and not carrying records read under another or an unknown
+            # profile (M2 review 03, R3-02): such a reading is a mixed one,
+            # never reused as this profile's; it is read again when the row
+            # is next processed or repaired (not on its own: no retry loop).
+            and not retained.get("other_profile"))
 
 
 # --- the job -----------------------------------------------------------------------------
@@ -240,7 +268,10 @@ def run(db: Session, project: Project, *, user: User | None = None, ctx=None, pr
              .filter(ProjectDocument.project_id == project.id, ProjectDocument.state == FRESH,
                      ProjectDocument.index_version == INDEX_VERSION, ProjectDocument.sha256.isnot(None),
                      ProjectDocument.extracted.isnot(None), ProjectDocument.role.notin_(INTAKE_ROLES))
-             if r.error is None and not document_sync._was_unavailable(r) and parser_current(r)}
+             if r.error is None and not document_sync._was_unavailable(r) and parser_current(r)
+             # a reading that retains records of an earlier reading of its own file is that
+             # file's history, not the content's: never copied to another file (M2 review 03)
+             and not (r.extracted or {}).get("retained")}
     task = functools.partial(read_task, known_shas=frozenset(known)) if known else read_task
     forms_changed = False
     anything_read = False
@@ -318,6 +349,7 @@ def run(db: Session, project: Project, *, user: User | None = None, ctx=None, pr
         db.commit()   # the row says "processing" on disk, and the write lock is released for the progress report
         db_write_ms = (time.perf_counter() - commit_started) * 1000
         called_ai = False
+        incomplete_error = None     # set when the reading did not complete (failed / unavailable): the row is marked, not fresh
         try:
             if ctx is not None:
                 ctx.progress(done, total, f"Processing documents — {done} of {total} · reading {path.name}",
@@ -336,11 +368,22 @@ def run(db: Session, project: Project, *, user: User | None = None, ctx=None, pr
                     # project) takes that reading here, with no call.
                     deferred = (role == ROLE_SUBMITTAL and ai_run is not None
                                 and submittal_reader.stored(db, row.sha256 or "") is None)
-                    document_sync.process(db, project, row, path, root,
-                                          run=ai_run if (role == ROLE_SUBMITTAL and not deferred) else None,
-                                          user_id=user.id if user else None, ocr=ocr,
-                                          read=(result["records"], result["notes"]) if result["records"] is not None else None,
-                                          evidence=result.get("evidence"))
+                    outcome = document_sync.process(db, project, row, path, root,
+                                                    run=ai_run if (role == ROLE_SUBMITTAL and not deferred) else None,
+                                                    user_id=user.id if user else None, ocr=ocr,
+                                                    read=(result["records"], result["notes"]) if result["records"] is not None else None,
+                                                    evidence=result.get("evidence"), coverage=result.get("coverage"),
+                                                    observations=result.get("observations"))
+                    if outcome in ("failed", "unavailable"):
+                        # Nothing was read: the previous complete reading
+                        # stands (document_sync.process), the attempt is on
+                        # the row, the registry says so, and the row is
+                        # retried next run. A partial reading (a page or its
+                        # OCR failed) is kept the same way, fresh, and retried.
+                        attempt = document_sync.incomplete_attempt(row) or {}
+                        incomplete_error = (attempt.get("error") or "; ".join(attempt.get("notes") or [])
+                                            or "The file could not be read.")[:1000]
+                        deferred = False
                 if ai_run and ai_run.calls > calls_before:
                     counts["read_by_ai"] += 1
                     called_ai = True
@@ -355,6 +398,8 @@ def run(db: Session, project: Project, *, user: User | None = None, ctx=None, pr
                 elif deferred:
                     row.state, row.error = PROCESSING, None    # fresh once the model has read it
                     deferred_forms.append((row, path, relative))
+                elif incomplete_error is not None:
+                    row.state, row.error = FAILED, incomplete_error
                 else:
                     row.state, row.error = FRESH, None
             except Exception as exc:  # noqa: BLE001 -- the previous result stays; this document is marked

@@ -1,0 +1,2173 @@
+diff --git a/backend/app/core/config.py b/backend/app/core/config.py
+index f1d66da..d027538 100644
+--- a/backend/app/core/config.py
++++ b/backend/app/core/config.py
+@@ -119,6 +119,13 @@ class Settings(BaseSettings):
+     # a routing, a status or a record. Stored assessments stay when it is
+     # turned off again.
+     document_classification_v2: bool = False
++    # M2 extraction: whether observations the current reader makes but the
++    # accepted reader did not (a decision framed or highlighted into the
++    # page, a cover of an untracked discipline, a scanned transmittal) are
++    # promoted to records and statuses. Off: they are kept beside the
++    # records as observations and candidates, and the registers see what
++    # they saw before. On: the isolated evaluation path.
++    extraction_promote_observations: bool = False
+ 
+     # The background worker (app.workers.sync_worker), a process of its own
+     # that runs the document syncs so they never slow the pages down.
+diff --git a/backend/app/services/design_sheet_extractor.py b/backend/app/services/design_sheet_extractor.py
+index a9e0aba..2ebc300 100644
+--- a/backend/app/services/design_sheet_extractor.py
++++ b/backend/app/services/design_sheet_extractor.py
+@@ -833,6 +833,10 @@ def extract_design_sheet(pdf_path: Path, on_page=None) -> DesignSheetExtraction:
+                 _confirm_quantity(image, line)
+         coverage.processed = True
+         coverage.regions = regions
++        for region in regions:
++            if region.status == "skipped":
++                result.notes.append(f"page {page_number}: a band of {region.bottom - region.top} px between two tables "
++                                    f"(y {region.top}-{region.bottom}) was not read as rows")
+         read.extend(page_lines)
+ 
+     result.buildings = settle_identity(read)
+@@ -1085,6 +1089,21 @@ def _read_quantity_banded_rows(
+     return banded
+ 
+ 
++# Ink in a band between two tables above which it is not blank: body text at
++# RENDER_DPI darkens 5-15 % of the description column; a blank band, nothing.
++UNREAD_BAND_INK = 0.02
++
++
++def _unread_band(dark: np.ndarray, top: int, bottom: int, x0: int, x1: int) -> bool:
++    """Whether the band between two tables carries ink (a row the extent
++    split around, or a totals row) rather than white space: at least a row
++    tall and darker than a blank band in the description column."""
++    if bottom - top < MIN_ROW_HEIGHT_PX or x1 <= x0:
++        return False
++    band = dark[top:bottom, x0:x1]
++    return band.size > 0 and float(band.mean()) >= UNREAD_BAND_INK
++
++
+ def _read_page(
+     image: Image.Image,
+     dark: np.ndarray,
+@@ -1104,6 +1123,15 @@ def _read_page(
+         named = _section_title(image, rules[0], rules[-1], max(previous_bottom, top - SECTION_BAND_PX), top)
+         if named:
+             section = named
++        elif previous_bottom and _unread_band(dark, previous_bottom, top, rules[layout.description[0]], rules[layout.description[1]]):
++            # M2 review 01 (R4): on EP-30784's FAS sheet, page 2, a scanner
++            # streak breaks the column rules across one item row, the table
++            # extent splits around it and the row (SIGA-OSHD-FCN, 525) was
++            # neither read nor reported. The band is not read as rows here --
++            # that is the row reader's contract to settle -- but it is no
++            # longer silent: it is a skipped region of the page's coverage.
++            regions.append(RegionCoverage("band", previous_bottom, top, "skipped",
++                                          reason="inked band between two tables where the column rules break: not read as rows"))
+         table_lines = _read_table(image, dark, rules, layout, page_number, top, bottom, section)
+         for line in table_lines:
+             line.quantity_span = span
+diff --git a/backend/app/services/document_control.py b/backend/app/services/document_control.py
+index e3d2474..541de52 100644
+--- a/backend/app/services/document_control.py
++++ b/backend/app/services/document_control.py
+@@ -1,7 +1,7 @@
+ """Content-based document control. File/folder names never establish approval."""
+ from collections import defaultdict
+ from contextlib import contextmanager
+-from dataclasses import dataclass, replace
++from dataclasses import asdict, dataclass, field, replace
+ from datetime import datetime, timezone
+ from functools import lru_cache
+ from pathlib import Path
+@@ -350,7 +350,15 @@ def _ocr_regions_text(page, regions, sha256: str | None, index: int, renders: di
+ # transmittal is read through its OCR; the printed revision and where the
+ # revision came from are kept beside the revision; a reader defect raises
+ # instead of standing as an empty "unreadable" reading.
+-PARSER_VERSION = "parse-2026-09-28.2"
++# parse-2026-09-28.3 (M2 review 01): every page of a file is visited or
++# listed as skipped/failed (page ledger); marks of every method are
++# validated alike and collected before a decision, disagreement is a
++# conflict; a mark on a folder-revision sheet that prints another revision
++# is held as a candidate; drawn/highlighted frames, untracked-discipline
++# covers and scanned transmittals are promoted to records only on the
++# evaluation path (EXTRACTION_PROMOTE_OBSERVATIONS), else kept as
++# observations; a reference cut at a hyphen is flagged incomplete.
++PARSER_VERSION = "parse-2026-09-28.3"
+ 
+ # The codes a controlled document's reference carries. Contractors number
+ # them their own way: MAS and MAR are both a material submittal (material
+@@ -397,6 +405,11 @@ class ReferenceCandidate:
+     # "sheets": lists sheets past a slash (what a submission covers, or a
+     # reply answers); "other": anything else.
+     kind: str
++    # The reference ended at a hyphen with nothing joinable after it
++    # ("…-PJW-ZZZ- Rev.02" then "2ZZZ-1004" on the next OCR line): what
++    # was read is the start of it, not the whole, and is marked so rather
++    # than guessed at.
++    incomplete: bool = False
+ 
+     @property
+     def category(self) -> str:
+@@ -412,12 +425,14 @@ def reference_candidates(text: str) -> list[ReferenceCandidate]:
+     not thereby the document's: `submission_cover` and `parse_page` choose."""
+     out = []
+     for match in REF.finditer(text):
+-        reference = match.group().replace("-\n", "-").rstrip("-.")
++        raw = match.group()
++        reference = raw.replace("-\n", "-").rstrip("-.")
+         if is_date_shaped(reference):
+             continue
+         base = reference.split("/", 1)[0]
+         kind = "sheets" if "/" in reference else "serial" if re.search(r"-\d{2,}[A-Z]?$", base, re.I) else "other"
+-        out.append(ReferenceCandidate(reference, match.group(1).upper(), match.start(), match.end(), kind))
++        out.append(ReferenceCandidate(reference, match.group(1).upper(), match.start(), match.end(), kind,
++                                      incomplete=raw.rstrip(".").endswith("-")))
+     return out
+ 
+ 
+@@ -538,6 +553,15 @@ class ControlledDocument:
+     raw_system: str | None = None
+     printed_revision: str | None = None
+     revision_source: str | None = None
++    # Marks that name an option but were not made the status: marks that
++    # disagree with each other, a mark on a sheet whose revision came from
++    # its folder while the sheet prints another (the association is not
++    # the reader's to make), a method not yet promoted (see
++    # `read_open_pdf`). Each: (status, label, method).
++    decision_candidates: tuple = ()
++    # What the reader could not settle about this record, by name:
++    # "reference_incomplete", "decision_conflict", "decision_revision_unvalidated".
++    flags: tuple = ()
+ 
+ 
+ # A submission's cover: the contractor's own form in front of the sheets
+@@ -640,6 +664,14 @@ _OPTIONS: tuple[tuple[str, str], ...] = (
+     # The boxed reader's clip stops short of the label's end ("B - Approved
+     # With"): still the B option, not the A.
+     ("approved with", "ANN"),
++    # "C - Revise & Re-Submit", "REVISION & RESUBMIT", "Revise and Resubmit":
++    # one answer, whatever the form calls it.
++    ("revise re submit", "rejected"),
++    ("revise resubmit", "rejected"),
++    ("revise and resubmit", "rejected"),
++    ("revision resubmit", "rejected"),
++    ("revision and resubmit", "rejected"),
++    ("revise", "rejected"),
+     ("re submit", "rejected"),
+     ("resubmit", "rejected"),
+     ("not approved", "rejected"),
+@@ -677,7 +709,10 @@ def _is_mark(shape) -> bool:
+ #   box-2  a framed option -- an annotation drawn round the choice -- is read
+ #   box-3  a frame drawn into the page itself (a stroked rectangle round the
+ #          option, a highlight-sized fill over it) is read too
+-BOX_VERSION = "box-3"
++#   box-4  every mark (filled box, annotation, drawn frame) is validated alike
++#          and collected before anything is decided; the cache holds the
++#          marks, and disagreeing marks are a conflict, not a choice
++BOX_VERSION = "box-4"
+ # Annotation types a reviewer draws round or over an option: a stamp, a
+ # square, an ink stroke, a highlight. Not a note, not a link.
+ _FRAME_ANNOTS = {12, 13, 15, 8, 4}   # Ink, Stamp, Ink-like FreeText... see pymupdf PDF_ANNOT_*: Square=4, Highlight=8, Ink=12? kept broad below by name
+@@ -694,143 +729,138 @@ def _option_in(label: str) -> tuple[str, str] | None:
+     return next(iter(found.items())) if len(found) == 1 else None
+ 
+ 
+-def annotated_decision(page, text: str | None = None) -> tuple[str, str] | None:
+-    """The consultant's decision where it is a frame drawn round the option
+-    -- a stamp, square, ink or highlight annotation the reviewer laid over
+-    the choice -- rather than a filled box or a word. Reads the words under
+-    each label-sized annotation; exactly one option under exactly one frame
+-    is the answer. A frame over the whole comments block, or over nothing
+-    that names an option, says nothing. Two frames over different answers
+-    say no more than none."""
+-    if text is not None and not _may_hold_an_option(text):
+-        return None
++def _annotation_frames(page) -> list:
++    """Label-sized annotations a reviewer laid over an option: a stamp, a
++    square, an ink stroke, a highlight. Not a note, not a link."""
+     try:
+         annots = list(page.annots())
+     except Exception:  # noqa: BLE001 -- a page whose annotations MuPDF cannot list
+-        return None
+-    if not annots:
+-        return None
+-    words = page.get_text("words")
+-    found: dict[str, str] = {}
++        return []
++    out = []
+     for annot in annots:
+         kind = (annot.type[1] if isinstance(annot.type, tuple) and len(annot.type) > 1 else str(annot.type)).lower()
+         if kind not in ("stamp", "square", "ink", "highlight", "freetext", "polygon", "rectangle"):
+             continue
+         rect = annot.rect
+-        if not (20 <= rect.width <= 320 and 6 <= rect.height <= 48):
+-            continue
+-        inside = " ".join(w[4] for w in words if w[0] >= rect.x0 - 2 and w[2] <= rect.x1 + 2 and w[1] >= rect.y0 - 3 and w[3] <= rect.y1 + 3)
+-        if not inside or len(inside) > 80:
+-            continue
+-        # The one option named under the frame (longest phrase first, as
+-        # the boxed reader reads a label): a frame over a row of options
+-        # names several and is skipped by `_options_named`.
+-        named = _options_named(inside)
+-        if len(named) != 1:
+-            continue
+-        found.setdefault(next(iter(named)), inside.strip())
+-    if len(found) != 1:
+-        return None
+-    return next(iter(found.items()))
+-
+-
+-def _options_named(label: str) -> set[str]:
+-    """The distinct answers a label names. "B - Approved With Comments" is one
+-    answer (ANN), not two, although "approved" is in it too: each option
+-    phrase found is consumed before shorter phrases are tried, so a row of
+-    options ("A - Approved B - Approved With Comments C - Re-Submit") still
+-    names several."""
+-    plain = " ".join(re.sub(r"[^a-z0-9]+", " ", label.lower()).split())
+-    named: set[str] = set()
+-    for words, status in _OPTIONS:
+-        if words in plain:
+-            named.add(status)
+-            plain = plain.replace(words, " ")
+-    return named
+-
+-# Each option's words, for the screens below: an option is matched in a
+-# label as a phrase, so each of its words is a run of letters in that label.
+-_OPTION_PIECES = tuple(tuple(words.split()) for words, _status in _OPTIONS)
++        if 20 <= rect.width <= 320 and 6 <= rect.height <= 48:
++            out.append((rect, "annotation"))
++    return out
+ 
+ 
+-def _compact(text: str) -> str:
+-    return re.sub(r"[^a-z0-9]+", "", text.lower())
++def _words_inside(words, rect) -> str:
++    return " ".join(w[4] for w in words if w[0] >= rect.x0 - 2 and w[2] <= rect.x1 + 2 and w[1] >= rect.y0 - 3 and w[3] <= rect.y1 + 3)
+ 
+ 
+-def _may_hold_an_option(text: str) -> bool:
+-    """Whether `text` could contain an option. A box's label is a run of
+-    the characters of one line of the page, so every word of the option it
+-    names is a run of letters in the text around it: where no option has
+-    all its words in `text` (punctuation and spacing ignored), no label
+-    drawn from it can name one. Never rules out a page or a box the full
+-    reading would have answered -- it only saves asking."""
+-    compact = _compact(text)
+-    return any(all(piece in compact for piece in pieces) for pieces in _OPTION_PIECES)
++def _frame_marks(page, frames, words) -> list[dict]:
++    """The option each frame *is* (one option and little else under it,
++    `_label_is_one_option`), whatever drew the frame. A frame over a row
++    of options, over a comment that mentions one, or over nothing names
++    no option and is not a mark."""
++    marks = []
++    for rect, method in frames:
++        inside = _words_inside(words, rect)
++        if not inside or len(inside) > 80:
++            continue
++        status = _label_is_one_option(inside)
++        if status is None:
++            continue
++        marks.append({"status": status, "label": inside.strip(), "method": method,
++                      "rect": [round(v, 1) for v in (rect.x0, rect.y0, rect.x1, rect.y1)]})
++    return marks
+ 
+ 
+-def boxed_decision(page, text: str | None = None) -> tuple[str, str] | None:
+-    """The consultant's decision where it is a filled box beside the
+-    option rather than a word or a tick, as (status, evidence).
+-
+-    The engineering consultant's approval block lists every option --
+-    Approved (A), Approved as Noted (B), Re-Submit (C) -- and marks one by
+-    filling its box. Read as text that is a list of choices and settles
+-    nothing, which is right: `read_decision` refuses to guess from it. The
+-    decision is in the drawing, so it is read from there.
+-
+-    None when no box is filled, or when more than one is against a
+-    different answer -- two marks say no more than none.
+-
+-    Asking the page for the text in a rectangle re-reads the whole page each
+-    time -- about 0.1 s on a CAD sheet -- and a CAD sheet has dozens of small
+-    coloured squares: 58 on one EP-30784 floor plan, 5.5 s of its 6.5. So
+-    it is asked only where it could matter. `text`, the page's text when the
+-    caller has it, rules out a page that names no option at all; and a box
+-    whose surrounding words (every word touching its label's rectangle,
+-    taken whole) cannot spell an option is skipped. Both screens can only
+-    pass over a box whose label would have matched nothing
+-    (`_may_hold_an_option`); every box that gets past them is read exactly
+-    as before.
+-    """
+-    if text is not None and not _may_hold_an_option(text):
+-        return None
+-    found: dict[str, str] = {}
+-    page_words = None
+-    shapes = page.get_drawings()
++def _filled_box_marks(page, shapes, words) -> list[dict]:
++    """The option beside each filled box (`_is_mark`), read from the page's
++    text to the right of the box and validated like every other mark."""
++    marks = []
+     for shape in shapes:
+         if not _is_mark(shape):
+             continue
+         rect = shape["rect"]
+-        clip = pymupdf.Rect(rect.x1, rect.y0 - 3, rect.x1 + 150, rect.y1 + 3)
+-        if page_words is None:
+-            page_words = page.get_text("words")
+-        # Every word touching the rectangle, whole, with a margin: a superset
+-        # of the characters the clipped reading below can return.
+-        near = " ".join(w[4] for w in page_words
+-                        if w[0] <= clip.x1 + 2 and w[2] >= clip.x0 - 2 and w[1] <= clip.y1 + 2 and w[3] >= clip.y0 - 2)
++        middle = (rect.y0 + rect.y1) / 2
++        # The words on the box's own line, to its right: a page's text
++        # clipped to a rectangle bleeds the lines above and below into the
++        # label ("Consultant Recommendation A - Approved B - Approved With
++        # Comments"), which names two answers and settles nothing.
++        line = sorted((w for w in words if rect.x1 - 2 <= w[0] <= rect.x1 + 150 and w[1] - 1 <= middle <= w[3] + 1), key=lambda w: w[0])
++        near = " ".join(w[4] for w in line)
+         if not _may_hold_an_option(near):
+             continue
+-        beside = page.get_text("text", clip=clip)
+         # Only as far as this option's own letter: the next option's box
+         # sits a little further along the same line.
+-        label = " ".join(beside.split())
++        label = " ".join(near.split())
+         cut = re.search(r"\([ABCD]\)", label)
+         if cut:
+             label = label[: cut.end()]
+-        # "Re- Submit (C)" and "Re-Submit (C)" are the same answer.
+-        plain = " ".join(re.sub(r"[^a-z0-9]+", " ", label.lower()).split())
+-        for words, status in _OPTIONS:
+-            if words in plain:
+-                found[status] = label.strip()
+-                break
+-    if len(found) != 1:
+-        # No filled box, or two: the reviewer may have framed the option
+-        # instead -- as an annotation, or as a rectangle drawn into the page.
+-        if found:
+-            return None
+-        return annotated_decision(page, text) or drawn_frame_decision(page, page_words, shapes)
+-    status, evidence = next(iter(found.items()))
+-    return status, evidence
++        # The next option's letter may still be in the clip ("B - Approved
++        # With Comments C -"): the label is read up to it.
++        label = re.sub(r"\s+[ABCD]\s*-\s*$", "", label)
++        status = _label_is_one_option(label)
++        if status is None:
++            continue
++        marks.append({"status": status, "label": label.strip(), "method": "filled_box",
++                      "rect": [round(v, 1) for v in (rect.x0, rect.y0, rect.x1, rect.y1)]})
++    return marks
++
++
++def decision_marks(page, text: str | None = None, shapes=None) -> list[dict]:
++    """Every mark on the page that selects one option, whatever made it:
++    a filled box, a PDF annotation over the label, a rectangle stroked or
++    filled into the page. All of them validated the same way
++    (`_label_is_one_option`) and all collected before anything is decided,
++    so one method cannot hide another's answer. Each mark: status, the
++    label under it, the method and its rectangle."""
++    if text is not None and not _may_hold_an_option(text):
++        return []
++    if shapes is None:
++        try:
++            shapes = page.get_drawings()
++        except Exception:  # noqa: BLE001 -- a page whose drawings MuPDF cannot list
++            shapes = []
++    annotated = _annotation_frames(page)
++    # An annotation's appearance is among the page's drawings too: a shape
++    # that sits where an annotation sits is that annotation, not a second
++    # frame drawn into the page.
++    def is_annotation(rect) -> bool:
++        return any(abs(rect.x0 - a.x0) <= 3 and abs(rect.y0 - a.y0) <= 3 and abs(rect.x1 - a.x1) <= 3 and abs(rect.y1 - a.y1) <= 3
++                   for a, _method in annotated)
++    frames = annotated + [(shape["rect"], "drawn_frame") for shape in shapes if _is_label_frame(shape) and not is_annotation(shape["rect"])]
++    if not frames and not any(_is_mark(s) for s in shapes):
++        return []
++    words = page.get_text("words")
++    return _filled_box_marks(page, shapes, words) + _frame_marks(page, frames, words)
++
++
++def resolve_marks(marks: list[dict]) -> tuple[str, str | None, str | None]:
++    """What the marks settle, as (outcome, status, evidence): "none" for no
++    mark; "resolved" when every mark names the same answer (the evidence is
++    the first label); "conflict" when marks name different answers -- both
++    kept in the evidence text, nothing chosen. Two marks on one answer are
++    one answer; two on different answers say no more than none."""
++    if not marks:
++        return "none", None, None
++    statuses = {m["status"] for m in marks}
++    if len(statuses) == 1:
++        return "resolved", marks[0]["status"], marks[0]["label"]
++    evidence = "Conflicting marks: " + "; ".join(f"{m['label']} [{m['method']}]" for m in marks)
++    return "conflict", None, evidence
++
++
++def boxed_decision(page, text: str | None = None) -> tuple[str, str] | None:
++    """The consultant's decision on the page as (status, evidence), or None
++    when no mark selects an option -- or when marks disagree (a conflict is
++    not a decision; `decision_marks` keeps the evidence). Marks are filled
++    boxes, annotations over an option and rectangles drawn into the page,
++    read and validated alike (see `decision_marks`)."""
++    outcome, status, evidence = resolve_marks(decision_marks(page, text))
++    return (status, evidence) if outcome == "resolved" else None
++
++
++def annotated_decision(page, text: str | None = None) -> tuple[str, str] | None:
++    """The decision the page's annotations alone select (see `decision_marks`)."""
++    marks = [m for m in decision_marks(page, text) if m["method"] == "annotation"]
++    outcome, status, evidence = resolve_marks(marks)
++    return (status, evidence) if outcome == "resolved" else None
+ 
+ 
+ def _is_label_frame(shape) -> bool:
+@@ -853,34 +883,12 @@ def _is_label_frame(shape) -> bool:
+ 
+ 
+ def drawn_frame_decision(page, words=None, shapes=None) -> tuple[str, str] | None:
+-    """The consultant's decision where it is a frame drawn into the page --
+-    a green rectangle stroked round "C - Revise & Re-Submit", an orange
+-    highlight laid over it -- rather than an annotation or a filled box.
+-    The words inside exactly one label-sized frame name exactly one
+-    option; a frame over several options, or two frames over different
+-    answers, say nothing."""
+-    if shapes is None:
+-        try:
+-            shapes = page.get_drawings()
+-        except Exception:  # noqa: BLE001 -- a page whose drawings MuPDF cannot list
+-            return None
+-    frames = [shape["rect"] for shape in shapes if _is_label_frame(shape)]
+-    if not frames:
+-        return None
+-    if words is None:
+-        words = page.get_text("words")
+-    found: dict[str, str] = {}
+-    for rect in frames:
+-        inside = " ".join(w[4] for w in words if w[0] >= rect.x0 - 2 and w[2] <= rect.x1 + 2 and w[1] >= rect.y0 - 3 and w[3] <= rect.y1 + 3)
+-        if not inside or len(inside) > 80:
+-            continue
+-        status = _label_is_one_option(inside)
+-        if status is None:
+-            continue
+-        found.setdefault(status, inside.strip())
+-    if len(found) != 1:
+-        return None
+-    return next(iter(found.items()))
++    """The decision the rectangles drawn into the page alone select (see
++    `decision_marks`): a green rectangle stroked round "C - Revise &
++    Re-Submit", an orange highlight laid over it."""
++    marks = [m for m in decision_marks(page, None, shapes) if m["method"] == "drawn_frame"]
++    outcome, status, evidence = resolve_marks(marks)
++    return (status, evidence) if outcome == "resolved" else None
+ 
+ 
+ def _label_is_one_option(inside: str) -> str | None:
+@@ -889,19 +897,57 @@ def _label_is_one_option(inside: str) -> str | None:
+     box on a drawing ("Follow the approved builders work drawings for
+     riser location") is a coloured rectangle round words that mention an
+     option; it is not the option, and reading it as one called EP-30784's
+-    QA/QC comments an approval."""
++    QA/QC comments an approval. The same rule for every method: an
++    annotation round that comment is no more an approval than a rectangle."""
+     named = _options_named(inside)
+     if len(named) != 1:
+         return None
+     plain = " ".join(re.sub(r"[^a-z0-9]+", " ", inside.lower()).split())
+     for words, _status in _OPTIONS:
+         plain = plain.replace(words, " ")
+-    residue = [w for w in plain.split() if w not in ("a", "b", "c", "d", "ur", "re", "review", "under")]
+-    if len(residue) > 1:
++    # Nothing may remain but the option's letter and the form's own words:
++    # "Approved supplier", "Noted & Complied", a comment, a receipt label
++    # are not the option however they are framed.
++    residue = [w for w in plain.split() if w not in ("a", "b", "c", "d", "ur", "re", "review", "under", "recommendation", "consultant", "and", "status")]
++    if residue:
+         return None
+     return next(iter(named))
+ 
+ 
++def _options_named(label: str) -> set[str]:
++    """The distinct answers a label names. "B - Approved With Comments" is one
++    answer (ANN), not two, although "approved" is in it too: each option
++    phrase found is consumed before shorter phrases are tried, so a row of
++    options ("A - Approved B - Approved With Comments C - Re-Submit") still
++    names several."""
++    plain = " ".join(re.sub(r"[^a-z0-9]+", " ", label.lower()).split())
++    named: set[str] = set()
++    for words, status in _OPTIONS:
++        if words in plain:
++            named.add(status)
++            plain = plain.replace(words, " ")
++    return named
++
++# Each option's words, for the screens below: an option is matched in a
++# label as a phrase, so each of its words is a run of letters in that label.
++_OPTION_PIECES = tuple(tuple(words.split()) for words, _status in _OPTIONS)
++
++
++def _compact(text: str) -> str:
++    return re.sub(r"[^a-z0-9]+", "", text.lower())
++
++
++def _may_hold_an_option(text: str) -> bool:
++    """Whether `text` could contain an option. A box's label is a run of
++    the characters of one line of the page, so every word of the option it
++    names is a run of letters in the text around it: where no option has
++    all its words in `text` (punctuation and spacing ignored), no label
++    drawn from it can name one. Never rules out a page or a box the full
++    reading would have answered -- it only saves asking."""
++    compact = _compact(text)
++    return any(all(piece in compact for piece in pieces) for pieces in _OPTION_PIECES)
++
++
+ def read_decision(text: str) -> tuple[str, str | None]:
+     """Only explicit marked decisions, status fields or stamps, never option lists."""
+     decisions = []
+@@ -1114,8 +1160,9 @@ def parse_page(text: str, path: str, modified: datetime, page: int) -> list[Cont
+     # Floor Plan" -- so without this it reached the log as a drawing of no
+     # floor at all, and those basements looked undrawn.
+     floor = floor_name(title) or floor_name(Path(path).stem, whole=False)
++    flags = ("reference_incomplete",) if candidate is not None and candidate.incomplete else ()
+     return [ControlledDocument(code, title, path, modified, reference, revision, decision, floor, evidence, page, category=category,
+-                               printed_revision=printed, revision_source=revision_source)]
++                               printed_revision=printed, revision_source=revision_source, flags=flags)]
+ 
+ 
+ def normalize_floor(value: str) -> str:
+@@ -1131,21 +1178,27 @@ def normalize_floor(value: str) -> str:
+     return re.sub(r"\b([BPL])0+(\d)", r"\1\2", value)
+ 
+ 
+-def _boxed(page, text: str, sha256: str | None, index: int) -> tuple[str, str] | None:
+-    """`boxed_decision`, from the page cache when this file's content has
++def _marks(page, text: str, sha256: str | None, index: int) -> list[dict]:
++    """`decision_marks`, from the page cache when this file's content has
+     been looked at under the same box rules (`BOX_VERSION`)."""
+     if not _may_hold_an_option(text):
+-        return None          # nothing to look for, and nothing worth keeping
++        return []            # nothing to look for, and nothing worth keeping
+     from app.services import page_cache
+ 
+     cached = page_cache.get_box(sha256, index, BOX_VERSION)
+     if cached is not page_cache.MISSING:
+         counted("box_cache_hits")
+-        return cached
++        return list(cached or [])
+     with timed("boxes"):
+-        found = boxed_decision(page, text)
+-    page_cache.put_box(sha256, index, BOX_VERSION, list(found) if found else None)
+-    return found
++        marks = decision_marks(page, text)
++    page_cache.put_box(sha256, index, BOX_VERSION, marks or None)
++    return marks
++
++
++def _boxed(page, text: str, sha256: str | None, index: int) -> tuple[str, str] | None:
++    """The resolved decision of `_marks`, or None (no mark, or a conflict)."""
++    outcome, status, evidence = resolve_marks(_marks(page, text, sha256, index))
++    return (status, evidence) if outcome == "resolved" else None
+ 
+ 
+ def _ocr_text(page, sha256: str | None, index: int, renders: dict | None = None) -> str:
+@@ -1211,144 +1264,345 @@ def _read_pdf(filename: str, stamp: int, size: int, use_ocr: bool,
+         return read_open_pdf(pdf, filename, modified, use_ocr, sha256)
+ 
+ 
++def read_pdf_full(filename: str, stamp: int, size: int, use_ocr: bool, sha256: str | None = None,
++                  promote: bool | None = None) -> "Reading":
++    """`_read_pdf` with the page ledger and the observations (`Reading`), not
++    cached: what `document_sync.process` reads when no reader process handed
++    it the reading. An unopenable or online-only file is a Reading with no
++    records, the note it always got and an "unavailable"/"failed" ledger."""
++    path = Path(filename)
++    modified = datetime.fromtimestamp(stamp / 1e9, timezone.utc)
++    counted("read_pdf")
++    try:
++        pdf = _open_pdf(path)
++    except Exception as exc:  # noqa: BLE001 -- an unreadable or online-only file is a note, not a failure
++        notes = open_failure_notes(path, exc)
++        return Reading((), notes, {"outcome": "unavailable" if NOT_DOWNLOADED in notes[0] else "failed", "pages_total": None,
++                                   "pages_visited": [], "pages_skipped": [], "pages_failed": [], "ocr_failed_pages": [],
++                                   "stop_reason": "open_failed", "error": f"{type(exc).__name__}: {exc}"[:300],
++                                   "parser_version": PARSER_VERSION}, [])
++    with pdf:
++        return read_open_pdf(pdf, filename, modified, use_ocr, sha256, full=True, promote=promote)
++
++
++# How far the reader looks into a file that has shown it nothing yet: a
++# catalogue or a specification is not a register, and reading every product
++# page of one looking for a form is not worth it -- but a separator sheet,
++# a blank page or a transmittal in front of the cover must not hide it
++# either. The first PAGE_SCAN_LIMIT pages are read (text layer, no OCR
++# beyond the scanned-page rule); pages past it are recorded as skipped,
++# by number and reason, never silently counted as checked.
++PAGE_SCAN_LIMIT = 12
++# Pages checked for the consultant's reply behind a form or a cover.
++REPLY_SEARCH_LIMIT = 12
++# Pages OCRed per document.
++OCR_PAGE_LIMIT = 12
++
++
++@dataclass
++class Reading:
++    """A document as read: the records, the notes, the page ledger and the
++    observations that are not records (see `read_open_pdf`)."""
++
++    records: tuple = ()
++    notes: tuple = ()
++    coverage: dict = field(default_factory=dict)
++    observations: list = field(default_factory=list)
++
++
++def _promote_default() -> bool:
++    """Whether observations the M2 reader can make but earlier readers did
++    not are promoted to records and statuses (`EXTRACTION_PROMOTE_OBSERVATIONS`).
++    Off by default: the ordinary path reads as the accepted reader did and
++    keeps the new observations beside the records, for evaluation; the
++    isolated evaluation path turns it on."""
++    try:
++        from app.core.config import get_settings
++
++        return bool(get_settings().extraction_promote_observations)
++    except Exception:  # noqa: BLE001 -- no settings (a script, a test without the app): keep the accepted behaviour
++        return False
++
++
++def observed_record(row: "ControlledDocument") -> dict:
++    """A record held as an observation, as JSON stores it: the stored-record
++    shape (document_sync._record_dict) with the datetime and the path as
++    text. `asdict` alone left `modified` a datetime and the row's JSON column
++    refused it -- 35 of 878 rows of the M2 review-01 clone repair failed on
++    exactly that (every untracked-discipline cover and scanned transmittal),
++    and the ordinary writer would have failed the same rows."""
++    data = asdict(row)
++    modified = data.get("modified")
++    if hasattr(modified, "isoformat"):
++        data["modified"] = modified.isoformat()
++    if data.get("path") is not None:
++        data["path"] = str(data["path"])
++    return data
++
++
++def untracked_sheet_observation(text: str) -> dict | None:
++    """A drawing sheet of a discipline the platform does not track, as an
++    observation: the sheet number and the discipline it names. Read the
++    way `parse_page` reads a sheet, kept apart from the records so no
++    register row is made of it."""
++    candidate = first_reference(text)
++    if candidate is None or candidate.category != "drawings":
++        return None
++    if not re.search(r"drawing\s*(?:title|no|number|submittal)|shop\s*drawing", text, re.I):
++        return None
++    if SUBMISSION_FORM.search(text) or REPLY_SHEET.search(text):
++        return None
++    reference = re.sub(r"-R\d+$", "", candidate.reference, flags=re.I)
++    named = f"{reference} " + " ".join(text.split()[:80])
++    if any(re.search(pattern, named, re.I) for _code, pattern in SYSTEMS) or _reference_system(reference):
++        return None   # a tracked system's sheet: parse_page reads it as a record
++    return {"kind": "drawing_sheet", "reference": reference, "raw_system": raw_system_of(reference, text[:400])}
++
++
++def _candidates_of(marks: list[dict]) -> tuple:
++    return tuple((m["status"], m["label"], m["method"]) for m in marks)
++
++
++def _revision_unvalidated(row: ControlledDocument) -> bool:
++    """A decision read off a drawing sheet whose revision was taken from its
++    folder while the sheet prints another: which revision the mark answers
++    is not the reader's to decide (M2 -> M4)."""
++    if row.category != "drawings" or row.revision_source != "folder" or not row.printed_revision:
++        return False
++    return _revision_number(row.printed_revision) != _revision_number(row.revision)
++
++
++def _hold_decision(row: ControlledDocument, status: str, evidence: str | None, method: str, flag: str) -> ControlledDocument:
++    """The mark kept beside the record, not made its status."""
++    return replace(row, decision_candidates=(*row.decision_candidates, (status, evidence or "", method)),
++                   flags=tuple(dict.fromkeys((*row.flags, flag))))
++
++
+ def read_open_pdf(pdf, filename: str, modified: datetime, use_ocr: bool, sha256: str | None = None,
+-                  page_texts: dict | None = None) -> tuple[tuple[ControlledDocument, ...], tuple[str, ...]]:
++                  page_texts: dict | None = None, *, full: bool = False, promote: bool | None = None):
+     """`_read_pdf` over a document already open: the one pass over its pages
+-    -- text, the parse, filled boxes, OCR where the evidence calls for it,
+-    the reply attached to a form. `page_texts` is the document's page text
+-    cache (`page_text`), so a page the caller has read is not read again."""
+-    records, warnings = [], []
++    -- text, the parse, marks, OCR where the evidence calls for it, the
++    reply attached to a form. `page_texts` is the document's page text
++    cache (`page_text`), so a page the caller has read is not read again.
++
++    Returns (records, notes); with `full=True` a `Reading`, whose `coverage`
++    is the page ledger -- every page of the file is visited, skipped (by
++    reason) or failed (by reason), exclusively, and the outcome says whether
++    the reading is "complete", "bounded" (complete within the reader's page
++    scope, the rest listed as skipped), "partial" (a page or its OCR
++    failed) or "unavailable" (the file itself could not be read) -- and
++    whose `observations` are what the reader saw but did not make a record
++    of: a sheet of an untracked discipline, a scanned transmittal or a
++    decision method not promoted (`promote`), the marks it held back.
++    """
++    records, warnings, observations = [], [], []
+     path = Path(filename)
+     clock = stage_clock()
+     if page_texts is None:
+         page_texts = {}
++    if promote is None:
++        promote = _promote_default()
++    total = pdf.page_count
++    visited: list[int] = []
++    skipped: list[dict] = []
++    failed: list[dict] = []
++    ocr_failed: list[int] = []
++    stop_reason = None
+     try:
+         if clock is not None:
+-            clock.set("page_count", pdf.page_count)
++            clock.set("page_count", total)
+         pending = None
+         ocr_count = 0
+         for index, page in enumerate(pdf):
+-            # A catalogue/specification is not a register. Inspect its cover,
+-            # but do not OCR or read every product page looking for approvals.
+-            if index > 0 and not records and pending is None:
++            number = index + 1
++            # A catalogue/specification is not a register: a file that has
++            # shown nothing in PAGE_SCAN_LIMIT pages is not read further --
++            # but every page up to there is, so a separator in front of the
++            # cover hides nothing, and the pages left are recorded.
++            if index >= PAGE_SCAN_LIMIT and not records and pending is None:
++                stop_reason = "page_scan_limit"
++                skipped.extend({"page": n, "reason": "page scan limit: nothing read in the first pages"} for n in range(number, total + 1))
+                 break
+-            if index >= 12 and records and all(row.category != "drawings" for row in records):
+-                warnings.append(f"{path.name}: only the first 12 pages were checked for submission replies.")
++            if index >= REPLY_SEARCH_LIMIT and records and all(row.category != "drawings" for row in records):
++                warnings.append(f"{path.name}: only the first {REPLY_SEARCH_LIMIT} pages were checked for submission replies.")
++                stop_reason = "reply_search_limit"
++                skipped.extend({"page": n, "reason": "reply search limit"} for n in range(number, total + 1))
+                 break
+             counted("pages_scanned")
+-            text = page_text(page, index, page_texts)
+-            with timed("deterministic_extract"):
+-                found = parse_page(text, filename, modified, index + 1)
+-            # The approval block lists every option and fills the box
+-            # beside the one chosen. As text that is a list of choices
+-            # and settles nothing -- rightly, since a list is not an
+-            # answer -- so where nothing was decided the drawing is
+-            # asked, before any OCR is attempted.
+-            if found and all(row.status == "UR" for row in found):
+-                boxed = _boxed(page, text, sha256, index)
+-                if boxed is not None:
+-                    decision, evidence = boxed
+-                    found = [replace(row, status=decision, reply_text=evidence) for row in found]
+-            # OCR title blocks of scanned pages and image stamps on forms.
+-            # Also a page whose own text or ticked box already gave a
+-            # decision: the consultant's stamp, pasted on as an image, is
+-            # the verdict that stands, and it can say otherwise -- EP-30784's
+-            # emergency lighting sample (BBY006-GME-SAR-EL-LI-0001) has
+-            # "Approved as Noted (B)" ticked and a "(C) Revise & Resubmit"
+-            # stamp beside it. What OCR finds is cached by content
+-            # (`_ocr_text`), so a page is OCRed once, not on every re-read.
+-            # A scanned first or second page is read whatever the file is
+-            # called: a transmittal, a certificate or a stamped cover filed
+-            # under a plain name was otherwise never looked at (bounded: two
+-            # pages, cached by content).
+-            scan = len(text.strip()) < 80
+-            candidate = bool(found) or pending is not None or (scan and index < 2) \
+-                or (scan and bool(re.search(r"approval|submittal|drawing|[/\\]MS[/\\]", filename, re.I)))
+-            regions = _image_regions(page) if (use_ocr and candidate and not scan) else []
+-            # A text page whose images are all too small to hold a word (a
+-            # logo, a rule) is not OCRed at all: nothing on it could be a stamp.
+-            if use_ocr and candidate and (scan or regions):
+-                if ocr_count < 12:
+-                    try:
+-                        ocr_count += 1
+-                        counted("ocr_pages_attempted")
+-                        renders: dict = {}
+-                        if scan or _prefer_full_page(page, regions):
+-                            # A scanned page, or one its images cover or
+-                            # crowd: the whole of it, as always.
+-                            ocr_text = _ocr_text(page, sha256, index, renders)
++            visited.append(number)
++            try:
++                text = page_text(page, index, page_texts)
++                with timed("deterministic_extract"):
++                    found = parse_page(text, filename, modified, number)
++                # The approval block lists every option and fills the box
++                # beside the one chosen. As text that is a list of choices
++                # and settles nothing -- rightly, since a list is not an
++                # answer -- so where nothing was decided the drawing is
++                # asked, before any OCR is attempted. Every mark on the page
++                # is collected first; marks that disagree are a conflict.
++                if found and all(row.status == "UR" for row in found):
++                    marks = _marks(page, text, sha256, index)
++                    outcome, decision, evidence = resolve_marks(marks)
++                    if outcome == "conflict":
++                        found = [replace(row, status="UR", reply_text=evidence, decision_candidates=_candidates_of(marks),
++                                         flags=(*row.flags, "decision_conflict")) for row in found]
++                        observations.append({"page": number, "kind": "decision_conflict", "marks": marks})
++                    elif outcome == "resolved":
++                        methods = {m["method"] for m in marks}
++                        # A rectangle drawn or highlighted into the page is a
++                        # method the accepted reader did not read: promoted
++                        # only on the evaluation path; the mark is kept.
++                        if methods <= {"drawn_frame"} and not promote:
++                            found = [_hold_decision(row, decision, evidence, "drawn_frame", "decision_method_unpromoted") for row in found]
++                            observations.append({"page": number, "kind": "decision_unpromoted", "marks": marks})
+                         else:
+-                            # A text page with a few images: the images
+-                            # (tier 1), in one run; the whole page where
+-                            # they would cost more than it.
+-                            ocr_text = _ocr_regions_text(page, regions, sha256, index, renders)
+-                            if ocr_text is None:
++                            found = [replace(row, status=decision, reply_text=evidence) for row in found]
++                # OCR title blocks of scanned pages and image stamps on forms.
++                # Also a page whose own text or ticked box already gave a
++                # decision: the consultant's stamp, pasted on as an image, is
++                # the verdict that stands, and it can say otherwise -- EP-30784's
++                # emergency lighting sample (BBY006-GME-SAR-EL-LI-0001) has
++                # "Approved as Noted (B)" ticked and a "(C) Revise & Resubmit"
++                # stamp beside it. What OCR finds is cached by content
++                # (`_ocr_text`), so a page is OCRed once, not on every re-read.
++                # A scanned first or second page is read whatever the file is
++                # called: a transmittal, a certificate or a stamped cover filed
++                # under a plain name was otherwise never looked at (bounded: two
++                # pages, cached by content).
++                scan = len(text.strip()) < 80
++                candidate = bool(found) or pending is not None or (scan and index < 2) \
++                    or (scan and bool(re.search(r"approval|submittal|drawing|[/\\]MS[/\\]", filename, re.I)))
++                regions = _image_regions(page) if (use_ocr and candidate and not scan) else []
++                # A text page whose images are all too small to hold a word (a
++                # logo, a rule) is not OCRed at all: nothing on it could be a stamp.
++                if use_ocr and candidate and (scan or regions):
++                    if ocr_count < OCR_PAGE_LIMIT:
++                        try:
++                            ocr_count += 1
++                            counted("ocr_pages_attempted")
++                            renders: dict = {}
++                            if scan or _prefer_full_page(page, regions):
++                                # A scanned page, or one its images cover or
++                                # crowd: the whole of it, as always.
+                                 ocr_text = _ocr_text(page, sha256, index, renders)
+-                        renders.clear()
+-                        with timed("deterministic_extract"):
+-                            ocr_found = parse_page(ocr_text, filename, modified, index + 1)
+-                            decision, evidence = read_decision(ocr_text)
+-                            if not found and not ocr_found and scan and index < 2:
+-                                # A scanned copy of a document transmittal
+-                                # (the signed acknowledgement filed as a
+-                                # PDF): the same sample submissions the
+-                                # Word original gives, read off its OCR.
+-                                from app.services import transmittals
+-
+-                                if transmittals.looks_like_transmittal(ocr_text):
+-                                    ocr_found = transmittals.from_ocr(ocr_text, filename, modified, page=index + 1)
+-                        if not found: found = ocr_found
+-                        if ocr_found or decision != "UR":
+-                            counted("ocr_pages_used")   # the OCR text changed what was read
+-                        if decision != "UR": found = [replace(row, status=decision, reply_text=evidence) for row in found]
+-                        text += "\n" + ocr_text
+-                    except Exception:
+-                        warnings.append(f"Could not OCR {path.name}, page {index + 1}.")
++                            else:
++                                # A text page with a few images: the images
++                                # (tier 1), in one run; the whole page where
++                                # they would cost more than it.
++                                ocr_text = _ocr_regions_text(page, regions, sha256, index, renders)
++                                if ocr_text is None:
++                                    ocr_text = _ocr_text(page, sha256, index, renders)
++                            renders.clear()
++                            with timed("deterministic_extract"):
++                                ocr_found = parse_page(ocr_text, filename, modified, number)
++                                decision, evidence = read_decision(ocr_text)
++                                if not found and not ocr_found and scan and index < 2:
++                                    # A scanned copy of a document transmittal
++                                    # (the signed acknowledgement filed as a
++                                    # PDF): the same sample submissions the
++                                    # Word original gives, read off its OCR.
++                                    from app.services import transmittals
++
++                                    if transmittals.looks_like_transmittal(ocr_text):
++                                        sent = transmittals.from_ocr(ocr_text, filename, modified, page=number)
++                                        if promote:
++                                            ocr_found = sent
++                                        elif sent:
++                                            observations.append({"page": number, "kind": "transmittal", "records": [observed_record(r) for r in sent]})
++                            if not found: found = ocr_found
++                            if ocr_found or decision != "UR":
++                                counted("ocr_pages_used")   # the OCR text changed what was read
++                            if decision != "UR":
++                                found = [replace(row, status=decision, reply_text=evidence) for row in found]
++                            text += "\n" + ocr_text
++                        except Exception as exc:  # noqa: BLE001 -- OCR failed on this page: noted, the page's text stands
++                            warnings.append(f"Could not OCR {path.name}, page {number}.")
++                            ocr_failed.append(number)
++                            failed.append({"page": number, "reason": f"OCR failed: {type(exc).__name__}: {exc}"[:200]})
++                    else:
++                        warnings.append(f"OCR limit reached in {path.name}; some replies may need verification.")
++                        skipped.append({"page": number, "reason": "OCR page limit"})
++                # A decision read off a sheet whose revision came from the
++                # folder while the sheet prints another is a mark, not yet
++                # that revision's status: kept beside the record.
++                found = [_hold_decision(replace(row, status="UR"), row.status, row.reply_text, "sheet_mark", "decision_revision_unvalidated")
++                         if row.status != "UR" and _revision_unvalidated(row) else row for row in found]
++                # A cover of a discipline the platform does not track is a
++                # record only on the evaluation path; otherwise an observation.
++                if not promote:
++                    held = [row for row in found if row.category == "drawings" and row.system_code is None]
++                    if held:
++                        observations.extend({"page": number, "kind": "cover_untracked", "record": observed_record(row)} for row in held)
++                        found = [row for row in found if row not in held]
++                if not found and not scan:
++                    sheet = untracked_sheet_observation(text)
++                    if sheet is not None:
++                        observations.append({"page": number, **sheet})
++                if found and pending is not None and all(r.category == "reply" for r in found) \
++                        and _answers(records[pending], found[0]):
++                    # The reply behind a submission, naming the sheets it covers:
++                    # the consultant's word on that submission, folded into it.
++                    reply = found[0]
++                    if reply.status != "UR":
++                        records[pending] = replace(records[pending], status=reply.status, reply_text=reply.reply_text,
++                                                   page=number)
++                    counted("replies_folded")
++                    # The reply page stays a record of its own as well (M2): a
++                    # contractor's reply sheet is a component of the file, and
++                    # a page that answered nothing must not vanish from the
++                    # reading. The register never lists a reply (combine drops
++                    # them after using their decision), so nothing is displaced.
++                    records.extend(found)
++                elif found:
++                    records.extend(found)
++                    pending = len(records) - 1 if len(found) == 1 and found[0].source == "document" else None
++                elif pending is not None and re.search(r"consultant.*(?:comment|reply|review)|review\s*status", text, re.I):
++                    # An attached reply without a different reference belongs to the preceding form.
++                    references = REF.findall(text)
++                    decision, evidence = read_decision(text)
++                    # A resubmission is filed with the comments it answers, so
++                    # the reply attached to an R1 form is usually the
++                    # consultant's word on R0. Where the comments name the
++                    # revision they are on, they settle that one, not this.
++                    from app.services.submittal_replies import commented_revision
++
++                    said = commented_revision(text)
++                    answers_this = said is None or said == _revision_number(records[pending].revision)
++                    if not references and decision != "UR" and answers_this:
++                        records[pending] = replace(records[pending], status=decision, reply_text=evidence, page=number)
++                    observations.append({"page": number, "kind": "consultant_comments", "decision": decision, "answers_revision": said})
++                elif not scan and records:
++                    # A page behind the records that is none of the above: a
++                    # datasheet, a certificate, a drawing sheet. Kept in the
++                    # ledger as visited; nothing is made of it here.
++                    pending = None
+                 else:
+-                    warnings.append(f"OCR limit reached in {path.name}; some replies may need verification.")
+-            if found and pending is not None and all(r.category == "reply" for r in found) \
+-                    and _answers(records[pending], found[0]):
+-                # The reply behind a submission, naming the sheets it covers:
+-                # the consultant's word on that submission, folded into it.
+-                # Not a record of its own -- read as one, every reply of a
+-                # project that quoted the same base number was one reply.
+-                reply = found[0]
+-                if reply.status != "UR":
+-                    records[pending] = replace(records[pending], status=reply.status, reply_text=reply.reply_text,
+-                                               page=index + 1)
+-                counted("replies_folded")
+-                # The reply page stays a record of its own as well (M2): a
+-                # contractor's reply sheet is a component of the file, and
+-                # a page that answered nothing must not vanish from the
+-                # reading. The register never lists a reply (combine drops
+-                # them after using their decision), so nothing is displaced.
+-                records.extend(found)
+-            elif found:
+-                records.extend(found)
+-                pending = len(records) - 1 if len(found) == 1 and found[0].source == "document" else None
+-            elif pending is not None and re.search(r"consultant.*(?:comment|reply|review)|review\s*status", text, re.I):
+-                # An attached reply without a different reference belongs to the preceding form.
+-                references = REF.findall(text)
+-                decision, evidence = read_decision(text)
+-                # A resubmission is filed with the comments it answers, so
+-                # the reply attached to an R1 form is usually the
+-                # consultant's word on R0. Where the comments name the
+-                # revision they are on, they settle that one, not this.
+-                from app.services.submittal_replies import commented_revision
+-
+-                said = commented_revision(text)
+-                answers_this = said is None or said == _revision_number(records[pending].revision)
+-                if not references and decision != "UR" and answers_this:
+-                    records[pending] = replace(records[pending], status=decision, reply_text=evidence, page=index + 1)
+-            else:
++                    pending = None
++            except OSError:
++                raise
++            except Exception as exc:  # noqa: BLE001 -- this page failed the reader: recorded; the pages before it stand
++                failed.append({"page": number, "reason": f"{type(exc).__name__}: {exc}"[:200]})
++                warnings.append(f"Page {number} of {path.name} could not be read.")
+                 pending = None
+     except OSError as exc:
+         # The file itself could not be read (online-only, gone): the note it
+-        # always left. Any other failure is the reader's own and is raised:
+-        # an empty reading standing as "unreadable" over a good earlier one
+-        # was how a reader defect erased records (M2).
++        # always left, and every page not yet visited is unavailable.
+         warnings.extend(open_failure_notes(path, exc))
+-    return tuple(records), tuple(dict.fromkeys(warnings))
++        skipped.extend({"page": n, "reason": "file unavailable"} for n in range(len(visited) + 1, total + 1) if n not in visited)
++        stop_reason = "unavailable"
++    if stop_reason == "unavailable":
++        outcome = "unavailable"
++    elif failed:
++        outcome = "partial"
++    elif skipped or stop_reason:
++        outcome = "bounded"
++    else:
++        outcome = "complete"
++    coverage = {"outcome": outcome, "pages_total": total, "pages_visited": visited, "pages_skipped": skipped,
++                "pages_failed": failed, "ocr_failed_pages": ocr_failed, "stop_reason": stop_reason,
++                "parser_version": PARSER_VERSION, "promoted": bool(promote)}
++    reading = Reading(tuple(records), tuple(dict.fromkeys(warnings)), coverage, observations)
++    return reading if full else (reading.records, reading.notes)
+ 
+ 
+ def _sheet_numbers(reference: str) -> set[str]:
+@@ -1392,6 +1646,9 @@ def describe_note(note: str) -> tuple[str, str]:
+     page = re.match(r"Could not OCR .*, page (\d+)\.$", note)
+     if page:
+         return "partial", f"Page {page[1]} could not be OCRed; a stamp on it may be unread."
++    page = re.match(r"Page (\d+) of .* could not be read\.$", note)
++    if page:
++        return "partial", f"Page {page[1]} could not be read; the reading is partial and will be retried."
+     if "only the first 12 pages were checked" in note:
+         return "partial", "Only the first 12 pages were checked for consultant replies."
+     if note.startswith("OCR limit reached"):
+diff --git a/backend/app/services/document_processing.py b/backend/app/services/document_processing.py
+index 959bd5e..7fabb80 100644
+--- a/backend/app/services/document_processing.py
++++ b/backend/app/services/document_processing.py
+@@ -110,16 +110,26 @@ def pending_rows(db: Session, project: Project) -> list[ProjectDocument]:
+     """The project's documents whose current content is not read yet, in
+     processing order: by priority, then by path."""
+     rows = (db.query(ProjectDocument)
+-            .filter(ProjectDocument.project_id == project.id, ProjectDocument.state.in_(NEEDS_PROCESSING),
++            .filter(ProjectDocument.project_id == project.id, _needs_reading(),
+                     ProjectDocument.role.notin_(INTAKE_ROLES)).all())
+     rows.sort(key=lambda r: (priority(r.relative_path or r.filename, r.role, r.size),
+                              (r.relative_path or r.filename).lower()))
+     return rows
+ 
+ 
++def _needs_reading():
++    """Rows whose content is not read yet, or whose last attempt did not
++    complete (`extracted.attempt`: unopenable, OCR failed, a page failed):
++    the incomplete work is what the next run retries."""
++    from sqlalchemy import func, or_
++
++    return or_(ProjectDocument.state.in_(NEEDS_PROCESSING),
++               (ProjectDocument.state != REMOVED) & func.json_extract(ProjectDocument.extracted, "$.attempt").isnot(None))
++
++
+ def pending_count(db: Session, project: Project) -> int:
+     return (db.query(ProjectDocument)
+-            .filter(ProjectDocument.project_id == project.id, ProjectDocument.state.in_(NEEDS_PROCESSING),
++            .filter(ProjectDocument.project_id == project.id, _needs_reading(),
+                     ProjectDocument.role.notin_(INTAKE_ROLES)).count())
+ 
+ 
+@@ -169,12 +179,16 @@ def read_task(path: str, relative: str, previous_sha: str | None, ocr: bool,
+         return {"duplicate_of": sha, "sha": sha, "size": stat.st_size, "mtime": stat.st_mtime,
+                 "hashing_seconds": hash_ms / 1000, "timing": timing, "seconds": time.perf_counter() - started}
+     role, records, notes, read_timing = document_sync.extract(path, relative, sha, ocr)
+-    evidence = None
++    evidence = coverage = None
++    observations: list = []
+     if isinstance(read_timing, dict):
+         evidence = read_timing.pop("evidence", None)
++        coverage = read_timing.pop("coverage", None)
++        observations = read_timing.pop("observations", None) or []
+         timing.update(read_timing)
+     return {"unchanged": False, "sha": sha, "size": stat.st_size, "mtime": stat.st_mtime, "role": role,
+-            "records": records, "notes": notes, "evidence": evidence, "hashing_seconds": hash_ms / 1000,
++            "records": records, "notes": notes, "evidence": evidence, "coverage": coverage, "observations": observations,
++            "hashing_seconds": hash_ms / 1000,
+             "read_seconds": document_sync.timing_seconds(read_timing), "timing": timing,
+             "seconds": time.perf_counter() - started}
+ 
+@@ -318,6 +332,7 @@ def run(db: Session, project: Project, *, user: User | None = None, ctx=None, pr
+         db.commit()   # the row says "processing" on disk, and the write lock is released for the progress report
+         db_write_ms = (time.perf_counter() - commit_started) * 1000
+         called_ai = False
++        incomplete_error = None     # set when the reading did not complete (failed / unavailable): the row is marked, not fresh
+         try:
+             if ctx is not None:
+                 ctx.progress(done, total, f"Processing documents — {done} of {total} · reading {path.name}",
+@@ -336,11 +351,22 @@ def run(db: Session, project: Project, *, user: User | None = None, ctx=None, pr
+                     # project) takes that reading here, with no call.
+                     deferred = (role == ROLE_SUBMITTAL and ai_run is not None
+                                 and submittal_reader.stored(db, row.sha256 or "") is None)
+-                    document_sync.process(db, project, row, path, root,
+-                                          run=ai_run if (role == ROLE_SUBMITTAL and not deferred) else None,
+-                                          user_id=user.id if user else None, ocr=ocr,
+-                                          read=(result["records"], result["notes"]) if result["records"] is not None else None,
+-                                          evidence=result.get("evidence"))
++                    outcome = document_sync.process(db, project, row, path, root,
++                                                    run=ai_run if (role == ROLE_SUBMITTAL and not deferred) else None,
++                                                    user_id=user.id if user else None, ocr=ocr,
++                                                    read=(result["records"], result["notes"]) if result["records"] is not None else None,
++                                                    evidence=result.get("evidence"), coverage=result.get("coverage"),
++                                                    observations=result.get("observations"))
++                    if outcome in ("failed", "unavailable"):
++                        # Nothing was read: the previous complete reading
++                        # stands (document_sync.process), the attempt is on
++                        # the row, the registry says so, and the row is
++                        # retried next run. A partial reading (a page or its
++                        # OCR failed) is kept the same way, fresh, and retried.
++                        attempt = document_sync.incomplete_attempt(row) or {}
++                        incomplete_error = (attempt.get("error") or "; ".join(attempt.get("notes") or [])
++                                            or "The file could not be read.")[:1000]
++                        deferred = False
+                 if ai_run and ai_run.calls > calls_before:
+                     counts["read_by_ai"] += 1
+                     called_ai = True
+@@ -355,6 +381,8 @@ def run(db: Session, project: Project, *, user: User | None = None, ctx=None, pr
+                 elif deferred:
+                     row.state, row.error = PROCESSING, None    # fresh once the model has read it
+                     deferred_forms.append((row, path, relative))
++                elif incomplete_error is not None:
++                    row.state, row.error = FAILED, incomplete_error
+                 else:
+                     row.state, row.error = FRESH, None
+             except Exception as exc:  # noqa: BLE001 -- the previous result stays; this document is marked
+diff --git a/backend/app/services/document_sync.py b/backend/app/services/document_sync.py
+index 0e76429..6dad19c 100644
+--- a/backend/app/services/document_sync.py
++++ b/backend/app/services/document_sync.py
+@@ -32,6 +32,7 @@ import hashlib
+ import json
+ import logging
+ import os
++import re
+ import time
+ from dataclasses import asdict
+ from datetime import datetime, timezone
+@@ -323,14 +324,47 @@ def record_for_the_log(extracted: dict, reading: dict, *, relative: str, modifie
+     return True
+ 
+ 
++COMPLETE_OUTCOMES = ("complete", "bounded")
++
++
++def _outcome_of(coverage: dict | None, notes) -> str:
++    """The reading's outcome: the page ledger's, or, for a reading that came
++    without one (`_read_pdf` from a cache), what its notes say."""
++    if coverage and coverage.get("outcome"):
++        return coverage["outcome"]
++    kinds = {document_control.describe_note(note)[0] for note in (notes or ())}
++    if "unavailable" in kinds:
++        return "unavailable"
++    if "failed" in kinds:
++        return "failed"
++    if "partial" in kinds and any(re.match(r"Could not OCR .*, page \d+\.$|Page \d+ of .* could not be read\.$", note) for note in (notes or ())):
++        return "partial"
++    return "complete"
++
++
+ def process(db: Session, project: Project, row: ProjectDocument, path: Path, root: Path, *, run=None,
+-            user_id: int | None, ocr: bool, read: tuple | None = None, evidence: dict | None = None) -> None:
++            user_id: int | None, ocr: bool, read: tuple | None = None, evidence: dict | None = None,
++            coverage: dict | None = None, observations: list | None = None) -> str:
+     """Read what this document holds and keep it on its row: the
+     document-control records (reference, revision, decision, title block)
+     for every document, and for a material submittal form the model's
+     reading as well. `read` is the PDF's (records, notes) when a reader
+-    process already has them (`extract`). Raises on failure; the caller
+-    keeps the old result."""
++    process already has them (`extract`), `coverage` the page ledger of
++    that reading and `observations` what it saw but did not make a record
++    of. Returns the reading's outcome.
++
++    Only a complete reading (every page visited, or bounded by the
++    reader's own page scope) replaces the row's reading. A failed or
++    unavailable attempt, or a partial one (a page or its OCR failed),
++    leaves the last complete reading -- its records, its parser version,
++    the content hash it was read from, its time -- where it was, and is
++    recorded beside it as `extracted["attempt"]` with its own outcome,
++    notes, error, coverage and, for a partial reading, its records: what
++    the next processing run retries. An attempt over a changed file marks
++    the kept reading `stale`: it describes the bytes it was read from, not
++    the new ones. Raises on a reader failure the ledger did not catch; the
++    caller keeps the old result.
++    """
+     stat = os.stat(document_control._os_path(path))
+     if row.role == ROLE_TRANSMITTAL:
+         from app.services.word_text import read_word_text
+@@ -339,16 +373,68 @@ def process(db: Session, project: Project, row: ProjectDocument, path: Path, roo
+         records = transmittals.read_transmittal(read_word_text(path), relative,
+                                                 datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc))
+         notes = ()
++        coverage = coverage or {"outcome": "complete", "pages_total": 1, "pages_visited": [1], "pages_skipped": [],
++                                "pages_failed": [], "ocr_failed_pages": [], "stop_reason": None,
++                                "parser_version": document_control.PARSER_VERSION}
++    elif read is not None:
++        records, notes = read
+     else:
+-        records, notes = read if read is not None else document_control._read_pdf(
+-            str(path), stat.st_mtime_ns, stat.st_size, ocr, row.sha256)
+-    extracted: dict = {
+-        "records": [_record_dict(document_control.replace(r, path=path.relative_to(root).as_posix()), root) for r in records],
++        reading = document_control.read_pdf_full(str(path), stat.st_mtime_ns, stat.st_size, ocr, row.sha256)
++        records, notes, coverage, observations = reading.records, reading.notes, reading.coverage, reading.observations
++    outcome = _outcome_of(coverage, notes)
++    modified = datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc)
++    previous = row.extracted if isinstance(row.extracted, dict) else None
++    stored_records = [_record_dict(document_control.replace(r, path=path.relative_to(root).as_posix()), root) for r in records]
++    if outcome not in COMPLETE_OUTCOMES:
++        attempt = {"at": utc_now().isoformat(), "outcome": outcome, "sha256": row.sha256, "notes": list(notes),
++                   "parser_version": document_control.PARSER_VERSION, "coverage": coverage,
++                   "error": (coverage or {}).get("error"), "observations": list(observations or [])}
++        if outcome == "partial":
++            attempt["records"] = stored_records
++        # A reading to keep: the last complete one, or the partial one that
++        # stands in for it -- with an earlier attempt already beside it or not.
++        complete_before = previous is not None and previous.get("records") is not None and bool(previous.get("parser_version"))
++        if complete_before:
++            # The last complete reading stands; the attempt is recorded beside it.
++            extracted = dict(previous)
++            extracted["attempt"] = attempt
++            extracted["notes"] = list(notes)
++            read_sha = previous.get("read_sha256")
++            extracted["stale"] = bool(read_sha) and read_sha != row.sha256
++        elif outcome == "partial":
++            # No complete reading to keep: the partial one is what there is,
++            # shown as such (its ledger says which pages failed) and retried
++            # next run; never reused by hash as a complete reading.
++            extracted = {"records": stored_records, "notes": list(notes), "parser_version": document_control.PARSER_VERSION,
++                         "read_sha256": row.sha256, "read_at": attempt["at"], "coverage": coverage,
++                         "observations": list(observations or []), "attempt": {k: v for k, v in attempt.items() if k != "records"}}
++            if evidence is not None:
++                extracted["evidence"] = evidence
++            if records:
++                first = records[0]
++                row.reference, row.revision, row.status = first.reference, first.revision, first.status
++                row.system_code = row.system_code or first.system_code
++            row.last_processed_at = utc_now()
++        else:
++            # No reading at all: the row shows the attempt and nothing
++            # stands in for a reading (no parser version: read again next time).
++            extracted = {"records": [], "notes": list(notes), "attempt": attempt, "read_sha256": None}
++            if evidence is not None:
++                extracted["evidence"] = evidence
++        row.extracted = extracted
++        row.index_version = INDEX_VERSION
++        return outcome
++    extracted = {
++        "records": stored_records,
+         "notes": list(notes),
+         # The parser the records were read with (document_control.PARSER_VERSION):
+         # a reading under an earlier one is read again when the row is next
+         # processed, whatever the file's hash.
+         "parser_version": document_control.PARSER_VERSION,
++        "read_sha256": row.sha256,
++        "read_at": utc_now().isoformat(),
++        "coverage": coverage,
++        "observations": list(observations or []),
+     }
+     if evidence is not None:
+         extracted["evidence"] = evidence
+@@ -358,11 +444,17 @@ def process(db: Session, project: Project, row: ProjectDocument, path: Path, roo
+         row.system_code = row.system_code or first.system_code
+     if row.role == ROLE_SUBMITTAL and run is not None:
+         reading = read_form_or_raise(db, run, path, row.sha256 or "", user_id=user_id)
+-        apply_form_reading(db, project, row, path, root, reading, extracted=extracted,
+-                           modified=datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc))
++        apply_form_reading(db, project, row, path, root, reading, extracted=extracted, modified=modified)
+     row.extracted = extracted
+     row.last_processed_at = utc_now()
+     row.index_version = INDEX_VERSION
++    return outcome
++
++
++def incomplete_attempt(row: ProjectDocument) -> dict | None:
++    """The row's last attempt that did not complete, if the last attempt did not."""
++    attempt = (row.extracted or {}).get("attempt") if isinstance(row.extracted, dict) else None
++    return attempt if isinstance(attempt, dict) else None
+ 
+ 
+ def read_form_or_raise(db: Session, run, path: Path, sha256: str, *, user_id: int | None) -> dict:
+@@ -447,6 +539,8 @@ def extract(path: str, relative: str, sha256: str | None, ocr: bool) -> tuple[st
+     modified = datetime.fromtimestamp(stat.st_mtime_ns / 1e9, timezone.utc)
+     document_control.counted("read_pdf")
+     page_texts: dict[int, str] = {}
++    coverage: dict | None = None
++    observations: list = []
+     try:
+         pdf = document_control._open_pdf(target)
+     except Exception as exc:  # noqa: BLE001 -- unreadable or online-only: a document, with the note it always got
+@@ -457,6 +551,10 @@ def extract(path: str, relative: str, sha256: str | None, ocr: bool) -> tuple[st
+             role = classify_text(None, target, relative)
+         records, notes = (), document_control.open_failure_notes(target, open_error)
+         evidence = None
++        coverage = {"outcome": "unavailable" if document_control.NOT_DOWNLOADED in notes[0] else "failed",
++                    "pages_total": None, "pages_visited": [], "pages_skipped": [], "pages_failed": [], "ocr_failed_pages": [],
++                    "stop_reason": "open_failed", "error": f"{type(open_error).__name__}: {open_error}"[:300],
++                    "parser_version": document_control.PARSER_VERSION}
+     else:
+         # Opened. From here a failure is the reader's own -- a defect on a
+         # page, a crash -- and it is raised, not written up as "unreadable":
+@@ -470,10 +568,16 @@ def extract(path: str, relative: str, sha256: str | None, ocr: bool) -> tuple[st
+             except OSError as exc:
+                 with clock.stage("classification"):
+                     role = classify_text(None, target, relative)
+-                return role, (), document_control.open_failure_notes(target, exc), {**_timing(clock, started), "evidence": None}
++                notes = document_control.open_failure_notes(target, exc)
++                return role, (), notes, {**_timing(clock, started), "evidence": None, "observations": [],
++                                         "coverage": {"outcome": "unavailable" if document_control.NOT_DOWNLOADED in notes[0] else "failed",
++                                                      "pages_total": pdf.page_count, "pages_visited": [], "pages_skipped": [], "pages_failed": [],
++                                                      "ocr_failed_pages": [], "stop_reason": "open_failed", "error": f"{type(exc).__name__}: {exc}"[:300],
++                                                      "parser_version": document_control.PARSER_VERSION}}
+             with clock.stage("classification"):
+                 role = classify_text(first, target, relative)
+-            records, notes = document_control.read_open_pdf(pdf, path, modified, ocr, sha256, page_texts=page_texts)
++            reading = document_control.read_open_pdf(pdf, path, modified, ocr, sha256, page_texts=page_texts, full=True)
++            records, notes, coverage, observations = reading.records, reading.notes, reading.coverage, reading.observations
+             # What the first pages say the document is, beside the records
+             # (app.services.content_evidence): text already extracted, OCR
+             # already cached; nothing rendered here. Carried in the timing
+@@ -487,6 +591,8 @@ def extract(path: str, relative: str, sha256: str | None, ocr: bool) -> tuple[st
+                 evidence = None
+     timing = _timing(clock, started)
+     timing["evidence"] = evidence
++    timing["coverage"] = coverage
++    timing["observations"] = observations
+     return role, records, notes, timing
+ 
+ 
+@@ -682,9 +788,10 @@ def _file_result(row: ProjectDocument) -> str:
+     """How one document's processing came out, as the telemetry counts it:
+     failed, unavailable (online-only in OneDrive), partial (read, not all
+     of it) or processed."""
++    attempt = incomplete_attempt(row)
+     if row.state == FAILED:
+-        return "failed"
+-    kinds = {document_control.describe_note(note)[0] for note in (row.extracted or {}).get("notes") or []}
++        return "unavailable" if attempt and attempt.get("outcome") == "unavailable" else "failed"
++    kinds = {document_control.describe_note(note)[0] for note in ((attempt or {}).get("notes") or (row.extracted or {}).get("notes") or [])}
+     if "unavailable" in kinds:
+         return "unavailable"
+     if "failed" in kinds:
+@@ -1066,6 +1173,9 @@ FILE_STATUSES = ("processed", "unchanged", "pending", "partial", "unavailable",
+ 
+ 
+ def _was_unavailable(row: ProjectDocument) -> bool:
++    attempt = incomplete_attempt(row)
++    if attempt is not None:
++        return True     # the last attempt did not complete: nothing of it is reused as a reading
+     return any(document_control.describe_note(note)[0] == "unavailable"
+                for note in (row.extracted or {}).get("notes") or [])
+ 
+@@ -1088,10 +1198,13 @@ def file_status(row: ProjectDocument, window: tuple | None) -> tuple[str, str |
+     if row.state in (PENDING, PROCESSING):
+         return "pending", ("Being read now." if row.state == PROCESSING
+                            else "Found by the file sync; waiting for document processing.")
++    attempt = incomplete_attempt(row)
+     if row.state == FAILED:
+-        return "failed", (row.error or "The file could not be processed.")[:500]
++        if attempt and attempt.get("outcome") == "unavailable":
++            return "unavailable", "File is online-only in OneDrive and could not be processed."
++        return "failed", (row.error or (attempt or {}).get("error") or "The file could not be processed.")[:500]
+     found = {}
+-    for note in (row.extracted or {}).get("notes") or []:
++    for note in ((attempt or {}).get("notes") or (row.extracted or {}).get("notes") or []):
+         kind, reason = document_control.describe_note(note)
+         found.setdefault(kind, reason)
+     for kind in ("failed", "unavailable", "partial"):
+diff --git a/backend/scripts/repair_extraction.py b/backend/scripts/repair_extraction.py
+index e3eda95..c53e817 100644
+--- a/backend/scripts/repair_extraction.py
++++ b/backend/scripts/repair_extraction.py
+@@ -125,7 +125,10 @@ def reread(row: ProjectDocument, ocr: bool) -> tuple[list[dict], list[str], dict
+     relative = row.relative_path or row.filename
+     stored = [document_sync._record_dict(document_control.replace(r, path=relative), root) for r in (records or ())]
+     evidence = timing.pop("evidence", None) if isinstance(timing, dict) else None
+-    return stored, list(notes or ()), evidence, {"sha256": sha, "size": stat.st_size, "mtime": stat.st_mtime, "role_read": role}
++    coverage = timing.pop("coverage", None) if isinstance(timing, dict) else None
++    observations = timing.pop("observations", None) if isinstance(timing, dict) else None
++    return stored, list(notes or ()), evidence, {"sha256": sha, "size": stat.st_size, "mtime": stat.st_mtime, "role_read": role,
++                                                 "coverage": coverage, "observations": observations or []}
+ 
+ 
+ _ROOTS: dict[int, str | None] = {}
+@@ -186,6 +189,13 @@ def preview(db: Session, row: ProjectDocument, reasons: list[str], ocr: bool) ->
+         entry["outcome"] = "skipped"
+         entry["skip_reason"] = "the file could not be read now: " + "; ".join(notes)[:200]
+         return entry
++    coverage = stat.get("coverage") or {}
++    if coverage.get("outcome") not in (None, *document_sync.COMPLETE_OUTCOMES):
++        # A page or its OCR failed: a partial reading is not a repair of a complete one (M2 review 01).
++        entry["outcome"] = "skipped"
++        entry["skip_reason"] = f"the re-read was {coverage.get('outcome')}: " + "; ".join(notes)[:200]
++        entry["coverage"] = coverage
++        return entry
+     first = _first(records)
+     # The row's reference, revision and status mirror its first record (document_sync.process);
+     # with no record left there is nothing for them to mirror -- an old value would be the
+@@ -243,6 +253,15 @@ def apply_row(db: Session, row: ProjectDocument, entry: dict) -> None:
+         extracted["evidence"] = evidence
+     extracted["parser_version"] = document_control.PARSER_VERSION
+     extracted["repaired_at"] = utc_now().isoformat()
++    # The reading's provenance, as processing writes it (document_sync.process):
++    # the content it was read from, when, its page ledger and observations;
++    # an earlier incomplete attempt is superseded by this complete reading.
++    extracted["read_sha256"] = row.sha256
++    extracted["read_at"] = extracted["repaired_at"]
++    extracted["coverage"] = entry["file"].get("coverage")
++    extracted["observations"] = entry["file"].get("observations") or []
++    extracted.pop("attempt", None)
++    extracted.pop("stale", None)
+     row.extracted = extracted
+     row.reference, row.revision, row.status = entry["new"]["reference"], entry["new"]["revision"], entry["new"]["status"]
+     row.last_processed_at = utc_now()
+diff --git a/backend/tests/test_design_sheet_extractor.py b/backend/tests/test_design_sheet_extractor.py
+index 238bb21..dc1f642 100644
+--- a/backend/tests/test_design_sheet_extractor.py
++++ b/backend/tests/test_design_sheet_extractor.py
+@@ -10,6 +10,7 @@ from app.services.design_sheet_extractor import (
+     _clean_quantity,
+     _dropped_row_issue,
+     _is_heading,
++    _unread_band,
+     extract_boq_lines,
+ )
+ 
+@@ -379,3 +380,37 @@ def test_a_real_row_missing_its_quantity_is_still_reviewed():
+     assert issue is not None and issue.detail["catalog_no"] == "SIGA-PS"
+     # A described item with no catalog number is an item too.
+     assert _dropped_row_issue(_row("Surface Mounted Emergency Light", ""), 0) is not None
++
++
++# --- M2 review 01, R4: a band between two tables is accounted for ---
++
++
++def test_an_inked_band_between_two_tables_is_a_skipped_region_not_a_silent_gap(monkeypatch):
++    """EP-30784 FAS page 2: a scanner streak breaks the column rules across one
++    item row, the table extent splits around it and the row went unread and
++    unreported. The row reader is unchanged; the band is now a skipped region
++    of the page's coverage."""
++    import numpy as np
++    from PIL import Image
++    from app.services import design_sheet_extractor as dse
++
++    dark = np.zeros((400, 600), dtype=bool)
++    dark[110:150, 210:390] = True        # text in the description column, in the band between the tables
++    rules = [0, 100, 200, 400, 500, 600]
++    layout = dse._Layout(quantity=(0, 1), catalog=(1, 2), description=(2, 3))
++    assert _unread_band(dark, 100, 160, 200, 400) is True
++    assert _unread_band(dark, 160, 400, 200, 400) is False        # blank
++    assert _unread_band(dark, 100, 110, 200, 400) is False        # thinner than a row
++
++    monkeypatch.setattr(dse, "_table_extents", lambda d, x: [(0, 100), (160, 400)])
++    monkeypatch.setattr(dse, "_section_title", lambda *a, **k: None)
++    monkeypatch.setattr(dse, "_read_table", lambda *a, **k: [])
++    _lines, _section, regions = dse._read_page(Image.new("L", (600, 400), 255), dark, rules, layout, 2, None)
++    kinds = [(r.kind, r.status, r.top, r.bottom) for r in regions]
++    assert ("band", "skipped", 100, 160) in kinds
++    assert [k for k in kinds if k[0] == "table"] == [("table", "processed", 0, 100), ("table", "processed", 160, 400)]
++
++    # a blank band between two tables is not reported
++    blank = np.zeros((400, 600), dtype=bool)
++    _lines, _section, regions = dse._read_page(Image.new("L", (600, 400), 255), blank, rules, layout, 2, None)
++    assert all(r.kind == "table" for r in regions)
+diff --git a/backend/tests/test_document_control.py b/backend/tests/test_document_control.py
+index 9ad7f68..553f6dd 100644
+--- a/backend/tests/test_document_control.py
++++ b/backend/tests/test_document_control.py
+@@ -470,9 +470,10 @@ def test_the_same_content_is_not_ocred_or_box_read_twice(tmp_path, monkeypatch):
+     from app.services.document_sync import sha256_of
+ 
+     ocred, boxed = [], []
+-    real_boxed = dc.boxed_decision
++    real_marks = dc.decision_marks
+     monkeypatch.setattr(dc, "_ocr_images", lambda page, images: ocred.append(page.number) or ["Consultant stamp: none"] * len(images))
+-    monkeypatch.setattr(dc, "boxed_decision", lambda page, text=None: boxed.append(page.number) or real_boxed(page, text))
++    # The page cache holds the marks of a page (`_marks` -> `decision_marks`) under BOX_VERSION.
++    monkeypatch.setattr(dc, "decision_marks", lambda page, text=None, shapes=None: boxed.append(page.number) or real_marks(page, text, shapes))
+     path = _approval_sheet(tmp_path / "sheet.pdf", chosen=None)
+     stat = os.stat(path)
+     sha = sha256_of(path)
+diff --git a/backend/tests/test_extraction_m2.py b/backend/tests/test_extraction_m2.py
+index a515dec..dfa09ae 100644
+--- a/backend/tests/test_extraction_m2.py
++++ b/backend/tests/test_extraction_m2.py
+@@ -198,8 +198,15 @@ def test_a_scanned_transmittal_page_reaches_the_reader_through_ocr(tmp_path, mon
+         document.new_page()      # a scan: no text layer at all
+         document.save(path)
+     monkeypatch.setattr(dc, "_ocr_text", lambda page, sha256, index, renders=None: OCR_729)
++    # The ordinary path (nothing promoted): the transmittal is an observation beside the records.
+     with pymupdf.open(path) as pdf:
+-        records, notes = dc.read_open_pdf(pdf, str(path), NOW, True, "sha-729")
++        reading = dc.read_open_pdf(pdf, str(path), NOW, True, "sha-729", full=True, promote=False)
++    assert reading.records == () and reading.notes == ()
++    assert [(o["kind"], o["page"], o["records"][0]["reference"]) for o in reading.observations] == [("transmittal", 1, "TR/204/26")]
++    assert reading.coverage["outcome"] == "complete" and reading.coverage["pages_visited"] == [1]
++    # The evaluation path: promoted to a record.
++    with pymupdf.open(path) as pdf:
++        records, notes = dc.read_open_pdf(pdf, str(path), NOW, True, "sha-729", promote=True)
+     assert [(r.category, r.reference, r.page) for r in records] == [("samples", "TR/204/26", 1)]
+     assert notes == ()
+ 
+@@ -247,10 +254,15 @@ def test_a_reader_defect_raises_instead_of_standing_as_an_empty_reading(tmp_path
+         raise RuntimeError("the reader fell over")
+ 
+     monkeypatch.setattr(dc, "parse_page", broken)
+-    with pytest.raises(RuntimeError, match="fell over"):
+-        dc._read_pdf(str(path), stat.st_mtime_ns + 1, stat.st_size, False, "sha-b")
+-    with pytest.raises(RuntimeError, match="fell over"):
+-        document_sync.extract(str(path), "form.pdf", "sha-b", False)
++    # A page the reader fell over on is a failed page in the ledger, not an
++    # "unreadable" note that stands as a reading: the outcome is partial, so
++    # document_sync.process keeps the previous complete reading (M2 review 01, R1).
++    reading = dc.read_pdf_full(str(path), stat.st_mtime_ns + 1, stat.st_size, False, "sha-b")
++    assert reading.records == () and reading.coverage["outcome"] == "partial"
++    assert reading.coverage["pages_failed"][0]["page"] == 1 and "fell over" in reading.coverage["pages_failed"][0]["reason"]
++    assert any(note.startswith("Page 1 of") and note.endswith("could not be read.") for note in reading.notes)
++    role, records, notes, timing = document_sync.extract(str(path), "form.pdf", "sha-b", False)
++    assert records == () and timing["coverage"]["outcome"] == "partial"
+ 
+ 
+ def test_an_unopenable_file_is_still_a_document_with_the_note_it_always_got(tmp_path):
+diff --git a/backend/tests/test_extraction_m2_review.py b/backend/tests/test_extraction_m2_review.py
+new file mode 100644
+index 0000000..9c53af6
+--- /dev/null
++++ b/backend/tests/test_extraction_m2_review.py
+@@ -0,0 +1,514 @@
++"""M2 review 01 -- the corrections: a reading that did not complete never
++replaces the last complete one (R1); marks of every method are validated
++alike and disagreement is a conflict (R2); every page is in the ledger and
++untracked components are observations, not register rows (R3); new
++observations are promoted only on the evaluation path, and manual values
++survive ordinary processing (R5). Everything runs in the isolated test
++environment (conftest); no live data, model or worker."""
++import os
++import time
++from datetime import datetime, timezone
++from pathlib import Path
++
++import pymupdf
++import pytest
++
++import app.routers.jobs as jobs_router
++from app.core.config import get_settings
++from app.models import Project, ProjectDocument
++from app.services import document_control as dc
++from app.services import document_processing, document_sync
++
++from .test_document_sync import _pdf, _project, _result
++from .test_extraction_m2 import FF_COVER, OPTIONS, SHEET
++
++NOW = datetime(2026, 9, 28, tzinfo=timezone.utc)
++FA_COVER = ("SHOP DRAWING SUBMITTAL\nNo: ABC-XYZ-SPM-SD-MEP-FA-0054\nRev: 01\nsubmitting herewith\nDRAWING & DESIGN REF\n"
++            "ABC-XYZ-SPM-SD-MEP/FA-104\nGROUND FLOOR FIRE ALARM LAYOUT\nSubmitted By:\nReceived By:\n")
++SEPARATOR = "Project package contents and document separator sheet.\n" * 3
++
++
++@pytest.fixture()
++def inline(monkeypatch):
++    monkeypatch.setattr(jobs_router, "RUN_INLINE", True)
++
++
++def _row(db_session, project_id) -> ProjectDocument:
++    return db_session.query(ProjectDocument).filter(ProjectDocument.project_id == project_id).one()
++
++
++def _touch(path: Path) -> None:
++    later = time.time() + 5
++    os.utime(path, (later, later))
++
++
++def _sync(client, project_id) -> dict:
++    return _result(client, client.post(f"/projects/{project_id}/jobs/sync-documents"))
++
++
++# --- R1: the last complete reading survives a failed, unavailable or partial attempt -----------------
++
++
++def test_a_corrupt_replacement_keeps_the_last_complete_reading_marks_the_row_and_is_retried(client, db_session, tmp_path, inline):
++    folder = tmp_path / "EP-30901"
++    path = _pdf(folder / "05- Drawings" / "cover.pdf", FA_COVER)
++    project_id = _project(client, folder, ep="30901")
++    _sync(client, project_id)
++    row = _row(db_session, project_id)
++    first = dict(row.extracted)
++    assert first["records"][0]["reference"] == "ABC-XYZ-SPM-SD-MEP-FA-0054" and first["read_sha256"] == row.sha256
++    assert first["coverage"]["outcome"] == "complete" and first["coverage"]["pages_visited"] == [1]
++    good_sha, good_at = row.sha256, row.last_processed_at
++
++    path.write_bytes(b"not a PDF at all, twice over")
++    _touch(path)
++    result = _sync(client, project_id)
++    db_session.refresh(row)
++    assert result["changed"] == 1 and result.get("failed", 0) == 1
++    assert row.state == "failed" and row.error, "the registry says why"
++    assert row.extracted["records"] == first["records"], "the last complete reading stands"
++    assert row.extracted["parser_version"] == first["parser_version"] and row.extracted["read_sha256"] == good_sha
++    assert row.extracted["read_at"] == first["read_at"] and row.last_processed_at == good_at
++    assert row.extracted["stale"] is True, "the kept reading describes the old bytes, not the new ones"
++    assert row.sha256 != good_sha
++    attempt = row.extracted["attempt"]
++    assert attempt["outcome"] == "failed" and attempt["sha256"] == row.sha256 and attempt["parser_version"] == dc.PARSER_VERSION
++    assert attempt["notes"] and attempt["notes"][0].startswith(dc.UNREADABLE)
++    assert row.reference == "ABC-XYZ-SPM-SD-MEP-FA-0054", "the mirror stays consistent with the kept records"
++    status = client.get(f"/projects/{project_id}/documents/status").json()
++    assert status["by_state"] == {"failed": 1} and status["failed"][0]["path"] == "05- Drawings/cover.pdf"
++    # The incomplete work is what the next run retries -- and a retry over the same bytes is idempotent.
++    project = db_session.get(Project, project_id)
++    assert [r.id for r in document_processing.pending_rows(db_session, project)] == [row.id]
++    again = _sync(client, project_id)
++    db_session.refresh(row)
++    assert again.get("failed", 0) == 1, "the incomplete row was retried"
++    assert row.state == "failed" and row.extracted["records"] == first["records"] and row.extracted["read_sha256"] == good_sha
++    assert row.extracted["attempt"]["outcome"] == "failed" and row.last_processed_at == good_at
++
++    # The file is good again: read, the attempt superseded, the reading current.
++    _pdf(path, FA_COVER.replace("Rev: 01", "Rev: 02"))
++    _touch(path)
++    _sync(client, project_id)
++    db_session.refresh(row)
++    assert row.state == "fresh" and row.error is None and "attempt" not in row.extracted and not row.extracted.get("stale")
++    assert row.extracted["records"][0]["revision"] == "R2" and row.extracted["read_sha256"] == row.sha256
++    assert document_processing.pending_rows(db_session, project) == []
++
++
++def test_an_ocr_failure_on_a_changed_scan_keeps_the_previous_complete_reading_as_a_partial_attempt(client, db_session, tmp_path, inline, monkeypatch):
++    folder = tmp_path / "EP-30902"
++    path = _pdf(folder / "05- Drawings" / "cover.pdf", FA_COVER)
++    project_id = _project(client, folder, ep="30902")
++    _sync(client, project_id)
++    row = _row(db_session, project_id)
++    first = dict(row.extracted)
++
++    with pymupdf.open() as document:
++        document.new_page()      # a scan: nothing in the text layer
++        document.save(path)
++    _touch(path)
++
++    def timed_out(page, sha256, index, renders=None):
++        raise RuntimeError("synthetic OCR timeout")
++
++    monkeypatch.setattr(dc, "_ocr_text", timed_out)
++    result = _sync(client, project_id)
++    db_session.refresh(row)
++    processed = client.get(f"/jobs/{result['processing_job_id']}").json()["result"]
++    assert result["changed"] == 1 and processed.get("partial", 0) == 1 and processed.get("failed", 0) == 0
++    assert row.state == "fresh", "a partial attempt is not a failure of the file"
++    assert row.extracted["records"] == first["records"] and row.extracted["read_sha256"] == first["read_sha256"]
++    attempt = row.extracted["attempt"]
++    assert attempt["outcome"] == "partial" and attempt["records"] == [] and attempt["coverage"]["ocr_failed_pages"] == [1]
++    assert attempt["coverage"]["pages_failed"][0]["reason"].startswith("OCR failed")
++    assert document_sync.file_status(row, None)[0] == "partial"
++    assert row.extracted["stale"] is True
++    assert [r.id for r in document_processing.pending_rows(db_session, db_session.get(Project, project_id))] == [row.id], "retried next run"
++
++    monkeypatch.setattr(dc, "_ocr_text", lambda page, sha256, index, renders=None: FA_COVER.replace("Rev: 01", "Rev: 03"))
++    _sync(client, project_id)
++    db_session.refresh(row)
++    assert "attempt" not in row.extracted and row.extracted["records"][0]["revision"] == "R3"
++    assert row.extracted["coverage"]["outcome"] == "complete" and not row.extracted.get("stale")
++
++
++def test_a_failure_on_page_two_after_page_one_keeps_the_previous_complete_reading(client, db_session, tmp_path, inline, monkeypatch):
++    folder = tmp_path / "EP-30903"
++    path = _pdf(folder / "05- Drawings" / "cover.pdf", FA_COVER)
++    project_id = _project(client, folder, ep="30903")
++    _sync(client, project_id)
++    row = _row(db_session, project_id)
++    first = dict(row.extracted)
++
++    with pymupdf.open() as document:
++        for text in (FA_COVER.replace("Rev: 01", "Rev: 02"), "Reply to Consultant Comments\nABC-XYZ-SPM-SD-MEP/FA-104\n"):
++            document.new_page().insert_text((30, 30), text, fontsize=7)
++        document.save(path)
++    _touch(path)
++    real = dc.parse_page
++
++    def page_two_breaks(text, filename, modified, page):
++        if page == 2:
++            raise ValueError("page 2 fell over")
++        return real(text, filename, modified, page)
++
++    monkeypatch.setattr(dc, "parse_page", page_two_breaks)
++    _sync(client, project_id)
++    db_session.refresh(row)
++    assert row.state == "fresh" and row.extracted["records"] == first["records"], "R1 stands until R2 is read whole"
++    attempt = row.extracted["attempt"]
++    assert attempt["outcome"] == "partial" and [r["revision"] for r in attempt["records"]] == ["R2"], "page 1's reading is kept as the attempt's progress"
++    assert attempt["coverage"]["pages_visited"] == [1, 2] and attempt["coverage"]["pages_failed"][0]["page"] == 2
++    assert row.reference == "ABC-XYZ-SPM-SD-MEP-FA-0054" and row.revision == "R1"
++
++    monkeypatch.setattr(dc, "parse_page", real)
++    _sync(client, project_id)
++    db_session.refresh(row)
++    assert "attempt" not in row.extracted and [r["revision"] for r in row.extracted["records"]] == ["R2", "R0"]
++    assert row.extracted["coverage"]["outcome"] == "complete" and row.extracted["coverage"]["pages_visited"] == [1, 2]
++
++
++def test_a_new_unreadable_file_stays_visible_in_the_registry_with_an_honest_outcome(client, db_session, tmp_path, inline):
++    folder = tmp_path / "EP-30904"
++    (folder / "05- Drawings").mkdir(parents=True)
++    (folder / "05- Drawings" / "damaged.pdf").write_bytes(b"%PDF-1.4 but nothing of a PDF follows")
++    project_id = _project(client, folder, ep="30904")
++    result = _sync(client, project_id)
++    row = _row(db_session, project_id)
++    assert result.get("failed", 0) == 1
++    assert row.state == "failed" and row.extracted["records"] == [] and "parser_version" not in row.extracted
++    assert row.extracted["attempt"]["outcome"] == "failed" and row.extracted["read_sha256"] is None
++    assert document_sync.file_status(row, None)[0] == "failed"
++    status = client.get(f"/projects/{project_id}/documents/status").json()
++    assert status["by_state"] == {"failed": 1}
++    assert [r.id for r in document_processing.pending_rows(db_session, db_session.get(Project, project_id))] == [row.id]
++
++
++def test_the_repair_tool_skips_a_partial_re_read(tmp_path, monkeypatch):
++    from types import SimpleNamespace
++
++    from scripts import repair_extraction as tool
++
++    path = _pdf(tmp_path / "cover.pdf", FA_COVER)
++    row = SimpleNamespace(id=1, project_id=1, path=str(path), relative_path="cover.pdf", filename="cover.pdf", role="document",
++                          state="fresh", sha256=document_sync.sha256_of(path), reference="X", revision="R0", status="UR",
++                          extracted={"records": [{"reference": "X"}], "parser_version": "old"}, mtime=None)
++    monkeypatch.setattr(tool, "root_of", lambda r: str(tmp_path))
++
++    def breaks(text, filename, modified, page):
++        raise ValueError("page fell over")
++
++    monkeypatch.setattr(dc, "parse_page", breaks)
++    entry = tool.preview(None, row, ["selected by id"], False)
++    assert entry["outcome"] == "skipped" and entry["skip_reason"].startswith("the re-read was partial")
++    assert entry["coverage"]["pages_failed"][0]["page"] == 1
++
++
++# --- R2: one validator for every mark, conflicts kept as conflicts ----------------------------------
++
++COMMENT = "Follow the approved builders work drawings for riser location"
++
++
++def _page(document, text: str):
++    page = document.new_page()
++    page.insert_text((30, 30), text, fontsize=8)
++    return page
++
++
++def _frame(page, phrase: str, pad: float = 2.0):
++    return page.search_for(phrase)[0] + (-pad, -pad, pad, pad)
++
++
++def test_an_annotation_round_a_comment_that_mentions_an_option_is_not_a_decision(tmp_path):
++    with pymupdf.open() as document:
++        page = _page(document, OPTIONS + COMMENT)
++        annot = page.add_rect_annot(_frame(page, COMMENT))
++        annot.set_colors(stroke=(0, 0.5, 0))
++        annot.update()
++        assert dc.decision_marks(page, OPTIONS + COMMENT) == []
++        assert dc.boxed_decision(page, OPTIONS + COMMENT) is None
++        assert dc.annotated_decision(page, OPTIONS + COMMENT) is None
++
++
++def test_contractor_and_receipt_labels_and_partial_words_are_not_decisions_whatever_frames_them(tmp_path):
++    text = OPTIONS + "Noted & Complied\nApproved supplier\nRECEIVED BY: Er. Shibin\n"
++    for phrase in ("Noted & Complied", "Approved supplier", "RECEIVED BY: Er. Shibin"):
++        with pymupdf.open() as document:
++            page = _page(document, text)
++            page.draw_rect(_frame(page, phrase), color=(0, 0.5, 0), width=3)
++            annot = page.add_rect_annot(_frame(page, phrase))
++            annot.set_colors(stroke=(0, 0.5, 0))
++            annot.update()
++            assert dc.decision_marks(page, text) == [], phrase
++    assert dc._label_is_one_option("Approved supplier") is None
++    assert dc._label_is_one_option("B - Approved With Comments") == "ANN"
++    assert dc._label_is_one_option("C - Revise & Re-Submit") == "rejected"
++    assert dc._label_is_one_option("Approved (A)") == "approved"
++
++
++def test_marks_of_different_methods_that_disagree_are_a_conflict_not_a_choice(tmp_path):
++    with pymupdf.open() as document:
++        page = _page(document, OPTIONS)
++        page.draw_rect(_frame(page, "C - Revise & Re-Submit"), color=(0, 0.5, 0), width=3)
++        annot = page.add_rect_annot(_frame(page, "A - Approved"))
++        annot.set_colors(stroke=(0, 0.5, 0))
++        annot.update()
++        marks = dc.decision_marks(page, OPTIONS)
++        assert {(m["status"], m["method"]) for m in marks} == {("approved", "annotation"), ("rejected", "drawn_frame")}
++        outcome, status, evidence = dc.resolve_marks(marks)
++        assert outcome == "conflict" and status is None and "A - Approved [annotation]" in evidence and "drawn_frame" in evidence
++        assert dc.boxed_decision(page, OPTIONS) is None, "no method's answer hides the other's"
++    # A filled box and an annotation on different answers: the same conflict.
++    with pymupdf.open() as document:
++        page = _page(document, OPTIONS)
++        box = page.search_for("A - Approved")[0]
++        page.draw_rect(pymupdf.Rect(box.x0 - 14, box.y0, box.x0 - 4, box.y1), color=None, fill=(0.9, 0.1, 0.1))
++        annot = page.add_rect_annot(_frame(page, "C - Revise & Re-Submit"))
++        annot.set_colors(stroke=(0, 0.5, 0))
++        annot.update()
++        marks = dc.decision_marks(page, OPTIONS)
++        assert {(m["status"], m["method"]) for m in marks} == {("approved", "filled_box"), ("rejected", "annotation")}
++        assert dc.resolve_marks(marks)[0] == "conflict"
++    # Two marks on the same answer are one answer (positive control).
++    with pymupdf.open() as document:
++        page = _page(document, OPTIONS)
++        page.draw_rect(_frame(page, "C - Revise & Re-Submit"), color=(0, 0.5, 0), width=3)
++        annot = page.add_rect_annot(_frame(page, "C - Revise & Re-Submit"))
++        annot.set_colors(stroke=(0, 0.5, 0))
++        annot.update()
++        assert dc.resolve_marks(dc.decision_marks(page, OPTIONS)) == ("resolved", "rejected", "C - Revise & Re-Submit")
++
++
++def test_a_conflict_is_persisted_as_an_unresolved_record_not_an_approval(tmp_path):
++    with pymupdf.open() as document:
++        page = _page(document, FA_COVER + OPTIONS)
++        page.draw_rect(_frame(page, "C - Revise & Re-Submit"), color=(0, 0.5, 0), width=3)
++        annot = page.add_rect_annot(_frame(page, "A - Approved"))
++        annot.set_colors(stroke=(0, 0.5, 0))
++        annot.update()
++        document.save(tmp_path / "conflict.pdf")
++    with pymupdf.open(tmp_path / "conflict.pdf") as pdf:
++        reading = dc.read_open_pdf(pdf, str(tmp_path / "conflict.pdf"), NOW, False, "sha-conf", full=True, promote=True)
++    [record] = reading.records
++    assert record.status == "UR" and "decision_conflict" in record.flags
++    assert {(s, m) for s, _l, m in record.decision_candidates} == {("approved", "annotation"), ("rejected", "drawn_frame")}
++    assert record.reply_text.startswith("Conflicting marks")
++    assert reading.observations[0]["kind"] == "decision_conflict"
++    stored = document_sync._record_dict(record, tmp_path)
++    assert stored["status"] == "UR" and list(stored["flags"]) == ["decision_conflict"] and len(stored["decision_candidates"]) == 2
++
++
++# --- R3: every page in the ledger; components observed without register rows -----------------------
++
++
++def test_a_leading_separator_no_longer_hides_the_cover_on_page_two(tmp_path):
++    with pymupdf.open() as document:
++        _page(document, SEPARATOR)
++        _page(document, FA_COVER)
++        reading = dc.read_open_pdf(document, str(tmp_path / "mixed.pdf"), NOW, False, None, full=True)
++    assert [r.reference for r in reading.records] == ["ABC-XYZ-SPM-SD-MEP-FA-0054"] and reading.records[0].page == 2
++    assert reading.coverage["pages_visited"] == [1, 2] and reading.coverage["outcome"] == "complete"
++    assert reading.coverage["pages_skipped"] == [] and reading.coverage["pages_failed"] == []
++
++
++def test_a_standalone_sheet_of_an_untracked_discipline_is_an_observation_not_a_record(tmp_path):
++    sheet = "DRAWING NO:\nICC-DLRC-SPM-SD-MEP/FF-110\nDRAWING TITLE:\nBASEMENT-01 FIREFIGHTING LAYOUT\nSCALE 1 : 75\n"
++    with pymupdf.open() as document:
++        _page(document, sheet)
++        reading = dc.read_open_pdf(document, str(tmp_path / "sheet.pdf"), NOW, False, None, full=True)
++    assert reading.records == ()
++    assert reading.observations == [{"page": 1, "kind": "drawing_sheet", "reference": "ICC-DLRC-SPM-SD-MEP/FF-110", "raw_system": "FIREFIGHTING"}]
++    assert reading.coverage == {**reading.coverage, "outcome": "complete", "pages_visited": [1]}
++
++
++def test_a_mixed_file_lists_every_page_and_keeps_its_components(tmp_path):
++    pages = [FA_COVER,
++             "Reply to Consultant Comments\nABC-XYZ-SPM-SD-MEP/FA-104\nRev: 0\n1 PQ & MAS to be obtained approval. Noted\n",
++             "DATASHEET\nEST3 Fire alarm control panel\nTechnical data: 24 V DC, 2 A\n",
++             "CERTIFICATE OF CONFORMITY\nThis is to certify that the product listed below conforms.\n",
++             "Consultant comments\nReview status: (C) Revise & Resubmit\n"]
++    with pymupdf.open() as document:
++        for text in pages:
++            _page(document, text)
++        reading = dc.read_open_pdf(document, str(tmp_path / "package.pdf"), NOW, False, None, full=True)
++    assert [(r.category, r.page) for r in reading.records] == [("drawings", 1), ("reply", 2)]
++    assert reading.coverage["pages_visited"] == [1, 2, 3, 4, 5] and reading.coverage["outcome"] == "complete"
++    assert reading.records[0].status == "UR", "a contractor reply is not a decision; the comments on page 5 name no reference and follow other pages"
++
++
++def test_a_later_consultant_section_behind_the_form_is_observed_and_applied_as_before(tmp_path):
++    pages = [FA_COVER, "Consultant comments\nReview status: (C) Revise & Resubmit\n"]
++    with pymupdf.open() as document:
++        for text in pages:
++            _page(document, text)
++        reading = dc.read_open_pdf(document, str(tmp_path / "commented.pdf"), NOW, False, None, full=True)
++    [record] = reading.records
++    assert record.status == "rejected" and record.page == 2, "the attached comments settle the form, as they always did"
++    assert [o["kind"] for o in reading.observations] == ["consultant_comments"] and reading.observations[0]["decision"] == "rejected"
++
++
++def test_a_page_scope_limit_records_the_pages_it_did_not_read(tmp_path, monkeypatch):
++    monkeypatch.setattr(dc, "PAGE_SCAN_LIMIT", 2)
++    with pymupdf.open() as document:
++        for n in range(4):
++            _page(document, f"Product catalogue page {n + 1}\nNothing controlled here.\n")
++        reading = dc.read_open_pdf(document, str(tmp_path / "catalogue.pdf"), NOW, False, None, full=True)
++    assert reading.records == () and reading.coverage["outcome"] == "bounded"
++    assert reading.coverage["pages_visited"] == [1, 2] and reading.coverage["stop_reason"] == "page_scan_limit"
++    assert [p["page"] for p in reading.coverage["pages_skipped"]] == [3, 4]
++    assert all("page scan limit" in p["reason"] for p in reading.coverage["pages_skipped"])
++    # Exclusive outcomes: every page is visited or skipped, once.
++    assert sorted(reading.coverage["pages_visited"] + [p["page"] for p in reading.coverage["pages_skipped"]]) == [1, 2, 3, 4]
++    # The cover on page 3 is found once the scope allows it.
++    monkeypatch.setattr(dc, "PAGE_SCAN_LIMIT", 12)
++    with pymupdf.open() as document:
++        _page(document, SEPARATOR)
++        _page(document, SEPARATOR)
++        _page(document, FA_COVER)
++        reading = dc.read_open_pdf(document, str(tmp_path / "late.pdf"), NOW, False, None, full=True)
++    assert [r.page for r in reading.records] == [3] and reading.coverage["outcome"] == "complete"
++
++
++def test_an_untracked_cover_is_an_observation_by_default_and_a_record_when_promoted(tmp_path):
++    with pymupdf.open() as document:
++        _page(document, FF_COVER)
++        document.save(tmp_path / "ff.pdf")
++    with pymupdf.open(tmp_path / "ff.pdf") as pdf:
++        held = dc.read_open_pdf(pdf, str(tmp_path / "ff.pdf"), NOW, False, None, full=True, promote=False)
++    assert held.records == () and held.observations[0]["kind"] == "cover_untracked"
++    assert held.observations[0]["record"]["reference"] == "ICC-DLRC-SPM-SD-MEP-FF-0047" and held.observations[0]["record"]["raw_system"] == "FIREFIGHTING"
++    assert dc.combine(list(held.records)) == [], "no register row from an observation"
++    with pymupdf.open(tmp_path / "ff.pdf") as pdf:
++        promoted = dc.read_open_pdf(pdf, str(tmp_path / "ff.pdf"), NOW, False, None, full=True, promote=True)
++    assert [(r.reference, r.system_code, r.raw_system) for r in promoted.records] == [("ICC-DLRC-SPM-SD-MEP-FF-0047", None, "FIREFIGHTING")]
++
++
++def test_an_observation_that_holds_a_record_is_stored_by_normal_processing(client, db_session, tmp_path, inline):
++    """The clone repair of the review-01 correction failed on 35 rows: an observation carried a record as a raw
++    dataclass dict (datetime inside) and the row's JSON column refused it -- every untracked-discipline cover and
++    scanned transmittal. The observation must reach the database through the ordinary writer, as JSON."""
++    import json
++
++    folder = tmp_path / "EP-30905"
++    (folder / "05- Drawings").mkdir(parents=True)
++    _pdf(folder / "05- Drawings" / "ff-cover.pdf", FF_COVER)
++    project_id = _project(client, folder, ep="30905")
++    result = _sync(client, project_id)
++    assert result.get("failed", 0) == 0, result
++    row = _row(db_session, project_id)
++    db_session.refresh(row)
++    assert row.state == "fresh" and row.extracted["records"] == [] and row.extracted["parser_version"] == dc.PARSER_VERSION
++    held = [o for o in row.extracted["observations"] if o["kind"] == "cover_untracked"]
++    assert held and held[0]["record"]["reference"] == "ICC-DLRC-SPM-SD-MEP-FF-0047" and isinstance(held[0]["record"]["modified"], str)
++    json.dumps(row.extracted)   # what the column stores
++    assert "attempt" not in row.extracted and row.extracted["coverage"]["outcome"] == "complete"
++
++
++# --- R5: the promotion boundary and the manual values behind it ------------------------------------
++
++
++def test_a_drawn_frame_decision_is_held_as_a_candidate_unless_promoted(tmp_path):
++    with pymupdf.open() as document:
++        page = _page(document, FA_COVER + OPTIONS)
++        page.draw_rect(_frame(page, "C - Revise & Re-Submit"), color=(0.02, 0.54, 0.11), width=3)
++        document.save(tmp_path / "framed.pdf")
++    with pymupdf.open(tmp_path / "framed.pdf") as pdf:
++        held = dc.read_open_pdf(pdf, str(tmp_path / "framed.pdf"), NOW, False, None, full=True, promote=False)
++    [record] = held.records
++    assert record.status == "UR" and record.decision_candidates == (("rejected", "C - Revise & Re-Submit", "drawn_frame"),)
++    assert "decision_method_unpromoted" in record.flags and held.observations[0]["kind"] == "decision_unpromoted"
++    with pymupdf.open(tmp_path / "framed.pdf") as pdf:
++        promoted = dc.read_open_pdf(pdf, str(tmp_path / "framed.pdf"), NOW, False, None, full=True, promote=True)
++    assert promoted.records[0].status == "rejected" and promoted.records[0].decision_candidates == ()
++    # An annotation over the option was read by the accepted reader: applied on both paths.
++    with pymupdf.open() as document:
++        page = _page(document, FA_COVER + OPTIONS)
++        annot = page.add_rect_annot(_frame(page, "C - Revise & Re-Submit"))
++        annot.set_colors(stroke=(0, 0.5, 0))
++        annot.update()
++        document.save(tmp_path / "annotated.pdf")
++    with pymupdf.open(tmp_path / "annotated.pdf") as pdf:
++        assert dc.read_open_pdf(pdf, str(tmp_path / "annotated.pdf"), NOW, False, None, full=True, promote=False).records[0].status == "rejected"
++
++
++def test_the_default_settings_do_not_promote(monkeypatch):
++    assert get_settings().extraction_promote_observations is False
++    assert dc._promote_default() is False
++    monkeypatch.setattr(get_settings(), "extraction_promote_observations", True)
++    assert dc._promote_default() is True
++
++
++def test_a_mark_on_a_folder_revision_sheet_that_prints_another_revision_is_held_not_assigned(tmp_path):
++    text = SHEET + "Review status: (C) Revise & Resubmit\n"
++    with pymupdf.open() as document:
++        _page(document, text)
++        reading = dc.read_open_pdf(document, "1.FAVE/R1/05. Ground Floor/BBY006-GME-SDW-FP-FA-POD-BGF-010002.pdf", NOW, False, None, full=True, promote=True)
++    [record] = reading.records
++    assert (record.revision, record.revision_source, record.printed_revision) == ("R1", "folder", "00"), "the revision policy is unchanged"
++    assert record.status == "UR", "which revision the mark answers is not the reader's to decide"
++    assert record.decision_candidates == (("rejected", "(C) Revise & Resubmit", "sheet_mark"),)
++    assert "decision_revision_unvalidated" in record.flags
++    # The same mark on a sheet whose printed revision agrees with its folder is applied.
++    with pymupdf.open() as document:
++        _page(document, text.replace("A0\n00\n", "A0\n01\n"))
++        reading = dc.read_open_pdf(document, "1.FAVE/R1/05. Ground Floor/BBY006-GME-SDW-FP-FA-POD-BGF-010002.pdf", NOW, False, None, full=True, promote=True)
++    assert reading.records[0].status == "rejected" and reading.records[0].printed_revision == "01"
++
++
++def test_ordinary_processing_leaves_a_manual_submittal_status_and_a_corrected_boq_line_alone(client, db_session, tmp_path, inline):
++    from app.models import ProjectBoqItem, ProjectSubmittal
++
++    folder = tmp_path / "EP-30905"
++    _pdf(folder / "05- Drawings" / "cover.pdf", FA_COVER)
++    project_id = _project(client, folder, ep="30905")
++    _sync(client, project_id)
++    created = client.post(f"/projects/{project_id}/submittals", json={"title": "Fire alarm", "system_code": "FAS", "manufacturer": "Edwards",
++                                                                        "revision": "R0", "status": "approved", "document_path": None, "note": None})
++    assert created.status_code == 201, created.text
++    item = ProjectBoqItem(project_id=project_id, system_code="FAS", position=1, description="Smoke detector", quantity="12", origin="corrected",
++                          catalog_no="SIGA-OSD")
++    db_session.add(item)
++    db_session.commit()
++    # A changed reading of the drawing (a framed C, promoted) reaches ordinary processing.
++    path = folder / "05- Drawings" / "cover.pdf"
++    with pymupdf.open() as document:
++        page = _page(document, FA_COVER.replace("Rev: 01", "Rev: 02") + OPTIONS)
++        page.draw_rect(_frame(page, "C - Revise & Re-Submit"), color=(0, 0.5, 0), width=3)
++        document.save(path)
++    _touch(path)
++    _sync(client, project_id)
++    db_session.expire_all()
++    submittal = db_session.query(ProjectSubmittal).filter(ProjectSubmittal.project_id == project_id).one()
++    assert submittal.status.value == "approved" and submittal.revision == "R0", "no form changed: the map was not redrawn (G-01 untouched, not triggered)"
++    boq = db_session.query(ProjectBoqItem).filter(ProjectBoqItem.project_id == project_id).one()
++    assert (boq.quantity, boq.origin) == ("12", "corrected")
++    row = _row(db_session, project_id)
++    assert row.extracted["records"][0]["revision"] == "R2" and row.extracted["records"][0]["status"] == "UR", "default path: the frame is a candidate"
++    assert row.extracted["records"][0]["decision_candidates"] == [["rejected", "C - Revise & Re-Submit", "drawn_frame"]]
++
++
++def test_an_engineer_confirmed_revision_survives_a_new_reading_that_says_otherwise(client, db_session, tmp_path, inline, monkeypatch):
++    from app.models import ProjectShopDrawing, ShopDrawingRevision
++
++    folder = tmp_path / "EP-30906"
++    sheet = ("SHOP DRAWING\nDRAWING TITLE:\nGROUND FLOOR PLAN\nDRAWING NO:\nBBY006-GME-SDW-FP-FA-POD-BGF-010002\nREV: 00\n"
++             "GROUND FLOOR PLAN FIRE ALARM LAYOUT\nFIRE ALARM\n")
++    path = _pdf(folder / "03- Drawings" / "SD" / "FA" / "05. Ground Floor" / "R0" / "Submitted" / "BBY006-GME-SDW-FP-FA-POD-BGF-010002.pdf", sheet)
++    project_id = _project(client, folder, ep="30906")
++    _sync(client, project_id)
++    drawings = db_session.query(ProjectShopDrawing).filter(ProjectShopDrawing.project_id == project_id).all()
++    if not drawings:
++        pytest.skip("the fixture did not reconcile into a shop drawing on this checkout; the guard is covered by test_drawings_module")
++    drawing = drawings[0]
++    put = client.put(f"/projects/{project_id}/drawings/sd/{drawing.id}/revisions/R0", json={"status": "approved", "note": "engineer", "submitted": True})
++    assert put.status_code == 200, put.text
++    # The sheet is re-issued with a rejection stamp in its text; ordinary processing (promoted) reads it.
++    monkeypatch.setattr(get_settings(), "extraction_promote_observations", True)
++    _pdf(path, sheet + "Review status: (C) Revise & Resubmit\n")
++    _touch(path)
++    _sync(client, project_id)
++    db_session.expire_all()
++    revision = (db_session.query(ShopDrawingRevision).join(ProjectShopDrawing)
++                .filter(ProjectShopDrawing.project_id == project_id, ShopDrawingRevision.revision == "R0").one())
++    assert revision.status == "approved" and revision.confirmed_by_id is not None and revision.source == "engineer"
+diff --git a/docs/milestones/M2/M2-RECOVERY-CHECKLIST.md b/docs/milestones/M2/M2-RECOVERY-CHECKLIST.md
+new file mode 100644
+index 0000000..94059cb
+--- /dev/null
++++ b/docs/milestones/M2/M2-RECOVERY-CHECKLIST.md
+@@ -0,0 +1,54 @@
++# M2 - Backend recovery checklist (separate from the M2 correction)
++
++This is an operations procedure, written from the launcher scripts and the runtime code as they are in the checkout at the time of the M2 Review 01 correction (commit `ed7d221` plus the uncommitted correction). It was **not executed** as part of the M2 correction: the independent review observed no listener on port 8000 and a refused `GET /health`, and the correction task leaves any recovery to an explicit operational decision by the platform owner. Nothing below is validation evidence for M2.
++
++## 1. What the launcher actually does
++
++| Script | Effect |
++|---|---|
++| `stop-backend.bat` -> `stop-backend.ps1 -Backend <checkout>\backend` | Stops, in order: (1) children of this checkout's backend processes (the uvicorn `--reload` serving child that holds port 8000, the workers' reader processes); (2) the backend processes themselves (command lines running `app.workers.*` or `uvicorn app.main` from **this** backend folder); (3) orphaned multiprocessing children of this venv's interpreter whose parent is gone. Other Python programs and other checkouts are left alone. |
++| `start-backend.bat` | Calls `stop-backend.bat` first, then opens **four** console windows: the API (`uvicorn app.main:app --reload --reload-dir app --port 8000`), the sync worker (`app.workers.sync_worker`), the document worker (`app.workers.document_worker`) and the IFC worker (`app.workers.ifc_worker`), the three workers at below-normal priority. There is no "API only" mode in this launcher. |
++| `start.bat` | Starts everything, the web app included (not needed for recovery of the backend). |
++
++## 2. What starts running on its own once the launcher runs
++
++**API process (`app.main` lifespan, on every start and on every `--reload`)**
++
++1. `runtime.announce("api")` logs the code fingerprint.
++2. `adopt_local_database()`: only when `DATA_ROOT` is set and the target database does not exist yet, copies `backend/ep_platform.db` into the data folder. With `DATA_ROOT` unset (this PC), nothing happens.
++3. `upgrade_to_head(engine)`: **runs every pending schema migration against the bound database**, unconditionally.
++4. Seeds: default admin (`DEFAULT_ADMIN_PASSWORD` from `.env`), design rules, equipment currents, datasheet links (and removal of unconfirmed library links), suppliers, IFC device types; `import_library` / `save_library` read and **write back** the IFC symbol library file.
++5. `fail_interrupted(db)`: jobs the API itself was running on its own threads when it last stopped are marked failed (worker jobs are left to the workers' own recovery).
++
++**Workers (`sync_worker`, `document_worker`, `ifc_worker`)**
++
++- On start and every ~30 s: `jobs.recover_stale` re-queues running jobs whose worker heartbeat is stale (up to `MAX_ATTEMPTS`, then failed), honouring stop requests.
++- Then they take queued jobs: file sync, document processing (which **re-reads every document whose stored reading predates `PARSER_VERSION`**, now `parse-2026-09-28.3`; see section 5), IFC work.
++- Workers have no hot reload: they run the code they started with until stopped.
++
++## 3. Where the database is bound
++
++- `backend/.env` -> `DATABASE_URL` (line 2 of the file on this PC; not committed). Every API and worker process reads it at import through `app.core.config`. The same file carries `SECRET_KEY`, `DEFAULT_ADMIN_PASSWORD`, `AI_API_KEY`; none of them is in git.
++- The committed snapshot `backend/ep_platform.db` (commit `ed7d221`) is the SQLite file the launcher would open if `DATABASE_URL` points at it (WAL mode; the commit was taken after the backend had been stopped and the WAL checkpointed).
++- `TESSERACT_CMD` is unset in `.env` and found at the Program Files install; `PROJECTS_ROOT` is unset and autodetected under the user's profile.
++
++## 4. Checklist (to be run by the owner, deliberately, outside the M2 correction)
++
++1. **Decide whether processing may run.** The document worker will re-read every document with an outdated reading as soon as it starts. If the intent is "API only, no re-reads", do not use `start-backend.bat` as it is; start uvicorn alone from `backend\` (`venv\Scripts\python -m uvicorn app.main:app --port 8000`) and leave the three worker commands unstarted. Note that the API start itself still runs migrations, seeds and `fail_interrupted`.
++2. **Take a database backup first** (the app's backup function, or a copy of the SQLite file with its `-wal`/`-shm` files while nothing is running). `upgrade_to_head` is not reversible by the launcher.
++3. **Confirm the binding**: read `DATABASE_URL` in `backend/.env`; confirm it is the intended file and that no other checkout points at the same file.
++4. **Check for leftovers before starting**: `netstat -ano | findstr :8000` (expected: nothing) and the process list for `uvicorn`/`app.workers` from this checkout. `stop-backend.bat` handles this checkout's leftovers; anything else is manual.
++5. **Start** (API only or the full launcher, per step 1).
++6. **Verify**: `GET http://127.0.0.1:8000/health` answers; the API window shows the migration log, the seed lines and no traceback; `/health` reports the code fingerprint matching the workers if they run.
++7. **Pending work**: in the jobs view (the `background_jobs` table) check what `fail_interrupted` marked failed and what `recover_stale` re-queued; decide what to re-run. Document processing state per project: rows in `project_documents` with `state` fresh/failed and `extracted.attempt` set are the incomplete readings the corrected writer now keeps beside the last complete one (`M2-REVIEW-RESPONSE.md`, R1).
++8. **Control live processing**: the sync/document/IFC workers are stopped with `stop-backend.bat` (all four processes) or by closing their windows (a properly stopped worker puts its job back uncounted). There is no per-project pause switch in the launcher.
++
++## 5. What is different after the M2 correction, for the operator
++
++- `PARSER_VERSION` is `parse-2026-09-28.3`; all stored readings are outdated and will be re-read by the document worker when it next processes them. The promotion gate `EXTRACTION_PROMOTE_OBSERVATIONS` (settings; default **false**) keeps drawn-frame/highlight decisions, untracked-discipline covers and scanned-transmittal samples as observations/candidates on the reading rather than as records; only filled-box and stamp-annotation decisions, which the previously accepted reader already read, become records on the default path.
++- A failed or partial re-read no longer replaces the last complete reading: the row keeps its records and gains `extracted.attempt` (outcome, error, coverage) and, for a changed file, `stale = true`; `state` is `failed` for failed/unavailable attempts and `fresh` for partial ones, and the worker's pending-row selection includes rows carrying an attempt.
++- No migration was added by the correction; the new fields live inside the `extracted` JSON.
++
++## 6. What this checklist is not
++
++Not executed, not a validation of M2, not an authorisation to repair live data. Live BOQ repair stays M5; live re-reads of EP-30784 stay behind the engineer confirmation recorded in `M2-COMPATIBILITY-REPORT.md`.
+diff --git a/docs/milestones/M2/M2-REVIEW-RESPONSE.md b/docs/milestones/M2/M2-REVIEW-RESPONSE.md
+new file mode 100644
+index 0000000..9110c61
+--- /dev/null
++++ b/docs/milestones/M2/M2-REVIEW-RESPONSE.md
+@@ -0,0 +1,48 @@
++# M2 - Response to Independent Review 01 (R1-R6)
++
++Correction of 2026-09-28 (local). Source: commit `ed7d221df24dbdeac3ababed5de3e128fed0c588` (the reviewed checkout, clean at review) plus the uncommitted correction diff `evidence/r3__m2_review01_changes.diff` (application: `document_control.py`, `document_sync.py`, `document_processing.py`, `design_sheet_extractor.py`, `core/config.py`, `scripts/repair_extraction.py`; tests: new `tests/test_extraction_m2_review.py`, `tests/test_design_sheet_extractor.py` (+1), `tests/test_extraction_m2.py` (2 assertions), `tests/test_document_control.py` (1 patch target)). Versions: `PARSER_VERSION parse-2026-09-28.3`, `BOX_VERSION box-4`; no migration, no business policy, no routing, no calculation changed. Nothing was run against the live database, cache, workers or a model; the backend was not stopped or started; original files were opened read-only. The independent review artifacts are untouched (the probe copy under `C:\t\m2r\probe` is byte-identical: sha256 `0569bd8d...`). All isolated runs used the short scratch path `C:\t\m2r` for pytest and the session scratchpad for evidence, in-memory or clone databases, scratch cache/library/uploads, `AI_ENABLED=false`, settings set before any import.
++
++| Finding | Root cause | Change | Tests / evidence | Remaining limitation | Disposition |
++|---|---|---|---|---|---|
++| **R1** [P1] A failed re-read erased the last successful reading | `document_sync.process` wrote whatever `extract` returned; an open failure or an OCR exception came back as an empty reading with a note, and the processing loop marked it fresh with the new parser version and time | Readings now carry a coverage ledger with an outcome (complete / bounded / partial / unavailable / failed). Only a complete or bounded reading replaces the stored one. Any other outcome keeps the previous records, `parser_version`, `read_sha256` and `read_at` untouched and records the attempt beside them (`extracted.attempt`: at, outcome, attempted sha256, error, notes, coverage, observations, partial records if any); a changed file marks the kept reading `stale`; top-level mirrors stay consistent with the kept records. A first-time unreadable file is a visible row with an honest attempt and no records. `document_processing.run` sets `failed` (+ error) for failed/unavailable and `fresh` for partial; `pending_rows`/`pending_count` select rows carrying an attempt, so retry picks the incomplete work and a successful retry clears it (idempotent). The repair tool previews/skips partial re-reads and writes the same provenance | `tests/test_extraction_m2_review.py` R1 block (5 tests: corrupt replacement -> second failure -> good retry, OCR failure on a changed scan, failure on page 2 after page 1, new unreadable file, repair-tool preview); cancellation/resume/worker-restart: existing `test_document_processing_v2`, `test_file_sync_v2_processing`, `test_document_sync` (all pass). Reviewer probes re-run on the final code: `unopenable_replaces_previous` and `ocr_failure_replaces_previous` keep the record (`evidence/r3__probe__probe_results.json`) | The attempt lives inside the `extracted` JSON (no schema change); a partial multi-page result is retained as the attempt's records, not merged; resume is per document (a partial reading is re-read whole), not per page | **Fixed** (D-EXT-7) |
++| **R2** [P1] Annotation comments and conflicting marks became approval | The annotation path validated with `_options_named` only; `boxed_decision` short-circuited annotation-then-frame, so the first method hid the other | One collector (`decision_marks`) for filled boxes, PDF annotations, drawn frames and highlights; one strict validator (`_label_is_one_option`) for all of them (one option and nothing but its letter/dash/"UR"/"Re"/"Review"; comments, contractor text, receipt labels and partial words are not marks); resolution after collection (`resolve_marks`): agreeing marks resolve, different explicit options are a **conflict** kept as `decision_candidates` (status, label, method) with flag `decision_conflict` and status UR. The record persists candidates and flags; a conflict is stored unresolved, never as approval. Method, label and page stay distinguishable; actor/context: the filled-box/annotation/frame methods are the consultant's marks on the recommendation row; a comment box is never one | R2 block (4 tests: annotation round a comment; contractor/receipt/partial labels under every method; annotation+drawn and filled+annotation conflicts with an agreeing positive control; persistence through normal processing). Probes `annotated_comment_becomes_decision` -> `None`, `conflicting_frame_methods` -> `None`. Existing frame/box/stamp positives unchanged (`test_extraction_m2`, `test_document_control`) | Validation is lexical (the `_OPTIONS` vocabulary); a form with unknown option wording gives no mark rather than a wrong one | **Fixed** (D-EXT-8) |
++| **R3** [P2] Pages not accounted for; a leading separator hid the cover | `read_open_pdf` returned after a first page with no record and no pending form, without a note | Bounded page discovery: the first 12 pages are visited regardless of page 1; reply-search and OCR budgets unchanged (12 / 12); the ledger lists `pages_total`, `pages_visited`, `pages_skipped` (each with its reason), `pages_failed` (per-page reader exception -> partial reading), `ocr_failed_pages`, `stop_reason`, `promoted`. Components that must not be legacy register rows are additive `observations` on the reading (`drawing_sheet`, `cover_untracked`, `transmittal`, `decision_unpromoted`, `consultant_comments`); `records` consumers see nothing new | R3 block (6 tests: leading separator, standalone untracked sheet, mixed drawing/reply/datasheet/certificate file with a full page ledger, later consultant section, page-scope limit with skipped pages listed, untracked cover default vs promoted). Probe `leading_page_hides_cover` now visits page 2 and returns the cover. Population (124 documents, `evidence/r3__population_comparison.json`): 351 pages visited, 35 pages skipped on 8 documents (all with reasons), 0 failed pages, outcomes: 116 complete + 8 bounded; observations on 100 documents | Interrupted/resumed traversal is at document granularity (D-EXT-7): there is no per-page cursor; a page past the scan limit is skipped with a reason, not queued | **Fixed** (D-EXT-9); resume granularity stated |
++| **R4** [P2] Golden and BOQ evidence gap | 17 visual / 103 regex labels; 687 unresolved; no current-reader BOQ run | (1) **Source review**: every text-PDF case (111) checked on header and recommendation-row crops of the original (19 contact sheets, hashed; `crops/visual_check.json`): 111 of 111 agree with the visually expected status; labels now carry `visual_crop_check_2026_09_28`. The 3 scans were visually checked before (687, 729, 730). (2) **687**: bounded OCR of the reference cell alone recovers `R1029-CSM-CO-ELE-FA-MAR-PJW-ZZZ-ZZZ-1004` (x2 upscale, hyphen kept, nothing guessed); the parser's whole-page read stays truncated and is now flagged `reference_incomplete`; checkbox mark analysis: B darkest (0.31) but not separable from the shaded D box under the rule, recorded **unresolved**, status UR; both visible in the manifest on both paths. (3) Fields verified per case: reference, revision, printed revision / revision source, date, status, listed sheets, system / raw system, category, authorship (printed project code on 687/729/730), components; `printed_revision` is recorded only when printed (an inferred R0 has `revision_source = default`). (4) **BOQ on the originals**: deterministic OCR path, no model, page and row accounting (`evidence/r3__boq_run.json`): FAS 74 golden rows -> 73 lines (69 matched by part, 4 read with a misspelt part, 1 unread in an unruled band, 1 title row dropped with an issue), quantity 68/69; EML 12 -> 12 (11 by part, 1 I/1 misspelling), all quantities right when paired by position. The unread band was silent: fixed as a skipped region + note (D-BOQ-1). (5) No-model verification still `state failed`; not marked successful. Timing on identical work, both cold: 263.8 s (.2) -> 243.7 s (.3) over 124 documents; no latency regression, no improvement claimed | Manifest regenerated after final code and labels (`M2-GOLDEN-MANIFEST.json`, verdicts for `.2`, `.3 default`, `.3 promoted`); `evidence/r3__region687__region_687.json`; `evidence/r3__boq_run.json/.log`; `test_design_sheet_extractor::test_an_inked_band_between_two_tables_is_a_skipped_region_not_a_silent_gap`; visual sheets in the scratchpad hashed in `evidence/M2-EVIDENCE-MANIFEST.json` | 6 Word transmittals keep a "label pending" provenance (no independent check of .docx content was done). The current-reader BOQ defects D-BOQ-open-1..5 (unread band row, TP606 `49`, four misspelt parts, `Field Devices` group not carried into the next table, one I/1) are demonstrated and **open**; the group carry-over is a bounded candidate not made because the group is part of stored line identity. The **model verification path was not exercised** (no model call allowed): its accuracy is missing evidence, not a claim. No engineer sign-off is claimed anywhere; the BOQ fixture is author-transcribed | **Fixed** for Golden review, 687 representation, BOQ accounting and the silent band; **BLOCKED BY MISSING EVIDENCE** for real-model BOQ verification; BOQ reader misreads **open** (reported, not fixed) |
++| **R5** [P1] Ordinary-processing compatibility not established | The extract-only CLI proved its own writes only; `document_processing.run` feeds `submittal_reader.check`, `reconcile_actions` and `shop_drawings.reconcile` from the changed reader with no gate | Enforceable boundary: `Settings.extraction_promote_observations` (env `EXTRACTION_PROMOTE_OBSERVATIONS`), default **false**. Off: decisions read by the M2 methods (drawn frame, highlight) are candidates with flag `decision_method_unpromoted`, untracked-discipline covers and scanned-transmittal samples are observations, a mark on a folder-revision sheet that prints another revision is held (`decision_revision_unvalidated`) on both paths; filled-box and stamp-annotation decisions, which the previously accepted reader already read, stay records. On: the M2 behaviour, minus the folder-revision hold. Normal route traced and exercised through `document_processing.run` in isolated fixtures: manual submittal status + corrected BOQ line survive a re-read with a drawn frame (the map is not redrawn when no form changed); engineer-confirmed drawing revision survives a contrary reading; folder R1 vs printed 00 held; mangled identity kept apart (second cover, G-M2-6 unchanged). **G-01 still exists**: `sync_register` still overwrites an engineer status when `submittal_reader.check` runs; the correction does not touch it. What changes is the input: on the default path no new decision method reaches it | R5 block (5 tests) + R3/R2 gate tests; population on both paths: default vs M2 submission 84 identical / 24 status held / 16 records held as observations (11 fire-fighting covers, 3 OCR-mangled second covers, 2 scanned transmittals); promoted vs default 86 identical / 22 statuses restored / 16 records restored, the 2 folder-revision holds (120, 122 page 2) remaining on both paths (`evidence/r3__population_comparison.json`). Clone extract-only repair with the corrected reader, default path, form-reading records included: project 4: run 1 522 selected / 484 repaired / 32 failed on the observation JSON defect D-EXT-10, run 2 on those 32: 32 repaired / 0 failed, tables changed ['document_dependencies', 'project_documents'], roles changed 0, form-reading records 9 -> 5 (4 documents changed); project 1: run 1 356 selected / 349 repaired / 3 failed on the observation JSON defect D-EXT-10, run 2 on those 3: 3 repaired / 0 failed, tables changed ['document_dependencies', 'project_documents'], roles changed 0, form-reading records 2 -> 2 (0 changed); vs the M2 submission's repair: project 4 {'identical': 447, 'changed:status': 39, 'records_removed': 32, 'records_added': 4}, project 1 {'records_removed': 3, 'identical': 329, 'records_added': 1, 'changed:status': 23} (`evidence/r3__repair_r3_comparison.json`, `repair_r3__records_before/after.json`) | Equivalence with the accepted reader is not claimed: the default path still reads filled boxes and stamp annotations as before and adds ledger/attempt/observation data inside `extracted`; the promoted path is for isolated evaluation until the owner promotes it. G-01 remains a known defect for M4 | **Fixed** (D-GATE-1, D-REV-2); G-01 open and documented |
++| **R6** [P2] Operational audit and recovery | The acceptance report said "no restart" while the handoff admitted a stop/start for the snapshot | Timeline corrected (section 2 below) with reported vs observed facts. Independently observed now (read-only): no listener on port 8000 (`netstat`), no `-wal`/`-shm` beside the live database, and the live `backend/ep_platform.db` is **byte-identical** to the committed snapshot (sha256 `8db43511...` both; 890 documents, no `parser_version` on any reading, last processing 2026-09-27 14:58:09, alembic head `a5b6c7d8e9f0`): whatever the launcher did after the commit, it wrote nothing to the database. Recovery is a separate checklist (`M2-RECOVERY-CHECKLIST.md`), not executed. Population IDs corrected: 24, 122, 313, 316 outside the manifest (22 inside). Hashes refreshed and the current commit recorded (`evidence/M2-EVIDENCE-MANIFEST.json`) | `evidence/r3__live_db_readonly_check.json`; `M2-RECOVERY-CHECKLIST.md`; `M2-BASELINE.md` note; evidence manifest | Whether the API process started and died (its startup would have run migrations/seeds/`fail_interrupted` first) cannot be told from the database alone; only "no database write" is established | **Corrected**; recovery left to the owner |
++
++## 1. Test commands and results
++
++From `backend/`, `TEMP=TMP=C:/t/m2r`, `--basetemp=C:/t/m2r/...` (short path; the reviewer's four path-length setup failures do not occur):
++
++```
++venv/Scripts/python -m pytest tests/test_ai_sheet_reader.py tests/test_battery_api.py tests/test_boq_corrections_v2.py tests/test_boq_extraction_v2.py tests/test_boq_geometry_v2.py tests/test_boq_selective_v2.py tests/test_boq_verification_v2.py tests/test_classification_evidence.py tests/test_document_classification_pilot.py tests/test_document_classification_v2.py tests/test_document_control.py tests/test_document_processing_v2.py tests/test_document_routing.py tests/test_document_sync.py tests/test_drawings_module.py tests/test_extraction_m2.py tests/test_extraction_repair.py tests/test_file_sync_v2.py tests/test_file_sync_v2_processing.py tests/test_project_state.py tests/test_repair_tool.py tests/test_submittal.py tests/test_submittal_ai.py tests/test_extraction_m2_review.py tests/test_design_sheet_extractor.py -q -p no:cacheprovider --basetemp=C:/t/m2r/ptfull --junitxml=final_r3.xml
++```
++
++Result: **316 tests, 309 passed, 7 skipped, 0 failed, 0 errors** in 392.6 s (`evidence/r3__final_r3.xml`, `.log`). The 7 skips are the live-archive BOQ sheet tests (`EP_PLATFORM_LIVE_ARCHIVE_ROOT` unset). The 270 tests of the submission are included; `tests/test_extraction_m2_review.py` adds 20; `tests/test_design_sheet_extractor.py` adds 1 and contributes its other 25.
++
++Reviewer probes (`probe_m2.py`, unmodified) on the final code: `unopenable_replaces_previous` -> record kept; `ocr_failure_replaces_previous` -> record kept; `leading_page_hides_cover` -> page 2 visited, cover read; `annotated_comment_becomes_decision` -> `None`; `conflicting_frame_methods` -> combined `None` (annotated alone A, drawn alone C).
++
++## 2. Operations timeline (corrected)
++
++| When (local, 2026-09-28) | Reported (by the author) | Independently observed |
++|---|---|---|
++| 2026-09-27 evening -> 00:20 | M2 work; every run on clones/scratch; the backend that had been running since earlier in the day was left alone. The acceptance report's "no restart" described this period | - |
++| ~00:20 | `stop-backend.bat` run to take a consistent database snapshot for the commit (WAL checkpointed); the acceptance report was not updated to say so | commit `ed7d221` at 00:27:10 contains `backend/ep_platform.db` (95,461,376 bytes) |
++| after 00:27 | `start-backend.bat` launched detached (PowerShell `Start-Process`); its four windows were not watched; `/health` never confirmed. The launcher stops this checkout's processes and starts the API (migrations, seeds, `fail_interrupted`) and three workers (`recover_stale`, then queued work) | the review found no port-8000 listener and `GET /health` refused (WinError 10061); this correction found the same (no listener) and the live database byte-identical to the committed snapshot, no `-wal`/`-shm` files |
++| during this correction | no stop/start, no launcher, no worker, no live migration, no live processing, no live repair | `evidence/r3__live_db_readonly_check.json` (read-only `mode=ro` connections) |
++
++Conclusion: no live data was changed by the launcher after the commit (database identical); whether the API process ran its startup and exited is unknown; nothing about live processing under `parse-2026-09-28.2` happened (no reading carries a parser version). The M2 acceptance report's operations statements are corrected in place (section "Correction 2026-09-28").
++
++## 3. Evidence package (all under `docs/milestones/M2/evidence/`, prefixed `r3__`; hashes in `M2-EVIDENCE-MANIFEST.json`)
++
++- Tests: `r3__final_r3.xml`, `r3__final_r3.log`; probes: `r3__probe__probe_results.json`, `r3__probe__probe_m2.py` (copy).
++- Golden: `M2-GOLDEN-MANIFEST.json` (regenerated), `r3__crops__visual_check.json`, `r3__crops__index.json`, `r3__crops.py`, contact sheets `crops/sheet-01..19.png` and crops (scratch, hashed); `r3__region687__region_687.json`, `r3__region_687.py`, crops (scratch, hashed).
++- BOQ: `r3__boq_run.json`, `r3__boq_run.log`, `r3__boq_run.py`.
++- Population runs: `r3__parser_population_r3_default.json/.log`, `r3__parser_population_r3_promoted.json/.log`, `r3__run_parser_r3.py`, `r3__population_comparison.json`, `r3__compare_population.py`.
++- Clone repair (default path): `r3__r5_repair.py/.log`, `r3__repair_r3__repair_p4/p1.json/.log`, snapshots and record dumps before/after (form-reading records included), `r3__repair_r3_comparison.json`, `r3__compare_repair_r3.py`.
++- Source identity: `r3__m2_review01_changes.diff`, `r3__before_manifest.json` (hashes of the tree at the start of the correction: HEAD `ed7d221`, clean), `r3__live_db_readonly_check.json`, `r3__build_manifest_r3.py`, `r3__assemble_evidence_r3.py`.
++
++## 4. Verdict
++
++**READY FOR INDEPENDENT M2 RE-REVIEW**, with these portions stated as they are: (a) the real-model BOQ verification path is **BLOCKED BY MISSING EVIDENCE** in this correction (no model call was permitted; the deterministic path is measured, the verification path is not); (b) the current-reader BOQ misreads D-BOQ-open-1..5 are demonstrated and reported open, not fixed; (c) G-01 is unchanged and documented; (d) the six Word transmittals keep a pending label; (e) no engineer sign-off is claimed. No self-acceptance, no live repair, no restart, no M3 work.

@@ -1,5 +1,7 @@
 # M2 - Baseline (before any M2 edit)
 
+> Correction note (M2 Review 01, 2026-09-28): the checkout reviewed independently is commit `ed7d221df24dbdeac3ababed5de3e128fed0c588` (the dirty tree described below was committed there on 2026-09-28 00:27 local, with the database snapshot); the Review 01 correction is the uncommitted diff on top of it (`evidence/r3__m2_review01_changes.diff`). The four population documents outside the 120-case manifest are **24, 122, 313 and 316** (22 is a manifest case). See `M2-REVIEW-RESPONSE.md`.
+
 Recorded 2026-09-27 (evening, local) on the accepted M1 snapshot's checkout. Everything below was gathered before the first M2 code change; the reproducible artifacts are under `docs/milestones/M2/evidence/`.
 
 ## 1. Source and environment
@@ -46,7 +48,7 @@ The failure, `tests/test_document_sync.py::test_a_read_that_fails_keeps_the_prev
 | Embedded-exact generic `ICC-DLRC-SPM-SD-MEP` | 86 | includes 434 and 436 (their page-2 reply record) |
 | Prefix-only controls | 7 (771-776, 784) | full drawing references; must stay unchanged |
 | Word transmittals | 6 (343, 344, 345, 346, 889, 890) | read by the transmittal reader, not the PDF parser |
-| Named cases | 868 (CRS reply list), 729/730 (scanned transmittals), 620 (spec named Compliance Statement), 687 (reference copy of other projects' approvals), 409/415 (EML covers), 120/122/313/316/22/24 (EP-30784 R1 files) | |
+| Named cases | 868 (CRS reply list), 729/730 (scanned transmittals), 620 (spec named Compliance Statement), 687 (reference copy of other projects' approvals), 409/415 (EML covers), 120/122/313/316/22/24 (EP-30784 R1 files) | 22 and 120 are manifest cases; 24, 122, 313, 316 are read for the revision cases only (population 124 = 120 + 4) |
 | Deduplicated union | 115 documents (population run), 130 with the named EP-30784 cases | every id accounted for in the manifest; 0 missing files with the long-path prefix |
 
 Stored-reading facts at baseline (clone, read-only): 890 documents, 881 with extracted JSON, 367 with records, 547 records; `parser_version` and `evidence` absent on all rows (live readings predate both).

@@ -107,6 +107,10 @@ def select_rows(db: Session, project: Project | None, selections: set[str], ids:
                     break
         if "parser-outdated" in selections and (row.extracted or {}).get("parser_version") != document_control.PARSER_VERSION:
             reasons.append("read by an earlier parser")
+        elif "parser-outdated" in selections and (row.extracted or {}).get("profile") != document_control.extraction_profile():
+            reasons.append(f"read under another extraction profile ({(row.extracted or {}).get('profile') or 'not recorded'}, now {document_control.extraction_profile()})")
+        elif "parser-outdated" in selections and ((row.extracted or {}).get("retained") or {}).get("other_profile"):
+            reasons.append("carries records read under another or an unknown extraction profile")
         if "all" in selections:
             reasons.append("every row of the project")
         if reasons:
@@ -125,7 +129,10 @@ def reread(row: ProjectDocument, ocr: bool) -> tuple[list[dict], list[str], dict
     relative = row.relative_path or row.filename
     stored = [document_sync._record_dict(document_control.replace(r, path=relative), root) for r in (records or ())]
     evidence = timing.pop("evidence", None) if isinstance(timing, dict) else None
-    return stored, list(notes or ()), evidence, {"sha256": sha, "size": stat.st_size, "mtime": stat.st_mtime, "role_read": role}
+    coverage = timing.pop("coverage", None) if isinstance(timing, dict) else None
+    observations = timing.pop("observations", None) if isinstance(timing, dict) else None
+    return stored, list(notes or ()), evidence, {"sha256": sha, "size": stat.st_size, "mtime": stat.st_mtime, "role_read": role,
+                                                 "coverage": coverage, "observations": observations or []}
 
 
 _ROOTS: dict[int, str | None] = {}
@@ -186,6 +193,23 @@ def preview(db: Session, row: ProjectDocument, reasons: list[str], ocr: bool) ->
         entry["outcome"] = "skipped"
         entry["skip_reason"] = "the file could not be read now: " + "; ".join(notes)[:200]
         return entry
+    coverage = stat.get("coverage") or {}
+    if coverage.get("outcome") not in (None, *document_sync.COMPLETE_OUTCOMES):
+        # A page or its OCR failed: a partial reading is not a repair of a complete one (M2 review 01).
+        entry["outcome"] = "skipped"
+        entry["skip_reason"] = f"the re-read was {coverage.get('outcome')}: " + "; ".join(notes)[:200]
+        entry["coverage"] = coverage
+        return entry
+    if coverage.get("outcome") == "bounded":
+        # The re-read stopped at the reader's page budget: the stored reading's records on the
+        # pages it did not visit are carried, flagged, as processing carries them (M2 review 02, A2).
+        carried, carried_note = document_sync.carry_unvisited(document_sync.reading_to_keep(row.extracted), coverage, row.sha256,
+                                                             document_control.extraction_profile(bool(coverage.get("promoted"))) if "promoted" in coverage else document_control.extraction_profile())
+        if carried:
+            records = list(records) + carried
+            notes = [*notes, carried_note]
+            entry["carried_from_previous"] = sorted({r.get("page") for r in carried if r.get("page") is not None})
+            stat["coverage"] = {**coverage, "carried_from_previous": entry["carried_from_previous"]}
     first = _first(records)
     # The row's reference, revision and status mirror its first record (document_sync.process);
     # with no record left there is nothing for them to mirror -- an old value would be the
@@ -242,7 +266,23 @@ def apply_row(db: Session, row: ProjectDocument, entry: dict) -> None:
     if evidence is not None:
         extracted["evidence"] = evidence
     extracted["parser_version"] = document_control.PARSER_VERSION
+    coverage = entry["file"].get("coverage") or {}
+    extracted["profile"] = document_control.extraction_profile(bool(coverage.get("promoted"))) if "promoted" in coverage else document_control.extraction_profile()
     extracted["repaired_at"] = utc_now().isoformat()
+    # The reading's provenance, as processing writes it (document_sync.process):
+    # the content it was read from, when, its page ledger and observations;
+    # an earlier incomplete attempt is superseded by this complete reading.
+    extracted["read_sha256"] = row.sha256
+    extracted["read_at"] = extracted["repaired_at"]
+    extracted["coverage"] = entry["file"].get("coverage")
+    extracted["observations"] = entry["file"].get("observations") or []
+    extracted.pop("attempt", None)
+    extracted.pop("stale", None)
+    retained = document_sync.retained_summary(extracted["records"])
+    if retained is not None:
+        extracted["retained"] = retained
+    else:
+        extracted.pop("retained", None)
     row.extracted = extracted
     row.reference, row.revision, row.status = entry["new"]["reference"], entry["new"]["revision"], entry["new"]["status"]
     row.last_processed_at = utc_now()

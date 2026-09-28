@@ -1,0 +1,31 @@
+{
+ "at": "2026-09-28T08:02:36+00:00",
+ "head": "ed7d221df24dbdeac3ababed5de3e128fed0c588",
+ "git_status_lines": 116,
+ "dirty_files_outside_evidence": {
+  "backend/app/core/config.py": "8c023cc6e86ac068e675e1b3fb48013c69c43f429cae9ce8b5b2f0002ef64a9d",
+  "backend/app/services/design_sheet_extractor.py": "eb32e1bafaa31fc18363283f10bfb1ed9a9e4700a02a59bb3d50529f52c7b82d",
+  "backend/app/services/document_control.py": "791b2aebc6c3cd88f9c2cf3a12060b92f52d047b8ab948bb7f5ae6110fe979f4",
+  "backend/app/services/document_processing.py": "bbacfb7f3af9170778798ec4c0cf7ab30c6d8a194484e925fffb4cba38b77b18",
+  "backend/app/services/document_sync.py": "1321c3c83d0c9481a4a5a76c0640ed3f9fed928e9631c143c584d5f7546fc561",
+  "backend/ep_platform.db": "bcb69944f0242e8b2a92e7b48d577a4bd4644659cad5ee5cf0a539335c1719aa",
+  "backend/library/symbols/symbol_library.json": "a2771605ebd22074e35bc79039e6a0ee45ac41e37499462338335fdd4c0ab87a",
+  "backend/scripts/boq_metrics.py": "a1c9e4b3623da3b340ab1b00cd99724a52297dcef252ff922ec407f47b643e4d",
+  "backend/scripts/repair_extraction.py": "8dc29e8068866b0dcc3f325f19c64f3c8acfc42b345be7a7577a7c3be1cc0a69",
+  "backend/tests/conftest.py": "c776b39c42682a1091becee776a7565c4ecdc98c3d5774378f7ba388758c2eda",
+  "backend/tests/test_design_sheet_extractor.py": "2de4dc50e2ba6c29502ce98ffe730079138a7a762dbf73dfb4cc0b19cc7a2a8e",
+  "backend/tests/test_document_control.py": "65a54aa020202bae58528229c69e9ef85b85f4d4833433c1594440b785fea24d",
+  "backend/tests/test_extraction_m2.py": "9b763a144e580976d7a740c80a90f30ac45fd4ef3e2c16d253d27aa155ef241f",
+  "backend/tests/test_extraction_m2_review.py": "bc17b8ffc05c5aaec3726a9b3833edd4e5fadb31ebe86cef8c793af3de49f7a1",
+  "backend/tests/test_extraction_m2_review02.py": "4695a4f93df36a4576ffa18c8d8e03c89d6d6a25336583b77409144527fa31f3",
+  "backend/tests/test_job_thread_sessions.py": "7b256db3dcbe98d7f07662ce04763fc8ffdf437d25a21a5c705dc6f15de9999e",
+  "docs/milestones/M2/M2-ACCEPTANCE-REPORT.md": "e13f4bc491013abd7d351d8ba947563d6b4f36f2c070a5c685a6f08232122bef",
+  "docs/milestones/M2/M2-BASELINE.md": "fb0b95292571471159e82fb4b785098a4dfc8caddaf61a5b58a0017a6a6da1ba",
+  "docs/milestones/M2/M2-COMPATIBILITY-REPORT.md": "a55c38f63efe981c66b481cf2b8d7dd5f16b2962468f7686700b9e97d81b983d",
+  "docs/milestones/M2/M2-DEFECTS-AND-FIXES.md": "4d398a0cf9da1c4672631a840f52d27d879bff1b81317ef3e1d195a1a0d816fc",
+  "docs/milestones/M2/M2-GOLDEN-MANIFEST.json": "16dbf11e651e810cea3bcb7df1ae5e3695fd1cf4ec00db3db41ef7372b7cfdaf",
+  "docs/milestones/M2/M2-RECOVERY-CHECKLIST.md": "53ea0e356d82bb16060c47687a154673db05876141d3a1e679bd1dffc1955a0e",
+  "docs/milestones/M2/M2-REVIEW-RESPONSE.md": "b75267fb112063d9d24e68aa75b448f10f7db89e75c2280927db22cf015ab03d"
+ },
+ "note": "baseline of the Review 03 correction: Review 01 + 02 corrections uncommitted; backend/ep_platform.db and backend/library/symbols/symbol_library.json are live operational files modified by the running backend, not correction artifacts"
+}

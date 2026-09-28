@@ -1,0 +1,84 @@
+{
+  "repeat_bounded": {
+    "first_record": {
+      "reference": "PAGE-13",
+      "revision": "R0",
+      "status": "UR",
+      "page": 13,
+      "flags": [
+        "carried_unvisited",
+        "carried_unverified"
+      ],
+      "retained": {
+        "source_sha256": "old-bytes",
+        "parser_version": "old-parser",
+        "profile": "default",
+        "read_at": "original-time"
+      },
+      "decision_candidates": [
+        [
+          "approved",
+          "retained from a default reading of other bytes",
+          "retained"
+        ]
+      ]
+    },
+    "second_record": {
+      "reference": "PAGE-13",
+      "revision": "R0",
+      "status": "UR",
+      "page": 13,
+      "flags": [
+        "carried_unvisited",
+        "carried_unverified"
+      ],
+      "retained": {
+        "source_sha256": "old-bytes",
+        "parser_version": "old-parser",
+        "profile": "default",
+        "read_at": "original-time"
+      },
+      "decision_candidates": [
+        [
+          "approved",
+          "retained from a default reading of other bytes",
+          "retained"
+        ]
+      ]
+    },
+    "first_envelope_sha": "new-bytes",
+    "second_envelope_sha": "new-bytes",
+    "same_unvisited_page": 13
+  },
+  "promoted_carried_as_default": {
+    "gate": false,
+    "previous_profile": "promoted",
+    "new_profile": "default",
+    "new_record": {
+      "reference": "PAGE-13",
+      "revision": "R0",
+      "status": "UR",
+      "page": 13,
+      "flags": [
+        "carried_unvisited",
+        "carried_other_profile"
+      ],
+      "retained": {
+        "source_sha256": "new-bytes",
+        "parser_version": "parse-2026-09-28.4",
+        "profile": "promoted",
+        "read_at": "promoted-time"
+      },
+      "decision_candidates": [
+        [
+          "approved",
+          "retained from a promoted reading of these bytes",
+          "retained"
+        ]
+      ]
+    },
+    "mirror_status": "UR",
+    "parser_current": false,
+    "reuse_sha": null
+  }
+}

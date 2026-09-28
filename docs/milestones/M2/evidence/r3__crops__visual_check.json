@@ -1,0 +1,1112 @@
+[
+ {
+  "doc_id": 22,
+  "sheet": "sheet-01.png",
+  "header": "h-22.png",
+  "row": "r-22.png",
+  "seen": "drawing title block; revision block, status boxes unticked",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 120,
+  "sheet": "sheet-01.png",
+  "header": "h-120.png",
+  "row": "r-120.png",
+  "seen": "filled red box beside 'Re- Submit (C)'",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 409,
+  "sheet": "sheet-01.png",
+  "header": "h-409.png",
+  "row": "r-409.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 415,
+  "sheet": "sheet-01.png",
+  "header": "h-415.png",
+  "row": "r-415.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 416,
+  "sheet": "sheet-01.png",
+  "header": "h-416.png",
+  "row": "r-416.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 417,
+  "sheet": "sheet-01.png",
+  "header": "h-417.png",
+  "row": "r-417.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 418,
+  "sheet": "sheet-02.png",
+  "header": "h-418.png",
+  "row": "r-418.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 419,
+  "sheet": "sheet-02.png",
+  "header": "h-419.png",
+  "row": "r-419.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 420,
+  "sheet": "sheet-02.png",
+  "header": "h-420.png",
+  "row": "r-420.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 421,
+  "sheet": "sheet-02.png",
+  "header": "h-421.png",
+  "row": "r-421.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 422,
+  "sheet": "sheet-02.png",
+  "header": "h-422.png",
+  "row": "r-422.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 423,
+  "sheet": "sheet-02.png",
+  "header": "h-423.png",
+  "row": "r-423.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 424,
+  "sheet": "sheet-03.png",
+  "header": "h-424.png",
+  "row": "r-424.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 425,
+  "sheet": "sheet-03.png",
+  "header": "h-425.png",
+  "row": "r-425.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 426,
+  "sheet": "sheet-03.png",
+  "header": "h-426.png",
+  "row": "r-426.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 429,
+  "sheet": "sheet-03.png",
+  "header": "h-429.png",
+  "row": "r-429.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 430,
+  "sheet": "sheet-03.png",
+  "header": "h-430.png",
+  "row": "r-430.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 433,
+  "sheet": "sheet-03.png",
+  "header": "h-433.png",
+  "row": "r-433.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 434,
+  "sheet": "sheet-04.png",
+  "header": "h-434.png",
+  "row": "r-434.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 435,
+  "sheet": "sheet-04.png",
+  "header": "h-435.png",
+  "row": "r-435.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 436,
+  "sheet": "sheet-04.png",
+  "header": "h-436.png",
+  "row": "r-436.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 437,
+  "sheet": "sheet-04.png",
+  "header": "h-437.png",
+  "row": "r-437.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 440,
+  "sheet": "sheet-04.png",
+  "header": "h-440.png",
+  "row": "r-440.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 444,
+  "sheet": "sheet-04.png",
+  "header": "h-444.png",
+  "row": "r-444.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 448,
+  "sheet": "sheet-05.png",
+  "header": "h-448.png",
+  "row": "r-448.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 452,
+  "sheet": "sheet-05.png",
+  "header": "h-452.png",
+  "row": "r-452.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 454,
+  "sheet": "sheet-05.png",
+  "header": "h-454.png",
+  "row": "r-454.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 457,
+  "sheet": "sheet-05.png",
+  "header": "h-457.png",
+  "row": "r-457.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 458,
+  "sheet": "sheet-05.png",
+  "header": "h-458.png",
+  "row": "r-458.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 459,
+  "sheet": "sheet-05.png",
+  "header": "h-459.png",
+  "row": "r-459.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 460,
+  "sheet": "sheet-06.png",
+  "header": "h-460.png",
+  "row": "r-460.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 461,
+  "sheet": "sheet-06.png",
+  "header": "h-461.png",
+  "row": "r-461.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 463,
+  "sheet": "sheet-06.png",
+  "header": "h-463.png",
+  "row": "r-463.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 516,
+  "sheet": "sheet-06.png",
+  "header": "h-516.png",
+  "row": "r-516.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 520,
+  "sheet": "sheet-06.png",
+  "header": "h-520.png",
+  "row": "r-520.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 521,
+  "sheet": "sheet-06.png",
+  "header": "h-521.png",
+  "row": "r-521.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 522,
+  "sheet": "sheet-07.png",
+  "header": "h-522.png",
+  "row": "r-522.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 523,
+  "sheet": "sheet-07.png",
+  "header": "h-523.png",
+  "row": "r-523.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 524,
+  "sheet": "sheet-07.png",
+  "header": "h-524.png",
+  "row": "r-524.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 525,
+  "sheet": "sheet-07.png",
+  "header": "h-525.png",
+  "row": "r-525.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 526,
+  "sheet": "sheet-07.png",
+  "header": "h-526.png",
+  "row": "r-526.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 527,
+  "sheet": "sheet-07.png",
+  "header": "h-527.png",
+  "row": "r-527.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 528,
+  "sheet": "sheet-08.png",
+  "header": "h-528.png",
+  "row": "r-528.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 529,
+  "sheet": "sheet-08.png",
+  "header": "h-529.png",
+  "row": "r-529.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 530,
+  "sheet": "sheet-08.png",
+  "header": "h-530.png",
+  "row": "r-530.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 538,
+  "sheet": "sheet-08.png",
+  "header": "h-538.png",
+  "row": "r-538.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 539,
+  "sheet": "sheet-08.png",
+  "header": "h-539.png",
+  "row": "r-539.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 540,
+  "sheet": "sheet-08.png",
+  "header": "h-540.png",
+  "row": "r-540.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 541,
+  "sheet": "sheet-09.png",
+  "header": "h-541.png",
+  "row": "r-541.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 542,
+  "sheet": "sheet-09.png",
+  "header": "h-542.png",
+  "row": "r-542.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 543,
+  "sheet": "sheet-09.png",
+  "header": "h-543.png",
+  "row": "r-543.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 566,
+  "sheet": "sheet-09.png",
+  "header": "h-566.png",
+  "row": "r-566.png",
+  "seen": "drawn frame on 'D- Rejected' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 567,
+  "sheet": "sheet-09.png",
+  "header": "h-567.png",
+  "row": "r-567.png",
+  "seen": "drawn frame on 'D- Rejected' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 570,
+  "sheet": "sheet-09.png",
+  "header": "h-570.png",
+  "row": "r-570.png",
+  "seen": "drawn frame on 'D- Rejected' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 571,
+  "sheet": "sheet-10.png",
+  "header": "h-571.png",
+  "row": "r-571.png",
+  "seen": "drawn frame on 'D- Rejected' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 572,
+  "sheet": "sheet-10.png",
+  "header": "h-572.png",
+  "row": "r-572.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 573,
+  "sheet": "sheet-10.png",
+  "header": "h-573.png",
+  "row": "r-573.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 575,
+  "sheet": "sheet-10.png",
+  "header": "h-575.png",
+  "row": "r-575.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 576,
+  "sheet": "sheet-10.png",
+  "header": "h-576.png",
+  "row": "r-576.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 577,
+  "sheet": "sheet-10.png",
+  "header": "h-577.png",
+  "row": "r-577.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 578,
+  "sheet": "sheet-11.png",
+  "header": "h-578.png",
+  "row": "r-578.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 597,
+  "sheet": "sheet-11.png",
+  "header": "h-597.png",
+  "row": "r-597.png",
+  "seen": "drawing schedule (AFE Reply / Remarks); no recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 620,
+  "sheet": "sheet-11.png",
+  "header": "h-620.png",
+  "row": "r-620.png",
+  "seen": "prose compliance statement; no form",
+  "status_expected": null,
+  "status_stored": null,
+  "agree": true
+ },
+ {
+  "doc_id": 764,
+  "sheet": "sheet-11.png",
+  "header": "h-764.png",
+  "row": "r-764.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 765,
+  "sheet": "sheet-11.png",
+  "header": "h-765.png",
+  "row": "r-765.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 766,
+  "sheet": "sheet-11.png",
+  "header": "h-766.png",
+  "row": "r-766.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 767,
+  "sheet": "sheet-12.png",
+  "header": "h-767.png",
+  "row": "r-767.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 768,
+  "sheet": "sheet-12.png",
+  "header": "h-768.png",
+  "row": "r-768.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 769,
+  "sheet": "sheet-12.png",
+  "header": "h-769.png",
+  "row": "r-769.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 771,
+  "sheet": "sheet-12.png",
+  "header": "h-771.png",
+  "row": "r-771.png",
+  "seen": "drawing title block; revision block, status boxes unticked",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 772,
+  "sheet": "sheet-12.png",
+  "header": "h-772.png",
+  "row": "r-772.png",
+  "seen": "drawing title block; revision block, status boxes unticked",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 773,
+  "sheet": "sheet-12.png",
+  "header": "h-773.png",
+  "row": "r-773.png",
+  "seen": "drawing title block; revision block, status boxes unticked",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 774,
+  "sheet": "sheet-13.png",
+  "header": "h-774.png",
+  "row": "r-774.png",
+  "seen": "drawing title block; revision block, status boxes unticked",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 775,
+  "sheet": "sheet-13.png",
+  "header": "h-775.png",
+  "row": "r-775.png",
+  "seen": "drawing title block; revision block, status boxes unticked",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 776,
+  "sheet": "sheet-13.png",
+  "header": "h-776.png",
+  "row": "r-776.png",
+  "seen": "drawing title block; revision block, status boxes unticked",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 777,
+  "sheet": "sheet-13.png",
+  "header": "h-777.png",
+  "row": "r-777.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 778,
+  "sheet": "sheet-13.png",
+  "header": "h-778.png",
+  "row": "r-778.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 780,
+  "sheet": "sheet-13.png",
+  "header": "h-780.png",
+  "row": "r-780.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 781,
+  "sheet": "sheet-14.png",
+  "header": "h-781.png",
+  "row": "r-781.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 782,
+  "sheet": "sheet-14.png",
+  "header": "h-782.png",
+  "row": "r-782.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 783,
+  "sheet": "sheet-14.png",
+  "header": "h-783.png",
+  "row": "r-783.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 784,
+  "sheet": "sheet-14.png",
+  "header": "h-784.png",
+  "row": "r-784.png",
+  "seen": "drawing title block; revision block, status boxes unticked",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 786,
+  "sheet": "sheet-14.png",
+  "header": "h-786.png",
+  "row": "r-786.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 790,
+  "sheet": "sheet-14.png",
+  "header": "h-790.png",
+  "row": "r-790.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 791,
+  "sheet": "sheet-15.png",
+  "header": "h-791.png",
+  "row": "r-791.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 792,
+  "sheet": "sheet-15.png",
+  "header": "h-792.png",
+  "row": "r-792.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 793,
+  "sheet": "sheet-15.png",
+  "header": "h-793.png",
+  "row": "r-793.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 794,
+  "sheet": "sheet-15.png",
+  "header": "h-794.png",
+  "row": "r-794.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 795,
+  "sheet": "sheet-15.png",
+  "header": "h-795.png",
+  "row": "r-795.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 796,
+  "sheet": "sheet-15.png",
+  "header": "h-796.png",
+  "row": "r-796.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 797,
+  "sheet": "sheet-16.png",
+  "header": "h-797.png",
+  "row": "r-797.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 798,
+  "sheet": "sheet-16.png",
+  "header": "h-798.png",
+  "row": "r-798.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 799,
+  "sheet": "sheet-16.png",
+  "header": "h-799.png",
+  "row": "r-799.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 800,
+  "sheet": "sheet-16.png",
+  "header": "h-800.png",
+  "row": "r-800.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 808,
+  "sheet": "sheet-16.png",
+  "header": "h-808.png",
+  "row": "r-808.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 809,
+  "sheet": "sheet-16.png",
+  "header": "h-809.png",
+  "row": "r-809.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 810,
+  "sheet": "sheet-17.png",
+  "header": "h-810.png",
+  "row": "r-810.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 811,
+  "sheet": "sheet-17.png",
+  "header": "h-811.png",
+  "row": "r-811.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 812,
+  "sheet": "sheet-17.png",
+  "header": "h-812.png",
+  "row": "r-812.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 813,
+  "sheet": "sheet-17.png",
+  "header": "h-813.png",
+  "row": "r-813.png",
+  "seen": "no mark on either recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ },
+ {
+  "doc_id": 836,
+  "sheet": "sheet-17.png",
+  "header": "h-836.png",
+  "row": "r-836.png",
+  "seen": "drawn frame on 'D- Rejected' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 837,
+  "sheet": "sheet-17.png",
+  "header": "h-837.png",
+  "row": "r-837.png",
+  "seen": "drawn frame on 'D- Rejected' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 840,
+  "sheet": "sheet-18.png",
+  "header": "h-840.png",
+  "row": "r-840.png",
+  "seen": "drawn frame on 'D- Rejected' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 841,
+  "sheet": "sheet-18.png",
+  "header": "h-841.png",
+  "row": "r-841.png",
+  "seen": "drawn frame on 'D- Rejected' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 842,
+  "sheet": "sheet-18.png",
+  "header": "h-842.png",
+  "row": "r-842.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 843,
+  "sheet": "sheet-18.png",
+  "header": "h-843.png",
+  "row": "r-843.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 845,
+  "sheet": "sheet-18.png",
+  "header": "h-845.png",
+  "row": "r-845.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 846,
+  "sheet": "sheet-18.png",
+  "header": "h-846.png",
+  "row": "r-846.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 847,
+  "sheet": "sheet-19.png",
+  "header": "h-847.png",
+  "row": "r-847.png",
+  "seen": "drawn frame or highlight on 'B - Approved With Comments' (consultant row)",
+  "status_expected": "ANN",
+  "status_stored": "ANN",
+  "agree": true
+ },
+ {
+  "doc_id": 848,
+  "sheet": "sheet-19.png",
+  "header": "h-848.png",
+  "row": "r-848.png",
+  "seen": "drawn frame or highlight on 'C - Revise & Re-Submit' (consultant row)",
+  "status_expected": "rejected",
+  "status_stored": "rejected",
+  "agree": true
+ },
+ {
+  "doc_id": 868,
+  "sheet": "sheet-19.png",
+  "header": "h-868.png",
+  "row": "r-868.png",
+  "seen": "drawing schedule (AFE Reply / Remarks); no recommendation row",
+  "status_expected": "UR",
+  "status_stored": "UR",
+  "agree": true
+ }
+]

@@ -1,0 +1,106 @@
+{
+  "legacy_last_success_without_parser_version": {
+    "outcome": "failed",
+    "records_before": [
+      {
+        "reference": "GOOD-SDW-001"
+      }
+    ],
+    "records_after": [
+      {
+        "reference": "GOOD-SDW-001"
+      }
+    ],
+    "parser_version_before": null,
+    "mirror_reference_after": "GOOD-SDW-001"
+  },
+  "bounded_replaces_more_complete_success": {
+    "outcome": "bounded",
+    "records_after": [
+      {
+        "reference": "ABC-XYZ-SPM-SD-MEP-FA-0054",
+        "page": 13,
+        "flags": [
+          "carried_unvisited",
+          "carried_unverified"
+        ]
+      }
+    ],
+    "skipped": [
+      {
+        "page": 13,
+        "reason": "page scan limit: nothing read in the first pages"
+      }
+    ],
+    "attempt_present": false,
+    "mirror_reference_after": "ABC-XYZ-SPM-SD-MEP-FA-0054",
+    "page13_direct_reference": [
+      "ABC-XYZ-SPM-SD-MEP-FA-0054"
+    ]
+  },
+  "ocr_overrides_collected_conflict": {
+    "records": [
+      {
+        "status": "UR",
+        "flags": [
+          "decision_conflict",
+          "decision_method_unpromoted"
+        ],
+        "candidates": [
+          [
+            "approved",
+            "A - Approved",
+            "annotation"
+          ],
+          [
+            "rejected",
+            "C - Revise & Re-Submit",
+            "drawn_frame"
+          ],
+          [
+            "approved",
+            "(A) Approved",
+            "ocr"
+          ]
+        ]
+      }
+    ],
+    "observation_kinds": [
+      "decision_conflict"
+    ],
+    "coverage": "complete"
+  },
+  "text_decision_bypasses_mark_collection": {
+    "records": [
+      {
+        "status": "UR",
+        "flags": [
+          "decision_conflict"
+        ],
+        "candidates": [
+          [
+            "approved",
+            "(A) Approved",
+            "text"
+          ],
+          [
+            "rejected",
+            "C - Revise & Re-Submit",
+            "drawn_frame"
+          ]
+        ]
+      }
+    ],
+    "observation_kinds": [
+      "decision_conflict"
+    ],
+    "coverage": "complete"
+  },
+  "promoted_reading_reused_with_gate_off": {
+    "current_gate": false,
+    "stored_gate": true,
+    "parser_current": false,
+    "previous_sha_reused": false,
+    "task_unchanged": false
+  }
+}

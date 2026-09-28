@@ -1,0 +1,26 @@
+{
+ "at": "2026-09-28T05:35:24+00:00",
+ "head": "ed7d221df24dbdeac3ababed5de3e128fed0c588",
+ "git_status_lines": 66,
+ "dirty_files_outside_evidence": {
+  "backend/app/core/config.py": "8c023cc6e86ac068e675e1b3fb48013c69c43f429cae9ce8b5b2f0002ef64a9d",
+  "backend/app/services/design_sheet_extractor.py": "e44243648b56dc01fbf0d12eb0ad3b5d54374b4dcf8b4031031f42c4865ba41f",
+  "backend/app/services/document_control.py": "c20aaae3f915aebd243b87ca0fedabf9f9fac3ceb767672c6b7e84ba8abcc4ab",
+  "backend/app/services/document_processing.py": "99ce8a01b551d4f580f207e606a8475893db8c9e16638f31024ec3414150215e",
+  "backend/app/services/document_sync.py": "4f1d40dee4e72e1aae9da56fa0f52403473b79337f14352c75d356b9efd6b7a3",
+  "backend/library/symbols/symbol_library.json": "db9956ab386c3a1aaf66e2caac8f82384963a5ed6fc9fff4d2f9fe4583e89504",
+  "backend/scripts/repair_extraction.py": "0b663a2c3ea342cbee8319454dbc422bf49aaf51929173626233a57be38b7413",
+  "backend/tests/test_design_sheet_extractor.py": "ebc6b0ccbe240834c19782d5b39c5140a0a915b7487802e4265087efb4a16757",
+  "backend/tests/test_document_control.py": "009b2de83da71e9eb4fc3128346cbf661267a19f969209059b388a58e54fa268",
+  "backend/tests/test_extraction_m2.py": "9b763a144e580976d7a740c80a90f30ac45fd4ef3e2c16d253d27aa155ef241f",
+  "backend/tests/test_extraction_m2_review.py": "1809e31b07af33d7f935deb69d0a88d293f54894f14e5e0690d903217e9a9b28",
+  "docs/milestones/M2/M2-ACCEPTANCE-REPORT.md": "5f2684bdc477ca90e20d94d465c511da314d0d58db416466f2a0b2ff0c973736",
+  "docs/milestones/M2/M2-BASELINE.md": "fb0b95292571471159e82fb4b785098a4dfc8caddaf61a5b58a0017a6a6da1ba",
+  "docs/milestones/M2/M2-COMPATIBILITY-REPORT.md": "559e63548fc436a6d8d07d845215e9ec6dd4231ceb6d0615d3e8653b05711598",
+  "docs/milestones/M2/M2-DEFECTS-AND-FIXES.md": "546d242aeab7a655d24dceb36e6dcb418a724f044de8681d69434a2ddd701d8e",
+  "docs/milestones/M2/M2-GOLDEN-MANIFEST.json": "d6342133126155af5db603d0ea70da77877d2c7847a01c206bf79c3bd6e67c7a",
+  "docs/milestones/M2/M2-RECOVERY-CHECKLIST.md": "53ea0e356d82bb16060c47687a154673db05876141d3a1e679bd1dffc1955a0e",
+  "docs/milestones/M2/M2-REVIEW-RESPONSE.md": "213be95f434b065b06665b0b3d15c71df5e4028a904ecd965c0307a262a4e20d"
+ },
+ "note": "baseline of the Review 02 correction: the Review 01 correction as reviewed (uncommitted) plus backend/library/symbols/symbol_library.json, whose exported_at was rewritten at 2026-09-28 09:10:24 local by an app start outside this session (not part of any correction; left as found)"
+}

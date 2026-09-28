@@ -1,0 +1,30 @@
+{
+ "live": {
+  "label": "live backend/ep_platform.db (read-only)",
+  "project_documents": 890,
+  "parser_versions": {
+   "none": 890
+  },
+  "max_last_processed_at": "2026-09-27 14:58:09.579508",
+  "jobs": "no such column: state",
+  "alembic": [
+   [
+    "a5b6c7d8e9f0"
+   ]
+  ]
+ },
+ "committed": {
+  "label": "committed snapshot HEAD:backend/ep_platform.db",
+  "project_documents": 890,
+  "parser_versions": {
+   "none": 890
+  },
+  "max_last_processed_at": "2026-09-27 14:58:09.579508",
+  "jobs": "no such column: state",
+  "alembic": [
+   [
+    "a5b6c7d8e9f0"
+   ]
+  ]
+ }
+}

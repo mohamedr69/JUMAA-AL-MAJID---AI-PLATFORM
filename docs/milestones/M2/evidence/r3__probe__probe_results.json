@@ -1,0 +1,59 @@
+{
+ "probe": "C:/t/m2r/probe/probe_m2.py (copy of the review folder probe)",
+ "results": {
+  "unopenable_replaces_previous": {
+   "records": [
+    {
+     "reference": "GOOD-SDW-001"
+    }
+   ],
+   "notes": [
+    "Could not read corrupt.pdf."
+   ],
+   "parser_version": "last-success",
+   "top_level_reference": "GOOD-SDW-001",
+   "last_processed_updated": false
+  },
+  "ocr_failure_replaces_previous": {
+   "records": [
+    {
+     "reference": "GOOD-SDW-001"
+    }
+   ],
+   "notes": [
+    "Could not OCR scan.pdf, page 1."
+   ],
+   "parser_version": "last-success",
+   "last_processed_updated": false
+  },
+  "leading_page_hides_cover": {
+   "total_pages": 2,
+   "visited_pages": [
+    1,
+    2
+   ],
+   "records": [
+    "ABC-XYZ-SPM-SD-MEP-FA-0054"
+   ],
+   "notes": [],
+   "page_2_direct_records": [
+    "ABC-XYZ-SPM-SD-MEP-FA-0054"
+   ]
+  },
+  "annotated_comment_becomes_decision": {
+   "decision": null
+  },
+  "conflicting_frame_methods": {
+   "annotated": [
+    "approved",
+    "A - Approved"
+   ],
+   "drawn_without_annotation_overlay": [
+    "rejected",
+    "C - Revise & Re-Submit"
+   ],
+   "combined": null
+  }
+ },
+ "stdout_prefix": ""
+}

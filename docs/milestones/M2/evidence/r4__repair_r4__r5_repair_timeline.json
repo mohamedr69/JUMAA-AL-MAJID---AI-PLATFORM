@@ -1,0 +1,73 @@
+{
+ "clone": "C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\clone_r4.db",
+ "clone_source": "m2_clone_20260927T181957Z.db",
+ "environment": {
+  "DATABASE_URL": "sqlite:///C:/Users/moham/AppData/Local/Temp/claude/c--Users-moham-Desktop-dev-dev/be7878a4-f3f7-49c7-8971-5873084fd122/scratchpad/m2r2/clone_r4.db",
+  "CACHE_ROOT": "C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\cache_r4",
+  "AI_ENABLED": "false",
+  "SYNC_FILE_WORKERS": "0",
+  "DOCUMENT_CLASSIFICATION_V2": "false"
+ },
+ "timeline": [
+  {
+   "at": "2026-09-28T06:16:54+00:00",
+   "cmd": "scripts/business_snapshot.py 4 C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\repair_r4\\snapshot_before_p4.json",
+   "rc": 0,
+   "seconds": 1.1
+  },
+  {
+   "at": "2026-09-28T06:16:56+00:00",
+   "cmd": "scripts/golden_records.py --from-db 4 --out C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\repair_r4\\golden_before_p4.json",
+   "rc": 0,
+   "seconds": 1.4
+  },
+  {
+   "at": "2026-09-28T06:16:57+00:00",
+   "cmd": "scripts/business_snapshot.py 1 C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\repair_r4\\snapshot_before_p1.json",
+   "rc": 0,
+   "seconds": 1.1
+  },
+  {
+   "at": "2026-09-28T06:16:58+00:00",
+   "cmd": "scripts/golden_records.py --from-db 1 --out C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\repair_r4\\golden_before_p1.json",
+   "rc": 0,
+   "seconds": 1.4
+  },
+  {
+   "at": "2026-09-28T06:27:26+00:00",
+   "cmd": "scripts/repair_extraction.py --project 4 --select date-references,truncated-references,parser-outdated --apply --manifest C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\repair_r4\\repair_p4.json",
+   "rc": 0,
+   "seconds": 628.0
+  },
+  {
+   "at": "2026-09-28T06:38:36+00:00",
+   "cmd": "scripts/repair_extraction.py --project 1 --select parser-outdated --apply --manifest C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\repair_r4\\repair_p1.json",
+   "rc": 0,
+   "seconds": 669.6
+  },
+  {
+   "at": "2026-09-28T06:38:37+00:00",
+   "cmd": "scripts/business_snapshot.py 4 C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\repair_r4\\snapshot_after_p4.json",
+   "rc": 0,
+   "seconds": 1.4
+  },
+  {
+   "at": "2026-09-28T06:38:39+00:00",
+   "cmd": "scripts/golden_records.py --from-db 4 --out C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\repair_r4\\golden_after_p4.json",
+   "rc": 0,
+   "seconds": 1.7
+  },
+  {
+   "at": "2026-09-28T06:38:40+00:00",
+   "cmd": "scripts/business_snapshot.py 1 C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\repair_r4\\snapshot_after_p1.json",
+   "rc": 0,
+   "seconds": 1.1
+  },
+  {
+   "at": "2026-09-28T06:38:41+00:00",
+   "cmd": "scripts/golden_records.py --from-db 1 --out C:\\Users\\moham\\AppData\\Local\\Temp\\claude\\c--Users-moham-Desktop-dev-dev\\be7878a4-f3f7-49c7-8971-5873084fd122\\scratchpad\\m2r2\\repair_r4\\golden_after_p1.json",
+   "rc": 0,
+   "seconds": 1.4
+  }
+ ]
+}

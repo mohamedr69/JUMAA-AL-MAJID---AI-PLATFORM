@@ -1,0 +1,4621 @@
+{
+ "tool": "repair_extraction",
+ "parser_version": "parse-2026-09-28.3",
+ "mode": "apply",
+ "database": "C:/Users/moham/AppData/Local/Temp/claude/c--Users-moham-Desktop-dev-dev/be7878a4-f3f7-49c7-8971-5873084fd122/scratchpad/m2r/clone_r3.db",
+ "project_id": 4,
+ "selection": "ids",
+ "started_at": "2026-09-28T04:24:55+00:00",
+ "entries": [
+  {
+   "document_id": 428,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/EMERGENCY LIGHTING/ICC-DLRC-SPM-SD-MEP-0091-00-COMMENTED-C.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "112b5de8299f4b49762250fc5d86250780054cced8c77935857a03f0bec35754",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "112b5de8299f4b49762250fc5d86250780054cced8c77935857a03f0bec35754",
+    "size": 2641488,
+    "mtime": 1783660936.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         286.4,
+         603.1,
+         349.8,
+         610.5
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "WATER TANK AND PUMP ROOM DETAILS",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\EMERGENCY LIGHTING\\ICC-DLRC-SPM-SD-MEP-0091-00-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:16+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-0091",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-101A"
+       ],
+       "superseded": [],
+       "raw_system": "MEP",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-0091",
+      "raw_system": "MEP"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-101A",
+      "raw_system": null
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:24:56.213448"
+  },
+  {
+   "document_id": 438,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-00-COMMENTED.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "bea4e68a9bdadfb3437a6b8c9f6493efaec77b4948122f592742bb86301b613d",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "bea4e68a9bdadfb3437a6b8c9f6493efaec77b4948122f592742bb86301b613d",
+    "size": 2968623,
+    "mtime": 1783660937.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "BASEMENT-01 FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0047-00-COMMENTED.pdf",
+       "modified": "2026-07-10T05:22:17+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R0",
+       "status": "rejected",
+       "floor": "BASEMENT-01",
+       "reply_text": "C - Revise & Re-Submit",
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-100"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-100",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:24:56.562411"
+  },
+  {
+   "document_id": 439,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-01-COMMENTED.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "f5dd123847bd3cd60ec765a5170e16aef35c10e38693447a61be8318fe413dd6",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "f5dd123847bd3cd60ec765a5170e16aef35c10e38693447a61be8318fe413dd6",
+    "size": 2946003,
+    "mtime": 1783660937.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         281.4,
+         592.7,
+         347.3,
+         600.3
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "BASEMENT-01 FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0047-01-COMMENTED.pdf",
+       "modified": "2026-07-10T05:22:17+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R1",
+       "status": "UR",
+       "floor": "BASEMENT-01",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-100"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-100",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:24:56.958778"
+  },
+  {
+   "document_id": 440,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "cc772e031c56915d4ce34e67265d6ef59cc3f41b1e50624efc89fbc4c61b775e",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:17+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R2",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "cc772e031c56915d4ce34e67265d6ef59cc3f41b1e50624efc89fbc4c61b775e",
+    "size": 3131167,
+    "mtime": 1783660937.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         283.3,
+         603.1,
+         346.6,
+         610.5
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "BASEMENT-01 FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0047-02-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:17+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R2",
+       "status": "UR",
+       "floor": "BASEMENT-01",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-100"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:24:57.654535"
+  },
+  {
+   "document_id": 441,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0047-03-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "923e7c01d10a9ca3005dd823f0a3f46a42735aca1035606598950321de5d8174",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "923e7c01d10a9ca3005dd823f0a3f46a42735aca1035606598950321de5d8174",
+    "size": 4011650,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 3,
+     "pages_visited": [
+      1,
+      2,
+      3
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_conflict",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "filled_box",
+        "rect": [
+         254.4,
+         599.1,
+         266.7,
+         606.4
+        ]
+       },
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "BASEMENT-01 FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0047-03-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R3",
+       "status": "UR",
+       "floor": "BASEMENT-01",
+       "reply_text": "Conflicting marks: C - Revise & Re-Submit [filled_box]; B - Approved With [drawn_frame]",
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-100"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "filled_box"
+        ],
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_conflict"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "MEP Contractor; ~~ x\" | Specialist Contractor: Consultant",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0047-03-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0047",
+       "revision": "R2",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 2,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-100"
+       ],
+       "superseded": [],
+       "raw_system": "FF",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 3,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-100",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:24:58.107672"
+  },
+  {
+   "document_id": 442,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-00-COMMENTED.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "0f493c0da7203aff8b2b14f4ea63da14653def6a48f828333d731d6ea72f0c84",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "0f493c0da7203aff8b2b14f4ea63da14653def6a48f828333d731d6ea72f0c84",
+    "size": 3194345,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "BASEMENT-02 FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0048-00-COMMENTED.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "revision": "R0",
+       "status": "rejected",
+       "floor": "BASEMENT-02",
+       "reply_text": "C - Revise & Re-Submit",
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-101"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-101",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:24:58.467170"
+  },
+  {
+   "document_id": 443,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-01-COMMENTED.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "ceecd7cccec2f02e85d7997e49c116be1791dd7b269db962be91eb272b52ee92",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "ceecd7cccec2f02e85d7997e49c116be1791dd7b269db962be91eb272b52ee92",
+    "size": 3302394,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         281.4,
+         592.7,
+         347.3,
+         600.3
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "BASEMENT-02 FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0048-01-COMMENTED.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "revision": "R1",
+       "status": "UR",
+       "floor": "BASEMENT-02",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-101"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-101",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:24:58.890429"
+  },
+  {
+   "document_id": 444,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "d42e6ef9c1d4ca8dbaec0a4f5a95eabd24bae23a8b590757f8d25b582f0e9ea7",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R2",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "d42e6ef9c1d4ca8dbaec0a4f5a95eabd24bae23a8b590757f8d25b582f0e9ea7",
+    "size": 2733099,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         283.3,
+         603.1,
+         346.6,
+         610.5
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "BASEMENT-02 FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0048-02-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "revision": "R2",
+       "status": "UR",
+       "floor": "BASEMENT-02",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-101"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-101",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:24:59.440495"
+  },
+  {
+   "document_id": 445,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0048-03-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "05cb63e15643afe386e41647e4725ca0259c1de91d80fe025046ade81630edaf",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "05cb63e15643afe386e41647e4725ca0259c1de91d80fe025046ade81630edaf",
+    "size": 3971805,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 3,
+     "pages_visited": [
+      1,
+      2,
+      3
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "BASEMENT-02 FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0048-03-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "revision": "R3",
+       "status": "UR",
+       "floor": "BASEMENT-02",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-101"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0048-03-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0048",
+       "revision": "R2",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 2,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-101"
+       ],
+       "superseded": [],
+       "raw_system": "FF",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 3,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-101",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:24:59.885762"
+  },
+  {
+   "document_id": 446,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0049-00-COMMENTED.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "fe867b296a22c3b3781498f25182c7e1c40d8a81637e7cd52efabf1f63b1af00",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "fe867b296a22c3b3781498f25182c7e1c40d8a81637e7cd52efabf1f63b1af00",
+    "size": 3055733,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "GROUND FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0049-00-COMMENTED.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+       "revision": "R0",
+       "status": "rejected",
+       "floor": "GROUND FLOOR",
+       "reply_text": "C - Revise & Re-Submit",
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-102"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-102",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:00.366448"
+  },
+  {
+   "document_id": 447,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0049-01-COMMENTED.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "0c69ffc089e10d2253c5a2c0861ee09e1960bca31c9093572badd4979c331234",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "0c69ffc089e10d2253c5a2c0861ee09e1960bca31c9093572badd4979c331234",
+    "size": 3115900,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         281.4,
+         592.7,
+         347.3,
+         600.3
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "GROUND FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0049-01-COMMENTED.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+       "revision": "R1",
+       "status": "UR",
+       "floor": "GROUND FLOOR",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-102"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-102",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:01.099937"
+  },
+  {
+   "document_id": 448,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0049-02-COMMENTED-C.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "5f92fb75b1d3c34a8a16d61185b22b756592ef205c010bd1c6ff85b108e3939a",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0049-02-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R2",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "5f92fb75b1d3c34a8a16d61185b22b756592ef205c010bd1c6ff85b108e3939a",
+    "size": 3771492,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         283.3,
+         603.1,
+         346.6,
+         610.5
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "GROUND FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0049-02-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+       "revision": "R2",
+       "status": "UR",
+       "floor": "GROUND FLOOR",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-102"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:02.867312"
+  },
+  {
+   "document_id": 449,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0049-03-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "9e12fd077ce5c8c229df346d1cccbfe36edf9e587ced08442e1d3880ffbc68c5",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "9e12fd077ce5c8c229df346d1cccbfe36edf9e587ced08442e1d3880ffbc68c5",
+    "size": 4257438,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 3,
+     "pages_visited": [
+      1,
+      2,
+      3
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "GROUND FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0049-03-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+       "revision": "R3",
+       "status": "UR",
+       "floor": "GROUND FLOOR",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-102"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "* woe",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0049-03-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0049",
+       "revision": "R2",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 2,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-102"
+       ],
+       "superseded": [],
+       "raw_system": "FF",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 3,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-102",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:03.458721"
+  },
+  {
+   "document_id": 450,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0050-00-COMMENTED.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "ac360484d05bfa0dd8121dc9e0dd673bca4b5b1f087d4aa86b2eb47c0699b06f",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "ac360484d05bfa0dd8121dc9e0dd673bca4b5b1f087d4aa86b2eb47c0699b06f",
+    "size": 2100307,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "HEALTH CLUB LEVEL FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0050-00-COMMENTED.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+       "revision": "R0",
+       "status": "rejected",
+       "floor": null,
+       "reply_text": "C - Revise & Re-Submit",
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-103"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-103",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:03.618352"
+  },
+  {
+   "document_id": 451,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0050-01-COMMENTED.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "38dcf3dda36855003facc24002bae8f7d95e0c0d42c0a39c68a0cf04d5bed38b",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "38dcf3dda36855003facc24002bae8f7d95e0c0d42c0a39c68a0cf04d5bed38b",
+    "size": 2034938,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         281.4,
+         592.7,
+         347.3,
+         600.3
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "HEALTH CLUB LEVEL FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0050-01-COMMENTED.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+       "revision": "R1",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-103"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-103",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:03.801369"
+  },
+  {
+   "document_id": 452,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0050-02-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "9e9aa144c8108294c9ce86c48491c69991d69596472c0e2642481d23c2a62d50",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0050-02-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R2",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "9e9aa144c8108294c9ce86c48491c69991d69596472c0e2642481d23c2a62d50",
+    "size": 2356479,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       },
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "HEALTH CLUB LEVEL FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0050-02-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+       "revision": "R2",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-103"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0050",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:04.071443"
+  },
+  {
+   "document_id": 453,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0052-01-COMMENTED.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "7c23da12548c472e1fbb7d4ec9a491bd686a095d5b051b9bd6bb1d697dd203eb",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "7c23da12548c472e1fbb7d4ec9a491bd686a095d5b051b9bd6bb1d697dd203eb",
+    "size": 1818047,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         281.4,
+         592.7,
+         347.3,
+         600.3
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "ROOF FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0052-01-COMMENTED.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+       "revision": "R1",
+       "status": "UR",
+       "floor": "ROOF FLOOR",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-105"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-105",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:04.252315"
+  },
+  {
+   "document_id": 454,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0052-02-COMMENTED-C.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "af307913e642263318094178b0138f67f0984f7a383bcc45d901c213f049aca9",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R2",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R2",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0052-02-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R2",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "af307913e642263318094178b0138f67f0984f7a383bcc45d901c213f049aca9",
+    "size": 2087902,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         283.3,
+         603.1,
+         346.6,
+         610.5
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "ROOF FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0052-02-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+       "revision": "R2",
+       "status": "UR",
+       "floor": "ROOF FLOOR",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-105"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:04.437218"
+  },
+  {
+   "document_id": 455,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0052-03-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "5903632d17a8cc50a5d8917db2f6c34a2ed90fb9c9690bbfa140f5cb1f4f1543",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "5903632d17a8cc50a5d8917db2f6c34a2ed90fb9c9690bbfa140f5cb1f4f1543",
+    "size": 3301629,
+    "mtime": 1783660938.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 3,
+     "pages_visited": [
+      1,
+      2,
+      3
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "ROOF FLOOR PLAN FIREFIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0052-03-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+       "revision": "R3",
+       "status": "UR",
+       "floor": "ROOF FLOOR",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-105"
+       ],
+       "superseded": [],
+       "raw_system": "FIREFIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "MEP Contractor; ~~ x\" | Specialist Contractor: Consultant",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0052-03-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:18+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0052",
+       "revision": "R2",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 2,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-105"
+       ],
+       "superseded": [],
+       "raw_system": "FF",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 3,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-105",
+      "raw_system": "MECHANICAL"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:04.783694"
+  },
+  {
+   "document_id": 456,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0091-01-COMMENTED-C.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "7df0817d8bb617599a8c8ff4f18981adf1ef69d722b73b380ef02d387c9a48fa",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "7df0817d8bb617599a8c8ff4f18981adf1ef69d722b73b380ef02d387c9a48fa",
+    "size": 4787807,
+    "mtime": 1783660939.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 4,
+     "pages_visited": [
+      1,
+      2,
+      3,
+      4
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise &",
+        "method": "drawn_frame",
+        "rect": [
+         283.3,
+         603.1,
+         343.1,
+         610.5
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "WATER TANK AND PUMP ROOM DETAILS / PUMP ROOM DETAILS",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0091-01-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0091",
+       "revision": "R1",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-101A",
+        "ICC-DLRC-SPM-SD-MEP/FF-101B"
+       ],
+       "superseded": [],
+       "raw_system": "FF",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise &",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0091",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "ICC-DLRC-SPM-SD-MEP-0091",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0091-01-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-0091",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 2,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [],
+       "superseded": [],
+       "raw_system": "MEP",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 3,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-101A",
+      "raw_system": null
+     },
+     {
+      "page": 4,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-101B",
+      "raw_system": null
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:05.040326"
+  },
+  {
+   "document_id": 457,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0120-00-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "e7c033e353270eb3129876cb183e595c1e1a465c2b0eae122731f8e71bb5f61f",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0120-00-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "e7c033e353270eb3129876cb183e595c1e1a465c2b0eae122731f8e71bb5f61f",
+    "size": 2820387,
+    "mtime": 1783660939.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "TYPICAL 2ND TO 8TH FLOORS FIRE FIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0120-00-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0120",
+       "revision": "R0",
+       "status": "UR",
+       "floor": "TYPICAL 2ND TO 8TH FLOOR",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-106"
+       ],
+       "superseded": [],
+       "raw_system": "FIRE FIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0120",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:05.478913"
+  },
+  {
+   "document_id": 458,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0121-00-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "19ab5b225db0c230afccd588c85bbd3f6117515ee4499f5551edf429be5a53f4",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0121-00-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "19ab5b225db0c230afccd588c85bbd3f6117515ee4499f5551edf429be5a53f4",
+    "size": 2872170,
+    "mtime": 1783660939.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "9TH FLOOR PLAN FIRE FIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0121-00-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0121",
+       "revision": "R0",
+       "status": "UR",
+       "floor": "9TH FLOOR",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-107"
+       ],
+       "superseded": [],
+       "raw_system": "FIRE FIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0121",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:05.929684"
+  },
+  {
+   "document_id": 459,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0122-00-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "59e70faf3e07edcbb9a25ece2eed200f6e9100dc243165dabfef1ec70164d45a",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0122-00-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "59e70faf3e07edcbb9a25ece2eed200f6e9100dc243165dabfef1ec70164d45a",
+    "size": 2716069,
+    "mtime": 1783660939.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "TYPICAL 10TH TO 14TH FLOORS FIRE FIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0122-00-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0122",
+       "revision": "R0",
+       "status": "UR",
+       "floor": "TYPICAL 10TH TO 14TH FLOOR",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-108"
+       ],
+       "superseded": [],
+       "raw_system": "FIRE FIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0122",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:06.318178"
+  },
+  {
+   "document_id": 460,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0123-00-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "94904752cc9faa2be051e7ebc5efa7cd15a6d062c31d79b6e455d8983d9a2981",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0123-00-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "94904752cc9faa2be051e7ebc5efa7cd15a6d062c31d79b6e455d8983d9a2981",
+    "size": 2801500,
+    "mtime": 1783660939.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "FIRST FLOOR FIRE FIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0123-00-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0123",
+       "revision": "R0",
+       "status": "UR",
+       "floor": "FIRST FLOOR FIRE FIGHTING LAYOUT",
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-104"
+       ],
+       "superseded": [],
+       "raw_system": "FIRE FIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0123",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:06.938940"
+  },
+  {
+   "document_id": 461,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0124-00-COMMENTED-C.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "4104cbbd56af2f5df17fe357160d26fe48466b999b914e2aa16726e6fa80e5f9",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0124-00-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "4104cbbd56af2f5df17fe357160d26fe48466b999b914e2aa16726e6fa80e5f9",
+    "size": 2415049,
+    "mtime": 1783660939.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "rejected",
+        "label": "C - Revise & Re-Submit",
+        "method": "drawn_frame",
+        "rect": [
+         283.3,
+         603.1,
+         346.6,
+         610.5
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "SCHEMATIC RISER DIAGRAM FIRE FIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0124-00-COMMENTED-C.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-109"
+       ],
+       "superseded": [],
+       "raw_system": "FIRE FIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "rejected",
+         "C - Revise & Re-Submit",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-109",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:07.073539"
+  },
+  {
+   "document_id": 462,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0124-01-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "8f24056ca27e640b74eaea01f6e855c97a067dee78b759a37a126084bc4473f7",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "8f24056ca27e640b74eaea01f6e855c97a067dee78b759a37a126084bc4473f7",
+    "size": 3279585,
+    "mtime": 1783660939.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 3,
+     "pages_visited": [
+      1,
+      2,
+      3
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "SCHEMATIC RISER DIAGRAM FIRE FIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0124-01-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+       "revision": "R1",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-109"
+       ],
+       "superseded": [],
+       "raw_system": "FIRE FIGHTING",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "MEP Contractor; ~~ x\" | Specialist Contractor: Consultant",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0124-01-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0124",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 2,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-109"
+       ],
+       "superseded": [],
+       "raw_system": "FF",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 3,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-109",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:07.289988"
+  },
+  {
+   "document_id": 463,
+   "project_id": 4,
+   "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0125-00-COMMENTED-B.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "e668189bfe2c1aa4fe85a0aaaae8fdf96b26ab135655d0329579854653fab6ec",
+   "old": {
+    "records": [
+     {
+      "category": "submittals",
+      "reference": "3-Mar-2026",
+      "revision": "R0",
+      "status": "UR",
+      "system": null,
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "3-Mar-2026",
+    "revision": "R0",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": null,
+       "name": "3-Mar-2026",
+       "path": "03. Document/1. SAMANA PARK MEADOWS/3. SHOP DRAWING/FIRE FIGHTING/ICC-DLRC-SPM-SD-MEP-FF-0125-00-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "3-Mar-2026",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "submittals",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "e668189bfe2c1aa4fe85a0aaaae8fdf96b26ab135655d0329579854653fab6ec",
+    "size": 2906992,
+    "mtime": 1783660939.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 2,
+     "pages_visited": [
+      1,
+      2
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "decision_unpromoted",
+      "marks": [
+       {
+        "status": "ANN",
+        "label": "B - Approved With",
+        "method": "drawn_frame",
+        "rect": [
+         217.2,
+         599.1,
+         266.7,
+         606.4
+        ]
+       }
+      ]
+     },
+     {
+      "page": 1,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "GENERAL DETAILS-1 FIGHTING LAYOUT",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\03. Document\\1. SAMANA PARK MEADOWS\\3. SHOP DRAWING\\FIRE FIGHTING\\ICC-DLRC-SPM-SD-MEP-FF-0125-00-COMMENTED-B.pdf",
+       "modified": "2026-07-10T05:22:19+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-FF-0125",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [
+        "ICC-DLRC-SPM-SD-MEP/FF-110"
+       ],
+       "superseded": [],
+       "raw_system": "FF",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [
+        [
+         "ANN",
+         "B - Approved With",
+         "drawn_frame"
+        ]
+       ],
+       "flags": [
+        "decision_method_unpromoted"
+       ]
+      }
+     },
+     {
+      "page": 1,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FF-0125",
+      "raw_system": "FF"
+     },
+     {
+      "page": 2,
+      "kind": "drawing_sheet",
+      "reference": "ICC-DLRC-SPM-SD-MEP/FF-110",
+      "raw_system": "FF"
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": true,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:07.430319"
+  },
+  {
+   "document_id": 575,
+   "project_id": 4,
+   "path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "23cbee28ecb40d80ad7310f954c11cba8313b44c655c2c08adc755d01734f8d3",
+   "old": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R1",
+      "status": "UR",
+      "system": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R1",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": "FAS",
+       "name": "ICC-DLRC-SPM-SD-MEP",
+       "path": "04. Drawings/SD/recieved/TransferNow-20260908BGEp3fee/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+       "modified": "2026-09-08T07:22:46+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP",
+       "revision": "R1",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "23cbee28ecb40d80ad7310f954c11cba8313b44c655c2c08adc755d01734f8d3",
+    "size": 4064802,
+    "mtime": 1788852166.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 3,
+     "pages_visited": [
+      1,
+      2,
+      3
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 2,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "ICC-DLRC-SPM-SD-MEP-0042",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\04. Drawings\\SD\\recieved\\TransferNow-20260908BGEp3fee\\Fire alarm layout\\Received\\R01\\ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+       "modified": "2026-09-08T07:22:46+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-0042",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 2,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [],
+       "superseded": [],
+       "raw_system": "MEP",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 2,
+      "kind": "consultant_comments",
+      "decision": "UR",
+      "answers_revision": 0
+     },
+     {
+      "page": 3,
+      "kind": "consultant_comments",
+      "decision": "UR",
+      "answers_revision": null
+     }
+    ]
+   },
+   "new": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+      "revision": "R1",
+      "status": "ANN",
+      "system": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-103"
+      ]
+     }
+    ],
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+    "revision": "R1",
+    "status": "ANN",
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": false,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:08.116271"
+  },
+  {
+   "document_id": 729,
+   "project_id": 4,
+   "path": "09. Scan Document/EP-30088 CBS Sam B ack 13.08.26.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "bfd9098f7bfce2cb3cd2312eb8b38c21fcbdef3b581ff88a7c31a6f14ee9b8b9",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "bfd9098f7bfce2cb3cd2312eb8b38c21fcbdef3b581ff88a7c31a6f14ee9b8b9",
+    "size": 81107,
+    "mtime": 1786770516.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 1,
+     "pages_visited": [
+      1
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "transmittal",
+      "records": [
+       {
+        "system_code": "ELS",
+        "name": "Sample Board",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\09. Scan Document\\EP-30088 CBS Sam B ack 13.08.26.pdf",
+        "modified": "2026-08-13T00:00:00+00:00",
+        "reference": "TR/204/26",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "transmittal",
+        "category": "samples",
+        "group_reference": "SAMPLE BOARD",
+        "listed": [],
+        "superseded": [],
+        "raw_system": null,
+        "printed_revision": null,
+        "revision_source": null,
+        "decision_candidates": [],
+        "flags": []
+       }
+      ]
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "drawing_title_block",
+     "project_code",
+     "sample_submittal",
+     "transmittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:08.144631"
+  },
+  {
+   "document_id": 730,
+   "project_id": 4,
+   "path": "09. Scan Document/EP-30088 FA Sam B Ack 24.07.26.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "6bb983d319731edff34bc96c292519145bedd82e46c652b5a72a2cb5aef050e6",
+   "old": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": null,
+    "extracted": {
+     "records": [],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "6bb983d319731edff34bc96c292519145bedd82e46c652b5a72a2cb5aef050e6",
+    "size": 77020,
+    "mtime": 1786770546.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 1,
+     "pages_visited": [
+      1
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 1,
+      "kind": "transmittal",
+      "records": [
+       {
+        "system_code": "VES",
+        "name": "Sample Board",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\09. Scan Document\\EP-30088 FA Sam B Ack 24.07.26.pdf",
+        "modified": "2026-08-15T05:09:06+00:00",
+        "reference": "TR/187/26",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "transmittal",
+        "category": "samples",
+        "group_reference": "SAMPLE BOARD",
+        "listed": [],
+        "superseded": [],
+        "raw_system": null,
+        "printed_revision": null,
+        "revision_source": null,
+        "decision_candidates": [],
+        "flags": []
+       },
+       {
+        "system_code": "FAS",
+        "name": "Sample Board",
+        "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\09. Scan Document\\EP-30088 FA Sam B Ack 24.07.26.pdf",
+        "modified": "2026-08-15T05:09:06+00:00",
+        "reference": "TR/187/26",
+        "revision": "R0",
+        "status": "UR",
+        "floor": null,
+        "reply_text": null,
+        "page": 1,
+        "source": "transmittal",
+        "category": "samples",
+        "group_reference": "SAMPLE BOARD",
+        "listed": [],
+        "superseded": [],
+        "raw_system": null,
+        "printed_revision": null,
+        "revision_source": null,
+        "decision_candidates": [],
+        "flags": []
+       }
+      ]
+     }
+    ]
+   },
+   "new": {
+    "records": [],
+    "reference": null,
+    "revision": null,
+    "status": null,
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "drawing_title_block",
+     "project_code",
+     "sample_submittal",
+     "transmittal"
+    ]
+   },
+   "changed": {
+    "records": false,
+    "reference": false,
+    "revision": false,
+    "status": false,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:08.150394"
+  },
+  {
+   "document_id": 780,
+   "project_id": 4,
+   "path": "10. SD/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "23cbee28ecb40d80ad7310f954c11cba8313b44c655c2c08adc755d01734f8d3",
+   "old": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R1",
+      "status": "UR",
+      "system": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R1",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": "FAS",
+       "name": "ICC-DLRC-SPM-SD-MEP",
+       "path": "10. SD/FA/recieved/R01/ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+       "modified": "2026-09-14T10:37:54+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP",
+       "revision": "R1",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "23cbee28ecb40d80ad7310f954c11cba8313b44c655c2c08adc755d01734f8d3",
+    "size": 4064802,
+    "mtime": 1789382274.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 3,
+     "pages_visited": [
+      1,
+      2,
+      3
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 2,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "ICC-DLRC-SPM-SD-MEP-0042",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\10. SD\\FA\\recieved\\R01\\ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+       "modified": "2026-09-14T10:37:54+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-0042",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 2,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [],
+       "superseded": [],
+       "raw_system": "MEP",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 2,
+      "kind": "consultant_comments",
+      "decision": "UR",
+      "answers_revision": 0
+     },
+     {
+      "page": 3,
+      "kind": "consultant_comments",
+      "decision": "UR",
+      "answers_revision": null
+     }
+    ]
+   },
+   "new": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+      "revision": "R1",
+      "status": "ANN",
+      "system": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-103"
+      ]
+     }
+    ],
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+    "revision": "R1",
+    "status": "ANN",
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": false,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:08.865470"
+  },
+  {
+   "document_id": 845,
+   "project_id": 4,
+   "path": "10. SD/recieved/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+   "role": "document",
+   "state": "fresh",
+   "reasons": [
+    "selected by id"
+   ],
+   "sha256": "23cbee28ecb40d80ad7310f954c11cba8313b44c655c2c08adc755d01734f8d3",
+   "old": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP",
+      "revision": "R1",
+      "status": "UR",
+      "system": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": []
+     }
+    ],
+    "reference": "ICC-DLRC-SPM-SD-MEP",
+    "revision": "R1",
+    "status": "UR",
+    "parser_version": null,
+    "extracted": {
+     "records": [
+      {
+       "system_code": "FAS",
+       "name": "ICC-DLRC-SPM-SD-MEP",
+       "path": "10. SD/recieved/Fire alarm layout/Received/R01/ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+       "modified": "2026-09-08T09:24:27+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP",
+       "revision": "R1",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 1,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "superseded": []
+      }
+     ],
+     "notes": []
+    }
+   },
+   "file": {
+    "sha256": "23cbee28ecb40d80ad7310f954c11cba8313b44c655c2c08adc755d01734f8d3",
+    "size": 4064802,
+    "mtime": 1788859467.0,
+    "role_read": "document",
+    "coverage": {
+     "outcome": "complete",
+     "pages_total": 3,
+     "pages_visited": [
+      1,
+      2,
+      3
+     ],
+     "pages_skipped": [],
+     "pages_failed": [],
+     "ocr_failed_pages": [],
+     "stop_reason": null,
+     "parser_version": "parse-2026-09-28.3",
+     "promoted": false
+    },
+    "observations": [
+     {
+      "page": 2,
+      "kind": "cover_untracked",
+      "record": {
+       "system_code": null,
+       "name": "ICC-DLRC-SPM-SD-MEP-0042",
+       "path": "C:\\Users\\moham\\Juma Al Majid\\SSD FIRE ALARM PROJECTS - Fire Alarm 2021 Projects\\Samana Developers\\EP-30088 Samana park\\10. SD\\recieved\\Fire alarm layout\\Received\\R01\\ICC-DLRC-SPM-SD-MEP-FA-0042-01-HC FLOOR FIRE ALARM LAYOUT_ICC-DLRC-SPM-SD-MEP-FA-0042-01.pdf",
+       "modified": "2026-09-08T09:24:27+00:00",
+       "reference": "ICC-DLRC-SPM-SD-MEP-0042",
+       "revision": "R0",
+       "status": "UR",
+       "floor": null,
+       "reply_text": null,
+       "page": 2,
+       "source": "document",
+       "category": "drawings",
+       "group_reference": null,
+       "listed": [],
+       "superseded": [],
+       "raw_system": "MEP",
+       "printed_revision": null,
+       "revision_source": "cover",
+       "decision_candidates": [],
+       "flags": []
+      }
+     },
+     {
+      "page": 2,
+      "kind": "consultant_comments",
+      "decision": "UR",
+      "answers_revision": 0
+     },
+     {
+      "page": 3,
+      "kind": "consultant_comments",
+      "decision": "UR",
+      "answers_revision": null
+     }
+    ]
+   },
+   "new": {
+    "records": [
+     {
+      "category": "drawings",
+      "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+      "revision": "R1",
+      "status": "ANN",
+      "system": "FAS",
+      "page": 1,
+      "source": "document",
+      "listed": [
+       "ICC-DLRC-SPM-SD-MEP/FA-103"
+      ]
+     }
+    ],
+    "reference": "ICC-DLRC-SPM-SD-MEP-FA-0042",
+    "revision": "R1",
+    "status": "ANN",
+    "parser_version": "parse-2026-09-28.3",
+    "notes": [],
+    "evidence_kinds": [
+     "author_consultant",
+     "consultant_comments",
+     "drawing_title_block",
+     "receipt",
+     "shop_drawing_submittal"
+    ]
+   },
+   "changed": {
+    "records": true,
+    "reference": true,
+    "revision": false,
+    "status": true,
+    "parser_version": true
+   },
+   "outcome": "repaired",
+   "applied_at": "2026-09-28T04:25:09.547059"
+  }
+ ],
+ "counts": {
+  "repaired": 32
+ },
+ "selected": 32,
+ "seconds": 13.8,
+ "finished_at": "2026-09-28T04:25:09+00:00"
+}

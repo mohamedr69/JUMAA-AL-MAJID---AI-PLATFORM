@@ -1,0 +1,77 @@
+{
+ "at_local": "2026-09-28T10:41:33",
+ "method": "read-only: file stats, netstat, process command lines, sqlite mode=ro",
+ "backend/ep_platform.db": {
+  "exists": true,
+  "bytes": 95461376,
+  "mtime_local": "2026-09-28T10:22:24"
+ },
+ "backend/ep_platform.db-wal": {
+  "exists": true,
+  "bytes": 4120032,
+  "mtime_local": "2026-09-28T10:41:26"
+ },
+ "backend/ep_platform.db-shm": {
+  "exists": true,
+  "bytes": 32768,
+  "mtime_local": "2026-09-28T09:10:18"
+ },
+ "backend/library/symbols/symbol_library.json": {
+  "exists": true,
+  "bytes": 8702490,
+  "mtime_local": "2026-09-28T10:09:44"
+ },
+ "live_main_file_sha256": "6a220e62768d339273df51f13d9ca7441912b9b751fbeda239e96a3a38045c7f",
+ "committed_snapshot_sha256": "8db4351189f92248d1e1f1d1... (see r3__live_db_readonly_check.json; git show HEAD:backend/ep_platform.db)",
+ "port_8000_listeners": [
+  "TCP    127.0.0.1:8000         0.0.0.0:0              LISTENING       22592"
+ ],
+ "backend_processes": [
+  "venv\\Scripts\\python -m uvicorn app.main:app --reload --reload-dir app --timeout-graceful-shutdown 3 --port 8000 21532",
+  "\"C:\\Users\\moham\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\" -m uvicorn app.main:app --reload --reload-dir app --timeout-graceful-shutdown 3 --port 8000 22592",
+  "venv\\Scripts\\python -m app.workers.document_worker 25396",
+  "\"C:\\Users\\moham\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\" -m app.workers.document_worker 7328",
+  "venv\\Scripts\\python -m app.workers.ifc_worker 21204",
+  "venv\\Scripts\\python -m app.workers.sync_worker 29180",
+  "\"C:\\Users\\moham\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\" -m app.workers.ifc_worker 14516",
+  "\"C:\\Users\\moham\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\" -m app.workers.sync_worker 27248"
+ ],
+ "database": {
+  "project_documents": 890,
+  "parser_versions": {
+   "none": 890
+  },
+  "max_last_processed_at": "2026-09-27 14:58:09.579508",
+  "alembic_version": [
+   [
+    "a5b6c7d8e9f0"
+   ]
+  ],
+  "newest_jobs": [
+   [
+    27,
+    "ai_verify",
+    "succeeded",
+    "2026-09-27 14:54:15.609921"
+   ],
+   [
+    26,
+    "boq_read",
+    "succeeded",
+    "2026-09-27 14:54:15.374982"
+   ],
+   [
+    25,
+    "process_documents",
+    "succeeded",
+    "2026-09-27 14:46:13.596564"
+   ]
+  ],
+  "last_login": [
+   [
+    "admin@ep-platform.com",
+    "2026-09-27 19:38:09.317741"
+   ]
+  ]
+ }
+}

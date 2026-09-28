@@ -1,7 +1,21 @@
 import os
 import tempfile
 
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+# The test database is a SQLite file in a temporary folder, not ":memory:".
+# An in-memory database has one connection for the whole process (StaticPool),
+# shared by every session on every thread -- and a background job runs on a
+# thread of its own with a session of its own (app.services.jobs.start). On
+# that shared connection a request session closing (GET /jobs/{id} while the
+# job ran) rolled back the job's flushed, uncommitted rows: its ExtractionRun
+# vanished and the BOQ items' foreign key failed, or its own job row read
+# back as None -- test_the_first_read_runs_as_a_job_the_page_follows, by
+# timing and order (M2 review 02, D). A file gives each thread a connection
+# of its own, as the platform has. EP_TEST_DATABASE=memory keeps the old
+# in-memory database, for reproducing that defect only.
+if os.environ.get("EP_TEST_DATABASE") == "memory":
+    os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+else:
+    os.environ["DATABASE_URL"] = "sqlite:///" + (tempfile.mkdtemp(prefix="ep-test-db-") + "/test.db").replace("\\", "/")
 # Document Classification V2 is off for the suite whatever the local .env
 # says: the tests that need it on set the flag themselves, so on/off
 # comparisons do not depend on this PC or on test order.
@@ -53,8 +67,19 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.core.security import hash_password
-from app.database import Base, SessionLocal, engine
+from app.database import Base, SessionLocal, engine, is_sqlite_memory
 from app.main import app
+
+if not is_sqlite_memory:
+    from sqlalchemy import event
+
+    @event.listens_for(engine, "connect")
+    def _test_file_pragmas(dbapi_connection, *_args) -> None:
+        """A test database is disposable: no fsync (the app's WAL + NORMAL
+        setting stays for real databases; this only relaxes durability)."""
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA synchronous=OFF")
+        cursor.close()
 from app.models import RoleEnum, User
 
 

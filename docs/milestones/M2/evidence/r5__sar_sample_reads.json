@@ -1,0 +1,346 @@
+{
+ "at": "2026-09-28T08:06:31+00:00",
+ "parser_version": "parse-2026-09-28.4",
+ "docs": {
+  "351:default": {
+   "relative_path": "08- approval/samples/EML/BBY006-GME-SAR-EL-LI-0001 Sample Approval - reply.pdf",
+   "stored_status": "rejected",
+   "records": [
+    {
+     "page": 1,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [
+      "decision_conflict"
+     ],
+     "candidates": [
+      [
+       "ANN",
+       "\u2612 Approved as Noted (B)",
+       "text"
+      ],
+      [
+       "rejected",
+       "(C) Revise & Resubmit",
+       "ocr"
+      ]
+     ],
+     "reply_text": "Conflicting evidence: \u2612 Approved as Noted (B) [text]; (C) Revise & Resubmit [ocr]"
+    },
+    {
+     "page": 2,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    },
+    {
+     "page": 3,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    }
+   ],
+   "outcome": "complete",
+   "observations": [
+    "decision_conflict"
+   ]
+  },
+  "351:promoted": {
+   "relative_path": "08- approval/samples/EML/BBY006-GME-SAR-EL-LI-0001 Sample Approval - reply.pdf",
+   "stored_status": "rejected",
+   "records": [
+    {
+     "page": 1,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [
+      "decision_conflict"
+     ],
+     "candidates": [
+      [
+       "ANN",
+       "\u2612 Approved as Noted (B)",
+       "text"
+      ],
+      [
+       "rejected",
+       "(C) Revise & Resubmit",
+       "ocr"
+      ]
+     ],
+     "reply_text": "Conflicting evidence: \u2612 Approved as Noted (B) [text]; (C) Revise & Resubmit [ocr]"
+    },
+    {
+     "page": 2,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    },
+    {
+     "page": 3,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    }
+   ],
+   "outcome": "complete",
+   "observations": [
+    "decision_conflict"
+   ]
+  },
+  "352:default": {
+   "relative_path": "08- approval/samples/EML/BBY006-GME-SAR-EL-LI-0001 Sample Approval Request for Monitored Self-Contained Emergency Lighting System.pdf",
+   "stored_status": "rejected",
+   "records": [
+    {
+     "page": 1,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [
+      "decision_conflict"
+     ],
+     "candidates": [
+      [
+       "ANN",
+       "\u2612 Approved as Noted (B)",
+       "text"
+      ],
+      [
+       "rejected",
+       "(C) Revise & Resubmit",
+       "ocr"
+      ]
+     ],
+     "reply_text": "Conflicting evidence: \u2612 Approved as Noted (B) [text]; (C) Revise & Resubmit [ocr]"
+    },
+    {
+     "page": 2,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    }
+   ],
+   "outcome": "complete",
+   "observations": [
+    "decision_conflict"
+   ]
+  },
+  "352:promoted": {
+   "relative_path": "08- approval/samples/EML/BBY006-GME-SAR-EL-LI-0001 Sample Approval Request for Monitored Self-Contained Emergency Lighting System.pdf",
+   "stored_status": "rejected",
+   "records": [
+    {
+     "page": 1,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [
+      "decision_conflict"
+     ],
+     "candidates": [
+      [
+       "ANN",
+       "\u2612 Approved as Noted (B)",
+       "text"
+      ],
+      [
+       "rejected",
+       "(C) Revise & Resubmit",
+       "ocr"
+      ]
+     ],
+     "reply_text": "Conflicting evidence: \u2612 Approved as Noted (B) [text]; (C) Revise & Resubmit [ocr]"
+    },
+    {
+     "page": 2,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    }
+   ],
+   "outcome": "complete",
+   "observations": [
+    "decision_conflict"
+   ]
+  },
+  "353:default": {
+   "relative_path": "08- approval/samples/EML/R1/BBY006-GME-SAR-EL-LI-0001 Sample Approval Request for Monitored Self-Contained Emergency Lighting System.pdf",
+   "stored_status": "ANN",
+   "records": [
+    {
+     "page": 1,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R1",
+     "status": "ANN",
+     "flags": [],
+     "candidates": [
+      [
+       "ANN",
+       "\u2612 Approved as Noted (B)",
+       "text"
+      ],
+      [
+       "ANN",
+       "(B) Approved As Noted oe",
+       "ocr"
+      ]
+     ],
+     "reply_text": "\u2612 Approved as Noted (B)"
+    },
+    {
+     "page": 2,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    },
+    {
+     "page": 3,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    },
+    {
+     "page": 4,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [
+      "decision_conflict"
+     ],
+     "candidates": [
+      [
+       "ANN",
+       "\u2612 Approved as Noted (B)",
+       "text"
+      ],
+      [
+       "rejected",
+       "(C) Revise & Resubmit",
+       "ocr"
+      ]
+     ],
+     "reply_text": "Conflicting evidence: \u2612 Approved as Noted (B) [text]; (C) Revise & Resubmit [ocr]"
+    },
+    {
+     "page": 5,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    }
+   ],
+   "outcome": "complete",
+   "observations": [
+    "decision_conflict"
+   ]
+  },
+  "353:promoted": {
+   "relative_path": "08- approval/samples/EML/R1/BBY006-GME-SAR-EL-LI-0001 Sample Approval Request for Monitored Self-Contained Emergency Lighting System.pdf",
+   "stored_status": "ANN",
+   "records": [
+    {
+     "page": 1,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R1",
+     "status": "ANN",
+     "flags": [],
+     "candidates": [
+      [
+       "ANN",
+       "\u2612 Approved as Noted (B)",
+       "text"
+      ],
+      [
+       "ANN",
+       "(B) Approved As Noted oe",
+       "ocr"
+      ]
+     ],
+     "reply_text": "\u2612 Approved as Noted (B)"
+    },
+    {
+     "page": 2,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    },
+    {
+     "page": 3,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    },
+    {
+     "page": 4,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [
+      "decision_conflict"
+     ],
+     "candidates": [
+      [
+       "ANN",
+       "\u2612 Approved as Noted (B)",
+       "text"
+      ],
+      [
+       "rejected",
+       "(C) Revise & Resubmit",
+       "ocr"
+      ]
+     ],
+     "reply_text": "Conflicting evidence: \u2612 Approved as Noted (B) [text]; (C) Revise & Resubmit [ocr]"
+    },
+    {
+     "page": 5,
+     "reference": "BBY006-GME-SAR-EL-LI-0001",
+     "revision": "R0",
+     "status": "UR",
+     "flags": [],
+     "candidates": [],
+     "reply_text": ""
+    }
+   ],
+   "outcome": "complete",
+   "observations": [
+    "decision_conflict"
+   ]
+  }
+ }
+}

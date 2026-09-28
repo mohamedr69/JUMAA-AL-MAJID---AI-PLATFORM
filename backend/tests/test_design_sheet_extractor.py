@@ -10,6 +10,7 @@ from app.services.design_sheet_extractor import (
     _clean_quantity,
     _dropped_row_issue,
     _is_heading,
+    _unread_band,
     extract_boq_lines,
 )
 
@@ -342,7 +343,16 @@ def test_an_unruled_sheet_keeps_wrapped_rows_together(tmp_path):
     """No row rules to hold a wrapped row together: the quantity is level
     with neither line, so pairing by position orphaned it and the second
     catalog line became an item. Rows are then bounded by the quantities."""
-    lines = extract_boq_lines(_unruled_sheet(tmp_path / "els.pdf"))
+    from app.services.design_sheet_extractor import extract_design_sheet
+
+    result = extract_design_sheet(_unruled_sheet(tmp_path / "els.pdf"))
+    # Rows whose part number the independent passes could not confirm are
+    # review rows (M2 review 03), read whole all the same: the row
+    # assembly this test is about is judged over lines and review rows.
+    held = [ExtractedBoqLine(catalog_no=i.detail["catalog_no"], description=i.detail["description"], quantity=i.detail["quantity"],
+                             group_heading=None, confidence=0.0, page=i.page, y_px=i.region[1] if i.region else None)
+            for i in result.issues if i.detail.get("reason_code") == "PART_NUMBER_CONFLICT"]
+    lines = sorted(result.lines + held, key=lambda l: (l.page, l.y_px or 0))
 
     assert [line.quantity for line in lines] == ["168", "73", "86", "48", "56", "1"]
     by_quantity = {line.quantity: line for line in lines}
@@ -379,3 +389,209 @@ def test_a_real_row_missing_its_quantity_is_still_reviewed():
     assert issue is not None and issue.detail["catalog_no"] == "SIGA-PS"
     # A described item with no catalog number is an item too.
     assert _dropped_row_issue(_row("Surface Mounted Emergency Light", ""), 0) is not None
+
+
+# --- M2 review 01, R4: a band between two tables is accounted for ---
+
+
+def test_an_inked_band_between_two_tables_is_a_skipped_region_not_a_silent_gap(monkeypatch):
+    """EP-30784 FAS page 2: a scanner streak breaks the column rules across one
+    item row, the table extent splits around it and the row went unread and
+    unreported. The row reader is unchanged; the band is now a skipped region
+    of the page's coverage."""
+    import numpy as np
+    from PIL import Image
+    from app.services import design_sheet_extractor as dse
+
+    dark = np.zeros((400, 600), dtype=bool)
+    dark[110:150, 210:390] = True        # text in the description column, in the band between the tables
+    rules = [0, 100, 200, 400, 500, 600]
+    layout = dse._Layout(quantity=(0, 1), catalog=(1, 2), description=(2, 3))
+    assert _unread_band(dark, 100, 160, 200, 400) is True
+    assert _unread_band(dark, 160, 400, 200, 400) is False        # blank
+    assert _unread_band(dark, 100, 110, 200, 400) is False        # thinner than a row
+
+    monkeypatch.setattr(dse, "_table_extents", lambda d, x: [(0, 100), (160, 400)])
+    monkeypatch.setattr(dse, "_section_title", lambda *a, **k: None)
+    calls = []
+
+    def read_table(image, d, r, lay, page, top, bottom, section, heading=None):
+        calls.append((top, bottom, heading))
+        if (top, bottom) == (100, 160):
+            return [], heading                     # the band gave no row
+        return [], "Field Devices" if top == 0 else heading
+    monkeypatch.setattr(dse, "_read_table", read_table)
+    _lines, _section, heading, regions = dse._read_page(Image.new("L", (600, 400), 255), dark, rules, layout, 2, None, None)
+    kinds = [(r.kind, r.status, r.top, r.bottom) for r in regions]
+    assert ("band", "skipped", 100, 160) in kinds
+    assert [k for k in kinds if k[0] == "table"] == [("table", "processed", 0, 100), ("table", "processed", 160, 400)]
+    assert calls == [(0, 100, None), (100, 160, "Field Devices"), (160, 400, "Field Devices")], "the heading in force carries across the band and the split"
+    assert heading == "Field Devices"
+
+    # a band that gives a row is a processed region
+    monkeypatch.setattr(dse, "_read_table", lambda image, d, r, lay, page, top, bottom, section, heading=None:
+                        ([dse.ExtractedBoqLine(catalog_no="SIGA-OSHD-FC", description="Multisensor", quantity="525", group_heading=heading,
+                                               confidence=90.0, page=page, y_px=(top + bottom) / 2)] if (top, bottom) == (100, 160) else [], heading))
+    lines, _section, _heading, regions = dse._read_page(Image.new("L", (600, 400), 255), dark, rules, layout, 2, None, "Field Devices")
+    assert [(r.kind, r.status, r.rows_accepted) for r in regions if r.kind == "band"] == [("band", "processed", 1)]
+    assert [(l.catalog_no, l.quantity, l.group_heading) for l in lines] == [("SIGA-OSHD-FC", "525", "Field Devices")]
+
+    # a blank band between two tables is not reported
+    blank = np.zeros((400, 600), dtype=bool)
+    monkeypatch.setattr(dse, "_read_table", lambda *a, **k: ([], None))
+    _lines, _section, _heading, regions = dse._read_page(Image.new("L", (600, 400), 255), blank, rules, layout, 2, None)
+    assert all(r.kind == "table" for r in regions)
+
+
+def test_a_longer_independent_reading_sends_a_cut_digit_to_review(monkeypatch):
+    """EP-30784 FAS: TP606 printed 491, the column read 49 at 86 % and one
+    independent pass read 491: neither value is taken, the row is reviewed."""
+    from app.services import design_sheet_extractor as dse
+
+    line = dse.ExtractedBoqLine(catalog_no="TP606", description="Back Box", quantity="49", group_heading=None, confidence=87.0, page=2,
+                                raw_quantity="49", quantity_confidence=86.0, quantity_parse={"kind": "equipment_count", "raw": "49", "value": 49, "status": "ok"})
+    monkeypatch.setattr(dse, "_independent_readings", lambda image, l: [
+        {"pass": "binarised, single line, digits", "text": "491", "value": "491", "status": "ok"},
+        {"pass": "binarised, single character", "text": "49]", "value": "49", "status": "ok"},
+        {"pass": "greyscale, single line, digits or words", "text": "49", "value": "49", "status": "ok"}])
+    dse._check_cut_digit(None, line)
+    assert line.quantity is None and line.quantity_parse["status"] == "ambiguous" and "491" in line.quantity_parse["rule"]
+    assert dse._dropped_row_issue(line, 1) is not None, "a row for review, not a line"
+    # the same passes agreeing on the strip's value, or reading a shorter one, leave a confident value alone (G1ARN: 121 / "12")
+    line = dse.ExtractedBoqLine(catalog_no="G1ARN", description="Horn", quantity="121", group_heading=None, confidence=90.0, page=2,
+                                raw_quantity="121", quantity_confidence=88.0, quantity_parse={"kind": "equipment_count", "raw": "121", "value": 121, "status": "ok"})
+    monkeypatch.setattr(dse, "_independent_readings", lambda image, l: [
+        {"pass": "a", "text": "121", "value": "121", "status": "ok"}, {"pass": "b", "text": "12]", "value": "12", "status": "ok"}, {"pass": "c", "text": "121", "value": "121", "status": "ok"}])
+    dse._check_cut_digit(None, line)
+    assert line.quantity == "121"
+    # and a pass reading something else entirely at 60-90 % leaves the strip's value alone (the cell pass is the worse reader: 48 read "86")
+    line = dse.ExtractedBoqLine(catalog_no="X", description="Wrapped row", quantity="48", group_heading=None, confidence=80.0, page=1,
+                                raw_quantity="48", quantity_confidence=75.0, quantity_parse={"kind": "equipment_count", "raw": "48", "value": 48, "status": "ok"})
+    monkeypatch.setattr(dse, "_independent_readings", lambda image, l: [
+        {"pass": "a", "text": "86", "value": "86", "status": "ok"}, {"pass": "b", "text": "86", "value": "86", "status": "ok"}, {"pass": "c", "text": "", "value": None, "status": "empty"}])
+    dse._check_cut_digit(None, line)
+    assert line.quantity == "48" and line.alternates is not None
+    # the low-confidence path keeps its full confirmation logic, cut digit included
+    line = dse.ExtractedBoqLine(catalog_no="TP606", description="Back Box", quantity="49", group_heading=None, confidence=50.0, page=2,
+                                raw_quantity="49", quantity_confidence=45.0, quantity_parse={"kind": "equipment_count", "raw": "49", "value": 49, "status": "ok"})
+    monkeypatch.setattr(dse, "_independent_readings", lambda image, l: [
+        {"pass": "a", "text": "491", "value": "491", "status": "ok"}, {"pass": "b", "text": "49", "value": "49", "status": "ok"}, {"pass": "c", "text": "49", "value": "49", "status": "ok"}])
+    dse._confirm_quantity(None, line)
+    assert line.quantity is None and "491" in line.quantity_parse["rule"]
+
+
+def test_a_part_number_the_independent_passes_do_not_confirm_is_a_row_for_review(monkeypatch):
+    """EP-30784 FAS: the column read "4-CABI6D"; a pass on the cell read
+    "4-CAB16D". Nothing is substituted; the row goes to the engineer with
+    both readings and its quantity."""
+    from PIL import Image
+    from app.services import design_sheet_extractor as dse
+
+    calls = iter([["4-CABI6D", "4-CAB16D"], ["SIGA-CT2", "SIGA-CT2"]])
+    def image_to_string(img, config=""):
+        return next(image_to_string.batch)
+    image_to_string.batch = iter([])
+
+    def run(image, line, span):
+        readings = next(calls)
+        line.catalog_alternates = [{"pass": f"pass {i}", "text": r, "value": r} for i, r in enumerate(readings)]
+        line.catalog_uncertain = any(r != line.catalog_no for r in readings)
+    monkeypatch.setattr(dse, "_confirm_catalog", run)
+    uncertain = dse.ExtractedBoqLine(catalog_no="4-CABI6D", description="Door Assembly", quantity="1", group_heading="Panel", confidence=71.0,
+                                     page=1, y_px=100.0, raw_quantity="1", catalog_confidence=71.0, table_span=(0, 600))
+    sure = dse.ExtractedBoqLine(catalog_no="SIGA-CT2", description="Dual Input Module", quantity="119", group_heading=None, confidence=95.0,
+                                page=1, y_px=200.0, raw_quantity="119", catalog_confidence=95.0, table_span=(0, 600))
+    dse._confirm_catalog(None, uncertain, (0, 100))
+    assert uncertain.catalog_uncertain and [r["value"] for r in uncertain.catalog_alternates] == ["4-CABI6D", "4-CAB16D"]
+    issue = dse._uncertain_part_issue(uncertain, 1)
+    assert issue.code == dse.IssueCode.QUANTITY_OR_UNIT_PARSE_FAILURE and issue.target == "boq_line:1:1"
+    assert issue.detail["reason_code"] == "PART_NUMBER_CONFLICT" and issue.detail["quantity"] == "1" and "4-CAB16D" in issue.detail["reason"]
+    dse._confirm_catalog(None, sure, (0, 100))
+    assert not sure.catalog_uncertain
+
+
+def test_the_catalog_check_reads_the_cell_twice_and_keeps_what_each_pass_read(monkeypatch):
+    from PIL import Image
+    from app.services import design_sheet_extractor as dse
+
+    answers = iter(["757-7A-T", "757-7A-T"])
+    monkeypatch.setattr(dse.pytesseract, "image_to_string", lambda img, config="": next(answers))
+    line = dse.ExtractedBoqLine(catalog_no="WSTIA-T", description="Horn/Strobe", quantity="56", group_heading=None, confidence=72.0,
+                                page=2, y_px=100.0, raw_quantity="56", catalog_confidence=72.0, table_span=(0, 600))
+    dse._confirm_catalog(Image.new("L", (600, 400), 255), line, (100, 300))
+    assert line.catalog_uncertain and [r["value"] for r in line.catalog_alternates] == ["757-7A-T", "757-7A-T"]
+    assert line.catalog_no == "WSTIA-T", "nothing is substituted: the engineer decides"
+    answers = iter(["", "SIGA-SB"])
+    monkeypatch.setattr(dse.pytesseract, "image_to_string", lambda img, config="": next(answers))
+    line = dse.ExtractedBoqLine(catalog_no="SIGA-SB", description="Base", quantity="2206", group_heading=None, confidence=94.0,
+                                page=2, y_px=100.0, raw_quantity="2206", catalog_confidence=94.0, table_span=(0, 600))
+    dse._confirm_catalog(Image.new("L", (600, 400), 255), line, (100, 300))
+    assert not line.catalog_uncertain, "a pass that read nothing is no evidence; the other agreed"
+    # a near miss from one pass is evidence (4-CABI6D / 4-CAB16D); a fragment or an unrelated string from one pass is not
+    answers = iter(["4-CABI6D", "4-CAB16D"])
+    monkeypatch.setattr(dse.pytesseract, "image_to_string", lambda img, config="": next(answers))
+    line = dse.ExtractedBoqLine(catalog_no="4-CABI6D", description="Door", quantity="1", group_heading=None, confidence=71.0,
+                                page=1, y_px=100.0, raw_quantity="1", catalog_confidence=71.0, table_span=(0, 600))
+    dse._confirm_catalog(Image.new("L", (600, 400), 255), line, (100, 300))
+    assert line.catalog_uncertain
+    answers = iter(["SL2MNM65D3C-M", "SL2M"])
+    monkeypatch.setattr(dse.pytesseract, "image_to_string", lambda img, config="": next(answers))
+    line = dse.ExtractedBoqLine(catalog_no="SL2MNM65D3C-M", description="Exit", quantity="1", group_heading=None, confidence=70.0,
+                                page=1, y_px=100.0, raw_quantity="1", catalog_confidence=70.0, table_span=(0, 600))
+    dse._confirm_catalog(Image.new("L", (600, 400), 255), line, (100, 300))
+    assert not line.catalog_uncertain, "one pass agreed, the other read a fragment"
+
+
+def test_a_multiline_catalog_cell_is_read_as_a_block_and_a_near_miss_holds_it(monkeypatch):
+    """EP-30784 EML: "SL2MNM65D3C-M" over "+SL23I" in one cell; the strip
+    read "+SL231". Line mode returns a fragment of one line; block mode
+    reads both lines, and a reading a glyph apart holds the row."""
+    from PIL import Image
+    from app.services import design_sheet_extractor as dse
+
+    configs = []
+    answers = iter(["SL2MNM65D3C-M\n+SLZ31", "SL2MNM65D3C-M\n+SL231"])
+
+    def ocr(img, config=""):
+        configs.append(config)
+        return next(answers)
+    monkeypatch.setattr(dse.pytesseract, "image_to_string", ocr)
+    line = dse.ExtractedBoqLine(catalog_no="SL2MNM65D3C-M +SL231", description="Wall Mounted Exit", quantity="1", group_heading=None, confidence=67.0,
+                                page=1, y_px=1552.0, row_bounds=(1500, 1604), raw_quantity="1", catalog_confidence=67.0, table_span=(0, 600))
+    dse._confirm_catalog(Image.new("L", (600, 1700), 255), line, (100, 300))
+    assert all("--psm 6" in c for c in configs), "a two-line cell is read as a block"
+    assert line.catalog_uncertain and line.catalog_check["multiline"] and "near miss" in line.catalog_check["reason"]
+    assert [r["value"] for r in line.catalog_alternates] == ["SL2MNM65D3C-M +SLZ31", "SL2MNM65D3C-M +SL231"]
+    assert line.catalog_cell == [100, 1500, 300, 1604] and line.catalog_no == "SL2MNM65D3C-M +SL231", "the literal strip value and the cell stay on the row"
+    issue = dse._uncertain_part_issue(line, 1)
+    assert issue.detail["catalog_check"]["multiline"] and issue.detail["catalog_cell"] == [100, 1500, 300, 1604] and issue.detail["quantity"] == "1"
+
+
+def test_fragments_do_not_confirm_a_part_and_a_whole_matching_reading_does(monkeypatch):
+    from PIL import Image
+    from app.services import design_sheet_extractor as dse
+
+    def line_for(part):
+        return dse.ExtractedBoqLine(catalog_no=part, description="x", quantity="2", group_heading=None, confidence=70.0, page=1, y_px=100.0,
+                                    row_bounds=(80, 130), raw_quantity="2", catalog_confidence=70.0, table_span=(0, 600))
+    # fragments only: unconfirmed, held
+    monkeypatch.setattr(dse.pytesseract, "image_to_string", lambda img, config="": next(iter(["C-M"])))
+    answers = iter(["C-M", "SS C-M"]); monkeypatch.setattr(dse.pytesseract, "image_to_string", lambda img, config="": next(answers))
+    line = line_for("SL2MNM65D3C-M +SL231"); dse._confirm_catalog(Image.new("L", (600, 400), 255), line, (100, 300))
+    assert line.catalog_uncertain and line.catalog_check == {"confirmed": False, "multiline": False, "reason": "no independent pass read the whole part number"}
+    # nothing read at all: unconfirmed, held
+    answers = iter(["", ""]); monkeypatch.setattr(dse.pytesseract, "image_to_string", lambda img, config="": next(answers))
+    line = line_for("4-CPU"); dse._confirm_catalog(Image.new("L", (600, 400), 255), line, (100, 300))
+    assert line.catalog_uncertain and not line.catalog_check["confirmed"]
+    # conflicting whole readings: held
+    answers = iter(["757-7A-T", "757-7A-T"]); monkeypatch.setattr(dse.pytesseract, "image_to_string", lambda img, config="": next(answers))
+    line = line_for("WSTIA-T"); dse._confirm_catalog(Image.new("L", (600, 400), 255), line, (100, 300))
+    assert line.catalog_uncertain and "another part number" in line.catalog_check["reason"]
+    # a clear matching whole reading: confirmed, even beside a clipped fragment
+    answers = iter(["-L210DI", "SL210DI"]); monkeypatch.setattr(dse.pytesseract, "image_to_string", lambda img, config="": next(answers))
+    line = line_for("SL210DI"); dse._confirm_catalog(Image.new("L", (600, 400), 255), line, (100, 300))
+    assert not line.catalog_uncertain and line.catalog_check["confirmed"]
+    # a cut identity read literally by every pass is confirmed as printed: nothing is completed
+    answers = iter(["SIGA-OSHD-FC", "SIGA-OSHD-FC"]); monkeypatch.setattr(dse.pytesseract, "image_to_string", lambda img, config="": next(answers))
+    line = line_for("SIGA-OSHD-FC"); dse._confirm_catalog(Image.new("L", (600, 400), 255), line, (100, 300))
+    assert not line.catalog_uncertain and line.catalog_no == "SIGA-OSHD-FC"

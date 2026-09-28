@@ -438,12 +438,14 @@ def test_the_box_screens_never_change_the_answer(tmp_path):
     assert not _may_hold_an_option("PLOT LIMIT\nF.L 0.15\nFIRE ALARM LAYOUT")
 
 
-def test_a_consultants_stamp_overrides_the_ticked_box(tmp_path, monkeypatch):
+def test_a_consultants_stamp_that_disagrees_with_the_ticked_box_is_a_conflict(tmp_path, monkeypatch):
     """EP-30784's emergency lighting sample (BBY006-GME-SAR-EL-LI-0001) has
     "Approved as Noted (B)" ticked on the form and the consultant's
-    "(C) Revise & Resubmit" stamp pasted beside it: the stamp is the verdict
-    that stands. So a page whose box already gave a decision is still OCRed
-    for its stamp, and the stamp wins."""
+    "(C) Revise & Resubmit" stamp pasted beside it. A page whose box already
+    gave a decision is still OCRed for its stamp -- and the two are settled
+    together: until an explicit precedence policy is authorised, the stamp
+    does not win by being read later; the record shows the conflict (M2
+    review 02, B; before, the stamp overrode the tick implicitly)."""
     import os
 
     from app.services import document_control as dc
@@ -458,7 +460,9 @@ def test_a_consultants_stamp_overrides_the_ticked_box(tmp_path, monkeypatch):
     dc._read_pdf.cache_clear()
     records, _notes = dc._read_pdf(str(path), stat.st_mtime_ns, stat.st_size, True, None)
     assert ocred == [0]
-    assert records[0].status == "rejected" and "Revise & Resubmit" in records[0].reply_text
+    assert records[0].status == "UR" and "decision_conflict" in records[0].flags
+    assert {(s, m) for s, _l, m in records[0].decision_candidates} == {("ANN", "filled_box"), ("rejected", "ocr")}
+    assert "Revise & Resubmit" in records[0].reply_text and records[0].reply_text.startswith("Conflicting evidence")
 
 
 def test_the_same_content_is_not_ocred_or_box_read_twice(tmp_path, monkeypatch):
@@ -470,9 +474,10 @@ def test_the_same_content_is_not_ocred_or_box_read_twice(tmp_path, monkeypatch):
     from app.services.document_sync import sha256_of
 
     ocred, boxed = [], []
-    real_boxed = dc.boxed_decision
+    real_marks = dc.decision_marks
     monkeypatch.setattr(dc, "_ocr_images", lambda page, images: ocred.append(page.number) or ["Consultant stamp: none"] * len(images))
-    monkeypatch.setattr(dc, "boxed_decision", lambda page, text=None: boxed.append(page.number) or real_boxed(page, text))
+    # The page cache holds the marks of a page (`_marks` -> `decision_marks`) under BOX_VERSION.
+    monkeypatch.setattr(dc, "decision_marks", lambda page, text=None, shapes=None: boxed.append(page.number) or real_marks(page, text, shapes))
     path = _approval_sheet(tmp_path / "sheet.pdf", chosen=None)
     stat = os.stat(path)
     sha = sha256_of(path)

@@ -38,13 +38,13 @@ from PIL import Image
 
 from app.core.config import get_settings
 from app.extraction import identity, values
-from app.extraction.issues import Coverage, Issue, IssueCode, Outcome, PageCoverage, RegionCoverage, outcome_for
+from app.extraction.issues import Coverage, Issue, IssueCode, Outcome, PageCoverage, RegionCoverage, ReviewReason, outcome_for
 
 settings = get_settings()
 
 # Part of every cache key: a change to how a sheet is read is a change to
 # what a cached result means.
-PARSER_VERSION = "2026-09-15.2"
+PARSER_VERSION = "2026-09-28.1"   # M2 review 02: band rows, quantity recheck < 90 %, part-number check, heading carry-over
 if settings.tesseract_cmd:
     pytesseract.pytesseract.tesseract_cmd = settings.tesseract_cmd
 
@@ -208,6 +208,18 @@ class ExtractedBoqLine:
     alternates: list[dict] | None = None
     # Tesseract's confidence in the quantity strip's own reading, 0-100.
     quantity_confidence: float | None = None
+    # Tesseract's confidence in the catalog strip's reading of this row, and
+    # what independent passes on the catalog cell read when the strip's
+    # reading was checked (M2 review 02, D): [{"pass", "text", "value"}].
+    catalog_confidence: float | None = None
+    catalog_alternates: list[dict] | None = None
+    # Set when an independent pass on the catalog cell read another part
+    # number, or none read the strip's whole: the row is for review, not a
+    # line (`_uncertain_part_issue`). `catalog_check` says why, and
+    # `catalog_cell` is the cell's box on the rendered page.
+    catalog_uncertain: bool = False
+    catalog_check: dict | None = None
+    catalog_cell: list[int] | None = None
     # Set when a neighbouring row's quantity turned out to be merged into
     # this one's strip reading: its value is checked even if confident.
     verify_quantity: bool = False
@@ -634,6 +646,11 @@ LOW_QUANTITY_CONFIDENCE = 60
 # A strip read this confident, backed by any pass, stands against a pass that
 # dropped or added a digit ("4" beside a pass reading "40").
 CONFIDENT_QUANTITY = 85
+# A strip reading below this confidence is checked against the independent
+# passes on its own cell even when it parsed: EP-30784 FAS read TP606's 491
+# as 49 at 86 % and the confident-read rule above never looked again (M2
+# review 02, D). Rows at or above it are taken on the strip's word.
+RECHECK_QUANTITY_BELOW = 90
 # Below this, a strip read no pass can confirm goes to review rather than
 # into the BOQ; between this and LOW_QUANTITY_CONFIDENCE it is kept, noted.
 UNCONFIRMED_REVIEW_BELOW = 50
@@ -673,6 +690,8 @@ def _confirm_quantity(image: Image.Image, line: ExtractedBoqLine) -> None:
     agreeing = valid.count(strip_value)
     others = {v: valid.count(v) for v in valid if v != strip_value}
     confidence = f" ({line.quantity_confidence:.0f}%)" if line.quantity_confidence is not None else ""
+    if _cut_digit(line, strip_value, others, confidence):
+        return
     if not others or (agreeing >= 1 and (line.quantity_confidence or 0) >= CONFIDENT_QUANTITY):
         line.quantity_parse = {**(line.quantity_parse or {}),
                                "rule": f"column read {strip_value!r}{confidence} confirmed by {agreeing} independent "
@@ -690,6 +709,180 @@ def _confirm_quantity(image: Image.Image, line: ExtractedBoqLine) -> None:
     line.quantity_parse = {**(line.quantity_parse or {}), "status": values.AMBIGUOUS,
                            "rule": f"the column read {strip_value!r}{confidence} but independent passes read "
                                    + ", ".join(sorted(set(valid)))}
+
+
+_PART_CHARACTERS = "-c tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/+."
+_CATALOG_PASSES = (
+    ("greyscale, single line, part characters", "greyscale", "--psm 7 " + _PART_CHARACTERS),
+    ("binarised, single line, part characters", "binarised", "--psm 7 " + _PART_CHARACTERS),
+)
+# A cell taller than a line and a half holds a part number that wraps
+# ("SL2MNM65D3C-M" over "+SL23I" on EP-30784's EML sheet): read as a block,
+# its lines joined, not as one line (which returns a fragment of one line).
+_CATALOG_BLOCK_PASSES = (
+    ("greyscale, block, part characters", "greyscale", "--psm 6 " + _PART_CHARACTERS),
+    ("binarised, block, part characters", "binarised", "--psm 6 " + _PART_CHARACTERS),
+)
+MULTILINE_CELL_PX = int(3.2 * _CELL_HALF_HEIGHT_PX)
+
+
+def _catalog_cell_image(image: Image.Image, line: ExtractedBoqLine, catalog_span: tuple[int, int]) -> Image.Image | None:
+    x0, x1 = catalog_span
+    if line.row_bounds is not None:
+        y0, y1 = line.row_bounds
+    elif line.y_px is not None:
+        y0, y1 = line.y_px - _CELL_HALF_HEIGHT_PX, line.y_px + _CELL_HALF_HEIGHT_PX
+    else:
+        return None
+    box = (int(x0) + 4, int(y0) + 2, int(x1) - 4, int(y1) - 2)
+    if box[2] <= box[0] or box[3] <= box[1]:
+        return None
+    return image.crop(box)
+
+
+def _confirm_catalog(image: Image.Image, line: ExtractedBoqLine, catalog_span: tuple[int, int]) -> None:
+    """Check a part number the column strip read against two independent
+    passes on its own cell (M2 review 02, D). Both agreeing with the strip
+    confirms it. A pass that reads another part number -- "4-CAB16D" for the
+    strip's "4-CABI6D", "757-7A-T" for "WSTIA-T" on EP-30784's FAS sheet --
+    makes the row uncertain: it is offered for review with every reading,
+    nothing is substituted (an I is not turned into a 1 by rule). Passes
+    that read nothing are no evidence either way."""
+    from PIL import ImageOps
+
+    cell = _catalog_cell_image(image, line, catalog_span)
+    if cell is None:
+        return
+    x0, x1 = catalog_span
+    y0, y1 = line.row_bounds or (int((line.y_px or 0) - _CELL_HALF_HEIGHT_PX), int((line.y_px or 0) + _CELL_HALF_HEIGHT_PX))
+    line.catalog_cell = [int(x0), int(y0), int(x1), int(y1)]
+    multiline = (y1 - y0) >= MULTILINE_CELL_PX
+    padded = ImageOps.expand(cell, border=_PASS_PADDING_PX, fill=255)
+    greyscale = padded.resize((padded.width * _PASS_SCALE, padded.height * _PASS_SCALE), Image.LANCZOS)
+    array = np.array(greyscale)
+    binarised = Image.fromarray(np.where(array < _otsu_threshold(array), 0, 255).astype(np.uint8))
+    sources = {"greyscale": greyscale, "binarised": binarised}
+    readings: list[dict] = []
+    for name, source, config in (_CATALOG_BLOCK_PASSES if multiline else _CATALOG_PASSES):
+        try:
+            text = " ".join(pytesseract.image_to_string(sources[source], config=config).split())
+        except Exception:  # noqa: BLE001 -- a pass that cannot run is no evidence either way
+            continue
+        value = identity.clean_catalog(text)[0] if text else None
+        readings.append({"pass": name, "text": text, "value": value})
+    line.catalog_alternates = readings
+    strip = identity.clean_catalog(line.catalog_no or "")[0] if line.catalog_no else None
+    if not strip:
+        return
+    # Readings compared as part keys: the part's own characters, upper case,
+    # no spaces -- a strip that picked up a stray "~" or a wrap's space is
+    # still the same part (the literal strip value is what stays on the row).
+    key = _part_key(strip)
+    confirmed = any(_part_key(r["value"]) == key for r in readings if r["value"])
+    others = [r["value"] for r in readings if r["value"] and _part_key(r["value"]) != key]
+    # Evidence, not noise: both passes agreeing on another reading (the strip
+    # garbled "757-7A-T" into "WSTIA-T"), or a pass reading a near miss of the
+    # strip's -- a glyph or two apart ("4-CAB16D" for "4-CABI6D"). A fragment
+    # or an unrelated string from one pass is the cell pass failing, and says
+    # nothing about the strip.
+    # A reading that is a piece of the strip's ("L210DI" for "SL210DI", "HIP"
+    # for a long part) is the crop clipping the cell, not another part.
+    def whole(o: str) -> bool:
+        return o.upper() not in strip.upper() and len(o) >= 0.6 * len(strip)
+
+    agreed = len(others) >= 2 and len(set(_part_key(o) for o in others)) == 1 and whole(others[0])
+    # a near miss: the same length, one or two characters read as others
+    # (I for 1, O for 0, Z for 2); a separator more or fewer (a wrap's "-")
+    # is the pass's own artefact, not another part
+    near = any(whole(o) and len(_part_key(o)) == len(key) and _hamming(_part_key(o), key) <= 2 for o in others)
+    if agreed or near:
+        line.catalog_uncertain = True
+        line.catalog_check = {"confirmed": False, "multiline": multiline,
+                              "reason": "an independent pass read another part number" + (" (a near miss of the strip's)" if near else "")}
+    elif not confirmed:
+        # No pass read the strip's value whole: fragments or nothing are not
+        # a confirmation (M2 review 03, R3-03). The strip's reading is not
+        # accepted on its own word; the row is for the engineer with what
+        # every pass read.
+        line.catalog_uncertain = True
+        line.catalog_check = {"confirmed": False, "multiline": multiline, "reason": "no independent pass read the whole part number"}
+    else:
+        line.catalog_check = {"confirmed": True, "multiline": multiline, "reason": "an independent pass read the same part number"}
+
+
+def _uncertain_part_issue(line: ExtractedBoqLine, ordinal: int) -> Issue:
+    """A row whose part number the passes did not confirm: for the engineer,
+    with the row's quantity and every reading of the cell, as the
+    verification path words a part-number conflict."""
+    x0, x1 = line.table_span or (0, 0)
+    y0, y1 = line.row_bounds or (int((line.y_px or 0) - _CELL_HALF_HEIGHT_PX), int((line.y_px or 0) + _CELL_HALF_HEIGHT_PX))
+    alternates = sorted({r["value"] for r in (line.catalog_alternates or []) if r["value"]})
+    return Issue(
+        code=IssueCode.QUANTITY_OR_UNIT_PARSE_FAILURE, page=line.page, region=(int(x0), int(y0), int(x1), int(y1)),
+        target=f"boq_line:{line.page}:{ordinal}",
+        detail={
+            "description": line.description, "catalog_no": line.catalog_no, "group_heading": line.group_heading,
+            "raw_quantity": line.raw_quantity, "quantity_parse": line.quantity_parse, "quantity": line.quantity,
+            "alternates": line.alternates, "building": line.building, "reader": "ocr",
+            "reason_code": ReviewReason.PART_NUMBER_CONFLICT.value,
+            "reason": f"the column read the part number {line.catalog_no!r}"
+                      + (f" at {line.catalog_confidence:.0f}%" if line.catalog_confidence is not None else "")
+                      + (f"; independent passes on the cell read {', '.join(alternates)}" if alternates else "; no independent pass read a part number")
+                      + (f" ({line.catalog_check['reason']})" if line.catalog_check else ""),
+            "catalog_alternates": line.catalog_alternates, "catalog_check": line.catalog_check, "catalog_cell": line.catalog_cell,
+            "bbox": [int(x0), int(y0), int(x1), int(y1)],
+        },
+    )
+
+
+def _cut_digit(line: ExtractedBoqLine, strip_value: str | None, others: dict, confidence: str) -> bool:
+    """A pass read the strip's digits and one more: the strip may have cut
+    the last digit at the cell's edge (EP-30784 FAS: TP606 printed 491, the
+    column read 49 at 86 %, the digits-only pass read 491). Neither value is
+    taken: the row goes for review with both readings. Returns whether so."""
+    longer = sorted(v for v in others if strip_value and v.startswith(strip_value) and len(v) > len(strip_value))
+    if not longer:
+        return False
+    line.quantity = None
+    line.quantity_parse = {**(line.quantity_parse or {}), "status": values.AMBIGUOUS,
+                           "rule": f"the column read {strip_value!r}{confidence} but an independent pass read {longer[0]}: "
+                                   "a digit may be cut at the cell's edge"}
+    return True
+
+
+def _check_cut_digit(image: Image.Image, line: ExtractedBoqLine) -> None:
+    """The cut-digit check alone, for a strip reading confident enough to
+    stand otherwise (M2 review 02, D): the passes on the cell are recorded,
+    and only a reading of the strip's digits plus one sends the row for
+    review; any other disagreement is the cell pass being the worse reader."""
+    readings = _independent_readings(image, line)
+    if readings is None:
+        return
+    line.alternates = readings
+    valid = [r["value"] for r in readings if r["value"] is not None]
+    strip_value = line.quantity
+    others = {v: valid.count(v) for v in valid if v != strip_value}
+    confidence = f" ({line.quantity_confidence:.0f}%)" if line.quantity_confidence is not None else ""
+    _cut_digit(line, strip_value, others, confidence)
+
+
+def _part_key(text: str | None) -> str:
+    """A part reading reduced to what identifies it: its own characters, upper case, no spaces or stray marks."""
+    return re.sub(r"[^A-Z0-9/+.-]", "", (text or "").upper())
+
+
+def _hamming(a: str, b: str) -> int:
+    return sum(1 for x, y in zip(a, b) if x != y) + abs(len(a) - len(b))
+
+
+def _edit_distance(a: str, b: str) -> int:
+    previous = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        current = [i]
+        for j, cb in enumerate(b, 1):
+            current.append(min(previous[j] + 1, current[j - 1] + 1, previous[j - 1] + (ca != cb)))
+        previous = current
+    return previous[-1]
 
 
 def _independent_readings(image: Image.Image, line: ExtractedBoqLine) -> list[dict] | None:
@@ -792,6 +985,7 @@ def extract_design_sheet(pdf_path: Path, on_page=None) -> DesignSheetExtraction:
     # The building a page's first table continues from the page before: a
     # box that runs over a page break has its banner on the earlier page.
     section: str | None = None
+    heading: str | None = None
 
     for page_index in range(document.page_count):
         page_number = page_index + 1
@@ -821,8 +1015,11 @@ def extract_design_sheet(pdf_path: Path, on_page=None) -> DesignSheetExtraction:
             continue
         rules, layout = found
         readable_pages += 1
-        page_lines, section, regions = _read_page(image, dark, rules, layout, page_number, section)
+        page_lines, section, heading, regions = _read_page(image, dark, rules, layout, page_number, section, heading)
+        catalog_span = (rules[layout.catalog[0]], rules[layout.catalog[1]])
         for line in page_lines:
+            if line.catalog_no and line.quantity and (line.catalog_confidence is None or line.catalog_confidence < RECHECK_QUANTITY_BELOW):
+                _confirm_catalog(image, line, catalog_span)
             if not line.quantity:
                 _read_quantity_again(image, line)
             elif line.verify_quantity or (line.quantity_confidence is not None
@@ -831,8 +1028,25 @@ def extract_design_sheet(pdf_path: Path, on_page=None) -> DesignSheetExtraction:
                 # pass drops or adds digits on multi-digit counts more often
                 # than the strip misreads them (EP-30784 FAS: "121" read "12").
                 _confirm_quantity(image, line)
+            elif line.quantity_confidence is not None and line.quantity_confidence < RECHECK_QUANTITY_BELOW:
+                # ... except for the one failure the cell pass is better at
+                # seeing: a digit cut at the cell's edge (491 read 49 at 86 %).
+                _check_cut_digit(image, line)
         coverage.processed = True
         coverage.regions = regions
+        for region in regions:
+            if region.kind != "band":
+                continue
+            if region.status == "skipped":
+                result.notes.append(f"page {page_number}: a band of {region.bottom - region.top} px between two tables "
+                                    f"(y {region.top}-{region.bottom}) gave no row: held for review")
+                result.issues.append(Issue(IssueCode.UNPROCESSED_PAGE_OR_REGION, page=page_number,
+                                           region=(int(rules[0]), int(region.top), int(rules[-1]), int(region.bottom)),
+                                           target=f"page:{page_number}:band:{region.top}",
+                                           detail={"reason": region.reason, "kind": "band"}))
+            else:
+                result.notes.append(f"page {page_number}: a band of {region.bottom - region.top} px between two tables "
+                                    f"(y {region.top}-{region.bottom}) was read as {region.rows_accepted} row(s)")
         read.extend(page_lines)
 
     result.buildings = settle_identity(read)
@@ -842,10 +1056,15 @@ def extract_design_sheet(pdf_path: Path, on_page=None) -> DesignSheetExtraction:
     # not lost either: it becomes an issue that locates its quantity cell.
     ordinal = 0
     for line in read:
-        if line.quantity:
+        if line.quantity and not line.catalog_uncertain:
             result.lines.append(line)
             continue
         ordinal += 1
+        if line.quantity and line.catalog_uncertain:
+            # Read whole, but its part number is not confirmed: a row for the
+            # engineer, not a line the BOQ takes on the strip's word.
+            result.issues.append(_uncertain_part_issue(line, ordinal))
+            continue
         issue = _dropped_row_issue(line, ordinal)
         if issue is not None:
             result.issues.append(issue)
@@ -931,7 +1150,8 @@ def _read_ruled_rows(
     row_rules: list[int],
     page_number: int,
     section: str | None = None,
-) -> list[ExtractedBoqLine]:
+    heading: str | None = None,
+) -> tuple[list[ExtractedBoqLine], str | None]:
     """Assemble rows from a table whose rows are ruled.
 
     The rules settle where an item starts and stops, which pairing text by
@@ -945,7 +1165,6 @@ def _read_ruled_rows(
     and "17" into "47" that the strip read got right.
     """
     lines: list[ExtractedBoqLine] = []
-    heading: str | None = None
 
     def take_heading(text: str) -> None:
         nonlocal heading, section
@@ -1010,10 +1229,11 @@ def _read_ruled_rows(
                 heading=heading,
                 catalog_raw=catalog_text or None,
                 quantity_confidence=quantity_conf if quantity_text else None,
+                catalog_confidence=catalog_conf if catalog_text else None,
             )
         )
 
-    return lines
+    return lines, heading
 
 
 def _is_count(text: str | None) -> bool:
@@ -1037,6 +1257,7 @@ def _read_quantity_banded_rows(
     bottom: int,
     page_number: int,
     section: str | None,
+    heading: str | None = None,
 ) -> list[ExtractedBoqLine] | None:
     """A second reading of an unruled table whose rows the pairing missed,
     or None when the pairing accounted for every quantity.
@@ -1077,12 +1298,27 @@ def _read_quantity_banded_rows(
     edges = [max(top, int(anchors[0] - pitch / 2))]
     edges += [int((a + b) / 2) for a, b in zip(anchors, anchors[1:])]
     edges.append(min(bottom, int(anchors[-1] + pitch / 2)))
-    banded = _read_ruled_rows(descriptions, quantities, catalogs, edges, page_number, section)
+    banded, _heading = _read_ruled_rows(descriptions, quantities, catalogs, edges, page_number, section, heading)
     if _orphan_quantities(quantities, banded):
         return None
     if sum(1 for line in banded if line.quantity) < sum(1 for line in paired if line.quantity):
         return None
     return banded
+
+
+# Ink in a band between two tables above which it is not blank: body text at
+# RENDER_DPI darkens 5-15 % of the description column; a blank band, nothing.
+UNREAD_BAND_INK = 0.02
+
+
+def _unread_band(dark: np.ndarray, top: int, bottom: int, x0: int, x1: int) -> bool:
+    """Whether the band between two tables carries ink (a row the extent
+    split around, or a totals row) rather than white space: at least a row
+    tall and darker than a blank band in the description column."""
+    if bottom - top < MIN_ROW_HEIGHT_PX or x1 <= x0:
+        return False
+    band = dark[top:bottom, x0:x1]
+    return band.size > 0 and float(band.mean()) >= UNREAD_BAND_INK
 
 
 def _read_page(
@@ -1092,28 +1328,52 @@ def _read_page(
     layout: _Layout,
     page_number: int,
     section: str | None = None,
-) -> tuple[list[ExtractedBoqLine], str | None]:
+    heading: str | None = None,
+) -> tuple[list[ExtractedBoqLine], str | None, str | None, list[RegionCoverage]]:
     """Every table on the page, in order, each under the section named
-    above it. Returns the lines and the section in force at the foot of the
-    page, which the next page's first table continues."""
+    above it. Returns the lines, the section and the group heading in force
+    at the foot of the page -- which the next page's first table continues
+    -- and the page's regions."""
     lines: list[ExtractedBoqLine] = []
     regions: list[RegionCoverage] = []
     previous_bottom = 0
     span = (rules[layout.quantity[0]], rules[layout.quantity[1]])
-    for top, bottom in _table_extents(dark, rules[layout.description[0]]):
-        named = _section_title(image, rules[0], rules[-1], max(previous_bottom, top - SECTION_BAND_PX), top)
-        if named:
-            section = named
-        table_lines = _read_table(image, dark, rules, layout, page_number, top, bottom, section)
+
+    def place(table_lines: list[ExtractedBoqLine]) -> int:
         for line in table_lines:
             line.quantity_span = span
             line.table_span = (rules[0], rules[-1])
         lines.extend(table_lines)
-        accepted = sum(1 for line in table_lines if line.quantity)
+        return sum(1 for line in table_lines if line.quantity)
+
+    for top, bottom in _table_extents(dark, rules[layout.description[0]]):
+        named = _section_title(image, rules[0], rules[-1], max(previous_bottom, top - SECTION_BAND_PX), top)
+        if named:
+            section = named
+            heading = None      # a new section: the heading in force was the last section's
+        elif previous_bottom and _unread_band(dark, previous_bottom, top, rules[layout.description[0]], rules[layout.description[1]]):
+            # M2 review 01/02 (R4, D): on EP-30784's FAS sheet, page 2, a
+            # scanner streak breaks the column rules across one item row and
+            # the table extent splits around it; the row (SIGA-OSHD-FCN, 525)
+            # was neither read nor reported. The band is read as rows of its
+            # own, under the heading in force; a band that gives no row is a
+            # skipped region the caller raises an issue for, so the sheet is
+            # not accepted as complete over it.
+            band_lines, heading = _read_table(image, dark, rules, layout, page_number, previous_bottom, top, section, heading)
+            if band_lines:
+                accepted = place(band_lines)
+                regions.append(RegionCoverage("band", previous_bottom, top, "processed", rows_accepted=accepted,
+                                              rows_dropped=len(band_lines) - accepted,
+                                              reason="inked band between two tables where the column rules break: read as rows"))
+            else:
+                regions.append(RegionCoverage("band", previous_bottom, top, "skipped",
+                                              reason="inked band between two tables where the column rules break: no row could be read"))
+        table_lines, heading = _read_table(image, dark, rules, layout, page_number, top, bottom, section, heading)
+        accepted = place(table_lines)
         regions.append(RegionCoverage("table", top, bottom, "processed", rows_accepted=accepted,
                                       rows_dropped=len(table_lines) - accepted))
         previous_bottom = bottom
-    return lines, section, regions
+    return lines, section, heading, regions
 
 
 def _read_table(
@@ -1125,7 +1385,14 @@ def _read_table(
     top: int,
     bottom: int,
     section: str | None,
-) -> list[ExtractedBoqLine]:
+    heading: str | None = None,
+) -> tuple[list[ExtractedBoqLine], str | None]:
+    """The table's lines and the group heading in force at its foot. `heading`
+    is the one in force above it: on a sheet whose table the scan splits (a
+    streak across the column rules) or that continues on the next page, the
+    rows after the split are under the same heading until the sheet names
+    another (M2 review 02, D: EP-30784 FAS's 26 Field Devices rows on page 2
+    came back with no group)."""
     def strip(bounds: tuple[int, int]) -> list[tuple[float, str, float]]:
         return _read_column(image, rules[bounds[0]], rules[bounds[1]], top, bottom)
 
@@ -1140,7 +1407,7 @@ def _read_table(
         dark, top, bottom, rules[layout.quantity[0]], rules[layout.quantity[1]]
     )
     if len(row_rules) >= MIN_ROW_RULES:
-        return _read_ruled_rows(descriptions, quantities, catalogs, row_rules, page_number, section)
+        return _read_ruled_rows(descriptions, quantities, catalogs, row_rules, page_number, section, heading)
 
     # The rule bounding the table starts level with its column-header row, so
     # the last line of the address block above can bleed in. When the sheet
@@ -1153,11 +1420,11 @@ def _read_table(
             break
 
     lines: list[ExtractedBoqLine] = []
-    heading: str | None = None
     verify_following = False
     trailing_heading: tuple[float, str] | None = None
     heading_before_trailing: str | None = None
     entry_section = section
+    entry_heading = heading
 
     def take_heading(text: str) -> None:
         nonlocal heading, section
@@ -1238,6 +1505,7 @@ def _read_table(
                 section=section,
                 heading=heading,
                 catalog_raw=catalog_text or None,
+                catalog_confidence=catalog_conf if catalog_text else None,
                 # A probed quantity was confirmed by independent passes already.
                 quantity_confidence=quantity_conf if quantity_text and probe_parse is None else None,
             )
@@ -1265,5 +1533,5 @@ def _read_table(
         ))
 
     banded = _read_quantity_banded_rows(descriptions[start:], quantities, catalogs, lines, top, bottom, page_number,
-                                        entry_section)
-    return banded if banded is not None else lines
+                                        entry_section, entry_heading)
+    return banded if banded is not None else lines, heading
